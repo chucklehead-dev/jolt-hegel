@@ -61,6 +61,14 @@
                               min-value
                               max-value)))))
 
+(defn octet
+  "Generate an unsigned wire octet as an integer from 0 through 255.
+
+  Convert it with `unchecked-byte` only at APIs that require Jolt's signed byte
+  representation."
+  []
+  (integer 0 255))
+
 (defn double
   "Generate a 64-bit floating-point value.
 
@@ -712,6 +720,33 @@
                       (recur result))
                     (recur (conj result value))))
                 result)))))))))
+
+(defn- split-by-sizes [payload sizes]
+  (loop [remaining (vec payload)
+         sizes (seq sizes)
+         chunks []]
+    (if (empty? remaining)
+      chunks
+      (let [requested (or (first sizes) (count remaining))
+            chunk-size (min (max 1 requested) (count remaining))]
+        (recur (subvec remaining chunk-size)
+               (next sizes)
+               (conj chunks (subvec remaining 0 chunk-size)))))))
+
+(defn chunkings
+  "Generate vector chunks whose concatenation equals payload.
+
+  Every chunk of a nonempty payload is nonempty. Shrinking removes planned
+  splits and moves retained chunk sizes toward one."
+  [payload]
+  (let [payload (vec payload)
+        size (count payload)]
+    (cond
+      (zero? size) (just [])
+      (= 1 size) (just [payload])
+      :else
+      (fmap #(split-by-sizes payload %)
+            (vector {:max-size (dec size)} (integer 1 size))))))
 
 (defn list
   "Generate a Clojure list. Accepts the same options as vector."

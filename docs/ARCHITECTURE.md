@@ -29,6 +29,7 @@ consumer test
 | `src/hegel/generator.clj` | Primitive, formatted, compositional, and collection generators |
 | `src/hegel/stateful.clj` | Engine-managed state machines and value pools |
 | `src/hegel/clojure_test.clj` | Serialized `clojure.test` report capture and publication |
+| `src/hegel/report.clj` | Counting and structured reporting for framework-less suites |
 | `src/hegel/ffi.clj` | Raw bindings, checked return codes, allocation ownership, and ABI compatibility |
 | `src/hegel/native.clj` | Cross-platform source-root, cache, and library path resolution |
 | `src/hegel/install.clj` | Verified native acquisition and local shim compilation |
@@ -40,7 +41,8 @@ consumer test
 2. The wrapper resolves a seed before starting the run, creates a context and
    settings object, and supplies the resolved seed to libhegel.
 3. The pull loop calls `hegel_next_test_case`, binds the resulting handle as the
-   current Jolt test case, runs the property, and marks the case complete.
+   current Jolt test case, runs the property, marks the case complete, and
+   retains bounded structured summaries of interesting outcomes.
 4. libhegel returns an aggregate result and reproduction blob for each failure.
 5. jolt-hegel snapshots failure data, frees engine-owned result objects, and
    replays every blob through `hegel_test_case_from_blob` with `final?` set.
@@ -103,6 +105,14 @@ Native paths are resolved from Jolt's current source roots instead of cached
 the checkout that first compiled a namespace. All subprocess paths are absolute,
 which also keeps native Windows builds working when launched from a WSL UNC
 checkout.
+
+Before fetching or building native artifacts, the installer parses the release
+version from the currently resolved `src/hegel/version.clj` and compares it with
+the loaded `hegel.version` var. A mismatch means Jolt reused stale AOT output;
+the installer fails with instructions to use a fresh `JOLT_CACHE_DIR` keyed by
+the pinned release SHA. Downloaded shims have a sibling `.release` marker; a
+missing or mismatched marker forces the current release's checksum to be fetched
+before a shared native-cache entry can be reused.
 
 The default cache is `.hegel-lib/` under the dependency root. Environment
 overrides support writable external caches, caller-provided libraries, release

@@ -31,7 +31,8 @@ From the consuming project, activate the alias which contains jolt-hegel when
 installing the verified native dependencies:
 
 ```bash
-joltc -A:test -m hegel.install
+JOLT_CACHE_DIR=.jolt-cache/jolt-hegel-<release-commit-sha> \
+  joltc -A:test -m hegel.install
 ```
 
 If jolt-hegel is instead in the top-level `:deps` map, omit `-A:test`. Replace
@@ -54,8 +55,14 @@ has no peeled line, so its plain line already names the commit.
 
 Use `HEGEL_CACHE_DIR` when the dependency checkout is not writable. If Jolt
 cannot write its default AOT cache, set `JOLT_CACHE_DIR` to a writable project
-or temporary directory. A local C compiler is needed only when the target has
-no published shim.
+or temporary directory. Key it by the pinned release SHA so another jolt-hegel
+release cannot reuse its compiled namespaces. The installer compares the loaded
+release with the resolved source checkout and fails before fetching a mismatched
+shim when it detects stale AOT output. Cached downloaded shims carry a
+jolt-hegel release marker; if the marker does not match, the installer fetches
+and verifies the current release's checksum instead of trusting the shared
+native cache. A local C compiler is needed only when the target has no published
+shim.
 
 ## clojure.test property template
 
@@ -82,30 +89,12 @@ to `clojure.test`. It returns the underlying `run-test!` result map.
 ```clojure
 (ns example.property-test
   (:require [hegel.core :as h]
-            [hegel.generator :as g]))
+            [hegel.generator :as g]
+            [hegel.report :as report]))
 
-(def failures (atom 0))
-
-(defn record-property! [description run]
-  (try
-    (let [result (run)]
-      (if (:passed? result)
-        (println "PASS" description)
-        (do
-          (swap! failures inc)
-          (println "FAIL" description
-                   (select-keys result
-                                [:status :seed :n-failures :failures
-                                 :flaky? :error]))))
-      result)
-    (catch Throwable error
-      ;; Setup, health-check, and unexpected engine errors still throw.
-      (swap! failures inc)
-      (println "ERROR" description (ex-message error) (ex-data error))
-      nil)))
-
-(defn check-integer-roundtrip! []
-  (record-property!
+(defn check-integer-roundtrip! [runner]
+  (report/run!
+   runner
    "integer text round-trip"
    (fn []
      (h/run-test!
@@ -120,11 +109,11 @@ to `clojure.test`. It returns the underlying `run-test!` result map.
                       {:hegel/origin "integer-roundtrip/text"})))))))))
 
 (defn -main [& _]
-  (reset! failures 0)
-  (check-integer-roundtrip!)
-  (println "Ran properties;" @failures "failures")
-  (flush)
-  (System/exit (if (zero? @failures) 0 1)))
+  (let [runner (report/counting-runner)]
+    (check-integer-roundtrip! runner)
+    (println "Ran properties;" (report/failure-count runner) "failures")
+    (flush)
+    (System/exit (if (report/passed? runner) 0 1))))
 ```
 
 The property body throws when an invariant fails. `run-test!` catches that
@@ -132,10 +121,10 @@ failure, shrinks it, replays the minimal counterexample, and returns normally
 with `:passed? false`. libhegel-detected outcome flakiness and non-deterministic
 generation also return a countable result with `:status :error`, `:flaky? true`,
 and an `:error` message. Setup errors, health-check failures, and unexpected
-engine errors still throw, so a framework-less suite that must continue should
-wrap each complete run as above. It can then exit nonzero after running the
-rest of the suite. A fail-fast runner may omit the outer `try` and throw after
-the first failed result.
+engine errors still throw. `hegel.report/run!` counts both failed results and
+thrown run errors, then continues the suite. `counting-runner` accepts a
+`:reporter` function for structured `:pass`, `:fail`, and `:error` events; its
+default reporter prints to stdout. It never calls `System/exit`.
 
 ## Generators
 
@@ -147,6 +136,7 @@ All generators return `(fn [test-case] value)` and are consumed with
 | `(g/integer)` | full signed 64-bit range |
 | `(g/integer min max)` | inclusive integer bounds |
 | `(g/integer {:min x :max y})` | either integer bound may be omitted |
+| `(g/octet)` | unsigned wire octet as an integer from 0 through 255 |
 | `(g/boolean)` | unbiased boolean |
 | `(g/boolean p)` | boolean with probability `p` of true |
 | `(g/double)` | double; NaN and infinities allowed |
@@ -171,12 +161,11 @@ All generators return `(fn [test-case] value)` and are consumed with
 | `(g/url-str)` | RFC 3986 HTTP/HTTPS URL string |
 | `(g/domain opts)` | RFC 1035 domain, optionally bounded by `:max-length` |
 
-There is no scalar `g/byte`. Use `(g/integer -128 127)` when the API under test
-takes a signed byte value, or `(g/integer 0 255)` when it takes an unsigned wire
-octet. Prefer the latter for wire formats, then call `(unchecked-byte octet)`
-only at an API boundary that requires Jolt's signed byte representation. In the
-other direction, `(bit-and signed-byte 0xff)` recovers the unsigned octet.
-Use `g/bytes` when the property needs an array.
+Use `(g/integer -128 127)` when the property is defined over signed byte values.
+For wire formats, prefer `g/octet` and call `(unchecked-byte octet)` only at an
+API boundary that requires Jolt's signed byte representation. In the other
+direction, `(bit-and signed-byte 0xff)` recovers the unsigned octet. Use
+`g/bytes` when the property needs an array.
 
 Date bounds are inclusive maps:
 
@@ -220,6 +209,7 @@ String options are:
 | `(g/optional generator)` | `nil` or a generated value |
 | `(g/tuple generators...)` | vector with one value per generator |
 | `(g/vector opts elements)` | vector; supports `:unique?` |
+| `(g/chunkings payload)` | vector chunks that concatenate to `payload` |
 | `(g/list opts elements)` | Clojure list |
 | `(g/set opts elements)` | set |
 | `(g/sorted-set opts elements)` | sorted set |
@@ -244,47 +234,22 @@ reusable generator constructor:
     pair))
 ```
 
-For stream tests, draw planned chunk sizes and split the payload until it is
-consumed. Positive size draws keep every chunk nonempty. Integer shrinking
-toward `1` keeps small writes prominent, while vector shrinking removes planned
-splits and simplifies the delivery shape:
+For stream tests, `g/chunkings` draws positive planned sizes and splits the
+payload until it is consumed. Integer shrinking toward `1` keeps small writes
+prominent, while vector shrinking removes planned splits:
 
 ```clojure
-(defn split-by-sizes [payload sizes]
-  (loop [remaining (vec payload)
-         sizes (seq sizes)
-         chunks []]
-    (if (empty? remaining)
-      chunks
-      (let [requested (or (first sizes) (count remaining))
-            chunk-size (min (max 1 requested) (count remaining))]
-        (recur (subvec remaining chunk-size)
-               (next sizes)
-               (conj chunks (subvec remaining 0 chunk-size)))))))
-
-(defn chunkings [payload]
-  (let [payload (vec payload)
-        size (count payload)]
-    (cond
-      (zero? size) (g/just [])
-      (= 1 size) (g/just [payload])
-      :else
-      (g/fmap #(split-by-sizes payload %)
-              (g/vector {:max-size (dec size)}
-                        (g/integer 1 size))))))
-
 (defn draw-delivery! []
-  (g/let [payload (g/vector {:max-size 4096} (g/integer 0 255))
-          chunks (chunkings payload)]
+  (g/let [payload (g/vector {:max-size 4096} (g/octet))
+          chunks (g/chunkings payload)]
     {:payload payload :chunks chunks}))
 ```
 
 For a nonempty payload every chunk is nonempty, `(vec (mapcat identity chunks))`
-equals `payload`, and an empty size vector represents a single write. If the
-planned sizes run out, the remaining payload becomes the final chunk; sizes
-larger than the remainder are clipped. Convert the chunk vectors to the
-transport's byte-array representation only at the I/O boundary. Call
-`draw-delivery!` from the property body, not at namespace load time.
+equals `payload`, and shrinking may simplify delivery to one write or one-byte
+chunks. Convert chunk vectors to the transport's byte-array representation only
+at the I/O boundary. Call `draw-delivery!` from the property body, not at
+namespace load time.
 
 ## Core controls
 
@@ -424,8 +389,23 @@ Common `run-test!` options:
 The result includes `:passed?`, `:status`, `:seed`, `:test-cases`,
 `:valid-test-cases`, `:invalid-test-cases`, `:overrun-test-cases`,
 `:interesting-test-cases`, `:n-failures`,
-`:failures`, `:final`, `:flaky?`, and `:error`. The seed is a string; use
-`(parse-long (:seed result))` when replaying.
+`:failures`, `:final`, `:observed-failures`, `:flaky?`, and `:error`. The seed
+is a string; use `(parse-long (:seed result))` when replaying.
+
+`:observed-failures` contains up to 16 stable origins seen during exploration.
+Each entry has `:origin`, `:count`, and structured `:first` and `:last` throwable
+summaries with `:type`, `:message`, and `:data`. These observations are not
+minimal counterexamples. They remain useful when final replay does not reproduce
+or run-level nondeterminism has no failure blob.
+
+```clojure
+(when (:flaky? result)
+  (doseq [{:keys [origin count first last]} (:observed-failures result)]
+    (prn :origin origin
+         :observations count
+         :first-data (:data first)
+         :last-data (:data last))))
+```
 
 There are two flakiness shapes. A shrunk failure that does not reproduce keeps
 its failure entry and sets `:flaky? true`. If libhegel detects different
@@ -451,10 +431,13 @@ dedicated test.
 ## Verification commands
 
 ```bash
-joltc -A:test -m hegel.install
-joltc -M:test
+JOLT_CACHE_DIR=.jolt-cache/jolt-hegel-<release-commit-sha> \
+  joltc -A:test -m hegel.install
+JOLT_CACHE_DIR=.jolt-cache/jolt-hegel-<release-commit-sha> \
+  joltc -M:test
 ```
 
 The first command assumes the dependency is in `:test :extra-deps`; omit the
 alias only for a top-level dependency. Use the consuming project's established
-test command when it differs from the jolt-hegel repository's own harness.
+test command when it differs from the jolt-hegel repository's own harness. The
+SHA-keyed cache is especially important after changing the dependency pin.

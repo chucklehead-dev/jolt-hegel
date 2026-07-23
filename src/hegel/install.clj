@@ -99,6 +99,43 @@
                :path path})))
   path)
 
+(defn- version-source-path []
+  (native/join-path
+   (native/join-path native/project-root-path "src")
+   "hegel/version.clj"))
+
+(defn- source-jolt-hegel-version []
+  (let [path (require-file! "jolt-hegel version source"
+                            (version-source-path))
+        match (re-find
+               #"(?s)\(def\s+jolt-hegel-version\s+\"[^\"]*\"\s+\"([^\"]+)\"\s*\)"
+               (slurp path))]
+    (or (second match)
+        (throw
+         (ex-info (str "could not read jolt-hegel version from " path)
+                  {:type ::invalid-version-source
+                   :path path})))))
+
+(defn verify-source-version!
+  "Fail when Jolt loaded a different release than the resolved source checkout."
+  []
+  (let [loaded version/jolt-hegel-version
+        source (source-jolt-hegel-version)]
+    (when-not (= loaded source)
+      (throw
+       (ex-info
+        (str "Jolt loaded jolt-hegel " loaded
+             " from a stale AOT cache, but the resolved source checkout is "
+             source ". Set JOLT_CACHE_DIR to a fresh directory keyed by the "
+             "pinned release SHA and rerun the install and test commands.")
+        {:type ::stale-aot-cache
+         :loaded-version loaded
+         :source-version source
+         :source-path (version-source-path)
+         :jolt-cache-directory
+         (native/nonblank-env "JOLT_CACHE_DIR")})))
+    source))
+
 (defn- delete-if-present! [path]
   (let [file (java.io.File. path)]
     (when (and (.exists file) (not (.delete file)))
@@ -262,6 +299,22 @@
       (expected-sha256 sidecar)
       (catch Throwable _ nil))))
 
+(defn- shim-release-marker-path []
+  (str native/shim-library-path ".release"))
+
+(defn- current-shim-release-cached? []
+  (let [marker (java.io.File. (shim-release-marker-path))]
+    (and (.isFile marker)
+         (= version/jolt-hegel-version
+            (str/trim (slurp marker))))))
+
+(defn- write-shim-release-marker! []
+  (let [path (shim-release-marker-path)]
+    ;; Jolt's atomic spit cannot replace a target on Windows.
+    (delete-if-present! path)
+    (spit path (str version/jolt-hegel-version "\n"))
+    (require-file! "shim release marker" path)))
+
 (defn- download-verified! [url target expected]
   (let [staged (str target ".download")]
     (download! url staged)
@@ -277,6 +330,7 @@
 (defn fetch-libhegel!
   "Fetch and verify the libhegel release pinned by hegel.version."
   []
+  (verify-source-version!)
   (if (native/nonblank-env "HEGEL_LIBHEGEL_LIBRARY")
     (do
       (require-file! "HEGEL_LIBHEGEL_LIBRARY" native/library-path)
@@ -320,6 +374,7 @@
 (defn fetch-shim!
   "Fetch and verify this jolt-hegel release's prebuilt aggregate shim."
   []
+  (verify-source-version!)
   (if (native/nonblank-env "HEGEL_SHIM_LIBRARY")
     (do
       (require-file! "HEGEL_SHIM_LIBRARY" native/shim-library-path)
@@ -329,7 +384,8 @@
     (let [asset (shim-asset-name)
           base (shim-release-base)
           sidecar (str native/shim-library-path ".sha256")
-          cached-expected (cached-sha256 sidecar)]
+          cached-expected (when (current-shim-release-cached?)
+                            (cached-sha256 sidecar))]
       (ensure-directory! native/cache-directory-path)
       (if (and cached-expected
                (checksum-matches? native/shim-library-path cached-expected))
@@ -337,15 +393,19 @@
           (println "hegel shim: already verified" native/shim-library-path)
           native/shim-library-path)
         (do
+          (delete-if-present! (shim-release-marker-path))
           (download! (str base "/" asset ".sha256") sidecar)
           (let [expected (expected-sha256 sidecar)]
-            (if (checksum-matches? native/shim-library-path expected)
-              (do
-                (println "hegel shim: already verified"
-                         native/shim-library-path "(sha256" expected ")")
-                native/shim-library-path)
-              (download-verified! (str base "/" asset)
-                                  native/shim-library-path expected))))))))
+            (let [path
+                  (if (checksum-matches? native/shim-library-path expected)
+                    (do
+                      (println "hegel shim: already verified"
+                               native/shim-library-path "(sha256" expected ")")
+                      native/shim-library-path)
+                    (download-verified! (str base "/" asset)
+                                        native/shim-library-path expected))]
+              (write-shim-release-marker!)
+              path)))))))
 
 (defn- compiler-platform []
   (case (:os (native/platform))
@@ -369,6 +429,7 @@
 (defn build-shim!
   "Compile the shim for the current target, normally as a download fallback."
   []
+  (verify-source-version!)
   (let [{:keys [compile-flags link-flags]} (compiler-platform)
         compiler (or (native/nonblank-env "CC") "gcc")
         output native/shim-library-path
@@ -396,12 +457,14 @@
                    :stderr err}))))
     (require-file! "compiled Hegel shim" output)
     (delete-if-present! (str output ".sha256"))
+    (delete-if-present! (shim-release-marker-path))
     (println "hegel shim: built" output)
     output))
 
 (defn setup!
   "Install libhegel and the shim, building the shim if no release exists yet."
   []
+  (verify-source-version!)
   (let [libhegel (fetch-libhegel!)
         shim (try
                (fetch-shim!)
@@ -416,6 +479,7 @@
      :shim shim}))
 
 (defn- print-paths! []
+  (verify-source-version!)
   (println "project-root:" native/project-root-path)
   (println "cache-directory:" native/cache-directory-path)
   (println "libhegel:" native/library-path)
@@ -423,13 +487,13 @@
   nil)
 
 (defn- print-version! []
-  (println version/jolt-hegel-version)
+  (println (verify-source-version!))
   nil)
 
 (defn- usage! []
   (println
    (str "Usage: joltc [-A:alias] -m hegel.install "
-        "[setup|fetch-libhegel|fetch-shim|build-shim|paths|version]"))
+        "[setup|fetch-libhegel|fetch-shim|build-shim|verify-source|paths|version]"))
   nil)
 
 (defn -main [& arguments]
@@ -438,6 +502,7 @@
     "fetch-libhegel" (fetch-libhegel!)
     "fetch-shim" (fetch-shim!)
     "build-shim" (build-shim!)
+    "verify-source" (println (verify-source-version!))
     "paths" (print-paths!)
     "version" (print-version!)
     (do
