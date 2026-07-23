@@ -302,6 +302,13 @@
                     {:type ::unknown-run-status
                      :status native}))))
 
+(defn- nondeterministic-run-error? [message]
+  (and (string? message)
+       (or (str/starts-with? message "Flaky test detected:")
+           (str/starts-with?
+            message
+            "Your data generation is non-deterministic:"))))
+
 (defn- public-final [replayed]
   (mapv #(select-keys % [:status :value :origin :exception]) replayed))
 
@@ -318,7 +325,10 @@
   :phases, and :suppress-health-checks. The C ABI does not expose an
   automatically chosen seed, so this wrapper always chooses and supplies one.
   When :derandomize? is true and no seed was supplied, it derives a stable seed
-  from :database-key/:name."
+  from :database-key/:name. Property verdicts and libhegel-detected
+  nondeterminism return result maps; the latter has :status :error, :flaky?
+  true, and an :error explanation. Setup, health-check, and unexpected engine
+  errors throw."
   [opts case-fn]
   (hffi/ensure-compatible-version!)
   (let [opts (assoc opts :seed (resolve-seed opts))
@@ -333,34 +343,54 @@
                                        case-fn)
                     result (hffi/run-result! ctx run)]
                 (try
-                  (let [status (run-status (hffi/run-result-status! ctx result))]
-                    (when (= :error status)
-                      (throw
-                       (ex-info
-                        (str "Hegel run error: "
-                             (or (hffi/run-result-error! ctx result)
-                                 "unknown error"))
-                        {:type ::run-error
-                         :seed (str (:seed opts))})))
-                    (let [failures (if (= :failed status)
-                                     (snapshot-failures! ctx result)
-                                     [])
-                          replayed (mapv #(replay-failure!
-                                          ctx settings
-                                          (or (:verbosity opts) :normal)
-                                          case-fn %)
-                                         failures)]
+                  (let [status (run-status (hffi/run-result-status! ctx result))
+                        run-error (when (= :error status)
+                                    (or (hffi/run-result-error! ctx result)
+                                        "unknown error"))]
+                    (if (nondeterministic-run-error? run-error)
+                      ;; libhegel reports nondeterminism as a run-level error,
+                      ;; before a counterexample is available to replay. Keep
+                      ;; that distinct from replay-time flakiness while still
+                      ;; returning data that a counting runner can record.
                       (merge
                        counts
-                       {:passed? (= :passed status)
-                        :status status
+                       {:passed? false
+                        :status :error
                         :seed (str (:seed opts))
-                        :flaky? (boolean (some (comp not :reproduced?) replayed))
+                        :flaky? true
                         :health-check-failure? nil
-                        :error nil
-                        :n-failures (count failures)
-                        :failures replayed
-                        :final (public-final replayed)})))
+                        :error run-error
+                        :n-failures 0
+                        :failures []
+                        :final []})
+                      (do
+                        (when run-error
+                          (throw
+                           (ex-info
+                            (str "Hegel run error: " run-error)
+                            {:type ::run-error
+                             :seed (str (:seed opts))})))
+                        (let [failures (if (= :failed status)
+                                         (snapshot-failures! ctx result)
+                                         [])
+                              replayed (mapv #(replay-failure!
+                                              ctx settings
+                                              (or (:verbosity opts) :normal)
+                                              case-fn %)
+                                             failures)]
+                          (merge
+                           counts
+                           {:passed? (= :passed status)
+                            :status status
+                            :seed (str (:seed opts))
+                            :flaky?
+                            (boolean
+                             (some (comp not :reproduced?) replayed))
+                            :health-check-failure? nil
+                            :error nil
+                            :n-failures (count failures)
+                            :failures replayed
+                            :final (public-final replayed)})))))
                   (finally
                     (hffi/run-result-free! ctx result))))
               (finally

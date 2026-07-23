@@ -33,21 +33,28 @@ PowerShell and does not require OpenSSL.
 
 ## Installation
 
-Add the release commit as a SHA-pinned Git dependency:
+Add the release commit as a SHA-pinned Git dependency. A test-only dependency
+normally belongs in the test alias:
 
 ```clojure
-{:deps
- {io.github.chucklehead-dev/jolt-hegel
-  {:git/url "https://github.com/chucklehead-dev/jolt-hegel.git"
-   :git/sha "<release-commit-sha>"}}}
+{:aliases
+ {:test
+  {:extra-deps
+   {io.github.chucklehead-dev/jolt-hegel
+    {:git/url "https://github.com/chucklehead-dev/jolt-hegel.git"
+     :git/sha "<release-commit-sha>"}}}}}}
 ```
 
 Use the full commit SHA associated with the release tag. Then install the pinned
 libhegel binary and target-specific shim from the consuming project:
 
 ```bash
-joltc -m hegel.install
+joltc -A:test -m hegel.install
 ```
+
+Replace `test` with the alias containing jolt-hegel. If the dependency is in
+top-level `:deps`, omit `-A:test`; without the dependency's alias, Jolt cannot
+resolve the installer namespace.
 
 Downloads are verified with SHA-256 and cached with the dependency. If the
 release has no prebuilt shim for the target, the installer builds
@@ -130,6 +137,15 @@ property body so every generated case and final replay starts fresh. Check a
 rule's preconditions before mutation; a false precondition or failed
 `h/assume!` skips that attempted rule without running invariants.
 
+An expensive external service may instead wrap the whole property run when
+each case opens a fresh connection or session and re-establishes equivalent
+observable state. The service must remain alive through shrinking and final
+replay. Use deterministic protocol signals, never sleeps. For a stream request,
+half-close the write side and perform time- and byte-bounded reads through
+actual EOF. Close the per-case connection in `finally`. If a failing case
+aborts before half-close, connection close is the abort signal and the server
+must still isolate the next fresh connection.
+
 Value pools let later rules draw handles or resources created by earlier rules:
 
 ```clojure
@@ -153,27 +169,53 @@ treat `:passed? false` as a test failure.
   (:require [hegel.core :as h]
             [hegel.generator :as g]))
 
-(defn assert-passed! [result]
-  (when-not (:passed? result)
-    (throw
-     (ex-info "property failed"
-              (select-keys result
-                           [:seed :n-failures :failures :flaky?]))))
-  result)
+(def failures (atom 0))
+
+(defn record-property! [description run]
+  (try
+    (let [result (run)]
+      (if (:passed? result)
+        (println "PASS" description)
+        (do
+          (swap! failures inc)
+          (println "FAIL" description
+                   (select-keys result
+                                [:status :seed :n-failures :failures
+                                 :flaky? :error]))))
+      result)
+    (catch Throwable error
+      (swap! failures inc)
+      (println "ERROR" description (ex-message error) (ex-data error))
+      nil)))
 
 (defn integer-roundtrip! []
-  (assert-passed!
-   (h/run-test!
-    {:test-cases 200
-     :database ""
-     :verbosity :quiet}
-    (fn [_]
-      (let [n (h/draw! (g/integer))]
-        (when-not (= n (parse-long (str n)))
-          (throw
-           (ex-info "integer text round-trip failed"
-                    {:hegel/origin "integer-roundtrip/text"}))))))))
+  (record-property!
+   "integer text round-trip"
+   (fn []
+     (h/run-test!
+      {:test-cases 200
+       :database ""
+       :verbosity :quiet}
+      (fn [_]
+        (let [n (h/draw! (g/integer))]
+          (when-not (= n (parse-long (str n)))
+            (throw
+             (ex-info "integer text round-trip failed"
+                      {:hegel/origin "integer-roundtrip/text"})))))))))
+
+(defn -main [& _]
+  (reset! failures 0)
+  (integer-roundtrip!)
+  (println "Ran properties;" @failures "failures")
+  (flush)
+  (System/exit (if (zero? @failures) 0 1)))
 ```
+
+Ordinary property failures return `:passed? false`. Engine-detected outcome or
+generator nondeterminism returns `:status :error`, `:flaky? true`, and an
+`:error` explanation. Setup errors, health-check failures, and unexpected
+engine errors still throw, so the outer `try` lets a counting runner finish the
+suite and exit nonzero once.
 
 Failure origins must identify the property or assertion site and must not
 contain generated values. Stable origins let Hegel group equivalent failures
@@ -188,6 +230,12 @@ pass it back as a number:
               :database ""}
              property-fn)
 ```
+
+One `run-test!` call executes cases and adaptive shrinking sequentially; there
+is no worker option. `hegel.clojure-test/with` also serializes complete runs
+because Jolt requires process-global report capture. Concurrent independent
+`run-test!` calls are not covered by jolt-hegel's shim/engine safety tests and
+should be treated as unsupported.
 
 ## Generators
 
@@ -208,6 +256,10 @@ Generators are passed to `hegel.core/draw!`.
 | `(g/character opts)` | one-code-point string |
 | `(g/regex-str pattern opts)` | regex-generated string |
 | `(g/email)`, `(g/url-str)`, `(g/domain opts)` | formatted string |
+
+There is no scalar `g/byte`. Draw `(g/integer 0 255)` for a wire octet and use
+`unchecked-byte` only at signed-byte API boundaries; draw
+`(g/integer -128 127)` when the property itself is defined over signed bytes.
 
 Date bounds are maps such as
 `{:year 2024 :month 1 :day 1}`. Time bounds use
@@ -256,8 +308,9 @@ makes a property ineffective.
 
 ## Native configuration
 
-Most users only need `joltc -m hegel.install`. These environment
-variables are available for custom installations:
+Most users only need `joltc -A:test -m hegel.install`, with the dependency's
+actual alias substituted for `test`. These environment variables are available
+for custom installations:
 
 | Variable | Purpose |
 | --- | --- |
@@ -285,7 +338,7 @@ $skill-installer install https://github.com/chucklehead-dev/jolt-hegel/tree/main
 joltc -m hegel.install fetch-libhegel
 joltc -m hegel.install build-shim
 joltc -M:test
-(cd test/consumer && joltc -m consumer.smoke)
+(cd test/consumer && joltc -A:test -m consumer.smoke)
 ```
 
 Implementation details are in

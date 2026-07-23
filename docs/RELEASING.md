@@ -35,7 +35,7 @@ For every release:
    Linux, Windows, and macOS jobs.
 3. Confirm `hegel.version/jolt-hegel-version` matches the intended tag without
    the `v` prefix.
-4. Create and push that tag, for example `v0.1.0`.
+4. Create and push that tag, for example `v0.1.1`.
 5. Wait for the Release workflow. It:
    - builds and tests a shim on each supported runner;
    - creates SHA-256 sidecars;
@@ -45,7 +45,7 @@ For every release:
 6. Resolve the tag's full commit SHA and use it in consumer `deps.edn` files:
 
    ```bash
-   git rev-list -n 1 v0.1.0
+   git rev-list -n 1 v0.1.1
    ```
 
 The release assets are:

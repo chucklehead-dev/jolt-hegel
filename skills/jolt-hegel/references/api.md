@@ -1,27 +1,61 @@
 # jolt-hegel API
 
+## Contents
+
+- [Install](#install)
+- [`clojure.test` property template](#clojuretest-property-template)
+- [Custom-runner property template](#custom-runner-property-template)
+- [Generators](#generators)
+- [Combinators and collections](#combinators-and-collections)
+- [Core controls](#core-controls)
+- [Stateful testing](#stateful-testing)
+- [Run options](#run-options)
+- [Concurrency](#concurrency)
+- [Verification commands](#verification-commands)
+
 ## Install
 
-Require Jolt 0.4.15 and add the public release by full commit SHA:
+Require Jolt 0.4.15 and add the public release by full commit SHA. A test-only
+dependency normally belongs in the project's test alias:
 
 ```clojure
-{:deps
- {io.github.chucklehead-dev/jolt-hegel
-  {:git/url "https://github.com/chucklehead-dev/jolt-hegel.git"
-   :git/sha "<release-commit-sha>"}}}
+{:aliases
+ {:test
+  {:extra-deps
+   {io.github.chucklehead-dev/jolt-hegel
+    {:git/url "https://github.com/chucklehead-dev/jolt-hegel.git"
+     :git/sha "<release-commit-sha>"}}}}}}
 ```
 
-From the consuming project, install verified native dependencies:
+From the consuming project, activate the alias which contains jolt-hegel when
+installing the verified native dependencies:
 
 ```bash
-joltc -m hegel.install
+joltc -A:test -m hegel.install
 ```
 
+If jolt-hegel is instead in the top-level `:deps` map, omit `-A:test`. Replace
+`test` with the consuming project's actual alias name; otherwise the installer
+namespace is not on Jolt's source roots.
+
 Replace `<release-commit-sha>` with the full commit behind the current release
-tag; never copy the placeholder into a project. Use `HEGEL_CACHE_DIR` when the
-dependency checkout is not writable. If Jolt cannot write its default AOT cache,
-set `JOLT_CACHE_DIR` to a writable project or temporary directory. A local C
-compiler is needed only when the target has no published shim.
+tag; never copy the placeholder into a project. Without a local checkout, list
+and resolve the remote tags with:
+
+```bash
+git ls-remote --tags --sort=-v:refname \
+  https://github.com/chucklehead-dev/jolt-hegel.git 'v*'
+```
+
+The highest version tag is listed first; confirm that it is the stable release
+you intend to pin. For an annotated tag, use the full SHA on its `^{}` line (the
+peeled commit), not the tag-object SHA on the plain tag line. A lightweight tag
+has no peeled line, so its plain line already names the commit.
+
+Use `HEGEL_CACHE_DIR` when the dependency checkout is not writable. If Jolt
+cannot write its default AOT cache, set `JOLT_CACHE_DIR` to a writable project
+or temporary directory. A local C compiler is needed only when the target has
+no published shim.
 
 ## clojure.test property template
 
@@ -50,31 +84,58 @@ to `clojure.test`. It returns the underlying `run-test!` result map.
   (:require [hegel.core :as h]
             [hegel.generator :as g]))
 
-(defn assert-passed! [result]
-  (when-not (:passed? result)
-    (throw
-     (ex-info "property failed"
-              (select-keys result
-                           [:seed :n-failures :failures :flaky?]))))
-  result)
+(def failures (atom 0))
+
+(defn record-property! [description run]
+  (try
+    (let [result (run)]
+      (if (:passed? result)
+        (println "PASS" description)
+        (do
+          (swap! failures inc)
+          (println "FAIL" description
+                   (select-keys result
+                                [:status :seed :n-failures :failures
+                                 :flaky? :error]))))
+      result)
+    (catch Throwable error
+      ;; Setup, health-check, and unexpected engine errors still throw.
+      (swap! failures inc)
+      (println "ERROR" description (ex-message error) (ex-data error))
+      nil)))
 
 (defn check-integer-roundtrip! []
-  (assert-passed!
-   (h/run-test!
-    {:test-cases 200
-     :database ""
-     :verbosity :quiet}
-    (fn [_]
-      (let [n (h/draw! (g/integer))]
-        (when-not (= n (parse-long (str n)))
-          (throw
-           (ex-info "integer text round-trip failed"
-                    {:hegel/origin "integer-roundtrip/text"}))))))))
+  (record-property!
+   "integer text round-trip"
+   (fn []
+     (h/run-test!
+      {:test-cases 200
+       :database ""
+       :verbosity :quiet}
+      (fn [_]
+        (let [n (h/draw! (g/integer))]
+          (when-not (= n (parse-long (str n)))
+            (throw
+             (ex-info "integer text round-trip failed"
+                      {:hegel/origin "integer-roundtrip/text"})))))))))
+
+(defn -main [& _]
+  (reset! failures 0)
+  (check-integer-roundtrip!)
+  (println "Ran properties;" @failures "failures")
+  (flush)
+  (System/exit (if (zero? @failures) 0 1)))
 ```
 
-Property failures are thrown exceptions. `run-test!` returns normally
-with `:passed? false` after shrinking and replaying the minimal
-counterexample.
+The property body throws when an invariant fails. `run-test!` catches that
+failure, shrinks it, replays the minimal counterexample, and returns normally
+with `:passed? false`. libhegel-detected outcome flakiness and non-deterministic
+generation also return a countable result with `:status :error`, `:flaky? true`,
+and an `:error` message. Setup errors, health-check failures, and unexpected
+engine errors still throw, so a framework-less suite that must continue should
+wrap each complete run as above. It can then exit nonzero after running the
+rest of the suite. A fail-fast runner may omit the outer `try` and throw after
+the first failed result.
 
 ## Generators
 
@@ -109,6 +170,13 @@ All generators return `(fn [test-case] value)` and are consumed with
 | `(g/email)` | RFC 5321/5322 email-address string |
 | `(g/url-str)` | RFC 3986 HTTP/HTTPS URL string |
 | `(g/domain opts)` | RFC 1035 domain, optionally bounded by `:max-length` |
+
+There is no scalar `g/byte`. Use `(g/integer -128 127)` when the API under test
+takes a signed byte value, or `(g/integer 0 255)` when it takes an unsigned wire
+octet. Prefer the latter for wire formats, then call `(unchecked-byte octet)`
+only at an API boundary that requires Jolt's signed byte representation. In the
+other direction, `(bit-and signed-byte 0xff)` recovers the unsigned octet.
+Use `g/bytes` when the property needs an array.
 
 Date bounds are inclusive maps:
 
@@ -164,14 +232,59 @@ an options map use engine-managed unbounded sizing. Duplicate set elements, map
 keys, and unique-vector elements are rejected and redrawn.
 
 `g/let` draws tagged generator right-hand sides and leaves ordinary expressions
-alone:
+alone. It must execute inside an active `run-test!` or
+`hegel.clojure-test/with` property; it returns its body value and is not a
+reusable generator constructor:
 
 ```clojure
-(g/let [size (g/integer 1 10)
-        xs (g/vector {:size size} (g/boolean))
-        pair [size xs]]
-  pair)
+(defn draw-sized-booleans! []
+  (g/let [size (g/integer 1 10)
+          xs (g/vector {:size size} (g/boolean))
+          pair [size xs]]
+    pair))
 ```
+
+For stream tests, draw planned chunk sizes and split the payload until it is
+consumed. Positive size draws keep every chunk nonempty. Integer shrinking
+toward `1` keeps small writes prominent, while vector shrinking removes planned
+splits and simplifies the delivery shape:
+
+```clojure
+(defn split-by-sizes [payload sizes]
+  (loop [remaining (vec payload)
+         sizes (seq sizes)
+         chunks []]
+    (if (empty? remaining)
+      chunks
+      (let [requested (or (first sizes) (count remaining))
+            chunk-size (min (max 1 requested) (count remaining))]
+        (recur (subvec remaining chunk-size)
+               (next sizes)
+               (conj chunks (subvec remaining 0 chunk-size)))))))
+
+(defn chunkings [payload]
+  (let [payload (vec payload)
+        size (count payload)]
+    (cond
+      (zero? size) (g/just [])
+      (= 1 size) (g/just [payload])
+      :else
+      (g/fmap #(split-by-sizes payload %)
+              (g/vector {:max-size (dec size)}
+                        (g/integer 1 size))))))
+
+(defn draw-delivery! []
+  (g/let [payload (g/vector {:max-size 4096} (g/integer 0 255))
+          chunks (chunkings payload)]
+    {:payload payload :chunks chunks}))
+```
+
+For a nonempty payload every chunk is nonempty, `(vec (mapcat identity chunks))`
+equals `payload`, and an empty size vector represents a single write. If the
+planned sizes run out, the remaining payload becomes the final chunk; sizes
+larger than the remainder are clipped. Convert the chunk vectors to the
+transport's byte-array representation only at the I/O boundary. Call
+`draw-delivery!` from the property body, not at namespace load time.
 
 ## Core controls
 
@@ -215,9 +328,64 @@ rule.
 
 libhegel owns sequence length, rule choices, shrinking, and per-case swarm
 selection. Keep rule and invariant names and rule order stable across generated
-cases and final replay. Construct mutable systems under test inside the
-property body so every case is fresh. Check all preconditions before mutating a
-system because an assumption cannot undo side effects.
+cases and final replay. Construct fresh per-case mutable state inside the
+property body. Check all preconditions before mutating a system because an
+assumption cannot undo side effects.
+
+An expensive external service such as a TCP server may be shared by the whole
+property run, provided each property invocation creates a fresh connection and
+starts from equivalent observable server state:
+
+```clojure
+(defn check-server! [opts]
+  (let [server (start-ready-server!)]
+    (try
+      (h/run-test!
+       opts
+       (fn [_]
+         (let [connection (connect! server)]
+           (try
+             ;; If reset is in-protocol, wait for its acknowledgement before
+             ;; beginning generated traffic.
+             (reset-case-state! connection)
+             (hs/run!
+              {:initial-state {:model (initial-model)
+                               :connection connection}
+               :rules protocol-rules
+               :invariants protocol-invariants})
+             ;; Terminate the protocol deterministically. For a stream request,
+             ;; half-close writes and drain the bounded response to EOF.
+             (half-close-write! connection)
+             (read-response-to-eof! connection
+                                    {:timeout-ms 1000
+                                     :max-bytes 1048576})
+             (finally
+               (close-connection! connection))))))
+      (finally
+        (stop-server! server)))))
+```
+
+The server must stay alive around the entire `run-test!` call because shrinking
+and the automatic final replay invoke the property body again. Put the
+connection in the state machine's initial state so one case's operation
+sequence shares it, but never reuse that connection across cases. Cleanup must
+run for passing, rejected, failing, and final-replay cases. If the server cannot
+reset or isolate state per case, do not share it: the shrink result would depend
+on earlier candidates. For manual replay, start an equivalent server and call
+the same wrapper with `(assoc opts :seed (parse-long (:seed result)))`.
+Use protocol completion signals rather than sleeps: for request streams, a
+write-side half-close followed by bounded reads through response EOF gives each
+case a deterministic end. Bound both elapsed time and response bytes, and fail
+rather than accepting a timeout, size overrun, or truncated response as EOF. If
+a rule or invariant throws before normal completion, `finally` closes the
+connection as the abort signal; the server must still restore equivalent state
+for the next fresh connection. Let connection, startup, timeout, and reset
+failures surface; they are not reasons to call `h/assume!`. An in-protocol reset
+must finish, including its acknowledgement, before generated traffic begins.
+Shrink replay against the live service is sound only while every invocation
+re-establishes equivalent case state. If the result has `:flaky? true`, treat
+the minimized counterexample as untrusted and fix resource isolation or timing
+first.
 
 `hs/run!` returns the final state. On failure, the final exception data includes
 `:hegel.stateful/trace`, and the stable origin names the failing rule or
@@ -256,15 +424,37 @@ Common `run-test!` options:
 The result includes `:passed?`, `:status`, `:seed`, `:test-cases`,
 `:valid-test-cases`, `:invalid-test-cases`, `:overrun-test-cases`,
 `:interesting-test-cases`, `:n-failures`,
-`:failures`, `:final`, and `:flaky?`. The seed
-is a string; use `(parse-long (:seed result))` when replaying.
+`:failures`, `:final`, `:flaky?`, and `:error`. The seed is a string; use
+`(parse-long (:seed result))` when replaying.
+
+There are two flakiness shapes. A shrunk failure that does not reproduce keeps
+its failure entry and sets `:flaky? true`. If libhegel detects different
+outcomes or different generation for the same choice prefix, the result has
+`:status :error`, `:passed? false`, `:flaky? true`, and the explanation in
+`:error`; it has no counterexample to replay. Other run-level errors, including
+health-check failures, still throw `:hegel.core/run-error`.
+
+## Concurrency
+
+One `run-test!` call is sequential. The public options have no worker setting,
+and libhegel's generation and adaptive shrinking depend on the preceding case
+history. Do not thread cases within a run.
+
+`hegel.clojure-test/with` also serializes complete property runs with a global
+report lock. On Jolt, `clojure.test/report` is not dynamically bindable, so the
+integration must use process-global `with-redefs` while it captures exploration
+reports. Independent concurrent `run-test!` calls do not use that report lock,
+but concurrent shim/engine safety has not been verified by jolt-hegel's test
+suite. Treat concurrent direct runs as unsupported until that contract has a
+dedicated test.
 
 ## Verification commands
 
 ```bash
-joltc -m hegel.install
+joltc -A:test -m hegel.install
 joltc -M:test
 ```
 
-Use the consuming project's established test command when it differs from the
-jolt-hegel repository's own harness.
+The first command assumes the dependency is in `:test :extra-deps`; omit the
+alias only for a top-level dependency. Use the consuming project's established
+test command when it differs from the jolt-hegel repository's own harness.

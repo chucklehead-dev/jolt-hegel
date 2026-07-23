@@ -44,7 +44,8 @@
              (ex-info
               (str "could not load the Hegel date/time shim from "
                    (pr-str shim-library-path)
-                   "; run `joltc -m hegel.install` or set "
+                   "; run `joltc -A:<dependency-alias> -m hegel.install` "
+                   "(or omit the alias for a top-level dependency), or set "
                    "HEGEL_SHIM_LIBRARY")
               {:type ::shim-load-failed
                :library shim-library-path

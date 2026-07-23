@@ -82,11 +82,16 @@ Several boundary rules are load-bearing:
 ## Native installation and paths
 
 Git dependencies do not contribute aliases or tasks to a consuming project, so
-installation is a public namespace entry point:
+installation is a public namespace entry point. The consuming project must
+activate the alias which contains the dependency:
 
 ```bash
-joltc -m hegel.install
+joltc -A:test -m hegel.install
 ```
+
+`test` is only the conventional alias name. A top-level dependency needs no
+`-A` option, but an alias-scoped dependency is not on the source roots until its
+own alias is active.
 
 The installer downloads the version-pinned libhegel asset for the current target
 and verifies it against a SHA-256 embedded in source. It then downloads the
@@ -111,6 +116,16 @@ Jolt's `clojure.test/report` is not dynamic, so report capture uses
 without publishing intermediate assertion events. A successful property emits
 one pass. A failed property publishes only the final replay's minimal assertion
 events, with a synthetic failure as a fallback when replay produced no report.
+Every published failure includes the resolved seed. Exception diagnostics use
+Jolt's throwable map when `ex-message` is blank, preserving native condition
+text and original `ex-data` without exposing only a generic wrapper message.
+
+`run-test!` turns libhegel's two explicit nondeterminism errors into failed
+result maps with `:status :error`, `:flaky? true`, and the native explanation in
+`:error`. Other run-level errors still throw. One native run is sequential, and
+the `clojure.test` report lock serializes complete `with` runs. Independent
+concurrent direct runs remain unsupported until shim and engine safety are
+covered by a dedicated integration test.
 
 ## Release boundary
 

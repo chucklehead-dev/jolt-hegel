@@ -1,8 +1,9 @@
 (ns hegel.install
   "Install pinned native dependencies for a jolt-hegel Git dependency.
 
-  This namespace lives on the normal source path so consumers can run
-  `joltc -m hegel.install` without inheriting this repository's aliases."
+  This namespace lives on the normal source path. Consumers activate whichever
+  alias contains the dependency, for example
+  `joltc -A:test -m hegel.install`; repository aliases are not inherited."
   (:require [clojure.java.shell :as shell]
             [clojure.string :as str]
             [hegel.native :as native]
@@ -426,7 +427,9 @@
   nil)
 
 (defn- usage! []
-  (println "Usage: joltc -m hegel.install [setup|fetch-libhegel|fetch-shim|build-shim|paths|version]")
+  (println
+   (str "Usage: joltc [-A:alias] -m hegel.install "
+        "[setup|fetch-libhegel|fetch-shim|build-shim|paths|version]"))
   nil)
 
 (defn -main [& arguments]
