@@ -121,6 +121,68 @@
     (check "reproduced failure is not flaky"
            (false? (:flaky? result)))))
 
+(defn engine-nondeterminism []
+  (let [calls (atom 0)
+        result
+        (h/run-test!
+         {:test-cases 1
+          :seed 17
+          :database ""
+          :verbosity :quiet
+          :suppress-health-checks [:large-initial-test-case]}
+         (fn [_]
+           (h/draw! (g/integer 0 10))
+           (when (= 1 (swap! calls inc))
+             (throw
+              (ex-info "transient property failure"
+                       {:hegel/origin
+                        "hegel.test-runner:engine-outcome-flakiness"})))))]
+    (check "engine outcome flakiness returns a countable failure result"
+           (and (not (:passed? result))
+                (= :error (:status result))
+                (= "17" (:seed result))
+                (true? (:flaky? result))
+                (str/starts-with? (:error result) "Flaky test detected:")
+                (zero? (:n-failures result))
+                (empty? (:failures result))
+                (empty? (:final result)))))
+  (let [calls (atom 0)
+        result
+        (h/run-test!
+         {:test-cases 1
+          :seed 19
+          :database ""
+          :verbosity :quiet
+          :suppress-health-checks [:large-initial-test-case]}
+         (fn [_]
+           (let [call (swap! calls inc)]
+             (h/draw! (g/integer 0 (+ 10 call)))
+             (throw
+              (ex-info "stable failure with unstable generator"
+                       {:hegel/origin
+                        "hegel.test-runner:generator-nondeterminism"})))))]
+    (check "non-deterministic generation returns a countable failure result"
+           (and (not (:passed? result))
+                (= :error (:status result))
+                (= "19" (:seed result))
+                (true? (:flaky? result))
+                (str/starts-with?
+                 (:error result)
+                 "Your data generation is non-deterministic:")
+                (zero? (:n-failures result)))))
+  (let [error
+        (try
+          (h/run-test!
+           {:test-cases 5 :seed 23 :database "" :verbosity :quiet}
+           (fn [_]
+             (dotimes [_ 10000]
+               (h/draw! (g/integer)))))
+          nil
+          (catch Throwable error
+            error))]
+    (check "non-flakiness engine errors still abort the run"
+           (= ::h/run-error (:type (ex-data error))))))
+
 (defn cleanup-and-version []
   ;; A second run after the failed/replayed run exercises all cleanup paths well
   ;; enough to catch double-free/use-after-free regressions in the basic loop.
@@ -958,15 +1020,72 @@
                 (= [10] @final-values)))
     (check "only the final minimal clojure.test failure is reported"
            (and (= [:fail] (mapv :type @events))
-                (str/includes? (:message (first @events)) "10")))
+                (str/includes? (:message (first @events)) "10")
+                (str/includes? (:message (first @events))
+                               "Hegel seed: 1")))
     (check "clojure.test origins are stable and independent of drawn values"
            (and (str/includes? (:origin failure) "hegel/test_runner.clj:")
-                (str/ends-with? (:origin failure) ":assertion-0")))))
+                (str/ends-with? (:origin failure) ":assertion-0"))))
+  (let [events (atom [])
+        result
+        (with-redefs [t/report #(swap! events conj %)]
+          (ht/with {:test-cases 1
+                    :seed 4242
+                    :database ""
+                    :verbosity :quiet
+                    :suppress-health-checks [:large-initial-test-case]}
+            []
+            (aget (byte-array 0) 0)))
+        event (first @events)]
+    (check "blank native exception messages retain an identifiable cause"
+           (and (not (:passed? result))
+                (= [:fail] (mapv :type @events))
+                (str/includes? (:actual event) "valid index")
+                (str/includes? (:message event) "Hegel seed: 4242"))))
+  (let [events (atom [])
+        result
+        (with-redefs [t/report #(swap! events conj %)]
+          (ht/with {:test-cases 1
+                    :seed 4244
+                    :database ""
+                    :verbosity :quiet
+                    :suppress-health-checks [:large-initial-test-case]}
+            []
+            (throw (ex-info "" {:detail :present}))))
+        event (first @events)
+        failure-data (some-> result :failures first :exception ex-data)]
+    (check "blank ex-info messages retain exception data"
+           (and (not (:passed? result))
+                (str/includes? (:actual event)
+                               "ex-data: {:detail :present}")
+                (= {:detail :present}
+                   (::ht/cause-data failure-data)))))
+  (let [events (atom [])
+        calls (atom 0)
+        result
+        (with-redefs [t/report #(swap! events conj %)]
+          (ht/with {:test-cases 1
+                    :seed 17
+                    :database ""
+                    :verbosity :quiet
+                    :suppress-health-checks [:large-initial-test-case]}
+            []
+            (h/draw! (g/integer 0 10))
+            (when (= 1 (swap! calls inc))
+              (throw (ex-info "transient" {})))))
+        event (first @events)]
+    (check "clojure.test reports engine flakiness without aborting the suite"
+           (and (= :error (:status result))
+                (true? (:flaky? result))
+                (= [:fail] (mapv :type @events))
+                (str/starts-with? (:actual event) "Flaky test detected:")
+                (str/includes? (:message event) "Hegel seed: 17")))))
 
 (defn -main [& _]
   (reset-progress!)
   (scenario "passing run" passing-run)
   (scenario "shrinking and final replay" shrinking-run)
+  (scenario "engine nondeterminism" engine-nondeterminism)
   (scenario "cleanup and ABI version" cleanup-and-version)
   (scenario "generated seed" generated-seed)
   (scenario "controls and sample" controls-and-sample)

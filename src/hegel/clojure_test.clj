@@ -1,7 +1,8 @@
 (ns hegel.clojure-test
   "Shrinking property tests embedded in clojure.test deftests."
   (:refer-clojure :exclude [with])
-  (:require [clojure.test :as ct]
+  (:require [clojure.string :as str]
+            [clojure.test :as ct]
             [hegel.core :as h]
             [hegel.generator :as g]))
 
@@ -33,6 +34,39 @@
     ;; one bug into a new Hegel origin for every draw.
     (str base ":" (pr-str assertion))))
 
+(defn- nonblank-text [value]
+  (let [text (when (some? value) (str value))]
+    (when-not (str/blank? text)
+      text)))
+
+(defn- throwable-details [error]
+  (let [throwable (try
+                    (Throwable->map error)
+                    (catch Throwable _
+                      nil))
+        error-data (ex-data error)
+        wrapped-body-error? (and (= ::body-error (:type error-data))
+                                 (contains? error-data ::cause-type))
+        cause-data (if wrapped-body-error?
+                     (::cause-data error-data)
+                     error-data)
+        cause-type (or (when wrapped-body-error?
+                         (::cause-type error-data))
+                       (some-> throwable :via last :type)
+                       (class error))
+        summary (or (nonblank-text (ex-message error))
+                    (nonblank-text (:cause throwable))
+                    (nonblank-text (some-> throwable :via last :message))
+                    (nonblank-text cause-type)
+                    (nonblank-text (str error))
+                    "property body threw")]
+    {:message (str summary
+                   (when (and (not wrapped-body-error?)
+                              (seq cause-data))
+                     (str " ex-data: " (pr-str cause-data))))
+     :type cause-type
+     :data cause-data}))
+
 (defn- evaluate-case [base final-reports body]
   (let [reports (atom [])
         outcome
@@ -48,11 +82,16 @@
     (if-let [error (:error outcome)]
       (if (:hegel/origin (ex-data error))
         (throw error)
-        (throw
-         (ex-info (or (ex-message error) "property body threw")
-                  {:type ::body-error
-                   :hegel/origin (str base ":exception")}
-                  error)))
+        (let [details (throwable-details error)]
+          (throw
+           (ex-info (:message details)
+                    (merge
+                     {:type ::body-error
+                      :hegel/origin (str base ":exception")
+                      ::cause-type (:type details)}
+                     (when (some? (:data details))
+                       {::cause-data (:data details)}))
+                    error))))
       (if (pass? @reports)
         (:value outcome)
         (throw
@@ -68,9 +107,19 @@
      :message (str "Hegel property failed at " base)
      :expected 'property-to-pass
      :actual (cond
+               (:error result) (:error result)
                (:flaky? result) :failure-did-not-reproduce
-               error (or (ex-message error) (str error))
+               error (:message (throwable-details error))
                :else :counterexample-found)}))
+
+(defn- annotate-failure-seed [result event]
+  (if (= :pass (:type event))
+    event
+    (let [message (nonblank-text (:message event))
+          seed-message (str "Hegel seed: " (:seed result))]
+      (assoc event :message (if message
+                              (str message "; " seed-message)
+                              seed-message)))))
 
 (defn- publish-result! [reporter base result final-reports]
   (if (:passed? result)
@@ -79,8 +128,10 @@
     (let [nonpassing? (some #(not= :pass (:type %)) final-reports)]
       (if nonpassing?
         (doseq [event final-reports]
-          (reporter event))
-        (reporter (fallback-failure-event base result)))))
+          (reporter (annotate-failure-seed result event)))
+        (reporter
+         (annotate-failure-seed result
+                                (fallback-failure-event base result))))))
   result)
 
 (defn run-with-reports!

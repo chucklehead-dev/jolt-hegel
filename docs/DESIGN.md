@@ -63,6 +63,13 @@ counts, failures, final replay summaries, the seed, and whether any failure was
 flaky. `:test-cases` is a maximum: an exhausted engine choice tree may finish
 earlier.
 
+libhegel has a separate run-level nondeterminism path. Its "Flaky test
+detected" and "data generation is non-deterministic" errors return
+`:passed? false`, `:status :error`, `:flaky? true`, and the explanation in
+`:error`, without inventing a replayable failure blob. Health checks and other
+engine errors remain `:hegel.core/run-error` exceptions because they are not
+property verdicts.
+
 ## Failure identity and origins
 
 libhegel uses an origin to decide which failing examples represent the same bug.
@@ -95,13 +102,26 @@ ordinary test assertion:
 
 - a passing property reports one pass, independent of case count;
 - intermediate failing candidates are captured but not published;
-- final replay assertion reports are published for the minimal failure; and
+- final replay assertion reports are published for the minimal failure;
+- every nonpassing event includes the resolved Hegel seed;
+- blank exception messages fall back to the throwable-map cause or exception
+  type and preserve original `ex-data`; and
 - report capture is serialized because Jolt requires process-global
   `with-redefs` rather than dynamic binding.
 
 The direct `run-test!` API returns data and does not throw merely because a
-property failed. A non-`clojure.test` runner must explicitly turn
-`:passed? false` into its own test failure.
+property failed or libhegel detected nondeterminism. A non-`clojure.test`
+runner must explicitly turn `:passed? false` into its own test failure and wrap
+the complete call if it must continue after setup, health-check, or unexpected
+engine errors.
+
+## Execution is sequential
+
+One `run-test!` invocation drives generation and adaptive shrinking
+sequentially; the public options expose no workers. `hegel.clojure-test/with`
+also holds the process-wide report lock for the complete run. Independent
+direct calls do not use that lock, but concurrent shim and engine use is not a
+supported contract until it has a dedicated integration test.
 
 ## Stateful testing
 
@@ -118,6 +138,16 @@ include `:hegel.stateful/trace` and stable rule or invariant origins.
 Rule names and order must remain unchanged between generation and replay.
 Mutable systems under test must be constructed inside the property body so each
 generated case and final replay begins from fresh external state.
+
+An expensive external service may wrap the complete property run when a fresh
+connection or session is the isolation unit and every body invocation restores
+equivalent observable state. The service remains alive through generation,
+shrinking, and final replay; per-case resources close in `finally`. Protocol
+completion must be deterministic—for a request stream, half-close the write
+side and drain time- and byte-bounded reads through actual EOF instead of
+sleeping. A thrown case closes its fresh connection as the abort signal. Replay
+against a live service is valid only while either path leaves the next case in
+equivalent state and earlier candidates cannot affect later cases.
 
 Value pools let the engine shrink dependencies between rules. libhegel stores
 integer variable identities; the Jolt layer maps those identities to arbitrary

@@ -17,9 +17,11 @@ combinators from other Hegel bindings.
 
 1. Inspect the code under test, its docs, existing tests, and call sites.
 2. Check the project's Jolt version and test-runner conventions.
-3. Resolve the current release tag to its full commit SHA, add the pinned
-   dependency, and run `joltc -m hegel.install` when jolt-hegel is not already
-   configured. Never leave the example SHA placeholder in project files.
+3. Resolve the current release tag to its full commit SHA using the command in
+   the API reference, add the pinned dependency, and run the installer with the
+   alias that contains it, normally `joltc -A:test -m hegel.install`. Use the
+   bare command only for a top-level dependency. Never leave the example SHA
+   placeholder in project files.
 4. Identify evidence-backed properties rather than merely replacing constants
    with random values.
 5. Add each property beside the existing tests for the same behavior. Prefer
@@ -52,13 +54,20 @@ or behavior with no meaningful general invariant.
   part of the test.
 - Construct valid related inputs directly when possible. Use
   `h/assume!` only when rejection is uncommon.
-- Use `clojure.test/is` inside `hegel.clojure-test/with`. With a custom runner,
-  throw an exception when the property fails; returning `false` does not mark a
-  test case as failing.
+- Use `clojure.test/is` inside `hegel.clojure-test/with`. Inside a property
+  passed to a custom runner, throw an exception when the property fails;
+  returning `false` does not mark a test case as failing.
 - Include a stable `:hegel/origin` in exception data. Base it on the
   property or assertion site, never on generated values.
-- Check `:passed?` and fail the surrounding runner when calling `run-test!`
-  directly. `hegel.clojure-test/with` reports the final result automatically.
+- Check `:passed?` when calling `run-test!` directly. Either throw immediately
+  or increment the surrounding runner's failure count and exit nonzero after
+  the suite. Wrap each complete run if a counting suite must also continue past
+  setup, health-check, or unexpected engine errors.
+- Treat `:status :error` with `:flaky? true` as a failed property result.
+  libhegel uses that shape when the same generated choices produce different
+  outcomes or generation. The explanation is in `:error`; there may be no
+  counterexample in `:failures`.
+  `hegel.clojure-test/with` reports all failed results automatically.
 - Preserve the result's `:seed` in failure output. Replay it by
   parsing the string and passing it as the next run's numeric
   `:seed`.
@@ -66,8 +75,8 @@ or behavior with no meaningful general invariant.
   `h/when-final`, `h/fprn`, or `h/note!` so
   ordinary generation stays quiet.
 - For operation-sequence tests, use `hegel.stateful/run!`. Return the next
-  state from every rule, check preconditions before mutation, and create each
-  mutable system under test inside the property body.
+  state from every rule, check preconditions before mutation, and create fresh
+  per-case mutable state inside the property body.
 - Keep stateful rule names and order stable. libhegel performs swarm selection
   automatically; do not hand-roll a competing rule-choice loop.
 
@@ -90,11 +99,54 @@ merely to make the suite green.
 
 Use `g/string`, `g/regex-str`, and the format generators for text. Build
 structured values with `g/vector`, `g/set`, `g/map`, `g/tuple`, or `g/hmap`.
-Use `g/bind` or `g/let` when later sizes or bounds depend on earlier draws.
-Prefer these constructors over broad draws followed by frequent assumptions;
-their native spans preserve useful shrinking structure.
+Use `g/bind` to construct a reusable dependent generator. Use `g/let` inside
+an active property when later draws depend on earlier ones; it draws immediately
+and is not itself a reusable generator. Prefer these forms over broad draws
+followed by frequent assumptions; their native spans preserve useful shrinking
+structure.
+
+There is no scalar `g/byte` generator. Use `(g/integer -128 127)` for a signed
+byte or `(g/integer 0 255)` for an unsigned protocol octet. Prefer unsigned
+draws for wire data and call `unchecked-byte` only where an API requires Jolt's
+signed byte representation. Use `g/bytes` for byte arrays. The API reference
+also contains a worked size-based chunking generator whose integers shrink
+toward small writes.
 
 Use `hegel.stateful/pool` when one rule creates values that later rules must
 reuse or consume. Pools are scoped to one generated test case. If a test needs
 an unsupported generator or control, state that limitation instead of
 borrowing an API from another Hegel binding.
+
+## Share expensive external services safely
+
+Starting a TCP server inside every generated case is usually too expensive. It
+is acceptable to start an external service once around the complete
+`run-test!` call when each property invocation opens a fresh connection or
+session and begins from equivalent observable server state. Wait for readiness,
+then keep that service alive until `run-test!` returns: generation, shrinking,
+and automatic final replay all happen inside the call.
+
+Close the per-case connection in `finally`, including on rejected and failing
+cases. Reset or namespace any shared server state before each case; if that is
+not possible, sharing the server makes shrinking order-dependent and is not a
+valid fixture. A manual seed replay may start a new equivalent server, but it
+must again wrap the whole `run-test!` call. Let startup, reset, and connection
+failures surface rather than turning them into rejected generated inputs. End
+each case with protocol signals, not sleeps: for a request stream, half-close
+the write side and drain a time- and byte-bounded response through actual EOF;
+reaching either bound is a failure. If the property throws first, closing the
+fresh connection in `finally` is the abort signal, and the server must still
+isolate the next case. An in-protocol reset must drain its acknowledgement
+before generated traffic. Shrinking against the live service remains sound
+only when every property invocation re-establishes equivalent state. If the
+result is `:flaky? true`, fix resource isolation or timing before trusting the
+minimized counterexample.
+
+## Keep property execution sequential
+
+There is no worker option for one `run-test!` call; generation and adaptive
+shrinking execute sequentially. `hegel.clojure-test/with` additionally
+serializes complete runs because its report capture uses process-global
+`with-redefs` on Jolt. Concurrent independent `run-test!` calls do not take
+that lock, but shim and engine safety for that pattern is unverified. Do not
+rely on concurrent property runs without a dedicated jolt-hegel test.
