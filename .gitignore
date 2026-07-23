@@ -1,0 +1,8 @@
+.hegel-lib/
+.jolt/
+dist/
+target/
+refs/
+.nrepl-port
+*.log
+.DS_Store

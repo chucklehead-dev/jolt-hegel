@@ -1,0 +1,2 @@
+{:paths ["src"]
+ :deps {io.github.chucklehead-dev/jolt-hegel {:local/root "../.."}}}

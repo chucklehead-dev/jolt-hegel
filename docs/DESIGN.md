@@ -1,0 +1,140 @@
+# Design
+
+This document records the behavioral contracts that are easy to break while
+extending jolt-hegel. Public usage belongs in the README; native layering belongs
+in `ARCHITECTURE.md`.
+
+## Seeds are always known
+
+`run-test!` resolves a seed before it creates the native run:
+
+- an explicit `:seed` is preserved;
+- `:derandomize? true` derives a stable seed from `:database-key`, `:name`, or a
+  library default; and
+- every other run receives a fresh non-negative 63-bit seed assembled from
+  Jolt's clocks and random source.
+
+The resolved seed is supplied to libhegel and returned as a decimal string in
+the result map. This makes every run replayable even though the C ABI does not
+expose a seed chosen internally by the engine.
+
+## Generators are tagged functions
+
+A generator is a tagged `(fn [test-case] value)`. Primitive generators delegate
+to libhegel draw operations. Host-level composition remains ordinary Clojure,
+but every structural combinator opens the corresponding libhegel span so the
+shrinker retains the shape of the generated value.
+
+| Combinator | Engine structure |
+| --- | --- |
+| `fmap` | mapped span |
+| `bind` | flat-map span |
+| `filter` | filter span with at most three candidate draws |
+| `one-of`, `optional` | choice spans |
+| `tuple` | tuple span |
+| vector, list, set, map | collection handle plus matching collection span |
+
+Duplicate set elements and map keys reject the current collection element
+through libhegel rather than silently changing the requested size. `g/let`
+draws tagged generator expressions while leaving ordinary dependent expressions
+alone. `composite-fn` is the escape hatch for a custom generator function.
+
+Prefer direct generation of valid inputs. `filter` and `assume!` are intended for
+infrequent exclusions because excessive rejection reduces useful test coverage
+and can trigger libhegel health checks.
+
+## Property outcomes
+
+The property body communicates with the run loop through values and exceptions:
+
+| Body outcome | libhegel case status |
+| --- | --- |
+| returns normally | valid |
+| `assume!` or an engine assumption rejects | invalid |
+| an engine draw stops the test | overrun |
+| any other exception | interesting, with a stable origin |
+
+Configuration and API usage errors are marked as usage errors and escape the
+property loop immediately. They must not be treated as counterexamples and sent
+through shrinking.
+
+The public result distinguishes the aggregate run status, wrapper-observed case
+counts, failures, final replay summaries, the seed, and whether any failure was
+flaky. `:test-cases` is a maximum: an exhausted engine choice tree may finish
+earlier.
+
+## Failure identity and origins
+
+libhegel uses an origin to decide which failing examples represent the same bug.
+An origin must identify a property, rule, invariant, or assertion site and must
+never contain a generated value. Value-dependent origins partition the shrink
+budget and prevent convergence.
+
+For direct properties, a thrown exception may provide `:hegel/origin` in its
+`ex-data`; otherwise the exception class supplies a stable fallback. The
+`clojure.test` macro captures its source location at macro expansion and combines
+it with the first failing assertion's stable identity. Stateful rules and
+invariants derive origins from their declared names.
+
+## Shrinking and final replay
+
+Failure blobs are copied before their native result objects are freed. Each blob
+is replayed through a final test case after shrinking completes. Only the replay
+runs with `final?` true. A failure that cannot be reproduced is retained but
+marks the aggregate result `:flaky? true`.
+
+Diagnostics should use `when-final`, `fprn`, or `note!` so they describe the
+minimal counterexample instead of every generated attempt. The database is
+disabled in deterministic tests to prevent stale examples from changing their
+starting point.
+
+## `clojure.test` semantics
+
+`hegel.clojure-test/with` turns generator bindings and a property body into one
+ordinary test assertion:
+
+- a passing property reports one pass, independent of case count;
+- intermediate failing candidates are captured but not published;
+- final replay assertion reports are published for the minimal failure; and
+- report capture is serialized because Jolt requires process-global
+  `with-redefs` rather than dynamic binding.
+
+The direct `run-test!` API returns data and does not throw merely because a
+property failed. A non-`clojure.test` runner must explicitly turn
+`:passed? false` into its own test failure.
+
+## Stateful testing
+
+`hegel.stateful/run!` exposes immutable model transitions while libhegel owns
+rule selection, sequence shrinking, the normal 50-attempt cap, termination, and
+a random nonempty swarm subset for each case.
+
+Rules have stable, unique names and receive the current state. A rule
+precondition is evaluated before its step. A false precondition or `assume!`
+inside the rule skips that attempted rule and does not run invariants. Invariants
+run once on the initial state and after every successfully applied rule. Failures
+include `:hegel.stateful/trace` and stable rule or invariant origins.
+
+Rule names and order must remain unchanged between generation and replay.
+Mutable systems under test must be constructed inside the property body so each
+generated case and final replay begins from fresh external state.
+
+Value pools let the engine shrink dependencies between rules. libhegel stores
+integer variable identities; the Jolt layer maps those identities to arbitrary
+host values. Reusable draws retain an entry, consumed draws remove it, and an
+empty draw becomes an assumption rejection. Pools belong to exactly one test
+case and cannot be retained or reused.
+
+## Verification contracts
+
+Tests should verify the quality of the minimal result, not only that a run
+fails. The suite therefore includes exact counterexamples for primitives,
+collections, dependent generators, temporal bounds, and state-machine traces.
+It also round-trips reproduction blobs, checks stable failure grouping, exercises
+cleanup followed by another run, validates generated and deterministic seeds,
+and runs through an independent consumer project.
+
+Native changes require the complete Linux, Windows, and macOS matrix. Temporal
+tests must continue to include a fixed leap day, nonzero microseconds, and the
+nested datetime layout because the Windows x64 aggregate ABI differs from Linux
+x86_64.

@@ -1,0 +1,16 @@
+{:paths ["src"]
+
+ :aliases
+  {:setup-native {:main-opts ["-m" "hegel.install"]}
+   :test {:extra-paths ["test"]
+         :main-opts ["-m" "hegel.test-runner"]}
+  :fetch-libhegel {:extra-paths ["script"]
+                   :main-opts ["-m" "fetch-libhegel"]}
+  :build-hegel-shim {:extra-paths ["script"]
+                     :main-opts ["-m" "build-hegel-shim"]}}
+
+ :tasks
+ {setup-native "joltc -M:setup-native"
+  fetch-libhegel "joltc -M:fetch-libhegel"
+  build-hegel-shim "joltc -M:build-hegel-shim"
+  test "joltc -M:test"}}

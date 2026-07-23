@@ -1,0 +1,4 @@
+interface:
+  display_name: "Jolt Hegel"
+  short_description: "Write shrinking property and model tests for Jolt"
+  default_prompt: "Use $jolt-hegel to add and run a shrinking property or stateful model test in this Jolt project."

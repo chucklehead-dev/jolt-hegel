@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native-test:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux x86_64
+            runner: ubuntu-24.04
+            jolt-asset: joltc-v0.4.15-x86_64-linux.tar.gz
+            jolt-sha256: 90d7be25b506f534f52086944353ba39c9f499022b20f57ed5992ada98c2ad7a
+          - name: Windows x86_64
+            runner: windows-2022
+            jolt-asset: joltc-v0.4.15-x86_64-windows.zip
+            jolt-sha256: 7f5f84a1f76e6bd8479519d7e3609134fb62c5d5d0d42d5a444380ef2a1f6f5b
+          - name: macOS arm64
+            runner: macos-14
+            jolt-asset: joltc-v0.4.15-aarch64-macos.tar.gz
+            jolt-sha256: 2f56b2ae6e11faf104afbf0d64afc42b073ae81bb7da6993c1e1756096f451b2
+
+    env:
+      JOLT_CACHE_DIR: ${{ github.workspace }}/.jolt/aot-cache
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Install OpenSSL for Jolt on macOS
+        if: runner.os == 'macOS'
+        shell: bash
+        run: brew install openssl@3
+
+      - uses: ./.github/actions/setup-jolt
+        with:
+          version: 0.4.15
+          asset: ${{ matrix.jolt-asset }}
+          sha256: ${{ matrix.jolt-sha256 }}
+
+      - name: Prime the Jolt namespace cache from the library checkout
+        shell: bash
+        run: joltc -m hegel.install paths
+
+      - name: Install native dependencies through the consumer-visible API
+        working-directory: test/consumer
+        shell: bash
+        run: |
+          joltc -m hegel.install fetch-libhegel
+          joltc -m hegel.install build-shim
+
+      - name: Run integration suite
+        shell: bash
+        run: joltc -M:test
+
+      - name: Run Git dependency consumer smoke test
+        working-directory: test/consumer
+        shell: bash
+        run: joltc -m consumer.smoke
