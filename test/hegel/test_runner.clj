@@ -5,8 +5,11 @@
             [hegel.core :as h]
             [hegel.ffi :as hffi]
             [hegel.generator :as g]
+            [hegel.install :as install]
             [hegel.native :as native]
-            [hegel.stateful :as hs]))
+            [hegel.report :as report]
+            [hegel.stateful :as hs]
+            [hegel.version :as version]))
 
 (def failures (atom 0))
 (def progress-file
@@ -136,7 +139,9 @@
              (throw
               (ex-info "transient property failure"
                        {:hegel/origin
-                        "hegel.test-runner:engine-outcome-flakiness"})))))]
+                        "hegel.test-runner:engine-outcome-flakiness"
+                        :attempt 1
+                        :operation :read})))))]
     (check "engine outcome flakiness returns a countable failure result"
            (and (not (:passed? result))
                 (= :error (:status result))
@@ -145,7 +150,18 @@
                 (str/starts-with? (:error result) "Flaky test detected:")
                 (zero? (:n-failures result))
                 (empty? (:failures result))
-                (empty? (:final result)))))
+                (empty? (:final result))))
+    (let [observed (first (:observed-failures result))]
+      (check "engine flakiness retains the structured observed failure"
+             (and (= "hegel.test-runner:engine-outcome-flakiness"
+                     (:origin observed))
+                  (= 1 (:count observed))
+                  (= {:hegel/origin
+                      "hegel.test-runner:engine-outcome-flakiness"
+                      :attempt 1
+                      :operation :read}
+                     (-> observed :first :data))
+                  (= (:first observed) (:last observed))))))
   (let [calls (atom 0)
         result
         (h/run-test!
@@ -160,7 +176,8 @@
              (throw
               (ex-info "stable failure with unstable generator"
                        {:hegel/origin
-                        "hegel.test-runner:generator-nondeterminism"})))))]
+                        "hegel.test-runner:generator-nondeterminism"
+                        :call call})))))]
     (check "non-deterministic generation returns a countable failure result"
            (and (not (:passed? result))
                 (= :error (:status result))
@@ -169,7 +186,15 @@
                 (str/starts-with?
                  (:error result)
                  "Your data generation is non-deterministic:")
-                (zero? (:n-failures result)))))
+                (zero? (:n-failures result))))
+    (let [observed (first (:observed-failures result))]
+      (check "observed failures aggregate repeated stable origins"
+             (and (= "hegel.test-runner:generator-nondeterminism"
+                     (:origin observed))
+                  (< 1 (:count observed))
+                  (= 1 (-> observed :first :data :call))
+                  (= (:count observed)
+                     (-> observed :last :data :call))))))
   (let [error
         (try
           (h/run-test!
@@ -183,6 +208,47 @@
     (check "non-flakiness engine errors still abort the run"
            (= ::h/run-error (:type (ex-data error))))))
 
+(defn counting-reporting []
+  (let [events (atom [])
+        runner (report/counting-runner
+                {:reporter #(swap! events conj %)})
+        pass-result
+        (report/run!
+         runner "passing property"
+         #(h/run-test!
+           {:test-cases 3 :seed 31 :database "" :verbosity :quiet}
+           (fn [_] (h/draw! (g/integer 0 3)))))
+        passed-after-first? (report/passed? runner)
+        fail-result
+        (report/run!
+         runner "failing property"
+         #(h/run-test!
+           {:test-cases 1 :seed 37 :database "" :verbosity :quiet}
+           (fn [_]
+             (h/draw! (g/integer 0 0))
+             (throw
+              (ex-info "expected report failure"
+                       {:hegel/origin
+                        "hegel.test-runner:counting-reporting"})))))
+        error-result
+        (report/run!
+         runner "setup error"
+         #(throw (ex-info "expected setup error" {:phase :setup})))]
+    (check "counting runner returns normal property results"
+           (and (:passed? pass-result)
+                (not (:passed? fail-result))
+                (nil? error-result)))
+    (check "counting runner tracks returned failures and thrown errors"
+           (and passed-after-first?
+                (= 3 (report/run-count runner))
+                (= 2 (report/failure-count runner))
+                (not (report/passed? runner))))
+    (check "counting runner emits structured continuation events"
+           (and (= [:pass :fail :error] (mapv :type @events))
+                (= "37" (-> @events second :result :seed))
+                (= {:phase :setup}
+                   (-> @events (nth 2) :exception ex-data))))))
+
 (defn cleanup-and-version []
   ;; A second run after the failed/replayed run exercises all cleanup paths well
   ;; enough to catch double-free/use-after-free regressions in the basic loop.
@@ -194,6 +260,24 @@
     (check "a new run succeeds after failed-run cleanup" (:passed? result))
     (check "loaded libhegel matches the bound ABI"
            (= hffi/libhegel-version (hffi/version)))))
+
+(defn installer-source-identity []
+  (check "installer verifies the loaded release against current source"
+         (= version/jolt-hegel-version
+            (install/verify-source-version!)))
+  (let [error
+        (with-redefs [version/jolt-hegel-version "0.0.0-stale"]
+          (try
+            (install/verify-source-version!)
+            nil
+            (catch Throwable error
+              error)))]
+    (check "installer rejects a stale Jolt AOT namespace"
+           (and (= ::install/stale-aot-cache (:type (ex-data error)))
+                (= "0.0.0-stale" (:loaded-version (ex-data error)))
+                (= version/jolt-hegel-version
+                   (:source-version (ex-data error)))
+                (str/includes? (ex-message error) "JOLT_CACHE_DIR")))))
 
 (defn generated-seed []
   (let [first-values (atom [])
@@ -279,8 +363,8 @@
            (= 8 (count groups))))))
 
 (defn primitive-generators []
-  (let [values (atom {:true [] :false [] :doubles [] :bytes [] :empty-bytes []
-                      :uuids [] :ipv4 [] :ipv6 []})
+  (let [values (atom {:true [] :false [] :octets [] :doubles [] :bytes []
+                      :empty-bytes [] :uuids [] :ipv4 [] :ipv6 []})
         result
         (h/run-test!
          {:test-cases 40
@@ -290,6 +374,7 @@
          (fn [_]
            (let [true-value (h/draw! (g/boolean 1.0))
                  false-value (h/draw! (g/boolean 0.0))
+                 octet-value (h/draw! (g/octet))
                  double-value (h/draw! (g/double 0.0 1.0))
                  bytes-value (h/draw! (g/bytes 8 8))
                  empty-bytes-value (h/draw! (g/bytes 0 0))
@@ -301,6 +386,7 @@
                       (-> seen
                           (update :true conj true-value)
                           (update :false conj false-value)
+                          (update :octets conj octet-value)
                           (update :doubles conj double-value)
                           (update :bytes conj bytes-value)
                           (update :empty-bytes conj empty-bytes-value)
@@ -314,6 +400,10 @@
                 (every? false? (:false @values))))
     (check "bounded doubles stay in range"
            (every? #(<= 0.0 % 1.0) (:doubles @values)))
+    (check "octets are unsigned-comparable integers"
+           (and (seq (:octets @values))
+                (every? #(and (integer? %) (<= 0 % 255))
+                        (:octets @values))))
     (check "fixed-size bytes are copied into jolt byte arrays"
            (and (every? (fn [data]
                           (and (= 8 (alength data))
@@ -525,6 +615,9 @@
                :chosen (h/draw! (g/one-of [(g/just :left)
                                             (g/just :right)]))
                :optional (h/draw! (g/optional (g/just 1)))
+               :chunks (h/draw! (g/chunkings [0 1 2 3 4 5]))
+               :empty-chunks (h/draw! (g/chunkings []))
+               :single-chunks (h/draw! (g/chunkings [7]))
                :vector (h/draw! (g/vector {:min-size 3 :max-size 5
                                             :unique? true}
                                            (g/integer 0 20)))
@@ -561,6 +654,15 @@
                           (= (count (first bound))
                              (count (second bound)))))
                    @values))
+    (check "chunkings preserve payloads with nonempty chunks"
+           (every?
+            (fn [{:keys [chunks empty-chunks single-chunks]}]
+              (and (vector? chunks)
+                   (every? #(and (vector? %) (pos? (count %))) chunks)
+                   (= [0 1 2 3 4 5] (vec (mapcat identity chunks)))
+                   (= [] empty-chunks)
+                   (= [[7]] single-chunks)))
+            @values))
     (check "vector, list, set, and map shapes and bounds are enforced"
            (every?
             (fn [{:keys [vector list set map]}]
@@ -1086,7 +1188,9 @@
   (scenario "passing run" passing-run)
   (scenario "shrinking and final replay" shrinking-run)
   (scenario "engine nondeterminism" engine-nondeterminism)
+  (scenario "framework-less counting reporting" counting-reporting)
   (scenario "cleanup and ABI version" cleanup-and-version)
+  (scenario "installer source identity" installer-source-identity)
   (scenario "generated seed" generated-seed)
   (scenario "controls and sample" controls-and-sample)
   (scenario "primitive generators" primitive-generators)

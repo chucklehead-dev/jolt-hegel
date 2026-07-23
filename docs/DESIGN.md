@@ -70,6 +70,12 @@ detected" and "data generation is non-deterministic" errors return
 engine errors remain `:hegel.core/run-error` exceptions because they are not
 property verdicts.
 
+The wrapper retains bounded `:observed-failures` grouped by stable origin while
+it drives exploration. Each entry includes the first and last structured
+throwable summaries plus an observation count. This preserves diagnostic
+`ex-data` for a failure that does not reproduce and for run-level
+nondeterminism, where libhegel cannot supply a failure blob.
+
 ## Failure identity and origins
 
 libhegel uses an origin to decide which failing examples represent the same bug.
@@ -113,7 +119,8 @@ The direct `run-test!` API returns data and does not throw merely because a
 property failed or libhegel detected nondeterminism. A non-`clojure.test`
 runner must explicitly turn `:passed? false` into its own test failure and wrap
 the complete call if it must continue after setup, health-check, or unexpected
-engine errors.
+engine errors. `hegel.report/counting-runner` provides that policy without
+owning process exit.
 
 ## Execution is sequential
 

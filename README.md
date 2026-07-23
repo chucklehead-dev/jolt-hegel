@@ -9,9 +9,10 @@ to reproduce the run. It runs directly in Jolt through native FFI; no JVM or
 sidecar process is involved.
 
 The implemented surface includes primitive and formatted values, Unicode and
-regex strings, collection and composition combinators, dependent generation,
-`clojure.test` integration, value pools, and engine-managed stateful testing
-with automatic swarm rule selection.
+regex strings, protocol-oriented octet and chunking generators, collection and
+composition combinators, dependent generation, `clojure.test` and framework-less
+reporting, value pools, and engine-managed stateful testing with automatic swarm
+rule selection.
 
 ## Requirements
 
@@ -49,7 +50,8 @@ Use the full commit SHA associated with the release tag. Then install the pinned
 libhegel binary and target-specific shim from the consuming project:
 
 ```bash
-joltc -A:test -m hegel.install
+JOLT_CACHE_DIR=.jolt-cache/jolt-hegel-<release-commit-sha> \
+  joltc -A:test -m hegel.install
 ```
 
 Replace `test` with the alias containing jolt-hegel. If the dependency is in
@@ -60,6 +62,14 @@ Downloads are verified with SHA-256 and cached with the dependency. If the
 release has no prebuilt shim for the target, the installer builds
 `native/hegel_shim.c` locally with `gcc` or
 `CC`.
+
+The installer also compares the loaded `hegel.version` namespace with the
+currently resolved dependency source. If Jolt reused AOT output from another
+release, installation stops before fetching the wrong version's shim. Re-run
+installation and tests with a fresh cache directory keyed by the pinned SHA.
+Use the same `JOLT_CACHE_DIR` for the subsequent Jolt test command. Downloaded
+shims also carry a release marker, so a shared `HEGEL_CACHE_DIR` cannot silently
+reuse a verified binary from an older jolt-hegel release.
 
 ## Use with clojure.test
 
@@ -167,29 +177,12 @@ treat `:passed? false` as a test failure.
 ```clojure
 (ns example.integer-roundtrip
   (:require [hegel.core :as h]
-            [hegel.generator :as g]))
+            [hegel.generator :as g]
+            [hegel.report :as report]))
 
-(def failures (atom 0))
-
-(defn record-property! [description run]
-  (try
-    (let [result (run)]
-      (if (:passed? result)
-        (println "PASS" description)
-        (do
-          (swap! failures inc)
-          (println "FAIL" description
-                   (select-keys result
-                                [:status :seed :n-failures :failures
-                                 :flaky? :error]))))
-      result)
-    (catch Throwable error
-      (swap! failures inc)
-      (println "ERROR" description (ex-message error) (ex-data error))
-      nil)))
-
-(defn integer-roundtrip! []
-  (record-property!
+(defn integer-roundtrip! [runner]
+  (report/run!
+   runner
    "integer text round-trip"
    (fn []
      (h/run-test!
@@ -204,18 +197,19 @@ treat `:passed? false` as a test failure.
                       {:hegel/origin "integer-roundtrip/text"})))))))))
 
 (defn -main [& _]
-  (reset! failures 0)
-  (integer-roundtrip!)
-  (println "Ran properties;" @failures "failures")
-  (flush)
-  (System/exit (if (zero? @failures) 0 1)))
+  (let [runner (report/counting-runner)]
+    (integer-roundtrip! runner)
+    (println "Ran properties;" (report/failure-count runner) "failures")
+    (flush)
+    (System/exit (if (report/passed? runner) 0 1))))
 ```
 
 Ordinary property failures return `:passed? false`. Engine-detected outcome or
 generator nondeterminism returns `:status :error`, `:flaky? true`, and an
 `:error` explanation. Setup errors, health-check failures, and unexpected
-engine errors still throw, so the outer `try` lets a counting runner finish the
-suite and exit nonzero once.
+engine errors still throw. `hegel.report/run!` counts both forms, reports the
+seed and diagnostics, and lets the suite continue. Pass `{:reporter f}` to
+`counting-runner` to consume structured report events instead of stdout.
 
 Failure origins must identify the property or assertion site and must not
 contain generated values. Stable origins let Hegel group equivalent failures
@@ -231,6 +225,11 @@ pass it back as a number:
              property-fn)
 ```
 
+`:observed-failures` retains bounded, structured summaries of exceptions seen
+during exploration, grouped by stable origin. This remains available when a
+failure does not reproduce or libhegel reports run-level nondeterminism without
+a counterexample.
+
 One `run-test!` call executes cases and adaptive shrinking sequentially; there
 is no worker option. `hegel.clojure-test/with` also serializes complete runs
 because Jolt requires process-global report capture. Concurrent independent
@@ -244,6 +243,7 @@ Generators are passed to `hegel.core/draw!`.
 | Generator | Value |
 | --- | --- |
 | `(g/integer)`, `(g/integer min max)` | signed 64-bit integer |
+| `(g/octet)` | unsigned wire octet as an integer from 0 through 255 |
 | `(g/boolean)`, `(g/boolean probability)` | boolean |
 | `(g/double opts)`, `(g/double min max)` | 64-bit floating-point number |
 | `(g/bytes opts)`, `(g/bytes min-size max-size)` | byte array |
@@ -257,9 +257,9 @@ Generators are passed to `hegel.core/draw!`.
 | `(g/regex-str pattern opts)` | regex-generated string |
 | `(g/email)`, `(g/url-str)`, `(g/domain opts)` | formatted string |
 
-There is no scalar `g/byte`. Draw `(g/integer 0 255)` for a wire octet and use
-`unchecked-byte` only at signed-byte API boundaries; draw
-`(g/integer -128 127)` when the property itself is defined over signed bytes.
+Use `unchecked-byte` on an octet only at signed-byte API boundaries. Draw
+`(g/integer -128 127)` when the property itself is defined over signed bytes;
+`g/bytes` remains the byte-array generator.
 
 Date bounds are maps such as
 `{:year 2024 :month 1 :day 1}`. Time bounds use
@@ -284,6 +284,7 @@ Composition and collection generators include:
 | `(g/optional generator)` | `nil` or a generated value |
 | `(g/tuple generators...)` | fixed-size vector of draws |
 | `(g/vector opts elements)` | vector, optionally unique |
+| `(g/chunkings payload)` | nonempty vector chunks that concatenate to `payload` |
 | `(g/list opts elements)` | list |
 | `(g/set opts elements)`, `(g/sorted-set opts elements)` | set |
 | `(g/map opts keys values)`, `(g/sorted-map opts keys values)` | map |
@@ -314,7 +315,7 @@ for custom installations:
 
 | Variable | Purpose |
 | --- | --- |
-| `JOLT_CACHE_DIR` | writable Jolt AOT cache directory |
+| `JOLT_CACHE_DIR` | writable Jolt AOT cache directory; key it by the pinned release SHA |
 | `HEGEL_CACHE_DIR` | writable native cache directory |
 | `HEGEL_LIBHEGEL_LIBRARY` | caller-supplied libhegel path |
 | `HEGEL_SHIM_LIBRARY` | caller-supplied or build-output shim path |

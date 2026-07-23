@@ -21,7 +21,9 @@ combinators from other Hegel bindings.
    the API reference, add the pinned dependency, and run the installer with the
    alias that contains it, normally `joltc -A:test -m hegel.install`. Use the
    bare command only for a top-level dependency. Never leave the example SHA
-   placeholder in project files.
+   placeholder in project files. Key `JOLT_CACHE_DIR` by that SHA when the
+   project has reused a cache across dependency upgrades; the installer rejects
+   a loaded release that does not match the resolved source checkout.
 4. Identify evidence-backed properties rather than merely replacing constants
    with random values.
 5. Add each property beside the existing tests for the same behavior. Prefer
@@ -59,14 +61,15 @@ or behavior with no meaningful general invariant.
   returning `false` does not mark a test case as failing.
 - Include a stable `:hegel/origin` in exception data. Base it on the
   property or assertion site, never on generated values.
-- Check `:passed?` when calling `run-test!` directly. Either throw immediately
-  or increment the surrounding runner's failure count and exit nonzero after
-  the suite. Wrap each complete run if a counting suite must also continue past
-  setup, health-check, or unexpected engine errors.
+- Check `:passed?` when calling `run-test!` directly. Use
+  `hegel.report/counting-runner` plus `hegel.report/run!` for a framework-less
+  suite that must count failed results, continue past thrown run errors, and
+  exit nonzero after all properties.
 - Treat `:status :error` with `:flaky? true` as a failed property result.
   libhegel uses that shape when the same generated choices produce different
   outcomes or generation. The explanation is in `:error`; there may be no
-  counterexample in `:failures`.
+  counterexample in `:failures`. Inspect `:observed-failures` for structured
+  exception summaries captured during exploration.
   `hegel.clojure-test/with` reports all failed results automatically.
 - Preserve the result's `:seed` in failure output. Replay it by
   parsing the string and passing it as the next run's numeric
@@ -105,12 +108,11 @@ and is not itself a reusable generator. Prefer these forms over broad draws
 followed by frequent assumptions; their native spans preserve useful shrinking
 structure.
 
-There is no scalar `g/byte` generator. Use `(g/integer -128 127)` for a signed
-byte or `(g/integer 0 255)` for an unsigned protocol octet. Prefer unsigned
-draws for wire data and call `unchecked-byte` only where an API requires Jolt's
-signed byte representation. Use `g/bytes` for byte arrays. The API reference
-also contains a worked size-based chunking generator whose integers shrink
-toward small writes.
+Use `g/octet` for an unsigned protocol byte and call `unchecked-byte` only where
+an API requires Jolt's signed byte representation. Use `(g/integer -128 127)`
+when the property is defined over signed bytes, and `g/bytes` for byte arrays.
+For stream delivery, draw `(g/chunkings payload)`; its chunks stay nonempty,
+concatenate to the payload, and shrink toward simpler write boundaries.
 
 Use `hegel.stateful/pool` when one rule creates values that later rules must
 reuse or consume. Pools are scoped to one generated test case. If a test needs

@@ -9,6 +9,8 @@
 
 (defrecord TestCase [context handle final? verbosity])
 
+(def ^:private max-observed-failure-origins 16)
+
 (def ^:private mode-values
   {:test-run 0
    :single-test-case 1})
@@ -209,6 +211,35 @@
                 :interesting :interesting-test-cases)
               inc)))
 
+(defn- throwable-observation [error]
+  {:type (str (class error))
+   :message (ex-message error)
+   :data (ex-data error)})
+
+(defn- observation-index [observed origin]
+  (first
+   (keep-indexed (fn [index observation]
+                   (when (= origin (:origin observation))
+                     index))
+                 observed)))
+
+(defn- record-observed-failure [observed outcome]
+  (if (not= :interesting (:status outcome))
+    observed
+    (let [origin (:origin outcome)
+          details (throwable-observation (:exception outcome))]
+      (if-let [index (observation-index observed origin)]
+        (-> observed
+            (update-in [index :count] inc)
+            (assoc-in [index :last] details))
+        (if (< (count observed) max-observed-failure-origins)
+          (conj observed
+                {:origin origin
+                 :count 1
+                 :first details
+                 :last details})
+          observed)))))
+
 (defn- configure-settings! [ctx settings opts]
   (when (contains? opts :mode)
     (hffi/settings-set-mode!
@@ -254,16 +285,18 @@
                  :valid-test-cases 0
                  :invalid-test-cases 0
                  :overrun-test-cases 0
-                 :interesting-test-cases 0}]
+                 :interesting-test-cases 0}
+         observed []]
     (if-let [handle (hffi/next-test-case! ctx run)]
       (let [test-case (->TestCase ctx handle false verbosity)]
         (try
           (let [outcome (run-body test-case case-fn)]
             (mark-outcome! test-case outcome)
-            (recur (count-outcome counts outcome)))
+            (recur (count-outcome counts outcome)
+                   (record-observed-failure observed outcome)))
           (finally
             (hffi/test-case-free! ctx handle))))
-      counts)))
+      (assoc counts :observed-failures observed))))
 
 (defn- snapshot-failure! [ctx result index]
   (let [failure (hffi/run-result-failure! ctx result index)]
