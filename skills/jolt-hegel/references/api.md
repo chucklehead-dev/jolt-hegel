@@ -15,8 +15,13 @@
 
 ## Install
 
-Require Jolt 0.4.15 and add the public release by full commit SHA. A test-only
-dependency normally belongs in the project's test alias:
+Select the Jolt executable from the consuming project's toolchain contract,
+then add the public jolt-hegel release by full commit SHA. The v0.1.2 release
+repository was authored against Jolt 0.4.15, but a modern consuming project may
+carry its own verified compatibility evidence. Never choose a stale installed
+`joltc` merely because this release's historical documentation names it. A
+test-only dependency normally belongs in the project's test alias. In the
+commands below, set `JOLT_BIN` to the absolute project-selected executable:
 
 ```clojure
 {:aliases
@@ -32,7 +37,7 @@ installing the verified native dependencies:
 
 ```bash
 JOLT_CACHE_DIR=.jolt-cache/jolt-hegel-<release-commit-sha> \
-  joltc -A:test -m hegel.install
+  "$JOLT_BIN" -A:test -m hegel.install
 ```
 
 If jolt-hegel is instead in the top-level `:deps` map, omit `-A:test`. Replace
@@ -432,9 +437,9 @@ dedicated test.
 
 ```bash
 JOLT_CACHE_DIR=.jolt-cache/jolt-hegel-<release-commit-sha> \
-  joltc -A:test -m hegel.install
+  "$JOLT_BIN" -A:test -m hegel.install
 JOLT_CACHE_DIR=.jolt-cache/jolt-hegel-<release-commit-sha> \
-  joltc -M:test
+  "$JOLT_BIN" -M:test
 ```
 
 The first command assumes the dependency is in `:test :extra-deps`; omit the

@@ -16,14 +16,18 @@ combinators from other Hegel bindings.
 ## Workflow
 
 1. Inspect the code under test, its docs, existing tests, and call sites.
-2. Check the project's Jolt version and test-runner conventions.
+2. Check the project's Jolt version, selected executable, and test-runner
+   conventions. Prefer a checked-in Hegel gate runner when one exists. Do not
+   substitute an installed `joltc` for a project-selected `jolt`, custom image,
+   or `JOLT_SIM_BIN`.
 3. Resolve the current release tag to its full commit SHA using the command in
-   the API reference, add the pinned dependency, and run the installer with the
-   alias that contains it, normally `joltc -A:test -m hegel.install`. Use the
-   bare command only for a top-level dependency. Never leave the example SHA
-   placeholder in project files. Key `JOLT_CACHE_DIR` by that SHA when the
-   project has reused a cache across dependency upgrades; the installer rejects
-   a loaded release that does not match the resolved source checkout.
+   the API reference and add the pinned dependency. Run the installer through
+   the selected executable with the alias that contains it, for example
+   `"$JOLT_BIN" -A:test -m hegel.install`. Use the bare command only for a
+   top-level dependency. Never leave the example SHA placeholder in project
+   files. Key `JOLT_CACHE_DIR` by that SHA when the project has reused a cache
+   across dependency upgrades; the installer rejects a loaded release that
+   does not match the resolved source checkout.
 4. Identify evidence-backed properties rather than merely replacing constants
    with random values.
 5. Add each property beside the existing tests for the same behavior. Prefer
@@ -31,6 +35,25 @@ combinators from other Hegel bindings.
    directly for custom runners.
 6. Run the relevant test command and inspect any minimal counterexample.
 7. Replay failures with the returned seed before changing the property or code.
+
+## Preflight process-backed properties
+
+When a property launches fresh Jolt workers, dependency resolution and worker
+bootstrap are part of the test harness, not generated application behavior.
+
+- Use the repository's checked-in runner when present.
+- Otherwise pre-resolve both the parent alias and every nested-worker alias
+  with the selected executable's `-P -M:<alias>` before starting Hegel.
+- Keep isolated HOME/cache/temp state separate from one complete
+  `JOLT_GITLIBS` cache. Never copy a hand-picked subset of Git checkouts into a
+  fresh HOME; a changed child pin will otherwise trigger the same clone failure
+  for every generated case.
+- Preserve the first worker artifact directory and full transcript. Abort the
+  run on dependency, spawn, bootstrap, or result-protocol errors; do not send
+  identical infrastructure failures through generation and shrinking.
+- Give cold launcher/dependency/namespace startup its own evidence-backed
+  completion budget. Do not reuse an application deadline as a worker-startup
+  timeout, and do not widen a true simulated deadline merely to get green.
 
 ## Choose useful properties
 
