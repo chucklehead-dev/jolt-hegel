@@ -49,8 +49,9 @@ For every release:
    - downloads the public assets through `hegel.install`; and
    - runs the consumer smoke test against each downloaded shim.
    The workflow creates `dist/` before invoking the installer. On Windows it
-   also converts the drive-rooted output path to forward-slash form because
-   Jolt 0.7.5's `java.io.File` shim does not recognize the backslash form.
+   builds through the default project-relative native cache and then stages
+   the DLL because Jolt 0.7.5's `java.io.File` shim does not recognize an
+   existing drive-rooted directory.
    If a tagged run fails only because a hosted runner could not download an
    upstream asset, do not move the tag. Push the unchanged release tree plus
    the workflow-only repair to `release-v<version>`. The workflow strips the
