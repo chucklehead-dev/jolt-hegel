@@ -6,11 +6,6 @@
             [hegel.core :as h]
             [hegel.generator :as g]))
 
-(def ^:private report-lock
-  ;; clojure.test/report is not dynamic on Jolt. with-redefs is process-global,
-  ;; so serialize property runs which replace it.
-  (atom nil))
-
 (defn pass?
   "True when every captured clojure.test event is a passing assertion."
   [reports]
@@ -72,8 +67,8 @@
         outcome
         (try
           {:value
-           (with-redefs [ct/report (fn [event]
-                                     (swap! reports conj event))]
+           (binding [ct/report (fn [event]
+                                 (swap! reports conj event))]
              (body))}
           (catch Throwable error
             {:error error}))]
@@ -137,18 +132,17 @@
 (defn run-with-reports!
   "Implementation for `with`; public only so macro expansions can call it."
   [opts base body]
-  (locking report-lock
-    (let [reporter ct/report
-          final-reports (atom [])
-          opts (if (or (contains? opts :name)
-                       (contains? opts :database-key))
-                 opts
-                 (assoc opts :name base))
-          result (h/run-test!
-                  opts
-                  (fn [_]
-                    (evaluate-case base final-reports body)))]
-      (publish-result! reporter base result @final-reports))))
+  (let [reporter ct/report
+        final-reports (atom [])
+        opts (if (or (contains? opts :name)
+                     (contains? opts :database-key))
+               opts
+               (assoc opts :name base))
+        result (h/run-test!
+                opts
+                (fn [_]
+                  (evaluate-case base final-reports body)))]
+    (publish-result! reporter base result @final-reports)))
 
 (defmacro with
   "Run a shrinking Hegel property inside a clojure.test deftest.

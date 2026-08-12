@@ -1,5 +1,5 @@
 name: Setup Jolt
-description: Install a checksum-pinned joltc release on a GitHub-hosted runner
+description: Install a checksum-pinned Jolt release on a GitHub-hosted runner
 
 inputs:
   version:
@@ -60,9 +60,9 @@ runs:
           throw "Jolt SHA-256 mismatch: expected $env:JOLT_SETUP_SHA256, got $actual"
         }
         Expand-Archive -LiteralPath $archive -DestinationPath $installDir
-        $root = Join-Path $installDir "joltc-v$env:JOLT_SETUP_VERSION-x86_64-windows"
+        $root = Join-Path $installDir "jolt-v$env:JOLT_SETUP_VERSION-x86_64-windows"
         $root | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
     - name: Verify Jolt
       shell: bash
-      run: joltc --version
+      run: jolt --version

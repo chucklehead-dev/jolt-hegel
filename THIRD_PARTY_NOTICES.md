@@ -4,7 +4,7 @@
 is the user-provided runtime. The native installer downloads libhegel directly
 from Hegel's official GitHub release and stores it in a local cache.
 
-## libhegel 0.30.1
+## libhegel 0.32.3
 
 Source: <https://github.com/hegeldev/hegel-rust>
 
@@ -30,7 +30,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-## Jolt 0.4.15
+## Jolt 0.7.5
 
 Source: <https://github.com/jolt-lang/jolt>
 

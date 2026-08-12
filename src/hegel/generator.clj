@@ -483,7 +483,9 @@
 
   Options include :min-size, :max-size, :codec, :min-codepoint,
   :max-codepoint, :categories, :exclude-categories, :include-characters,
-  :exclude-characters, and :alphabet. Sizes count Unicode code points."
+  :exclude-characters, and :alphabet. :alphabet, :include-characters, and
+  :exclude-characters must be strings, not collections of characters. Sizes
+  count Unicode code points."
   ([]
    (string {}))
   ([opts]
@@ -705,21 +707,26 @@
       (fn [test-case]
         (in-span
          test-case hffi/label-list
-         #(let [collection-id
-                (hffi/new-collection!
-                 (:context test-case) (:handle test-case) min-size max-size)]
-            (loop [result []]
-              (if (hffi/collection-more!
-                   (:context test-case) (:handle test-case) collection-id)
-                (let [value (elements test-case)]
-                  (if (and unique? (some #(= value %) result))
-                    (do
-                      (hffi/collection-reject!
-                       (:context test-case) (:handle test-case)
-                       collection-id "duplicate element")
-                      (recur result))
-                    (recur (conj result value))))
-                result)))))))))
+         (fn []
+           (let [collection
+                 (hffi/new-collection!
+                  (:context test-case) (:handle test-case) min-size max-size)]
+             (try
+               (loop [result []]
+                 (if (hffi/collection-more!
+                      (:context test-case) (:handle test-case) collection)
+                   (let [value (elements test-case)]
+                     (if (and unique? (some #(= value %) result))
+                       (do
+                         (hffi/collection-reject!
+                          (:context test-case) (:handle test-case)
+                          collection "duplicate element")
+                         (recur result))
+                       (recur (conj result value))))
+                   result))
+               (finally
+                 (hffi/collection-free!
+                  (:context test-case) collection)))))))))))
 
 (defn- split-by-sizes [payload sizes]
   (loop [remaining (vec payload)
@@ -767,21 +774,26 @@
       (fn [test-case]
         (in-span
          test-case hffi/label-set
-         #(let [collection-id
-                (hffi/new-collection!
-                 (:context test-case) (:handle test-case) min-size max-size)]
-            (loop [result #{}]
-              (if (hffi/collection-more!
-                   (:context test-case) (:handle test-case) collection-id)
-                (let [value (elements test-case)]
-                  (if (contains? result value)
-                    (do
-                      (hffi/collection-reject!
-                       (:context test-case) (:handle test-case)
-                       collection-id "duplicate element")
-                      (recur result))
-                    (recur (conj result value))))
-                result)))))))))
+         (fn []
+           (let [collection
+                 (hffi/new-collection!
+                  (:context test-case) (:handle test-case) min-size max-size)]
+             (try
+               (loop [result #{}]
+                 (if (hffi/collection-more!
+                      (:context test-case) (:handle test-case) collection)
+                   (let [value (elements test-case)]
+                     (if (contains? result value)
+                       (do
+                         (hffi/collection-reject!
+                          (:context test-case) (:handle test-case)
+                          collection "duplicate element")
+                         (recur result))
+                       (recur (conj result value))))
+                   result))
+               (finally
+                 (hffi/collection-free!
+                  (:context test-case) collection)))))))))))
 
 (defn sorted-set
   "Generate a sorted set. Accepts the same options as set."
@@ -803,21 +815,26 @@
       (fn [test-case]
         (in-span
          test-case hffi/label-map
-         #(let [collection-id
-                (hffi/new-collection!
-                 (:context test-case) (:handle test-case) min-size max-size)]
-            (loop [result {}]
-              (if (hffi/collection-more!
-                   (:context test-case) (:handle test-case) collection-id)
-                (let [key (keys test-case)]
-                  (if (contains? result key)
-                    (do
-                      (hffi/collection-reject!
-                       (:context test-case) (:handle test-case)
-                       collection-id "duplicate key")
-                      (recur result))
-                    (recur (assoc result key (values test-case)))))
-                result)))))))))
+         (fn []
+           (let [collection
+                 (hffi/new-collection!
+                  (:context test-case) (:handle test-case) min-size max-size)]
+             (try
+               (loop [result {}]
+                 (if (hffi/collection-more!
+                      (:context test-case) (:handle test-case) collection)
+                   (let [key (keys test-case)]
+                     (if (contains? result key)
+                       (do
+                         (hffi/collection-reject!
+                          (:context test-case) (:handle test-case)
+                          collection "duplicate key")
+                         (recur result))
+                       (recur (assoc result key (values test-case)))))
+                   result))
+               (finally
+                 (hffi/collection-free!
+                  (:context test-case) collection)))))))))))
 
 (defn sorted-map
   "Generate a sorted map. Accepts the same options as map."

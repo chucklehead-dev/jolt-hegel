@@ -99,16 +99,19 @@
   ([test-case]
    (when-not test-case
      (invalid-argument "pool requires a Hegel test case" {}))
-   {::kind ::pool
-    ::test-case test-case
-    ::pool-id (hffi/new-pool! (:context test-case) (:handle test-case))
-    ::values (atom {})}))
+   (let [handle (hffi/new-pool! (:context test-case) (:handle test-case))]
+     (h/register-native-cleanup!
+      test-case #(hffi/pool-free! (:context test-case) handle))
+     {::kind ::pool
+      ::test-case test-case
+      ::pool-handle handle
+      ::values (atom {})})))
 
 (defn- ensure-current-pool! [pool test-case]
   (require-pool! pool)
   (when-not (identical? (::test-case pool) test-case)
     (invalid-argument "a stateful pool cannot be reused across test cases"
-                      {:pool-id (::pool-id pool)}))
+                      {:pool :different-test-case}))
   pool)
 
 (defn add!
@@ -119,13 +122,12 @@
     (let [variable-id
           (hffi/pool-add! (:context test-case)
                           (:handle test-case)
-                          (::pool-id pool))]
+                          (::pool-handle pool))]
       (when (contains? @(::values pool) variable-id)
         (throw
          (ex-info "libhegel returned a duplicate stateful pool variable id"
                   {:type ::pool-diverged
                    :hegel/origin "hegel.stateful/pool-diverged"
-                   :pool-id (::pool-id pool)
                    :variable-id variable-id})))
       (swap! (::values pool) assoc variable-id value)
       pool)))
@@ -148,7 +150,7 @@
      (let [variable-id
            (hffi/pool-generate! (:context test-case)
                                 (:handle test-case)
-                                (::pool-id pool)
+                                (::pool-handle pool)
                                 consume?)
            entry (find @(::values pool) variable-id)]
        (when-not entry
@@ -156,7 +158,6 @@
           (ex-info "stateful pool state diverged from libhegel"
                    {:type ::pool-diverged
                     :hegel/origin "hegel.stateful/pool-diverged"
-                    :pool-id (::pool-id pool)
                     :variable-id variable-id})))
        (let [value (val entry)]
          (when consume?
@@ -276,39 +277,44 @@
     (when (empty? rules)
       (invalid-argument "cannot run a state machine with no rules" {}))
     (let [test-case (h/current-test-case!)
-          machine-id
+          machine
           (hffi/new-state-machine!
            (:context test-case)
            (:handle test-case)
            (mapv ::native-name rules)
            (mapv ::native-name invariants))]
-      (h/note! "Initial invariant check.")
-      (check-invariants! invariants (:initial-state config) [])
-      (loop [state (:initial-state config)
-             trace []
-             step-number 1]
-        (if-some [index
-                  (hffi/state-machine-next-rule!
-                   (:context test-case) (:handle test-case) machine-id)]
-          (do
-            (when-not (and (integer? index) (<= 0 index) (< index (count rules)))
-              (throw
-               (ex-info
-                (str "libhegel returned out-of-range state-machine rule index "
-                     index)
-                {:type ::invalid-rule-index
-                 :hegel/origin "hegel.stateful/engine"
-                 :index index
-                 :rule-count (count rules)})))
-            (let [item (nth rules index)
-                  next-trace (conj trace (:name item))]
-              (h/note! (str "Step " step-number ": " (::native-name item)))
-              (let [{:keys [state applied?]} (apply-rule item state next-trace)]
-                (if applied?
-                  (do
-                    (check-invariants! invariants state next-trace)
-                    (recur state next-trace (inc step-number)))
-                  (do
-                    (h/note! "Rule stopped early due to violated assumption.")
-                    (recur state next-trace (inc step-number)))))))
-          state)))))
+      (try
+        (h/note! "Initial invariant check.")
+        (check-invariants! invariants (:initial-state config) [])
+        (loop [state (:initial-state config)
+               trace []
+               step-number 1]
+          (if-some [index
+                    (hffi/state-machine-next-rule!
+                     (:context test-case) (:handle test-case) machine)]
+            (do
+              (when-not (and (integer? index) (<= 0 index) (< index (count rules)))
+                (throw
+                 (ex-info
+                  (str "libhegel returned out-of-range state-machine rule index "
+                       index)
+                  {:type ::invalid-rule-index
+                   :hegel/origin "hegel.stateful/engine"
+                   :index index
+                   :rule-count (count rules)})))
+              (let [item (nth rules index)
+                    next-trace (conj trace (:name item))]
+                (h/note! (str "Step " step-number ": " (::native-name item)))
+                (let [{:keys [state applied?]} (apply-rule item state next-trace)]
+                  (if applied?
+                    (do
+                      (check-invariants! invariants state next-trace)
+                      (recur state next-trace (inc step-number)))
+                    (do
+                      (hffi/state-machine-rule-rejected!
+                       (:context test-case) (:handle test-case) machine)
+                      (h/note! "Rule stopped early due to violated assumption.")
+                      (recur state next-trace step-number))))))
+            state))
+        (finally
+          (hffi/state-machine-free! (:context test-case) machine))))))

@@ -3,7 +3,7 @@
 
   This namespace lives on the normal source path. Consumers activate whichever
   alias contains the dependency, for example
-  `joltc -A:test -m hegel.install`; repository aliases are not inherited."
+  `jolt -A:test -m hegel.install`; repository aliases are not inherited."
   (:require [clojure.java.shell :as shell]
             [clojure.string :as str]
             [hegel.native :as native]
@@ -17,23 +17,23 @@
 (def ^:private libhegel-assets
   {[:linux "amd64"]
    {:name "libhegel-linux-amd64.so"
-    :sha256 "45bf1b2a8663893dfa6e4d1ef8bbe482a48483c6d9768c43655b0b6430251af2"}
+    :sha256 "4bf07d8609e64323c286686cc2ec862eaa9c807211a6c7d6050977ed468ec9af"}
 
    [:linux "arm64"]
    {:name "libhegel-linux-arm64.so"
-    :sha256 "a41556331433abe42e9398a1e6a16310ed950e33ed83c8ceb4db002532087286"}
+    :sha256 "87ed35ebfa37d5c6942ee34f3dd8db7674d584e6930b8b6c54c9f534336dc7f0"}
 
    [:darwin "arm64"]
    {:name "libhegel-darwin-arm64.dylib"
-    :sha256 "6cd3173a4cff9b67d41e99a91bebbf85050dafa65edd5173d139844282b519e2"}
+    :sha256 "4abccf4dcc2bc29917ac09142051cf96326d929cab7d43262d2a4fc16cd3232a"}
 
    [:windows "amd64"]
    {:name "libhegel-windows-amd64.dll"
-    :sha256 "89e76699b1aa5480c647466b7eca3be1abc9ad62cc037834ea80eab029d3f94d"}
+    :sha256 "0b07d8eeafca1a06adb0c73d7311117a7e96dce0f618238f2131f87b79df5be1"}
 
    [:windows "arm64"]
    {:name "libhegel-windows-arm64.dll"
-    :sha256 "6b17646db92fa4d8a474ca86cbd78f2430cee9b4a22a3c1e7c65051ca6b7ee47"}})
+    :sha256 "622608ca95b5a8e454633286aab495bd1110d4853ccca6e692dfb1e7c222c8c1"}})
 
 ;; Resolve libc's system(3) everywhere. Windows uses it because Jolt's current
 ;; ProcessBuilder path preflight rejects otherwise-valid C:\... executables.
@@ -492,7 +492,7 @@
 
 (defn- usage! []
   (println
-   (str "Usage: joltc [-A:alias] -m hegel.install "
+   (str "Usage: jolt [-A:alias] -m hegel.install "
         "[setup|fetch-libhegel|fetch-shim|build-shim|verify-source|paths|version]"))
   nil)
 

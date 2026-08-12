@@ -29,7 +29,15 @@
 (defn absolute-path? [path]
   (or (str/starts-with? path "/")
       (str/starts-with? path "\\")
-      (some? (re-matches #"[A-Za-z]:[\\/].*" path))))
+      (and (<= 3 (count path))
+           (= \: (nth path 1))
+           (let [drive (nth path 0)
+                 separator (nth path 2)]
+             (and (str/includes?
+                   "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+                   (str drive))
+                  (or (= \/ separator)
+                      (= \\ separator)))))))
 
 (defn- resolve-from-launch-directory [path]
   (let [launch-dir (nonblank-env "JOLT_PWD")]
@@ -39,7 +47,7 @@
       :else (.getAbsolutePath (java.io.File. path)))))
 
 (defn- dependency-source-root []
-  ;; *file* is not reliable after Jolt 0.4.15 loads a namespace from its AOT
+  ;; *file* is not a reliable dependency-root coordinate after Jolt loads a namespace from its AOT
   ;; cache: its metadata can name the checkout that first populated the cache.
   ;; Current source roots are resolved for every launch, so locate this
   ;; namespace in those roots instead.
@@ -50,10 +58,13 @@
         (host/source-roots)))
 
 (def project-root-path
-  (let [root (or (nonblank-env "HEGEL_SHIM_PROJECT_ROOT")
-                 (some-> (dependency-source-root) parent-path)
-                 ".")]
-    (resolve-from-launch-directory root)))
+  (if-let [override (nonblank-env "HEGEL_SHIM_PROJECT_ROOT")]
+    (resolve-from-launch-directory override)
+    ;; Jolt's source-root resolver already anchors dependency roots to the
+    ;; launch directory. On Windows, resolving that rooted value a second time
+    ;; can prefix the launch directory again before java.io.File sees it.
+    (or (some-> (dependency-source-root) parent-path)
+        (resolve-from-launch-directory "."))))
 
 (defn platform
   "Return the supported native target description for the current process."

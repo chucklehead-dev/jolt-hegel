@@ -44,7 +44,7 @@
              (ex-info
               (str "could not load the Hegel date/time shim from "
                    (pr-str shim-library-path)
-                   "; run `joltc -A:<dependency-alias> -m hegel.install` "
+                   "; run `jolt -A:<dependency-alias> -m hegel.install` "
                    "(or omit the alias for a top-level dependency), or set "
                    "HEGEL_SHIM_LIBRARY")
               {:type ::shim-load-failed
@@ -75,6 +75,9 @@
   [:pointer :pointer :uint] :int)
 (ffi/defcfn c-settings-set-test-cases "hegel_settings_set_test_cases"
   [:pointer :pointer :uint64] :int)
+(ffi/defcfn c-settings-set-stateful-step-count
+  "hegel_settings_set_stateful_step_count"
+  [:pointer :pointer :int64] :int)
 (ffi/defcfn c-settings-set-verbosity "hegel_settings_set_verbosity"
   [:pointer :pointer :uint] :int)
 (ffi/defcfn c-settings-set-seed "hegel_settings_set_seed"
@@ -163,19 +166,28 @@
 (ffi/defcfn c-new-collection "hegel_new_collection"
   [:pointer :pointer :uint64 :uint64 :pointer] :int)
 (ffi/defcfn c-collection-more "hegel_collection_more"
-  [:pointer :pointer :int64 :pointer] :int)
+  [:pointer :pointer :pointer :pointer] :int)
 (ffi/defcfn c-collection-reject "hegel_collection_reject"
-  [:pointer :pointer :int64 :pointer] :int)
+  [:pointer :pointer :pointer :pointer] :int)
+(ffi/defcfn c-collection-free "hegel_collection_free"
+  [:pointer :pointer] :int)
 (ffi/defcfn c-new-pool "hegel_new_pool"
   [:pointer :pointer :pointer] :int)
 (ffi/defcfn c-pool-add "hegel_pool_add"
-  [:pointer :pointer :int64 :pointer] :int)
+  [:pointer :pointer :pointer :pointer] :int)
 (ffi/defcfn c-pool-generate "hegel_pool_generate"
-  [:pointer :pointer :int64 :uint8 :pointer] :int)
+  [:pointer :pointer :pointer :uint8 :pointer] :int)
+(ffi/defcfn c-pool-free "hegel_pool_free"
+  [:pointer :pointer] :int)
 (ffi/defcfn c-new-state-machine "hegel_new_state_machine"
   [:pointer :pointer :pointer :size_t :pointer :size_t :pointer] :int)
 (ffi/defcfn c-state-machine-next-rule "hegel_state_machine_next_rule"
-  [:pointer :pointer :int64 :pointer] :int)
+  [:pointer :pointer :pointer :pointer] :int)
+(ffi/defcfn c-state-machine-rule-rejected
+  "hegel_state_machine_rule_rejected"
+  [:pointer :pointer :pointer] :int)
+(ffi/defcfn c-state-machine-free "hegel_state_machine_free"
+  [:pointer :pointer] :int)
 (ffi/defcfn c-mark-complete "hegel_mark_complete"
   [:pointer :pointer :uint :pointer] :int :blocking)
 
@@ -366,6 +378,10 @@
 (defn settings-set-test-cases! [ctx settings value]
   (check! ctx :settings-set-test-cases
           (c-settings-set-test-cases ctx settings value)))
+
+(defn settings-set-stateful-step-count! [ctx settings value]
+  (check! ctx :settings-set-stateful-step-count
+          (c-settings-set-stateful-step-count ctx settings value)))
 
 (defn settings-set-verbosity! [ctx settings value]
   (check! ctx :settings-set-verbosity
@@ -630,42 +646,45 @@
                 (c-stop-span ctx test-case (if discard? 1 0)))))
 
 (defn new-collection! [ctx test-case min-size max-size]
-  (let [out (ffi/alloc (ffi/sizeof :int64))]
-    (try
-      (let [rc (c-new-collection
-                ctx test-case min-size max-size out)]
-        (check-draw! ctx :new-collection rc)
-        (ffi/read out :int64))
-      (finally
-        (ffi/free out)))))
+  (call-draw-out! ctx :new-collection :pointer
+                  #(c-new-collection
+                    ctx test-case min-size max-size %)))
 
-(defn collection-more! [ctx test-case collection-id]
+(defn collection-more! [ctx test-case collection]
   (let [out (ffi/alloc (ffi/sizeof :uint8))]
     (try
-      (let [rc (c-collection-more ctx test-case collection-id out)]
+      (let [rc (c-collection-more ctx test-case collection out)]
         (check-draw! ctx :collection-more rc)
         (not (zero? (ffi/read out :uint8))))
       (finally
         (ffi/free out)))))
 
-(defn collection-reject! [ctx test-case collection-id reason]
+(defn collection-reject! [ctx test-case collection reason]
   (with-c-string
     reason
     #(check-draw! ctx :collection-reject
-                  (c-collection-reject ctx test-case collection-id %))))
+                  (c-collection-reject ctx test-case collection %))))
+
+(defn collection-free! [ctx collection]
+  (c-collection-free ctx collection)
+  nil)
 
 (defn new-pool! [ctx test-case]
-  (call-draw-out! ctx :new-pool :int64
+  (call-draw-out! ctx :new-pool :pointer
                   #(c-new-pool ctx test-case %)))
 
-(defn pool-add! [ctx test-case pool-id]
+(defn pool-add! [ctx test-case pool]
   (call-draw-out! ctx :pool-add :int64
-                  #(c-pool-add ctx test-case pool-id %)))
+                  #(c-pool-add ctx test-case pool %)))
 
-(defn pool-generate! [ctx test-case pool-id consume?]
+(defn pool-generate! [ctx test-case pool consume?]
   (call-draw-out! ctx :pool-generate :int64
                   #(c-pool-generate
-                    ctx test-case pool-id (if consume? 1 0) %)))
+                    ctx test-case pool (if consume? 1 0) %)))
+
+(defn pool-free! [ctx pool]
+  (c-pool-free ctx pool)
+  nil)
 
 (defn new-state-machine!
   [ctx test-case rule-names invariant-names]
@@ -676,18 +695,27 @@
         invariant-names
         (fn [invariants invariant-count]
           (call-draw-out!
-           ctx :new-state-machine :int64
+           ctx :new-state-machine :pointer
            #(c-new-state-machine
              ctx test-case rules rule-count
              invariants invariant-count %)))))))
 
-(defn state-machine-next-rule! [ctx test-case state-machine-id]
+(defn state-machine-next-rule! [ctx test-case state-machine]
   (let [index
         (call-draw-out!
          ctx :state-machine-next-rule :int64
-         #(c-state-machine-next-rule ctx test-case state-machine-id %))]
+         #(c-state-machine-next-rule ctx test-case state-machine %))]
     (when-not (= state-machine-done index)
       index)))
+
+(defn state-machine-rule-rejected! [ctx test-case state-machine]
+  (check-draw! ctx :state-machine-rule-rejected
+               (c-state-machine-rule-rejected
+                ctx test-case state-machine)))
+
+(defn state-machine-free! [ctx state-machine]
+  (c-state-machine-free ctx state-machine)
+  nil)
 
 (defn- generate-fixed-bytes! [ctx test-case operation size draw]
   (let [out (ffi/alloc size)]

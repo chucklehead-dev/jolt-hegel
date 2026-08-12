@@ -19,7 +19,7 @@ combinators from other Hegel bindings.
 2. Check the project's Jolt version and test-runner conventions.
 3. Resolve the current release tag to its full commit SHA using the command in
    the API reference, add the pinned dependency, and run the installer with the
-   alias that contains it, normally `joltc -A:test -m hegel.install`. Use the
+   alias that contains it, normally `jolt -A:test -m hegel.install`. Use the
    bare command only for a top-level dependency. Never leave the example SHA
    placeholder in project files. Key `JOLT_CACHE_DIR` by that SHA when the
    project has reused a cache across dependency upgrades; the installer rejects
@@ -147,8 +147,8 @@ minimized counterexample.
 ## Keep property execution sequential
 
 There is no worker option for one `run-test!` call; generation and adaptive
-shrinking execute sequentially. `hegel.clojure-test/with` additionally
-serializes complete runs because its report capture uses process-global
-`with-redefs` on Jolt. Concurrent independent `run-test!` calls do not take
-that lock, but shim and engine safety for that pattern is unverified. Do not
-rely on concurrent property runs without a dedicated jolt-hegel test.
+shrinking execute sequentially. Jolt 0.7.5 gives each
+`hegel.clojure-test/with` evaluation a dynamically scoped report sink.
+Concurrent native runs are still unsupported because shim and engine safety
+for that pattern is unverified. Do not rely on concurrent property runs without
+a dedicated jolt-hegel test.

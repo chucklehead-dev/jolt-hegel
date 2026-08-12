@@ -18,16 +18,16 @@ jobs:
       matrix:
         include:
           - runner: ubuntu-24.04
-            jolt-asset: joltc-v0.4.15-x86_64-linux.tar.gz
-            jolt-sha256: 90d7be25b506f534f52086944353ba39c9f499022b20f57ed5992ada98c2ad7a
+            jolt-asset: jolt-v0.7.5-x86_64-linux.tar.gz
+            jolt-sha256: 1c037bd4897d6f819eda188483234af03164b7f7ef765ecb86703b62a4edef7e
             shim-asset: jolt-hegel-shim-linux-amd64.so
           - runner: windows-2022
-            jolt-asset: joltc-v0.4.15-x86_64-windows.zip
-            jolt-sha256: 7f5f84a1f76e6bd8479519d7e3609134fb62c5d5d0d42d5a444380ef2a1f6f5b
+            jolt-asset: jolt-v0.7.5-x86_64-windows.zip
+            jolt-sha256: 21f6705992c2448667321fd0dcee990f51ccd2a620e0ac3101444157ebe75dc1
             shim-asset: jolt-hegel-shim-windows-amd64.dll
           - runner: macos-14
-            jolt-asset: joltc-v0.4.15-aarch64-macos.tar.gz
-            jolt-sha256: 2f56b2ae6e11faf104afbf0d64afc42b073ae81bb7da6993c1e1756096f451b2
+            jolt-asset: jolt-v0.7.5-aarch64-macos.tar.gz
+            jolt-sha256: f65b597e81cafa99c908115e2ed3898e2bac4edcdabbf4bfc5d291d3e4bbfc0b
             shim-asset: jolt-hegel-shim-darwin-arm64.dylib
 
     env:
@@ -46,7 +46,7 @@ jobs:
 
       - uses: ./.github/actions/setup-jolt
         with:
-          version: 0.4.15
+          version: 0.7.5
           asset: ${{ matrix.jolt-asset }}
           sha256: ${{ matrix.jolt-sha256 }}
 
@@ -54,14 +54,14 @@ jobs:
         if: runner.os != 'Windows'
         shell: bash
         run: |
-          expected="v$(joltc -m hegel.install version)"
+          expected="v$(jolt -m hegel.install version)"
           test "$GITHUB_REF_NAME" = "$expected"
 
       - name: Require matching release tag (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $expected = "v$(joltc -m hegel.install version)"
+          $expected = "v$(jolt -m hegel.install version)"
           if ($env:GITHUB_REF_NAME -ne $expected) {
             throw "release tag $env:GITHUB_REF_NAME does not match $expected"
           }
@@ -69,9 +69,9 @@ jobs:
       - name: Build and test shim
         shell: bash
         run: |
-          joltc -m hegel.install fetch-libhegel
-          joltc -m hegel.install build-shim
-          joltc -M:test
+          jolt -m hegel.install fetch-libhegel
+          jolt -m hegel.install build-shim
+          jolt -M:test
 
       - name: Write checksum (POSIX)
         if: runner.os != 'Windows'
@@ -136,16 +136,16 @@ jobs:
         include:
           - name: Linux x86_64
             runner: ubuntu-24.04
-            jolt-asset: joltc-v0.4.15-x86_64-linux.tar.gz
-            jolt-sha256: 90d7be25b506f534f52086944353ba39c9f499022b20f57ed5992ada98c2ad7a
+            jolt-asset: jolt-v0.7.5-x86_64-linux.tar.gz
+            jolt-sha256: 1c037bd4897d6f819eda188483234af03164b7f7ef765ecb86703b62a4edef7e
           - name: Windows x86_64
             runner: windows-2022
-            jolt-asset: joltc-v0.4.15-x86_64-windows.zip
-            jolt-sha256: 7f5f84a1f76e6bd8479519d7e3609134fb62c5d5d0d42d5a444380ef2a1f6f5b
+            jolt-asset: jolt-v0.7.5-x86_64-windows.zip
+            jolt-sha256: 21f6705992c2448667321fd0dcee990f51ccd2a620e0ac3101444157ebe75dc1
           - name: macOS arm64
             runner: macos-14
-            jolt-asset: joltc-v0.4.15-aarch64-macos.tar.gz
-            jolt-sha256: 2f56b2ae6e11faf104afbf0d64afc42b073ae81bb7da6993c1e1756096f451b2
+            jolt-asset: jolt-v0.7.5-aarch64-macos.tar.gz
+            jolt-sha256: f65b597e81cafa99c908115e2ed3898e2bac4edcdabbf4bfc5d291d3e4bbfc0b
 
     env:
       JOLT_CACHE_DIR: ${{ github.workspace }}/.jolt/aot-cache
@@ -162,7 +162,7 @@ jobs:
 
       - uses: ./.github/actions/setup-jolt
         with:
-          version: 0.4.15
+          version: 0.7.5
           asset: ${{ matrix.jolt-asset }}
           sha256: ${{ matrix.jolt-sha256 }}
 
@@ -170,10 +170,10 @@ jobs:
         working-directory: test/consumer
         shell: bash
         run: |
-          joltc -A:test -m hegel.install fetch-libhegel
-          joltc -A:test -m hegel.install fetch-shim
+          jolt -A:test -m hegel.install fetch-libhegel
+          jolt -A:test -m hegel.install fetch-shim
 
       - name: Run against the downloaded release shim
         working-directory: test/consumer
         shell: bash
-        run: joltc -A:test -m consumer.smoke
+        run: jolt -A:test -m consumer.smoke

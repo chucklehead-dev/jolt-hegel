@@ -16,8 +16,8 @@ rule selection.
 
 ## Requirements
 
-- Jolt 0.4.15
-- libhegel 0.30.1, installed and verified by jolt-hegel
+- Jolt 0.7.5
+- libhegel 0.32.3, installed and verified by jolt-hegel
 - A supported native target:
 
   | Target | Prebuilt libhegel | Prebuilt jolt-hegel shim |
@@ -51,7 +51,7 @@ libhegel binary and target-specific shim from the consuming project:
 
 ```bash
 JOLT_CACHE_DIR=.jolt-cache/jolt-hegel-<release-commit-sha> \
-  joltc -A:test -m hegel.install
+  jolt -A:test -m hegel.install
 ```
 
 Replace `test` with the alias containing jolt-hegel. If the dependency is in
@@ -117,7 +117,10 @@ Invariants run on the initial state and after each successfully applied rule.
             [hegel.stateful :as hs]))
 
 (deftest stack-agrees-with-model
-  (with {:test-cases 200 :database "" :verbosity :quiet}
+  (with {:test-cases 200
+         :stateful-step-count 50
+         :database ""
+         :verbosity :quiet}
     []
     (let [sut (atom [])]
       (hs/run!
@@ -141,7 +144,9 @@ Invariants run on the initial state and after each successfully applied rule.
 ```
 
 libhegel chooses rule sequences, their length, and a nonempty swarm subset for
-each case; there is no separate swarm switch. Keep rule names and order stable
+each case; there is no separate swarm switch. `:stateful-step-count` sets the
+number of successfully applied rules per generated case. Rejected rules do not
+consume that budget. Keep rule names and order stable
 across generation and replay. Construct mutable systems under test inside the
 property body so every generated case and final replay starts fresh. Check a
 rule's preconditions before mutation; a false precondition or failed
@@ -231,10 +236,11 @@ failure does not reproduce or libhegel reports run-level nondeterminism without
 a counterexample.
 
 One `run-test!` call executes cases and adaptive shrinking sequentially; there
-is no worker option. `hegel.clojure-test/with` also serializes complete runs
-because Jolt requires process-global report capture. Concurrent independent
-`run-test!` calls are not covered by jolt-hegel's shim/engine safety tests and
-should be treated as unsupported.
+is no worker option. Jolt 0.7.5 provides dynamically scoped `clojure.test`
+reporting, so separate `with` evaluations no longer share a process-global
+report sink. Concurrent native `run-test!` calls are not covered by
+jolt-hegel's shim/engine safety tests and should still be treated as
+unsupported.
 
 ## Generators
 
@@ -268,7 +274,9 @@ contain `{:date ... :time ...}`. All bounds are inclusive.
 
 String options include `:min-size`, `:max-size`, `:codec`, code-point bounds,
 Unicode category inclusion/exclusion, character inclusion/exclusion, and a
-fixed `:alphabet`. Regex generation uses full-match semantics by default; pass
+fixed `:alphabet`. Pass `:alphabet`, `:include-characters`, and
+`:exclude-characters` as strings, not vectors or other character collections.
+Regex generation uses full-match semantics by default; pass
 `{:full-match? false}` to permit prefix or suffix text.
 
 Composition and collection generators include:
@@ -309,7 +317,7 @@ makes a property ineffective.
 
 ## Native configuration
 
-Most users only need `joltc -A:test -m hegel.install`, with the dependency's
+Most users only need `jolt -A:test -m hegel.install`, with the dependency's
 actual alias substituted for `test`. These environment variables are available
 for custom installations:
 
@@ -336,15 +344,17 @@ $skill-installer install https://github.com/chucklehead-dev/jolt-hegel/tree/main
 ## Development
 
 ```bash
-joltc -m hegel.install fetch-libhegel
-joltc -m hegel.install build-shim
-joltc -M:test
-(cd test/consumer && joltc -A:test -m consumer.smoke)
+jolt -m hegel.install fetch-libhegel
+jolt -m hegel.install build-shim
+jolt -M:test
+(cd test/consumer && jolt -A:test -m consumer.smoke)
 ```
 
 Implementation details are in
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md),
-[docs/DESIGN.md](docs/DESIGN.md), and the
+[docs/DESIGN.md](docs/DESIGN.md), and
+[docs/UPSTREAM-IMPROVEMENTS.md](docs/UPSTREAM-IMPROVEMENTS.md). Accepted
+decisions are recorded in the
 [architecture decision records](docs/adr/README.md). Maintainer release steps
 are in [docs/RELEASING.md](docs/RELEASING.md).
 

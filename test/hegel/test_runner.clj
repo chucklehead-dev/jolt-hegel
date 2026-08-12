@@ -13,14 +13,20 @@
 
 (def failures (atom 0))
 (def progress-file
-  (native/join-path
-   (or (native/nonblank-env "RUNNER_TEMP")
-       (native/nonblank-env "TMPDIR")
-       (native/nonblank-env "TEMP")
-       (native/nonblank-env "TMP")
-       (System/getProperty "java.io.tmpdir")
-       ".")
-   "jolt-hegel-test-progress.log"))
+  ;; Jolt 0.7.5's atomic spit path currently treats a Windows drive-rooted
+  ;; target as relative and prefixes the launch directory a second time. Keep
+  ;; this harness-owned progress file relative on Windows until that runtime
+  ;; boundary is fixed; release consumers never use this path.
+  (if (= :windows (:os (native/platform)))
+    "jolt-hegel-test-progress.log"
+    (native/join-path
+     (or (native/nonblank-env "RUNNER_TEMP")
+         (native/nonblank-env "TMPDIR")
+         (native/nonblank-env "TEMP")
+         (native/nonblank-env "TMP")
+         (System/getProperty "java.io.tmpdir")
+         ".")
+     "jolt-hegel-test-progress.log")))
 
 (defn reset-progress! []
   ;; jolt's atomic spit uses rename. POSIX rename replaces an existing target,
@@ -262,6 +268,11 @@
            (= hffi/libhegel-version (hffi/version)))))
 
 (defn installer-source-identity []
+  (check "installer recognizes POSIX and Windows absolute paths"
+         (and (native/absolute-path? "/tmp/jolt-hegel")
+              (native/absolute-path? "C:\\src\\jolt-hegel")
+              (native/absolute-path? "D:/src/jolt-hegel")
+              (not (native/absolute-path? "src/jolt-hegel"))))
   (check "installer verifies the loaded release against current source"
          (= version/jolt-hegel-version
             (install/verify-source-version!)))
@@ -407,7 +418,9 @@
     (check "fixed-size bytes are copied into jolt byte arrays"
            (and (every? (fn [data]
                           (and (= 8 (alength data))
-                               (every? #(<= 0 % 255) (seq data))))
+                               (every? #(<= -128 % 127) (seq data))
+                               (every? #(<= 0 (bit-and % 0xff) 255)
+                                       (seq data))))
                         (:bytes @values))
                 (every? #(zero? (alength %)) (:empty-bytes @values))))
     (check "versioned UUIDs use canonical RFC 4122 text"
@@ -578,6 +591,14 @@
             @values)))
   (check "alphabet cannot be combined with character filters"
          (throws? #(g/string {:alphabet "abc" :codec :ascii})))
+  (let [error (try
+                (g/string {:alphabet (vec "abc")})
+                nil
+                (catch Throwable error
+                  error))]
+    (check "alphabet rejects character collections with a useful message"
+           (and (= "string alphabet must be a string" (ex-message error))
+                (= ::g/invalid-option (:type (ex-data error))))))
   (check "invalid regexes fail when the generator is constructed"
          (throws? #(g/regex-str "(")))
   (check "unknown codecs fail when the generator is constructed"
@@ -788,8 +809,8 @@
                        (hs/add! special-pool nil)
                        (hs/add! special-pool false))
                    special-values
-                   #{(h/draw! (hs/values-consumed special-pool))
-                     (h/draw! (hs/values-consumed special-pool))}]
+                   (set [(h/draw! (hs/values-consumed special-pool))
+                         (h/draw! (hs/values-consumed special-pool))])]
                (swap! observations conj
                       {:original original
                        :reusable reusable
@@ -1088,6 +1109,142 @@
     (check "stateful configuration errors abort instead of shrinking"
            (= ::hs/invalid-argument (:type (ex-data error))))))
 
+(defn latest-stateful-abi []
+  (let [counts (atom {:collection-new 0
+                      :collection-free 0
+                      :pool-new 0
+                      :pool-free 0
+                      :machine-new 0
+                      :machine-free 0
+                      :rule-rejected 0})
+        states (atom [])
+        new-collection! hffi/new-collection!
+        collection-free! hffi/collection-free!
+        new-pool! hffi/new-pool!
+        pool-free! hffi/pool-free!
+        new-state-machine! hffi/new-state-machine!
+        state-machine-free! hffi/state-machine-free!
+        state-machine-rule-rejected! hffi/state-machine-rule-rejected!
+        result
+        (with-redefs
+          [hffi/new-collection!
+           (fn [& args]
+             (swap! counts update :collection-new inc)
+             (apply new-collection! args))
+           hffi/collection-free!
+           (fn [& args]
+             (swap! counts update :collection-free inc)
+             (apply collection-free! args))
+           hffi/new-pool!
+           (fn [& args]
+             (swap! counts update :pool-new inc)
+             (apply new-pool! args))
+           hffi/pool-free!
+           (fn [& args]
+             (swap! counts update :pool-free inc)
+             (apply pool-free! args))
+           hffi/new-state-machine!
+           (fn [& args]
+             (swap! counts update :machine-new inc)
+             (apply new-state-machine! args))
+           hffi/state-machine-free!
+           (fn [& args]
+             (swap! counts update :machine-free inc)
+             (apply state-machine-free! args))
+           hffi/state-machine-rule-rejected!
+           (fn [& args]
+             (swap! counts update :rule-rejected inc)
+             (apply state-machine-rule-rejected! args))]
+          (h/run-test!
+           {:test-cases 6
+            :stateful-step-count 7
+            :seed 20260811
+            :database ""
+            :verbosity :quiet}
+           (fn [_]
+             (h/draw! (g/vector {:size 2} (g/integer 0 10)))
+             (let [pool (hs/pool)
+                   attempts (atom 0)]
+               (hs/add! pool :owned)
+               (h/draw! (hs/values-reusable pool))
+               (swap!
+                states conj
+                (hs/run!
+                 {:initial-state 0
+                  :rules
+                  [(hs/rule
+                    :alternating
+                    {:precondition
+                     (fn [_]
+                       (odd? (swap! attempts inc)))}
+                    inc)]}))))))]
+    (check "latest stateful step count controls successful rule steps"
+           (and (:passed? result)
+                (seq @states)
+                (every? #(= 7 %) @states)))
+    (check "rejected stateful rules are reported without consuming steps"
+           (pos? (:rule-rejected @counts)))
+    (check "latest opaque collection handles are freed exactly once"
+           (and (pos? (:collection-new @counts))
+                (= (:collection-new @counts)
+                   (:collection-free @counts))))
+    (check "latest opaque pool handles are freed exactly once"
+           (and (pos? (:pool-new @counts))
+                (= (:pool-new @counts) (:pool-free @counts))))
+    (check "latest opaque state-machine handles are freed exactly once"
+           (and (pos? (:machine-new @counts))
+                (= (:machine-new @counts) (:machine-free @counts)))))
+  (let [error
+        (try
+          (h/run-test!
+           {:test-cases 1
+            :stateful-step-count 0
+            :seed 1
+            :database ""
+            :verbosity :quiet}
+           (fn [_] nil))
+          nil
+          (catch Throwable error
+            error))]
+    (check "stateful step count rejects zero before a native run"
+           (= ::h/invalid-option (:type (ex-data error)))))
+  ;; This is a fixed 51-step failure blob produced by libhegel 0.32.3. The
+  ;; 0.32.3 regression was that blob replay ignored :stateful-step-count and
+  ;; stopped at the old default of 50, so the invariant never failed.
+  (let [ctx (hffi/context-new!)]
+    (try
+      (let [settings (hffi/settings-new! ctx)]
+        (try
+          (hffi/settings-set-stateful-step-count! ctx settings 52)
+          (let [handle
+                (hffi/test-case-from-blob!
+                 ctx settings
+                 "AXic7cihDQAACAPBr2V/xbRgCKobVDS9fAOC2nGnL2FoOU7+Az0=")
+                test-case (h/->TestCase ctx handle true :quiet)]
+            (try
+              (let [error
+                    (binding [h/*test-case* test-case]
+                      (try
+                        (hs/run!
+                         {:initial-state {:count 0}
+                          :rules [(hs/rule :inc #(update % :count inc))]
+                          :invariants
+                          [(hs/invariant :below-fifty-one
+                                         #(< (:count %) 51))]})
+                        nil
+                        (catch Throwable error
+                          error)))]
+                (check "stateful blobs replay failures beyond fifty steps"
+                       (and error
+                            (= 51
+                               (count (::hs/trace (ex-data error)))))))
+              (finally
+                (hffi/test-case-free! ctx handle))))
+          (finally
+            (hffi/settings-free! ctx settings))))
+      (finally
+        (hffi/context-free! ctx)))))
+
 (t/deftest embedded-hegel-property
   (ht/with {:test-cases 20
             :seed 20260727
@@ -1122,12 +1279,12 @@
                 (= [10] @final-values)))
     (check "only the final minimal clojure.test failure is reported"
            (and (= [:fail] (mapv :type @events))
-                (str/includes? (:message (first @events)) "10")
+                (str/includes? (pr-str (:actual (first @events))) "10")
                 (str/includes? (:message (first @events))
                                "Hegel seed: 1")))
     (check "clojure.test origins are stable and independent of drawn values"
            (and (str/includes? (:origin failure) "hegel/test_runner.clj:")
-                (str/ends-with? (:origin failure) ":assertion-0"))))
+                (str/ends-with? (:origin failure) ":(< x 10)"))))
   (let [events (atom [])
         result
         (with-redefs [t/report #(swap! events conj %)]
@@ -1142,7 +1299,7 @@
     (check "blank native exception messages retain an identifiable cause"
            (and (not (:passed? result))
                 (= [:fail] (mapv :type @events))
-                (str/includes? (:actual event) "valid index")
+                (str/includes? (:actual event) "out of bounds")
                 (str/includes? (:message event) "Hegel seed: 4242"))))
   (let [events (atom [])
         result
@@ -1203,6 +1360,7 @@
   (scenario "stateful shrink quality" stateful-shrink-quality)
   (scenario "stateful swarm and control flow"
             stateful-swarm-and-control-flow)
+  (scenario "latest stateful ABI and owned handles" latest-stateful-abi)
   (scenario "clojure.test integration" clojure-test-integration)
   (println "Ran jolt-hegel scenarios;" @failures "failures")
   (flush)

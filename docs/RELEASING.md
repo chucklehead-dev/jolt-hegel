@@ -75,6 +75,6 @@ Review these together for each release:
 - `.github/workflows/release.yml`: build/release Jolt assets and target matrix
 - `README.md` and `THIRD_PARTY_NOTICES.md`: documented versions and notices
 
-Jolt 0.4.15 release archives are checksum-pinned in both workflows. libhegel
-0.30.1 release hashes are pinned in `hegel.install`. The release workflow also
+Jolt 0.7.5 release archives are checksum-pinned in both workflows. libhegel
+0.32.3 release hashes are pinned in `hegel.install`. The release workflow also
 rejects a tag that does not match `hegel.version/jolt-hegel-version`.

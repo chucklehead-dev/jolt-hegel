@@ -112,8 +112,8 @@ ordinary test assertion:
 - every nonpassing event includes the resolved Hegel seed;
 - blank exception messages fall back to the throwable-map cause or exception
   type and preserve original `ex-data`; and
-- report capture is serialized because Jolt requires process-global
-  `with-redefs` rather than dynamic binding.
+- report capture is isolated with Jolt 0.7.5's dynamically bindable
+  `clojure.test/report`.
 
 The direct `run-test!` API returns data and does not throw merely because a
 property failed or libhegel detected nondeterminism. A non-`clojure.test`
@@ -125,16 +125,17 @@ owning process exit.
 ## Execution is sequential
 
 One `run-test!` invocation drives generation and adaptive shrinking
-sequentially; the public options expose no workers. `hegel.clojure-test/with`
-also holds the process-wide report lock for the complete run. Independent
-direct calls do not use that lock, but concurrent shim and engine use is not a
-supported contract until it has a dedicated integration test.
+sequentially; the public options expose no workers. Separate
+`hegel.clojure-test/with` evaluations have isolated report bindings, but
+concurrent shim and engine use is not a supported contract until it has a
+dedicated integration test.
 
 ## Stateful testing
 
 `hegel.stateful/run!` exposes immutable model transitions while libhegel owns
-rule selection, sequence shrinking, the normal 50-attempt cap, termination, and
-a random nonempty swarm subset for each case.
+rule selection, sequence shrinking, the configured successful-step budget,
+termination, and a random nonempty swarm subset for each case. A rejected rule
+is reported to libhegel and does not consume that budget.
 
 Rules have stable, unique names and receive the current state. A rule
 precondition is evaluated before its step. A false precondition or `assume!`

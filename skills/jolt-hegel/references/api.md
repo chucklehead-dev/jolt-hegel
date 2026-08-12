@@ -15,7 +15,7 @@
 
 ## Install
 
-Require Jolt 0.4.15 and add the public release by full commit SHA. A test-only
+Require Jolt 0.7.5 and add the public release by full commit SHA. A test-only
 dependency normally belongs in the project's test alias:
 
 ```clojure
@@ -32,7 +32,7 @@ installing the verified native dependencies:
 
 ```bash
 JOLT_CACHE_DIR=.jolt-cache/jolt-hegel-<release-commit-sha> \
-  joltc -A:test -m hegel.install
+  jolt -A:test -m hegel.install
 ```
 
 If jolt-hegel is instead in the top-level `:deps` map, omit `-A:test`. Replace
@@ -191,9 +191,19 @@ String options are:
 | `:min-codepoint`, `:max-codepoint` | inclusive Unicode code-point bounds |
 | `:categories` | Unicode general-category allowlist, e.g. `[:Lu :Nd]` |
 | `:exclude-categories` | Unicode general-category denylist |
-| `:include-characters` | add characters to the generated alphabet |
-| `:exclude-characters` | remove characters from the generated alphabet |
-| `:alphabet` | exact character alphabet; cannot be combined with other character filters |
+| `:include-characters` | String whose characters are added to the generated alphabet |
+| `:exclude-characters` | String whose characters are removed from the generated alphabet |
+| `:alphabet` | String containing the exact character alphabet; cannot be combined with other character filters |
+
+Pass the alphabet itself as a string:
+
+```clojure
+(g/string {:min-size 1 :max-size 20 :alphabet "abc😀"})
+```
+
+`(vec "abc😀")`, a set, or another character collection is not accepted for
+`:alphabet`; `:include-characters` and `:exclude-characters` likewise require
+strings.
 
 ## Combinators and collections
 
@@ -286,8 +296,9 @@ Call `hs/run!` inside a Hegel property or `hegel.clojure-test/with` body:
 
 Each rule step is `(fn [state] next-state)`. A rule's optional
 `:precondition` is evaluated before its step. False preconditions and failed
-`h/assume!` calls skip that attempted rule; invariants do not run after a
-skipped rule. All other rule exceptions fail the property. Invariants are
+`h/assume!` calls reject that attempted rule without consuming the configured
+`:stateful-step-count`; invariants do not run after a skipped rule. All other
+rule exceptions fail the property. Invariants are
 truth-valued predicates checked on the initial state and after every successful
 rule.
 
@@ -379,6 +390,7 @@ Common `run-test!` options:
 | Option | Meaning |
 | --- | --- |
 | `:test-cases` | maximum generated cases |
+| `:stateful-step-count` | positive count of successfully applied state-machine rules per case |
 | `:seed` | numeric seed for exact replay |
 | `:derandomize?` | derive repeatable behavior when no seed is supplied |
 | `:name` or `:database-key` | stable identity for derived seeds and persistence |
@@ -420,21 +432,18 @@ One `run-test!` call is sequential. The public options have no worker setting,
 and libhegel's generation and adaptive shrinking depend on the preceding case
 history. Do not thread cases within a run.
 
-`hegel.clojure-test/with` also serializes complete property runs with a global
-report lock. On Jolt, `clojure.test/report` is not dynamically bindable, so the
-integration must use process-global `with-redefs` while it captures exploration
-reports. Independent concurrent `run-test!` calls do not use that report lock,
-but concurrent shim/engine safety has not been verified by jolt-hegel's test
-suite. Treat concurrent direct runs as unsupported until that contract has a
-dedicated test.
+Jolt 0.7.5 gives each `hegel.clojure-test/with` evaluation a dynamically scoped
+report binding. Concurrent shim/engine safety has not been verified by
+jolt-hegel's test suite, so concurrent native runs remain unsupported until
+that contract has a dedicated integration test.
 
 ## Verification commands
 
 ```bash
 JOLT_CACHE_DIR=.jolt-cache/jolt-hegel-<release-commit-sha> \
-  joltc -A:test -m hegel.install
+  jolt -A:test -m hegel.install
 JOLT_CACHE_DIR=.jolt-cache/jolt-hegel-<release-commit-sha> \
-  joltc -M:test
+  jolt -M:test
 ```
 
 The first command assumes the dependency is in `:test :extra-deps`; omit the

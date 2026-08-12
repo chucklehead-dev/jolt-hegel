@@ -28,7 +28,7 @@ consumer test
 | `src/hegel/core.clj` | Run settings, engine loop, outcome mapping, failure snapshots, and final replay |
 | `src/hegel/generator.clj` | Primitive, formatted, compositional, and collection generators |
 | `src/hegel/stateful.clj` | Engine-managed state machines and value pools |
-| `src/hegel/clojure_test.clj` | Serialized `clojure.test` report capture and publication |
+| `src/hegel/clojure_test.clj` | Dynamically scoped `clojure.test` report capture and publication |
 | `src/hegel/report.clj` | Counting and structured reporting for framework-less suites |
 | `src/hegel/ffi.clj` | Raw bindings, checked return codes, allocation ownership, and ABI compatibility |
 | `src/hegel/native.clj` | Cross-platform source-root, cache, and library path resolution |
@@ -46,8 +46,8 @@ consumer test
 4. libhegel returns an aggregate result and reproduction blob for each failure.
 5. jolt-hegel snapshots failure data, frees engine-owned result objects, and
    replays every blob through `hegel_test_case_from_blob` with `final?` set.
-6. All test-case, result, settings, run, and context handles are freed in nested
-   `finally` blocks.
+6. All collection, pool, state-machine, test-case, result, settings, run, and
+   context handles are freed by their exact owners in nested `finally` blocks.
 
 The final replay is part of the public behavior. It produces stable diagnostics,
 backs `final?`, `when-final`, and `fprn`, and detects failures that do not
@@ -61,7 +61,7 @@ buffers. Engine-owned byte arrays, strings, string generators, failures, and
 result handles are copied as needed and freed immediately by the wrapper.
 
 `hegel_generate_date`, `hegel_generate_time`, and `hegel_generate_datetime` are
-the exception: their bounds are C structs passed by value. Jolt 0.4.15 cannot
+the exception: their bounds are C structs passed by value. Jolt 0.7.5 cannot
 describe those arguments portably. The temporal shim accepts pointers to the
 same structs, dereferences them in target-native C, and calls libhegel with its
 real ABI. Compile-time size, alignment, and offset assertions guard the expected
@@ -88,7 +88,7 @@ installation is a public namespace entry point. The consuming project must
 activate the alias which contains the dependency:
 
 ```bash
-joltc -A:test -m hegel.install
+jolt -A:test -m hegel.install
 ```
 
 `test` is only the conventional alias name. A top-level dependency needs no
@@ -121,8 +121,8 @@ list is in the README.
 
 ## `clojure.test` boundary
 
-Jolt's `clojure.test/report` is not dynamic, so report capture uses
-`with-redefs`, guarded by a process-wide lock. Each generated case is evaluated
+Jolt 0.7.5 makes `clojure.test/report` dynamically bindable, so report capture
+uses `binding` and is isolated per evaluation. Each generated case is evaluated
 without publishing intermediate assertion events. A successful property emits
 one pass. A failed property publishes only the final replay's minimal assertion
 events, with a synthetic failure as a fallback when replay produced no report.
@@ -132,10 +132,9 @@ text and original `ex-data` without exposing only a generic wrapper message.
 
 `run-test!` turns libhegel's two explicit nondeterminism errors into failed
 result maps with `:status :error`, `:flaky? true`, and the native explanation in
-`:error`. Other run-level errors still throw. One native run is sequential, and
-the `clojure.test` report lock serializes complete `with` runs. Independent
-concurrent direct runs remain unsupported until shim and engine safety are
-covered by a dedicated integration test.
+`:error`. Other run-level errors still throw. One native run is sequential.
+Independent concurrent direct runs remain unsupported until shim and engine
+safety are covered by a dedicated integration test.
 
 ## Release boundary
 

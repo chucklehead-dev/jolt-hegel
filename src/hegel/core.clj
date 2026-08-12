@@ -9,6 +9,36 @@
 
 (defrecord TestCase [context handle final? verbosity])
 
+(defn register-native-cleanup!
+  "Register a no-argument native cleanup for the active test case.
+
+  This is an integration seam for engine-owned objects whose public API does
+  not expose manual lifetime management. Cleanups run once in reverse creation
+  order before the test-case handle is released."
+  [test-case cleanup]
+  (when-not (and test-case (fn? cleanup) (:native-cleanups test-case))
+    (throw
+     (ex-info "native cleanup requires a test case and function"
+              {:type ::invalid-native-cleanup})))
+  (swap! (:native-cleanups test-case) conj cleanup)
+  nil)
+
+(defn- release-test-case! [test-case]
+  (let [first-error (atom nil)]
+    (doseq [cleanup (reverse @(:native-cleanups test-case))]
+      (try
+        (cleanup)
+        (catch Throwable error
+          (when-not @first-error
+            (reset! first-error error)))))
+    (hffi/test-case-free! (:context test-case) (:handle test-case))
+    (when-let [error @first-error]
+      (throw error))))
+
+(defn- test-case [ctx handle final? verbosity]
+  (assoc (->TestCase ctx handle final? verbosity)
+         :native-cleanups (atom [])))
+
 (def ^:private max-observed-failure-origins 16)
 
 (def ^:private mode-values
@@ -249,6 +279,15 @@
      ctx settings (enum-value! :backend backend-values (:backend opts))))
   (when (contains? opts :test-cases)
     (hffi/settings-set-test-cases! ctx settings (:test-cases opts)))
+  (when (contains? opts :stateful-step-count)
+    (let [value (:stateful-step-count opts)]
+      (when-not (and (integer? value) (pos? value))
+        (throw
+         (ex-info ":stateful-step-count must be a positive integer"
+                  {:type ::invalid-option
+                   :option :stateful-step-count
+                   :value value})))
+      (hffi/settings-set-stateful-step-count! ctx settings value)))
   (when (contains? opts :verbosity)
     (hffi/settings-set-verbosity!
      ctx settings
@@ -288,14 +327,14 @@
                  :interesting-test-cases 0}
          observed []]
     (if-let [handle (hffi/next-test-case! ctx run)]
-      (let [test-case (->TestCase ctx handle false verbosity)]
+      (let [test-case (test-case ctx handle false verbosity)]
         (try
           (let [outcome (run-body test-case case-fn)]
             (mark-outcome! test-case outcome)
             (recur (count-outcome counts outcome)
                    (record-observed-failure observed outcome)))
           (finally
-            (hffi/test-case-free! ctx handle))))
+            (release-test-case! test-case))))
       (assoc counts :observed-failures observed))))
 
 (defn- snapshot-failure! [ctx result index]
@@ -313,7 +352,7 @@
 (defn- replay-failure! [ctx settings verbosity case-fn failure]
   (if-let [blob (:reproduction-blob failure)]
     (let [handle (hffi/test-case-from-blob! ctx settings blob)
-          test-case (->TestCase ctx handle true verbosity)]
+          test-case (test-case ctx handle true verbosity)]
       (try
         (let [outcome (run-body test-case case-fn)]
           (mark-outcome! test-case outcome)
@@ -321,7 +360,7 @@
                  outcome
                  {:reproduced? (= :interesting (:status outcome))}))
         (finally
-          (hffi/test-case-free! ctx handle))))
+          (release-test-case! test-case))))
     (assoc failure
            :status :missing-reproduction-blob
            :reproduced? false)))
@@ -353,7 +392,8 @@
   exceptions. Use a stable `:hegel/origin` in ex-data when distinct assertion
   sites need distinct failure identities.
 
-  Supported options are :mode, :backend, :test-cases, :verbosity, :seed,
+  Supported options are :mode, :backend, :test-cases, :stateful-step-count,
+  :verbosity, :seed,
   :derandomize?, :report-multiple-failures?, :database, :database-key/:name,
   :phases, and :suppress-health-checks. The C ABI does not expose an
   automatically chosen seed, so this wrapper always chooses and supplies one.
