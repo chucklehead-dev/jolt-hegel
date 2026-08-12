@@ -134,11 +134,20 @@ jobs:
         shell: bash
         run: |
           release_tag="${GITHUB_REF_NAME#release-}"
-          gh release create "$release_tag" dist/* \
-            --repo "$GITHUB_REPOSITORY" \
-            --verify-tag \
-            --generate-notes \
-            --title "$GITHUB_REF_NAME"
+          if gh release view "$release_tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$release_tag" dist/* \
+              --repo "$GITHUB_REPOSITORY" \
+              --clobber
+            gh release edit "$release_tag" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "$release_tag"
+          else
+            gh release create "$release_tag" dist/* \
+              --repo "$GITHUB_REPOSITORY" \
+              --verify-tag \
+              --generate-notes \
+              --title "$release_tag"
+          fi
 
   verify-release:
     name: Verify published shim on ${{ matrix.name }}

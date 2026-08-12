@@ -55,8 +55,9 @@ For every release:
    If a tagged run fails only because a hosted runner could not download an
    upstream asset, do not move the tag. Push the unchanged release tree plus
    the workflow-only repair to `release-v<version>`. The workflow strips the
-   `release-` prefix, verifies the existing tag/version, rebuilds all assets,
-   and publishes against that immutable tag.
+   `release-` prefix, verifies the existing tag/version, rebuilds and replaces
+   the same six assets, and verifies them again. Native and Jolt downloads use
+   bounded retries for transient hosted-network failures.
 7. Resolve the tag's full commit SHA and use it in consumer `deps.edn` files:
 
    ```bash
