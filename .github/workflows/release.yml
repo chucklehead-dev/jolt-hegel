@@ -73,6 +73,10 @@ jobs:
       - name: Build and test shim
         shell: bash
         run: |
+          # Jolt 0.7.5's java.io.File.mkdirs cannot create this drive-rooted
+          # absolute parent on Windows. Git Bash owns this workflow directory,
+          # so create the release output directory before the installer sees it.
+          mkdir -p dist
           jolt -m hegel.install fetch-libhegel
           jolt -m hegel.install build-shim
           jolt -M:test
