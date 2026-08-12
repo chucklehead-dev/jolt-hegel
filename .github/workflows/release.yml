@@ -2,6 +2,8 @@ name: Release
 
 on:
   push:
+    branches:
+      - 'release-v*'
     tags:
       - 'v*'
 
@@ -55,15 +57,17 @@ jobs:
         shell: bash
         run: |
           expected="v$(jolt -m hegel.install version)"
-          test "$GITHUB_REF_NAME" = "$expected"
+          release_tag="${GITHUB_REF_NAME#release-}"
+          test "$release_tag" = "$expected"
 
       - name: Require matching release tag (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $expected = "v$(jolt -m hegel.install version)"
-          if ($env:GITHUB_REF_NAME -ne $expected) {
-            throw "release tag $env:GITHUB_REF_NAME does not match $expected"
+          $releaseTag = $env:GITHUB_REF_NAME -replace '^release-', ''
+          if ($releaseTag -ne $expected) {
+            throw "release ref $env:GITHUB_REF_NAME does not match $expected"
           }
 
       - name: Build and test shim
@@ -118,7 +122,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/* \
+          release_tag="${GITHUB_REF_NAME#release-}"
+          gh release create "$release_tag" dist/* \
             --repo "$GITHUB_REPOSITORY" \
             --verify-tag \
             --generate-notes \
