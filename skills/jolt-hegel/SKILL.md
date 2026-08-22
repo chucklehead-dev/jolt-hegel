@@ -147,8 +147,8 @@ minimized counterexample.
 ## Keep property execution sequential
 
 There is no worker option for one `run-test!` call; generation and adaptive
-shrinking execute sequentially. Jolt 0.7.5 gives each
+shrinking execute sequentially. The supported Jolt runtime gives each
 `hegel.clojure-test/with` evaluation a dynamically scoped report sink.
-Concurrent native runs are still unsupported because shim and engine safety
-for that pattern is unverified. Do not rely on concurrent property runs without
-a dedicated jolt-hegel test.
+Concurrent native runs are still unsupported because engine safety for that
+pattern is unverified. Do not
+rely on concurrent property runs without a dedicated jolt-hegel test.

@@ -559,9 +559,10 @@
 
 (defn- in-span [test-case label body]
   (hffi/start-span! (:context test-case) (:handle test-case) label)
-  (let [value (body)]
-    (hffi/stop-span! (:context test-case) (:handle test-case))
-    value))
+  (try
+    (body)
+    (finally
+      (hffi/stop-span! (:context test-case) (:handle test-case)))))
 
 (defn fmap
   "Transform values from generator with f while preserving shrink structure."
@@ -599,16 +600,25 @@
      (loop [attempt 0]
        (hffi/start-span! (:context test-case) (:handle test-case)
                          hffi/label-filter)
-       (let [value (generator test-case)]
-         (if (pred value)
-           (do
-             (hffi/stop-span! (:context test-case) (:handle test-case))
-             value)
-           (do
-             (hffi/stop-span! (:context test-case) (:handle test-case) true)
-             (if (< attempt 2)
-               (recur (inc attempt))
-               (h/assume! test-case false)))))))))
+       (let [[accepted? value]
+             (let [closed? (atom false)]
+               (try
+                 (let [value (generator test-case)
+                       accepted? (clojure.core/boolean (pred value))]
+                   (reset! closed? true)
+                   (hffi/stop-span! (:context test-case) (:handle test-case)
+                                    (not accepted?))
+                   [accepted? value])
+                 (finally
+                   (when-not @closed?
+                     (reset! closed? true)
+                     (hffi/stop-span! (:context test-case)
+                                      (:handle test-case))))))]
+         (if accepted?
+           value
+           (if (< attempt 2)
+             (recur (inc attempt))
+             (h/assume! test-case false))))))))
 
 (defn just
   "Return a generator which always produces value without making a draw."

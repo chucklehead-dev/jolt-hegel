@@ -4,7 +4,18 @@
 is the user-provided runtime. The native installer downloads libhegel directly
 from Hegel's official GitHub release and stores it in a local cache.
 
-## libhegel 0.32.3
+## hegel-clj
+
+Source: <https://github.com/aphyr/hegel-clj>
+
+Copyright © 2026 Kyle Kingsbury
+
+The original jolt-hegel design and implementation were based in part on
+hegel-clj. Both projects are licensed under the Eclipse Public License 2.0.
+hegel-clj is not bundled as a runtime dependency; see its source repository for
+its license text and copyright notices.
+
+## libhegel 0.33.0
 
 Source: <https://github.com/hegeldev/hegel-rust>
 
@@ -30,7 +41,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-## Jolt 0.7.5
+## Jolt 0.7.23
 
 Source: <https://github.com/jolt-lang/jolt>
 

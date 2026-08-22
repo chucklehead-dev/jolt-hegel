@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - agent/jolt-hegel-v020-release
   pull_request:
   workflow_dispatch:
 
@@ -19,23 +18,30 @@ jobs:
   native-test:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 15
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
         include:
           - name: Linux x86_64
             runner: ubuntu-24.04
-            jolt-asset: jolt-v0.7.5-x86_64-linux.tar.gz
-            jolt-sha256: 1c037bd4897d6f819eda188483234af03164b7f7ef765ecb86703b62a4edef7e
+            shell: bash
+            jolt-asset: jolt-v0.7.23-x86_64-linux.tar.gz
+            jolt-sha256: feda9a68792b454fa540677069edc6b6d9b82aa8ab77ae8a322934f0b8cd32e7
           - name: Windows x86_64
             runner: windows-2022
-            jolt-asset: jolt-v0.7.5-x86_64-windows.zip
-            jolt-sha256: 21f6705992c2448667321fd0dcee990f51ccd2a620e0ac3101444157ebe75dc1
+            shell: bash
+            jolt-asset: jolt-v0.7.23-x86_64-windows.zip
+            jolt-sha256: d414dc30d6992613f8bf1bd6a5fd709fd583ef564ce9b684bc2f90a5be498074
           - name: macOS arm64
             runner: macos-14
-            jolt-asset: jolt-v0.7.5-aarch64-macos.tar.gz
-            jolt-sha256: f65b597e81cafa99c908115e2ed3898e2bac4edcdabbf4bfc5d291d3e4bbfc0b
+            shell: bash
+            jolt-asset: jolt-v0.7.23-aarch64-macos.tar.gz
+            jolt-sha256: 2e4b9804382548b58b10079aa73688afe587d7b6d0986ee52c61f843ae912bb9
+
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
 
     env:
       JOLT_CACHE_DIR: ${{ github.workspace }}/.jolt/aot-cache
@@ -47,31 +53,24 @@ jobs:
 
       - name: Install OpenSSL for Jolt on macOS
         if: runner.os == 'macOS'
-        shell: bash
         run: brew install openssl@3
 
       - uses: ./.github/actions/setup-jolt
         with:
-          version: 0.7.5
+          version: 0.7.23
           asset: ${{ matrix.jolt-asset }}
           sha256: ${{ matrix.jolt-sha256 }}
 
       - name: Prime the Jolt namespace cache from the library checkout
-        shell: bash
         run: jolt -m hegel.install paths
 
       - name: Install native dependencies through the consumer-visible API
         working-directory: test/consumer
-        shell: bash
-        run: |
-          jolt -A:test -m hegel.install fetch-libhegel
-          jolt -A:test -m hegel.install build-shim
+        run: jolt -A:test -m hegel.install fetch-libhegel
 
       - name: Run integration suite
-        shell: bash
         run: jolt -M:test
 
       - name: Run Git dependency consumer smoke test
         working-directory: test/consumer
-        shell: bash
         run: jolt -A:test -m consumer.smoke

@@ -17,23 +17,23 @@
 (def ^:private libhegel-assets
   {[:linux "amd64"]
    {:name "libhegel-linux-amd64.so"
-    :sha256 "4bf07d8609e64323c286686cc2ec862eaa9c807211a6c7d6050977ed468ec9af"}
+    :sha256 "9a14df0a6259ce83426e4015ce02d376b938323f7c210bab90b86bfbca970406"}
 
    [:linux "arm64"]
    {:name "libhegel-linux-arm64.so"
-    :sha256 "87ed35ebfa37d5c6942ee34f3dd8db7674d584e6930b8b6c54c9f534336dc7f0"}
+    :sha256 "0ed646c4dc560ba8755006c274ec4a5c10e9cc6919b731c2918906a78c246841"}
 
    [:darwin "arm64"]
    {:name "libhegel-darwin-arm64.dylib"
-    :sha256 "4abccf4dcc2bc29917ac09142051cf96326d929cab7d43262d2a4fc16cd3232a"}
+    :sha256 "86042e449e74020340001f31bf99f9abb0f06a33aff170d9ad6c7e03b2cbf64e"}
 
    [:windows "amd64"]
    {:name "libhegel-windows-amd64.dll"
-    :sha256 "0b07d8eeafca1a06adb0c73d7311117a7e96dce0f618238f2131f87b79df5be1"}
+    :sha256 "a08f48a0953f68bc2095f735ae3b521d530817eb2b91ab5d1ea215a6c6a0355d"}
 
    [:windows "arm64"]
    {:name "libhegel-windows-arm64.dll"
-    :sha256 "622608ca95b5a8e454633286aab495bd1110d4853ccca6e692dfb1e7c222c8c1"}})
+    :sha256 "ccb39178181c3bdf5b2cc549ab3b766b22c9b47fc2d4993ae165f7c94206e677"}})
 
 ;; Resolve libc's system(3) everywhere. Windows uses it because Jolt's current
 ;; ProcessBuilder path preflight rejects otherwise-valid C:\... executables.
@@ -285,36 +285,6 @@
                :path path})))
   path)
 
-(defn- expected-sha256 [sidecar]
-  (or (some-> (re-find #"[0-9a-fA-F]{64}" (slurp sidecar))
-              str/lower-case)
-      (throw
-       (ex-info (str "could not parse SHA-256 from " sidecar)
-                {:type ::invalid-sidecar
-                 :path sidecar}))))
-
-(defn- cached-sha256 [sidecar]
-  (when (.isFile (java.io.File. sidecar))
-    (try
-      (expected-sha256 sidecar)
-      (catch Throwable _ nil))))
-
-(defn- shim-release-marker-path []
-  (str native/shim-library-path ".release"))
-
-(defn- current-shim-release-cached? []
-  (let [marker (java.io.File. (shim-release-marker-path))]
-    (and (.isFile marker)
-         (= version/jolt-hegel-version
-            (str/trim (slurp marker))))))
-
-(defn- write-shim-release-marker! []
-  (let [path (shim-release-marker-path)]
-    ;; Jolt's atomic spit cannot replace a target on Windows.
-    (delete-if-present! path)
-    (spit path (str version/jolt-hegel-version "\n"))
-    (require-file! "shim release marker" path)))
-
 (defn- download-verified! [url target expected]
   (let [staged (str target ".download")]
     (download! url staged)
@@ -361,129 +331,17 @@
             native/library-path)
           (download-verified! url native/library-path sha256))))))
 
-(defn- shim-asset-name []
-  (let [{:keys [asset-os shim-asset-extension]} (native/platform)]
-    (str "jolt-hegel-shim-" asset-os "-" (architecture) "."
-         shim-asset-extension)))
-
-(defn- shim-release-base []
-  (or (native/nonblank-env "HEGEL_SHIM_RELEASE_BASE")
-      (str "https://github.com/chucklehead-dev/jolt-hegel/releases/download/v"
-           version/jolt-hegel-version)))
-
-(defn fetch-shim!
-  "Fetch and verify this jolt-hegel release's prebuilt aggregate shim."
-  []
-  (verify-source-version!)
-  (if (native/nonblank-env "HEGEL_SHIM_LIBRARY")
-    (do
-      (require-file! "HEGEL_SHIM_LIBRARY" native/shim-library-path)
-      (println "hegel shim: using" native/shim-library-path
-               "(HEGEL_SHIM_LIBRARY)")
-      native/shim-library-path)
-    (let [asset (shim-asset-name)
-          base (shim-release-base)
-          sidecar (str native/shim-library-path ".sha256")
-          cached-expected (when (current-shim-release-cached?)
-                            (cached-sha256 sidecar))]
-      (ensure-directory! native/cache-directory-path)
-      (if (and cached-expected
-               (checksum-matches? native/shim-library-path cached-expected))
-        (do
-          (println "hegel shim: already verified" native/shim-library-path)
-          native/shim-library-path)
-        (do
-          (delete-if-present! (shim-release-marker-path))
-          (download! (str base "/" asset ".sha256") sidecar)
-          (let [expected (expected-sha256 sidecar)]
-            (let [path
-                  (if (checksum-matches? native/shim-library-path expected)
-                    (do
-                      (println "hegel shim: already verified"
-                               native/shim-library-path "(sha256" expected ")")
-                      native/shim-library-path)
-                    (download-verified! (str base "/" asset)
-                                        native/shim-library-path expected))]
-              (write-shim-release-marker!)
-              path)))))))
-
-(defn- compiler-platform []
-  (case (:os (native/platform))
-    :windows
-    {:compile-flags ["-shared" "-static-libgcc" "-Wl,--no-undefined"]}
-
-    :linux
-    {:compile-flags ["-fPIC" "-shared" "-Wl,--no-undefined"]
-     :link-flags ["-ldl"]}
-
-    :darwin
-    {:compile-flags ["-fPIC" "-dynamiclib"]}))
-
-(defn- run-compiler [compiler arguments]
-  (if (= :windows (:os (native/platform)))
-    {:exit (c-system (windows-command (cons compiler arguments)))
-     :out ""
-     :err ""}
-    (apply shell/sh compiler arguments)))
-
-(defn build-shim!
-  "Compile the shim for the current target, normally as a download fallback."
-  []
-  (verify-source-version!)
-  (let [{:keys [compile-flags link-flags]} (compiler-platform)
-        compiler (or (native/nonblank-env "CC") "gcc")
-        output native/shim-library-path
-        output-directory (native/parent-path output)
-        arguments (vec
-                   (concat ["-std=c11" "-O2" "-Wall" "-Wextra" "-Werror"]
-                           compile-flags
-                           [native/shim-source-path]
-                           link-flags
-                           ["-o" output]))]
-    (require-file! "shim source" native/shim-source-path)
-    (when output-directory
-      (ensure-directory! output-directory))
-    (println "hegel shim: compiling" output)
-    (let [{:keys [exit out err]} (run-compiler compiler arguments)]
-      (when-not (zero? exit)
-        (throw
-         (ex-info (str "Hegel shim compiler failed with exit " exit
-                       (when-not (str/blank? err) (str "\n" err)))
-                  {:type ::compiler-failed
-                   :compiler compiler
-                   :arguments arguments
-                   :exit exit
-                   :stdout out
-                   :stderr err}))))
-    (require-file! "compiled Hegel shim" output)
-    (delete-if-present! (str output ".sha256"))
-    (delete-if-present! (shim-release-marker-path))
-    (println "hegel shim: built" output)
-    output))
-
 (defn setup!
-  "Install libhegel and the shim, building the shim if no release exists yet."
+  "Install the libhegel release pinned by hegel.version."
   []
   (verify-source-version!)
-  (let [libhegel (fetch-libhegel!)
-        shim (try
-               (fetch-shim!)
-               (catch Throwable cause
-                 (if (= ::download-failed (:type (ex-data cause)))
-                   (do
-                     (println "hegel shim: prebuilt release unavailable;"
-                              "falling back to a local C build")
-                     (build-shim!))
-                   (throw cause))))]
-    {:libhegel libhegel
-     :shim shim}))
+  {:libhegel (fetch-libhegel!)})
 
 (defn- print-paths! []
   (verify-source-version!)
   (println "project-root:" native/project-root-path)
   (println "cache-directory:" native/cache-directory-path)
   (println "libhegel:" native/library-path)
-  (println "shim:" native/shim-library-path)
   nil)
 
 (defn- print-version! []
@@ -493,15 +351,13 @@
 (defn- usage! []
   (println
    (str "Usage: jolt [-A:alias] -m hegel.install "
-        "[setup|fetch-libhegel|fetch-shim|build-shim|verify-source|paths|version]"))
+        "[setup|fetch-libhegel|verify-source|paths|version]"))
   nil)
 
 (defn -main [& arguments]
   (case (first arguments)
     (nil "setup") (setup!)
     "fetch-libhegel" (fetch-libhegel!)
-    "fetch-shim" (fetch-shim!)
-    "build-shim" (build-shim!)
     "verify-source" (println (verify-source-version!))
     "paths" (print-paths!)
     "version" (print-version!)

@@ -1,5 +1,5 @@
 (ns hegel.native
-  "Shared target and path resolution for libhegel and the aggregate shim."
+  "Shared target and path resolution for libhegel."
   (:require [clojure.string :as str]
             [jolt.host :as host]))
 
@@ -47,8 +47,8 @@
       :else (.getAbsolutePath (java.io.File. path)))))
 
 (defn- dependency-source-root []
-  ;; *file* is not a reliable dependency-root coordinate after Jolt loads a namespace from its AOT
-  ;; cache: its metadata can name the checkout that first populated the cache.
+  ;; *file* is not reliable after Jolt loads a namespace from its AOT cache: its
+  ;; metadata can name the checkout that first populated the cache.
   ;; Current source roots are resolved for every launch, so locate this
   ;; namespace in those roots instead.
   (some (fn [root]
@@ -58,7 +58,7 @@
         (host/source-roots)))
 
 (def project-root-path
-  (if-let [override (nonblank-env "HEGEL_SHIM_PROJECT_ROOT")]
+  (if-let [override (nonblank-env "HEGEL_PROJECT_ROOT")]
     (resolve-from-launch-directory override)
     ;; Jolt's source-root resolver already anchors dependency roots to the
     ;; launch directory. On Windows, resolving that rooted value a second time
@@ -75,25 +75,19 @@
       {:os :windows
        :asset-os "windows"
        :library-name "libhegel_c.dll"
-       :library-extension "dll"
-       :shim-name "jolt_hegel_shim.dll"
-       :shim-asset-extension "dll"}
+       :library-extension "dll"}
 
       (str/includes? name "linux")
       {:os :linux
        :asset-os "linux"
        :library-name "libhegel_c.so"
-       :library-extension "so"
-       :shim-name "libjolt_hegel_shim.so"
-       :shim-asset-extension "so"}
+       :library-extension "so"}
 
       (or (str/includes? name "mac") (str/includes? name "darwin"))
       {:os :darwin
        :asset-os "darwin"
        :library-name "libhegel_c.dylib"
-       :library-extension "dylib"
-       :shim-name "libjolt_hegel_shim.dylib"
-       :shim-asset-extension "dylib"}
+       :library-extension "dylib"}
 
       :else
       (throw
@@ -113,13 +107,3 @@
   (or (some-> (nonblank-env "HEGEL_LIBHEGEL_LIBRARY")
               resolve-from-launch-directory)
       (join-path cache-directory-path (:library-name (platform)))))
-
-(def shim-library-path
-  "The jolt-hegel aggregate shim selected for this process."
-  (or (some-> (nonblank-env "HEGEL_SHIM_LIBRARY")
-              resolve-from-launch-directory)
-      (join-path cache-directory-path (:shim-name (platform)))))
-
-(def shim-source-path
-  "The C source used by the local-build fallback."
-  (join-path (join-path project-root-path "native") "hegel_shim.c"))

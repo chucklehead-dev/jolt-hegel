@@ -1,7 +1,10 @@
 # ADR 0002: Use a C shim for temporal aggregates
 
-- Status: Accepted
+- Status: Superseded by ADR 0005
 - Date: 2026-07-22
+
+This ADR is retained as history. It does not describe the current installation
+or release process.
 
 ## Context
 

@@ -101,7 +101,8 @@
      (invalid-argument "pool requires a Hegel test case" {}))
    (let [handle (hffi/new-pool! (:context test-case) (:handle test-case))]
      (h/register-native-cleanup!
-      test-case #(hffi/pool-free! (:context test-case) handle))
+      test-case
+      #(hffi/pool-free! (:context test-case) handle))
      {::kind ::pool
       ::test-case test-case
       ::pool-handle handle
@@ -111,7 +112,7 @@
   (require-pool! pool)
   (when-not (identical? (::test-case pool) test-case)
     (invalid-argument "a stateful pool cannot be reused across test cases"
-                      {:pool :different-test-case}))
+                      {:pool-handle (::pool-handle pool)}))
   pool)
 
 (defn add!
@@ -128,6 +129,7 @@
          (ex-info "libhegel returned a duplicate stateful pool variable id"
                   {:type ::pool-diverged
                    :hegel/origin "hegel.stateful/pool-diverged"
+                   :pool-handle (::pool-handle pool)
                    :variable-id variable-id})))
       (swap! (::values pool) assoc variable-id value)
       pool)))
@@ -158,6 +160,7 @@
           (ex-info "stateful pool state diverged from libhegel"
                    {:type ::pool-diverged
                     :hegel/origin "hegel.stateful/pool-diverged"
+                    :pool-handle (::pool-handle pool)
                     :variable-id variable-id})))
        (let [value (val entry)]
          (when consume?
@@ -289,32 +292,49 @@
         (loop [state (:initial-state config)
                trace []
                step-number 1]
-          (if-some [index
-                    (hffi/state-machine-next-rule!
+          (if-some [_group
+                    (hffi/state-machine-next-group!
                      (:context test-case) (:handle test-case) machine)]
-            (do
-              (when-not (and (integer? index) (<= 0 index) (< index (count rules)))
-                (throw
-                 (ex-info
-                  (str "libhegel returned out-of-range state-machine rule index "
-                       index)
-                  {:type ::invalid-rule-index
-                   :hegel/origin "hegel.stateful/engine"
-                   :index index
-                   :rule-count (count rules)})))
-              (let [item (nth rules index)
-                    next-trace (conj trace (:name item))]
-                (h/note! (str "Step " step-number ": " (::native-name item)))
-                (let [{:keys [state applied?]} (apply-rule item state next-trace)]
-                  (if applied?
-                    (do
-                      (check-invariants! invariants state next-trace)
-                      (recur state next-trace (inc step-number)))
-                    (do
-                      (hffi/state-machine-rule-rejected!
-                       (:context test-case) (:handle test-case) machine)
-                      (h/note! "Rule stopped early due to violated assumption.")
-                      (recur state next-trace step-number))))))
+            (let [[state trace step-number]
+                  (loop [state state
+                         trace trace
+                         step-number step-number]
+                    (if-some [index
+                              (hffi/state-machine-next-rule!
+                               (:context test-case) (:handle test-case)
+                               machine)]
+                      (do
+                        (when-not
+                         (and (integer? index)
+                              (<= 0 index)
+                              (< index (count rules)))
+                          (throw
+                           (ex-info
+                            (str "libhegel returned out-of-range "
+                                 "state-machine rule index " index)
+                            {:type ::invalid-rule-index
+                             :hegel/origin "hegel.stateful/engine"
+                             :index index
+                             :rule-count (count rules)})))
+                        (let [item (nth rules index)
+                              next-trace (conj trace (:name item))]
+                          (h/note!
+                           (str "Step " step-number ": " (::native-name item)))
+                          (let [{:keys [state applied?]}
+                                (apply-rule item state next-trace)]
+                            (if applied?
+                              (do
+                                (check-invariants! invariants state next-trace)
+                                (recur state next-trace (inc step-number)))
+                              (do
+                                (hffi/state-machine-rule-rejected!
+                                 (:context test-case) (:handle test-case)
+                                 machine)
+                                (h/note!
+                                 "Rule stopped early due to violated assumption.")
+                                (recur state trace step-number))))))
+                      [state trace step-number]))]
+              (recur state trace step-number))
             state))
         (finally
           (hffi/state-machine-free! (:context test-case) machine))))))

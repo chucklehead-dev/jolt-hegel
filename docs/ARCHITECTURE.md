@@ -20,7 +20,6 @@ consumer test
             +-- hegel.ffi        checked C ABI and native ownership
                     |
                     +-- libhegel
-                    +-- jolt-hegel temporal shim -> libhegel
 ```
 
 | Path | Responsibility |
@@ -32,8 +31,7 @@ consumer test
 | `src/hegel/report.clj` | Counting and structured reporting for framework-less suites |
 | `src/hegel/ffi.clj` | Raw bindings, checked return codes, allocation ownership, and ABI compatibility |
 | `src/hegel/native.clj` | Cross-platform source-root, cache, and library path resolution |
-| `src/hegel/install.clj` | Verified native acquisition and local shim compilation |
-| `native/hegel_shim.c` | Pointer-based adapter for date, time, and datetime aggregate arguments |
+| `src/hegel/install.clj` | Verified libhegel acquisition |
 
 ## Property-run lifecycle
 
@@ -60,17 +58,19 @@ through `jolt.ffi/defcfn`. UUID and IP generation write into caller-owned byte
 buffers. Engine-owned byte arrays, strings, string generators, failures, and
 result handles are copied as needed and freed immediately by the wrapper.
 
-`hegel_generate_date`, `hegel_generate_time`, and `hegel_generate_datetime` are
-the exception: their bounds are C structs passed by value. Jolt 0.7.5 cannot
-describe those arguments portably. The temporal shim accepts pointers to the
-same structs, dereferences them in target-native C, and calls libhegel with its
-real ABI. Compile-time size, alignment, and offset assertions guard the expected
-layouts.
+`hegel_generate_date`, `hegel_generate_time`, and `hegel_generate_datetime`
+pass their bounds as C structs by value. Jolt's declarative layouts derive each
+size, alignment, and field offset from Chez, and `[:by-value ...]` signatures
+pass those caller-owned buffers directly to libhegel. No target-specific adapter
+or copied ABI constants remain in jolt-hegel.
 
-The shim does not link to a platform-specific libhegel filename. Its initializer
-opens the exact `HEGEL_LIBHEGEL_LIBRARY` selected by the Jolt layer and resolves
-only the three temporal symbols. This avoids embedded checkout paths and prevents
-Windows from loading a second copy of the DLL.
+libhegel 0.33 represents collections, value pools, and state machines as opaque
+caller-owned handles. Collection and state-machine handles are freed in the
+lexical operation that creates them. Pools remain public test-case values, so
+their frees are registered on the active `TestCase` and run before its native
+handle is released. Sequential state machines use Hegel's round protocol with
+one all-zero rule group and fixed concurrency one; rejected rules are reported
+back to the engine before the round continues.
 
 Several boundary rules are load-bearing:
 
@@ -96,9 +96,7 @@ jolt -A:test -m hegel.install
 own alias is active.
 
 The installer downloads the version-pinned libhegel asset for the current target
-and verifies it against a SHA-256 embedded in source. It then downloads the
-matching jolt-hegel shim and checksum sidecar, or compiles the tagged
-`native/hegel_shim.c` when no prebuilt shim is available.
+and verifies it against a SHA-256 embedded in source.
 
 Native paths are resolved from Jolt's current source roots instead of cached
 `*file*` metadata. This is required because the AOT cache can retain the path of
@@ -106,23 +104,20 @@ the checkout that first compiled a namespace. All subprocess paths are absolute,
 which also keeps native Windows builds working when launched from a WSL UNC
 checkout.
 
-Before fetching or building native artifacts, the installer parses the release
+Before fetching native artifacts, the installer parses the release
 version from the currently resolved `src/hegel/version.clj` and compares it with
 the loaded `hegel.version` var. A mismatch means Jolt reused stale AOT output;
 the installer fails with instructions to use a fresh `JOLT_CACHE_DIR` keyed by
-the pinned release SHA. Downloaded shims have a sibling `.release` marker; a
-missing or mismatched marker forces the current release's checksum to be fetched
-before a shared native-cache entry can be reused.
+the pinned release SHA.
 
 The default cache is `.hegel-lib/` under the dependency root. Environment
 overrides support writable external caches, caller-provided libraries, release
-mirrors, alternate target architecture, and a custom C compiler; the complete
-list is in the README.
+mirrors, and alternate target architecture; the complete list is in the README.
 
 ## `clojure.test` boundary
 
-Jolt 0.7.5 makes `clojure.test/report` dynamically bindable, so report capture
-uses `binding` and is isolated per evaluation. Each generated case is evaluated
+The supported Jolt runtime makes `clojure.test/report` dynamically bindable, so
+report capture uses `binding` and is isolated per evaluation. Each generated case is evaluated
 without publishing intermediate assertion events. A successful property emits
 one pass. A failed property publishes only the final replay's minimal assertion
 events, with a synthetic failure as a fallback when replay produced no report.
@@ -133,14 +128,12 @@ text and original `ex-data` without exposing only a generic wrapper message.
 `run-test!` turns libhegel's two explicit nondeterminism errors into failed
 result maps with `:status :error`, `:flaky? true`, and the native explanation in
 `:error`. Other run-level errors still throw. One native run is sequential.
-Independent concurrent direct runs remain unsupported until shim and engine
+Independent concurrent direct runs remain unsupported until engine
 safety are covered by a dedicated integration test.
 
 ## Release boundary
 
 CI runs the same full integration and independent consumer tests on Linux
-x86_64, Windows x86_64, and macOS arm64. A version-matching public tag rebuilds
-the three shims, publishes each binary with a checksum sidecar, downloads those
-public artifacts through the consumer-visible installer, and runs the consumer
-fixture again. Publication is gated to `chucklehead-dev/jolt-hegel`; see
-`RELEASING.md`.
+x86_64, Windows x86_64, and macOS arm64. A version-matching public tag runs the
+same source and consumer gates; jolt-hegel publishes no native artifact of its
+own. See `RELEASING.md`.

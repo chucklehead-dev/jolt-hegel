@@ -2,9 +2,9 @@
   "Release pins shared by runtime loading and native acquisition.")
 
 (def jolt-hegel-version
-  "The jolt-hegel release whose prebuilt aggregate shim is acquired."
-  "0.2.0")
+  "The jolt-hegel source release."
+  "0.3.0")
 
 (def libhegel-version
   "The libhegel release whose C header and ABI this project targets."
-  "0.32.3")
+  "0.33.0")

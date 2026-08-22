@@ -4,6 +4,7 @@
   (:require [clojure.string :as str]
             [clojure.test :as ct]
             [hegel.core :as h]
+            [hegel.ffi :as hffi]
             [hegel.generator :as g]))
 
 (defn pass?
@@ -75,7 +76,13 @@
     (when (h/final?)
       (swap! final-reports into @reports))
     (if-let [error (:error outcome)]
-      (if (:hegel/origin (ex-data error))
+      (if (or (:hegel/origin (ex-data error))
+              (:hegel/usage-error? (ex-data error))
+              (hffi/error? error)
+              (hffi/stop-test? error)
+              (hffi/assumption-rejected? error)
+              (= :hegel.core/assumption-rejected
+                 (:type (ex-data error))))
         (throw error)
         (let [details (throwable-details error)]
           (throw

@@ -9,11 +9,10 @@ candidate is pushed to the public source and release repository,
 1. Push normal development branches to the private repository.
 2. Require all three CI matrix jobs to pass:
    Linux x86_64, Windows x86_64, and macOS arm64.
-3. Do not create consumer tags in the private repository. The release workflow
-   may build tag artifacts there, but its publish job is explicitly gated to
-   `chucklehead-dev/jolt-hegel`.
-4. Keep generated native libraries, Jolt caches, release output, and the local
-   `refs/` research checkouts out of source control. `.gitignore` covers them.
+3. Do not create consumer tags in the private repository. Release publication
+   is explicitly gated to `chucklehead-dev/jolt-hegel`.
+4. Keep downloaded native libraries, Jolt caches, release output, and local
+   research checkouts out of source control. `.gitignore` covers them.
 
 ## Public release
 
@@ -41,40 +40,19 @@ For every release:
    the `v` prefix. Use a fresh `JOLT_CACHE_DIR`; the installer rejects a loaded
    release version that differs from the resolved source.
 5. Create and push an annotated tag on the public merge commit, for example
-   `v0.1.2`.
+   `v0.3.0`.
 6. Wait for the Release workflow. It:
-   - builds and tests a shim on each supported runner;
-   - creates SHA-256 sidecars;
-   - publishes the six binary/checksum assets only from the public repository;
-   - downloads the public assets through `hegel.install`; and
-   - runs the consumer smoke test against each downloaded shim.
-   The workflow creates `dist/` before invoking the installer. On Windows it
-   builds through the default project-relative native cache and then stages
-   the DLL because Jolt 0.7.5's `java.io.File` shim does not recognize an
-   existing drive-rooted directory.
-   If a tagged run fails only because a hosted runner could not download an
-   upstream asset, do not move the tag. Push the unchanged release tree plus
-   the workflow-only repair to `release-v<version>`. The workflow strips the
-   `release-` prefix, verifies the existing tag/version, rebuilds and replaces
-   the same six assets, and verifies them again. Native and Jolt downloads use
-   bounded retries for transient hosted-network failures.
+   - installs the checksum-pinned libhegel release on each supported runner;
+   - runs the integration suite; and
+   - runs the independent consumer fixture again.
 7. Resolve the tag's full commit SHA and use it in consumer `deps.edn` files:
 
    ```bash
-   git rev-list -n 1 v0.1.2
+   git rev-list -n 1 v0.3.0
    ```
 
-The release assets are:
-
-- `jolt-hegel-shim-linux-amd64.so`
-- `jolt-hegel-shim-windows-amd64.dll`
-- `jolt-hegel-shim-darwin-arm64.dylib`
-- one `.sha256` sidecar for each binary
-
-The source corresponding to every shim is the tagged `native/hegel_shim.c`.
-The repository's EPL-2.0 license and source link satisfy the release binary's
-source-availability notice. Do not move or replace an existing release tag;
-publish a new version instead.
+jolt-hegel no longer publishes native assets. Do not move or replace an
+existing release tag; publish a new version instead.
 
 ## Version pins
 
@@ -82,9 +60,10 @@ Review these together for each release:
 
 - `src/hegel/version.clj`: jolt-hegel release and libhegel ABI pins
 - `.github/workflows/ci.yml`: tested Jolt asset names and SHA-256 values
-- `.github/workflows/release.yml`: build/release Jolt assets and target matrix
+- `.github/workflows/release.yml`: release verification target matrix
 - `README.md` and `THIRD_PARTY_NOTICES.md`: documented versions and notices
 
-Jolt 0.7.5 release archives are checksum-pinned in both workflows. libhegel
-0.32.3 release hashes are pinned in `hegel.install`. The release workflow also
-rejects a tag that does not match `hegel.version/jolt-hegel-version`.
+Jolt 0.7.23 release archives are checksum-pinned in both workflows.
+libhegel 0.33.0 release hashes are pinned in `hegel.install`. The release
+workflow also rejects a tag that does not match
+`hegel.version/jolt-hegel-version`.
