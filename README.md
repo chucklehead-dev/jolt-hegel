@@ -324,6 +324,63 @@ accept `:unique?`. Use `g/composite-fn` to tag a custom
 `(fn [test-case] value)` generator so `g/let` can distinguish it from an
 ordinary function value.
 
+## Optional Malli adapter
+
+`hegel.malli/generator` derives a native Hegel generator from a bounded,
+nonrecursive subset of Malli schemas. Malli remains optional: jolt-hegel does
+not include it in runtime dependencies, so the consuming alias must supply both
+libraries (the test suite currently exercises Malli 0.20.1).
+
+```clojure
+{:aliases
+ {:test
+  {:extra-deps
+   {io.github.chucklehead-dev/jolt-hegel
+    {:git/url "https://github.com/chucklehead-dev/jolt-hegel.git"
+     :git/sha "<release-commit-sha>"}
+    metosin/malli {:mvn/version "0.20.1"}}}}}}
+```
+
+```clojure
+(require '[hegel.core :as h]
+         '[hegel.malli :as hm])
+
+(def user-generator
+  (hm/generator
+   [:map {:closed true}
+    [:id [:int {:min 1 :max 1000000}]]
+    [:name [:string {:min 1 :max 80}]]
+    [:nickname {:optional true} [:maybe [:string {:max 40}]]]]))
+
+(h/run-test!
+ {:test-cases 100 :database "" :verbosity :quiet}
+ (fn [_]
+   ;; Add the property assertions around the drawn user value.
+   (h/draw! user-generator)))
+```
+
+The v1 subset is `:nil`, `:boolean`, bounded `:int`, `:double`, and `:string`,
+`:=`, `:enum`, `:maybe`, `:or`, `:tuple`, `:vector`, `:sequential`, `:set`,
+`:map-of`, and closed maps with explicit required or optional keys. String and
+collection schemas without an explicit `:max` use 100 as their fallback
+maximum, raised to an explicit larger `:min` when necessary; override that
+fallback with `{:default-max-size n}` as the second argument.
+
+The adapter builds directly from `malli.core/ast` using Hegel combinators, so
+choice and collection spans remain available to shrinking. It compiles the
+Malli validator once and validates every final generated value through an outer
+`g/fmap`; a failure has stable origin `hegel.malli/generated-value` and means
+the adapter is incorrect.
+
+References and recursion, regex schemas, intersections, predicates, functions,
+classes, transforms, custom `:gen/*` properties, open maps, default map entries,
+and unknown properties or config are rejected when the generator is built.
+Adapter exceptions include stable `:type`, `:path`, and `:form` data. Their
+types are `:hegel.malli/invalid-schema`, `:hegel.malli/unsupported-schema`,
+`:hegel.malli/unsupported-property`, `:hegel.malli/invalid-property`, and
+`:hegel.malli/invalid-config`; the generated-value guard uses
+`:hegel.malli/invalid-generated-value`.
+
 The core namespace also provides:
 
 - `assume!` to reject inputs outside a property domain;

@@ -15,6 +15,7 @@ consumer test
     +-- hegel.core          run lifecycle, seeds, replay, diagnostics
             |
             +-- hegel.generator  primitive and compositional generators
+            +-- hegel.malli      optional Malli AST adapter
             +-- hegel.stateful   rules, invariants, and value pools
             |
             +-- hegel.ffi        checked C ABI and native ownership
@@ -26,12 +27,21 @@ consumer test
 | --- | --- |
 | `src/hegel/core.clj` | Run settings, engine loop, outcome mapping, failure snapshots, and final replay |
 | `src/hegel/generator.clj` | Primitive, formatted, compositional, and collection generators |
+| `src/hegel/malli.clj` | Optional bounded Malli AST translation into native Hegel combinators |
 | `src/hegel/stateful.clj` | Engine-managed state machines and value pools |
 | `src/hegel/clojure_test.clj` | Dynamically scoped `clojure.test` report capture and publication |
 | `src/hegel/report.clj` | Counting and structured reporting for framework-less suites |
 | `src/hegel/ffi.clj` | Raw bindings, checked return codes, allocation ownership, and ABI compatibility |
 | `src/hegel/native.clj` | Cross-platform source-root, cache, and library path resolution |
 | `src/hegel/install.clj` | Verified libhegel acquisition |
+
+`hegel.malli` is outside the native/runtime dependency spine. Requiring that
+namespace opts into a consumer-supplied Malli dependency; users that do not
+require it do not need Malli. The adapter compiles a schema and validator once,
+rejects unsupported AST constructs synchronously, and composes the existing
+Hegel generators without filtering generated values. An outer validating
+`fmap` treats any invalid generated value as an adapter defect with a stable
+failure origin.
 
 ## Property-run lifecycle
 

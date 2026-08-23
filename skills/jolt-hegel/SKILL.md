@@ -141,6 +141,12 @@ reuse or consume. Pools are scoped to one generated test case. If a test needs
 an unsupported generator or control, state that limitation instead of
 borrowing an API from another Hegel binding.
 
+When the consuming project already uses Malli, read the optional Malli adapter
+section in [references/api.md](references/api.md). Add Malli explicitly to the
+consumer alias, construct a bounded generator with `hegel.malli/generator`, and
+draw from it inside the property. Do not make Malli a dependency for consumers
+that do not require `hegel.malli`.
+
 ## Share expensive external services safely
 
 Starting a TCP server inside every generated case is usually too expensive. It

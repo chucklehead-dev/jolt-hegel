@@ -3,6 +3,7 @@
  :aliases
   {:setup-native {:main-opts ["-m" "hegel.install"]}
    :test {:extra-paths ["test"]
+         :extra-deps {metosin/malli {:mvn/version "0.20.1"}}
          :main-opts ["-m" "hegel.test-runner"]}
   :fetch-libhegel {:extra-paths ["script"]
                    :main-opts ["-m" "fetch-libhegel"]}}

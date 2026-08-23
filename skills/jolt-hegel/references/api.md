@@ -7,6 +7,7 @@
 - [`clojure.test` property template](#clojuretest-property-template)
 - [Custom-runner property template](#custom-runner-property-template)
 - [Generators](#generators)
+  - [Optional Malli adapter](#optional-malli-adapter)
 - [Combinators and collections](#combinators-and-collections)
 - [Core controls](#core-controls)
 - [Stateful testing](#stateful-testing)
@@ -179,6 +180,54 @@ For wire formats, prefer `g/octet` and call `(unchecked-byte octet)` only at an
 API boundary that requires Jolt's signed byte representation. In the other
 direction, `(bit-and signed-byte 0xff)` recovers the unsigned octet. Use
 `g/bytes` when the property needs an array.
+
+### Optional Malli adapter
+
+Consumers that supply Malli may require `hegel.malli` and build a generator
+with `(hegel.malli/generator schema)`. Malli is deliberately absent from
+jolt-hegel's runtime dependencies; add `metosin/malli` explicitly to the same
+consumer alias. The adapter test suite uses Malli 0.20.1.
+
+```clojure
+{:extra-deps
+ {io.github.chucklehead-dev/jolt-hegel
+  {:git/url "https://github.com/chucklehead-dev/jolt-hegel.git"
+   :git/sha "<release-commit-sha>"}
+  metosin/malli {:mvn/version "0.20.1"}}}
+```
+
+```clojure
+(require '[hegel.malli :as hm])
+
+(hm/generator
+ [:map {:closed true}
+  [:id [:int {:min 1 :max 1000}]]
+  [:label {:optional true} [:maybe [:string {:max 40}]]]])
+```
+
+Construct the generator once when practical, then draw from it only inside an
+active `run-test!` or `hegel.clojure-test/with` property.
+
+The nonrecursive v1 subset supports `:nil`, `:boolean`, `:int`, `:double`,
+`:string`, `:=`, `:enum`, `:maybe`, `:or`, `:tuple`, `:vector`, `:sequential`,
+`:set`, `:map-of`, and closed maps with explicit keys. Scalar and collection
+`:min`/`:max` properties become native Hegel bounds. An absent string or
+collection `:max` uses 100 as its fallback, raised to an explicit larger `:min`
+when necessary; pass `{:default-max-size n}` as the second argument to change
+that fallback.
+
+The adapter rejects unknown properties and config, references and recursion,
+regex schemas, intersections, predicates, functions, classes, transforms,
+custom generator properties, open maps, and default map entries at construction
+time. Exceptions carry stable `:type`, `:path`, and `:form` data. Every value is
+checked by a precompiled Malli validator through `g/fmap`; an invalid value is
+reported with `:hegel/origin "hegel.malli/generated-value"` and is an adapter
+bug, not an input rejection.
+
+Construction error types are `:hegel.malli/invalid-schema`,
+`:hegel.malli/unsupported-schema`, `:hegel.malli/unsupported-property`,
+`:hegel.malli/invalid-property`, and `:hegel.malli/invalid-config`. The final
+guard uses `:hegel.malli/invalid-generated-value`.
 
 Date bounds are inclusive maps:
 
