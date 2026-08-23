@@ -16,8 +16,11 @@
 
 ## Install
 
-Require Jolt 0.7.23 or later, then add the public release by full commit SHA. A
-test-only dependency normally belongs in the project's test alias:
+Require Jolt 0.7.23 or later and use the executable selected by the consuming
+project's toolchain contract. Do not substitute a stale installed executable
+for a project-selected `jolt`, custom image, or simulation binary. Then add the
+public release by full commit SHA. A test-only dependency normally belongs in
+the project's test alias:
 
 ```clojure
 {:aliases
@@ -464,5 +467,8 @@ JOLT_CACHE_DIR=.jolt-cache/jolt-hegel-<release-commit-sha> \
 
 The first command assumes the dependency is in `:test :extra-deps`; omit the
 alias only for a top-level dependency. Use the consuming project's established
-test command when it differs from the jolt-hegel repository's own harness. The
-SHA-keyed cache is especially important after changing the dependency pin.
+test command and selected Jolt executable when they differ from the examples.
+For process-backed properties, pre-resolve every parent and worker alias before
+generation and preserve the first worker transcript when infrastructure setup
+fails. The SHA-keyed cache is especially important after changing the
+dependency pin.

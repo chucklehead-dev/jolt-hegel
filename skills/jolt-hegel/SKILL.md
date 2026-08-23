@@ -16,11 +16,15 @@ combinators from other Hegel bindings.
 ## Workflow
 
 1. Inspect the code under test, its docs, existing tests, and call sites.
-2. Check the project's Jolt version and test-runner conventions.
+2. Check the project's Jolt version, selected executable, and test-runner
+   conventions. Prefer a checked-in Hegel gate runner when one exists. Do not
+   substitute a stale installed executable for a project-selected `jolt`,
+   custom image, or simulation binary.
 3. Resolve the current release tag to its full commit SHA using the command in
-   the API reference, add the pinned dependency, and run the installer with the
-   alias that contains it, normally `jolt -A:test -m hegel.install`. Use the
-   bare command only for a top-level dependency. Never leave the example SHA
+   the API reference, add the pinned dependency, and run the installer through
+   the selected executable with the alias that contains it, normally
+   `jolt -A:test -m hegel.install`. Use the bare command only for a top-level
+   dependency. Never leave the example SHA
    placeholder in project files. Key `JOLT_CACHE_DIR` by that SHA when the
    project has reused a cache across dependency upgrades; the installer rejects
    a loaded release that does not match the resolved source checkout.
@@ -31,6 +35,24 @@ combinators from other Hegel bindings.
    directly for custom runners.
 6. Run the relevant test command and inspect any minimal counterexample.
 7. Replay failures with the returned seed before changing the property or code.
+
+## Preflight process-backed properties
+
+When a property launches fresh Jolt workers, dependency resolution and worker
+bootstrap are test-harness behavior, not generated application behavior.
+
+- Use the repository's checked-in runner when present.
+- Otherwise pre-resolve the parent alias and every nested-worker alias with the
+  selected executable before starting Hegel.
+- Keep isolated home, cache, and temporary state separate from one complete
+  `JOLT_GITLIBS` cache. Do not copy a hand-picked subset of Git checkouts into a
+  fresh home; a changed child pin can otherwise fail every generated case.
+- Preserve the first worker artifact directory and full transcript. Abort on
+  dependency, spawn, bootstrap, or result-protocol errors; do not generate and
+  shrink identical infrastructure failures.
+- Give cold dependency and namespace startup its own evidence-backed budget.
+  Do not reuse an application deadline as a worker-startup timeout or widen a
+  real simulated deadline merely to make the test pass.
 
 ## Choose useful properties
 
