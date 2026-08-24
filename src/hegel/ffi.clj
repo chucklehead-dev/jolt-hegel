@@ -1,6 +1,7 @@
 (ns hegel.ffi
   "Low-level, ownership-aware bindings to libhegel's C ABI."
-  (:require [hegel.native :as native]
+  (:require [hegel.ffi.jolt :as backend]
+            [hegel.native :as native]
             [hegel.version :as version]
             [jolt.ffi :as ffi]))
 
@@ -13,7 +14,7 @@
   native/library-path)
 
 (try
-  (ffi/load-library library-path)
+  (backend/load! library-path)
   (catch Throwable cause
     (throw
      (ex-info
@@ -24,179 +25,76 @@
        :library library-path
        :cause cause}))))
 
-;; Context and settings.
-(ffi/defcfn c-context-new "hegel_context_new" [] :pointer)
-(ffi/defcfn c-context-free "hegel_context_free" [:pointer] :int)
-(ffi/defcfn c-context-last-error "hegel_context_last_error" [:pointer] :string)
-
-(ffi/defcfn c-settings-new "hegel_settings_new" [:pointer :pointer] :int)
-(ffi/defcfn c-settings-free "hegel_settings_free" [:pointer :pointer] :int)
-(ffi/defcfn c-settings-set-mode "hegel_settings_set_mode"
-  [:pointer :pointer :uint] :int)
-(ffi/defcfn c-settings-set-backend "hegel_settings_set_backend"
-  [:pointer :pointer :uint] :int)
-(ffi/defcfn c-settings-set-test-cases "hegel_settings_set_test_cases"
-  [:pointer :pointer :uint64] :int)
-(ffi/defcfn c-settings-set-stateful-step-count
-  "hegel_settings_set_stateful_step_count"
-  [:pointer :pointer :int64] :int)
-(ffi/defcfn c-settings-set-verbosity "hegel_settings_set_verbosity"
-  [:pointer :pointer :uint] :int)
-(ffi/defcfn c-settings-set-seed "hegel_settings_set_seed"
-  [:pointer :pointer :uint64 :uint8] :int)
-(ffi/defcfn c-settings-set-derandomize "hegel_settings_set_derandomize"
-  [:pointer :pointer :uint8] :int)
-(ffi/defcfn c-settings-set-report-multiple-failures
-  "hegel_settings_set_report_multiple_failures"
-  [:pointer :pointer :uint8] :int)
-(ffi/defcfn c-settings-set-database "hegel_settings_set_database"
-  [:pointer :pointer :pointer] :int)
-(ffi/defcfn c-settings-set-database-key "hegel_settings_set_database_key"
-  [:pointer :pointer :pointer] :int)
-(ffi/defcfn c-settings-set-phases "hegel_settings_set_phases"
-  [:pointer :pointer :uint] :int)
-(ffi/defcfn c-settings-set-suppress-health-check
-  "hegel_settings_set_suppress_health_check"
-  [:pointer :pointer :uint] :int)
-
-;; Run lifecycle. Since libhegel 0.30.1, next-test-case performs generation and
-;; shrinking on the calling thread and may block until it offers the next case.
-;; run-free drops any remaining exploration. Keep both calls collect-safe.
-(ffi/defcfn c-run-start "hegel_run_start"
-  [:pointer :pointer :pointer :pointer :pointer] :int)
-(ffi/defcfn c-next-test-case "hegel_next_test_case"
-  [:pointer :pointer :pointer] :int :blocking)
-(ffi/defcfn c-run-result "hegel_run_result"
-  [:pointer :pointer :pointer] :int)
-(ffi/defcfn c-run-free "hegel_run_free"
-  [:pointer :pointer] :int :blocking)
-
-;; Test cases and primitive draws.
-(ffi/defcfn c-test-case-from-blob "hegel_test_case_from_blob"
-  [:pointer :pointer :pointer :pointer :pointer :pointer] :int)
-(ffi/defcfn c-test-case-free "hegel_test_case_free"
-  [:pointer :pointer] :int)
-(ffi/defcfn c-generate-integer "hegel_generate_integer"
-  [:pointer :pointer :int64 :int64 :pointer] :int)
-(ffi/defcfn c-generate-boolean "hegel_generate_boolean"
-  [:pointer :pointer :double :uint8 :uint8 :pointer] :int)
-(ffi/defcfn c-generate-float "hegel_generate_float"
-  [:pointer :pointer :uint :double :double :uint8 :uint8 :uint8 :uint8
-   :double :pointer]
-  :int)
-(ffi/defcfn c-generate-bytes "hegel_generate_bytes"
-  [:pointer :pointer :uint64 :uint64 :pointer] :int)
-(ffi/defcfn c-generate-bytes-result-free "hegel_generate_bytes_result_free"
-  [:pointer :pointer] :int)
-(ffi/defcfn c-string-generator-text "hegel_string_generator_text"
-  [:pointer :uint64 :uint64 :pointer :uint :uint
-   :pointer :size_t :pointer :size_t
-   :pointer :size_t :pointer :size_t :pointer]
-  :int)
-(ffi/defcfn c-string-generator-regex "hegel_string_generator_regex"
-  [:pointer :pointer :uint8 :pointer :pointer] :int)
-(ffi/defcfn c-string-generator-email "hegel_string_generator_email"
-  [:pointer :pointer] :int)
-(ffi/defcfn c-string-generator-url "hegel_string_generator_url"
-  [:pointer :pointer] :int)
-(ffi/defcfn c-string-generator-domain "hegel_string_generator_domain"
-  [:pointer :uint64 :pointer] :int)
-(ffi/defcfn c-string-generator-free "hegel_string_generator_free"
-  [:pointer :pointer] :int)
-(ffi/defcfn c-generate-string "hegel_generate_string"
-  [:pointer :pointer :pointer :pointer] :int)
-(ffi/defcfn c-generate-string-result-free
-  "hegel_generate_string_result_free"
-  [:pointer :pointer] :int)
-(ffi/defcfn c-generate-uuid "hegel_generate_uuid"
-  [:pointer :pointer :uint8 :uint8 :pointer] :int)
-(ffi/defcfn c-generate-ipv4 "hegel_generate_ipv4"
-  [:pointer :pointer :pointer] :int)
-(ffi/defcfn c-generate-ipv6 "hegel_generate_ipv6"
-  [:pointer :pointer :pointer] :int)
-(ffi/defcfn c-generate-date "hegel_generate_date"
-  [:pointer :pointer
-   [:by-value [:struct [[:year :int32] [:month :uint8] [:day :uint8]]]]
-   [:by-value [:struct [[:year :int32] [:month :uint8] [:day :uint8]]]]
-   :pointer]
-  :int)
-(ffi/defcfn c-generate-time "hegel_generate_time"
-  [:pointer :pointer
-   [:by-value [:struct [[:hour :uint8] [:minute :uint8] [:second :uint8]
-                        [:microsecond :uint32]]]]
-   [:by-value [:struct [[:hour :uint8] [:minute :uint8] [:second :uint8]
-                        [:microsecond :uint32]]]]
-   :pointer]
-  :int)
-(ffi/defcfn c-generate-datetime "hegel_generate_datetime"
-  [:pointer :pointer
-   [:by-value
-    [:struct
-     [[:date [:struct [[:year :int32] [:month :uint8] [:day :uint8]]]]
-      [:time [:struct [[:hour :uint8] [:minute :uint8] [:second :uint8]
-                       [:microsecond :uint32]]]]]]]
-   [:by-value
-    [:struct
-     [[:date [:struct [[:year :int32] [:month :uint8] [:day :uint8]]]]
-      [:time [:struct [[:hour :uint8] [:minute :uint8] [:second :uint8]
-                       [:microsecond :uint32]]]]]]]
-   :pointer]
-  :int)
-(ffi/defcfn c-target "hegel_target"
-  [:pointer :pointer :double :pointer] :int)
-(ffi/defcfn c-start-span "hegel_start_span"
-  [:pointer :pointer :uint64] :int)
-(ffi/defcfn c-stop-span "hegel_stop_span"
-  [:pointer :pointer :uint8] :int)
-(ffi/defcfn c-new-collection "hegel_new_collection"
-  [:pointer :pointer :uint64 :uint64 :pointer] :int)
-(ffi/defcfn c-collection-more "hegel_collection_more"
-  [:pointer :pointer :pointer :pointer] :int)
-(ffi/defcfn c-collection-reject "hegel_collection_reject"
-  [:pointer :pointer :pointer :pointer] :int)
-(ffi/defcfn c-collection-free "hegel_collection_free"
-  [:pointer :pointer] :int)
-(ffi/defcfn c-new-pool "hegel_new_pool"
-  [:pointer :pointer :pointer] :int)
-(ffi/defcfn c-pool-add "hegel_pool_add"
-  [:pointer :pointer :pointer :pointer] :int)
-(ffi/defcfn c-pool-generate "hegel_pool_generate"
-  [:pointer :pointer :pointer :uint8 :pointer] :int)
-(ffi/defcfn c-pool-free "hegel_pool_free"
-  [:pointer :pointer] :int)
-(ffi/defcfn c-new-state-machine "hegel_new_state_machine"
-  [:pointer :pointer :pointer :pointer :size_t :pointer :size_t
-   :int64 :int64 :pointer :pointer]
-  :int)
-(ffi/defcfn c-state-machine-next-group "hegel_state_machine_next_group"
-  [:pointer :pointer :pointer :pointer] :int)
-(ffi/defcfn c-state-machine-next-rule "hegel_state_machine_next_rule"
-  [:pointer :pointer :pointer :int64 :pointer] :int)
-(ffi/defcfn c-state-machine-rule-rejected "hegel_state_machine_rule_rejected"
-  [:pointer :pointer :pointer :int64] :int)
-(ffi/defcfn c-state-machine-free "hegel_state_machine_free"
-  [:pointer :pointer] :int)
-(ffi/defcfn c-mark-complete "hegel_mark_complete"
-  [:pointer :pointer :uint :pointer] :int :blocking)
-
-;; Result and failure snapshots.
-(ffi/defcfn c-run-result-free "hegel_run_result_free"
-  [:pointer :pointer] :int)
-(ffi/defcfn c-run-result-status "hegel_run_result_status"
-  [:pointer :pointer :pointer] :int)
-(ffi/defcfn c-run-result-error "hegel_run_result_error"
-  [:pointer :pointer :pointer] :int)
-(ffi/defcfn c-run-result-failure-count "hegel_run_result_failure_count"
-  [:pointer :pointer :pointer] :int)
-(ffi/defcfn c-run-result-failure "hegel_run_result_failure"
-  [:pointer :pointer :size_t :pointer] :int)
-(ffi/defcfn c-failure-free "hegel_failure_free"
-  [:pointer :pointer] :int)
-(ffi/defcfn c-failure-origin "hegel_failure_origin"
-  [:pointer :pointer :pointer] :int)
-(ffi/defcfn c-failure-reproduction-blob "hegel_failure_reproduction_blob"
-  [:pointer :pointer :pointer] :int)
-(ffi/defcfn c-version "hegel_version" [:pointer :pointer] :int)
+;; Public wrapper names stay stable, but every signature is constructed from
+;; the canonical EDN descriptor by hegel.ffi.jolt.
+(def c-context-new (backend/function :context-new))
+(def c-context-free (backend/function :context-free))
+(def c-context-last-error (backend/function :context-last-error))
+(def c-settings-new (backend/function :settings-new))
+(def c-settings-free (backend/function :settings-free))
+(def c-settings-set-mode (backend/function :settings-set-mode))
+(def c-settings-set-backend (backend/function :settings-set-backend))
+(def c-settings-set-test-cases (backend/function :settings-set-test-cases))
+(def c-settings-set-stateful-step-count (backend/function :settings-set-stateful-step-count))
+(def c-settings-set-verbosity (backend/function :settings-set-verbosity))
+(def c-settings-set-seed (backend/function :settings-set-seed))
+(def c-settings-set-derandomize (backend/function :settings-set-derandomize))
+(def c-settings-set-report-multiple-failures (backend/function :settings-set-report-multiple-failures))
+(def c-settings-set-database (backend/function :settings-set-database))
+(def c-settings-set-database-key (backend/function :settings-set-database-key))
+(def c-settings-set-phases (backend/function :settings-set-phases))
+(def c-settings-set-suppress-health-check (backend/function :settings-set-suppress-health-check))
+(def c-run-start (backend/function :run-start))
+(def c-next-test-case (backend/function :next-test-case))
+(def c-run-result (backend/function :run-result))
+(def c-run-result-free (backend/function :run-result-free))
+(def c-run-free (backend/function :run-free))
+(def c-test-case-from-blob (backend/function :test-case-from-blob))
+(def c-test-case-free (backend/function :test-case-free))
+(def c-generate-integer (backend/function :generate-integer))
+(def c-generate-boolean (backend/function :generate-boolean))
+(def c-generate-float (backend/function :generate-float))
+(def c-generate-bytes (backend/function :generate-bytes))
+(def c-generate-bytes-result-free (backend/function :generate-bytes-result-free))
+(def c-string-generator-text (backend/function :string-generator-text))
+(def c-string-generator-regex (backend/function :string-generator-regex))
+(def c-string-generator-email (backend/function :string-generator-email))
+(def c-string-generator-url (backend/function :string-generator-url))
+(def c-string-generator-domain (backend/function :string-generator-domain))
+(def c-string-generator-free (backend/function :string-generator-free))
+(def c-generate-string (backend/function :generate-string))
+(def c-generate-string-result-free (backend/function :generate-string-result-free))
+(def c-generate-uuid (backend/function :generate-uuid))
+(def c-generate-ipv4 (backend/function :generate-ipv4))
+(def c-generate-ipv6 (backend/function :generate-ipv6))
+(def c-generate-date (backend/function :generate-date))
+(def c-generate-time (backend/function :generate-time))
+(def c-generate-datetime (backend/function :generate-datetime))
+(def c-target (backend/function :target))
+(def c-start-span (backend/function :start-span))
+(def c-stop-span (backend/function :stop-span))
+(def c-new-collection (backend/function :new-collection))
+(def c-collection-more (backend/function :collection-more))
+(def c-collection-reject (backend/function :collection-reject))
+(def c-collection-free (backend/function :collection-free))
+(def c-new-pool (backend/function :new-pool))
+(def c-pool-add (backend/function :pool-add))
+(def c-pool-generate (backend/function :pool-generate))
+(def c-pool-free (backend/function :pool-free))
+(def c-new-state-machine (backend/function :new-state-machine))
+(def c-state-machine-next-group (backend/function :state-machine-next-group))
+(def c-state-machine-next-rule (backend/function :state-machine-next-rule))
+(def c-state-machine-rule-rejected (backend/function :state-machine-rule-rejected))
+(def c-state-machine-free (backend/function :state-machine-free))
+(def c-mark-complete (backend/function :mark-complete))
+(def c-run-result-status (backend/function :run-result-status))
+(def c-run-result-error (backend/function :run-result-error))
+(def c-run-result-failure-count (backend/function :run-result-failure-count))
+(def c-run-result-failure (backend/function :run-result-failure))
+(def c-failure-free (backend/function :failure-free))
+(def c-failure-origin (backend/function :failure-origin))
+(def c-failure-reproduction-blob (backend/function :failure-reproduction-blob))
+(def c-version (backend/function :version))
 
 (def status-valid 0)
 (def status-invalid 1)
@@ -228,7 +126,9 @@
 
 (defn- context-error [ctx]
   (when (and ctx (not (ffi/null? ctx)))
-    (c-context-last-error ctx)))
+    (let [ptr (c-context-last-error ctx)]
+      (when-not (ffi/null? ptr)
+        (ffi/ptr->string ptr)))))
 
 (defn check!
   "Return nil for HEGEL_OK, otherwise throw with the context diagnostic."
