@@ -74,4 +74,8 @@ runs:
 
     - name: Verify Jolt
       shell: bash
-      run: jolt --version
+      env:
+        JOLT_SETUP_VERSION: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+        test "$(jolt --version)" = "jolt v$JOLT_SETUP_VERSION"

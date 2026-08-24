@@ -2,8 +2,6 @@ name: Release
 
 on:
   push:
-    branches:
-      - 'release-v*'
     tags:
       - 'v*'
 
@@ -11,148 +9,8 @@ permissions:
   contents: read
 
 jobs:
-  build-shim:
-    name: Build ${{ matrix.shim-asset }}
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: ubuntu-24.04
-            jolt-asset: jolt-v0.7.5-x86_64-linux.tar.gz
-            jolt-sha256: 1c037bd4897d6f819eda188483234af03164b7f7ef765ecb86703b62a4edef7e
-            shim-asset: jolt-hegel-shim-linux-amd64.so
-          - runner: windows-2022
-            jolt-asset: jolt-v0.7.5-x86_64-windows.zip
-            jolt-sha256: 21f6705992c2448667321fd0dcee990f51ccd2a620e0ac3101444157ebe75dc1
-            shim-asset: jolt-hegel-shim-windows-amd64.dll
-          - runner: macos-14
-            jolt-asset: jolt-v0.7.5-aarch64-macos.tar.gz
-            jolt-sha256: f65b597e81cafa99c908115e2ed3898e2bac4edcdabbf4bfc5d291d3e4bbfc0b
-            shim-asset: jolt-hegel-shim-darwin-arm64.dylib
-
-    env:
-      JOLT_CACHE_DIR: ${{ github.workspace }}/.jolt/aot-cache
-
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-
-      - name: Install OpenSSL for Jolt on macOS
-        if: runner.os == 'macOS'
-        shell: bash
-        run: brew install openssl@3
-
-      - uses: ./.github/actions/setup-jolt
-        with:
-          version: 0.7.5
-          asset: ${{ matrix.jolt-asset }}
-          sha256: ${{ matrix.jolt-sha256 }}
-
-      - name: Require matching release tag (POSIX)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          expected="v$(jolt -m hegel.install version)"
-          release_tag="${GITHUB_REF_NAME#release-}"
-          test "$release_tag" = "$expected"
-
-      - name: Require matching release tag (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $expected = "v$(jolt -m hegel.install version)"
-          $releaseTag = $env:GITHUB_REF_NAME -replace '^release-', ''
-          if ($releaseTag -ne $expected) {
-            throw "release ref $env:GITHUB_REF_NAME does not match $expected"
-          }
-
-      - name: Configure POSIX release output
-        if: runner.os != 'Windows'
-        shell: bash
-        run: echo "HEGEL_SHIM_LIBRARY=$GITHUB_WORKSPACE/dist/${{ matrix.shim-asset }}" >> "$GITHUB_ENV"
-
-      - name: Build and test shim
-        shell: bash
-        run: |
-          mkdir -p dist
-          jolt -m hegel.install fetch-libhegel
-          jolt -m hegel.install build-shim
-          jolt -M:test
-
-      - name: Stage Windows shim
-        if: runner.os == 'Windows'
-        shell: bash
-        run: cp .hegel-lib/jolt_hegel_shim.dll "dist/${{ matrix.shim-asset }}"
-
-      - name: Write checksum (POSIX)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          name="$(basename "$HEGEL_SHIM_LIBRARY")"
-          if [[ "$RUNNER_OS" == "macOS" ]]; then
-            hash="$(shasum -a 256 "$HEGEL_SHIM_LIBRARY" | awk '{print $1}')"
-          else
-            hash="$(sha256sum "$HEGEL_SHIM_LIBRARY" | awk '{print $1}')"
-          fi
-          printf '%s  %s\n' "$hash" "$name" > "$HEGEL_SHIM_LIBRARY.sha256"
-
-      - name: Write checksum (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $library = "dist/${{ matrix.shim-asset }}"
-          $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $library).Hash.ToLowerInvariant()
-          $name = [IO.Path]::GetFileName($library)
-          Set-Content -NoNewline -LiteralPath "$library.sha256" -Value "$hash  $name"
-
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: shim-${{ runner.os }}-${{ runner.arch }}
-          path: dist/*
-          if-no-files-found: error
-
-  publish:
-    name: Publish GitHub release
-    if: github.repository == 'chucklehead-dev/jolt-hegel'
-    needs: build-shim
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
-        with:
-          pattern: shim-*
-          path: dist
-          merge-multiple: true
-
-      - name: Create release and upload shims
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          release_tag="${GITHUB_REF_NAME#release-}"
-          if gh release view "$release_tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$release_tag" dist/* \
-              --repo "$GITHUB_REPOSITORY" \
-              --clobber
-            gh release edit "$release_tag" \
-              --repo "$GITHUB_REPOSITORY" \
-              --title "$release_tag"
-          else
-            gh release create "$release_tag" dist/* \
-              --repo "$GITHUB_REPOSITORY" \
-              --verify-tag \
-              --generate-notes \
-              --title "$release_tag"
-          fi
-
-  verify-release:
-    name: Verify published shim on ${{ matrix.name }}
-    if: github.repository == 'chucklehead-dev/jolt-hegel'
-    needs: publish
+  verify:
+    name: Verify release on ${{ matrix.name }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 15
     strategy:
@@ -161,16 +19,16 @@ jobs:
         include:
           - name: Linux x86_64
             runner: ubuntu-24.04
-            jolt-asset: jolt-v0.7.5-x86_64-linux.tar.gz
-            jolt-sha256: 1c037bd4897d6f819eda188483234af03164b7f7ef765ecb86703b62a4edef7e
+            jolt-asset: jolt-v0.7.23-x86_64-linux.tar.gz
+            jolt-sha256: feda9a68792b454fa540677069edc6b6d9b82aa8ab77ae8a322934f0b8cd32e7
           - name: Windows x86_64
             runner: windows-2022
-            jolt-asset: jolt-v0.7.5-x86_64-windows.zip
-            jolt-sha256: 21f6705992c2448667321fd0dcee990f51ccd2a620e0ac3101444157ebe75dc1
+            jolt-asset: jolt-v0.7.23-x86_64-windows.zip
+            jolt-sha256: d414dc30d6992613f8bf1bd6a5fd709fd583ef564ce9b684bc2f90a5be498074
           - name: macOS arm64
             runner: macos-14
-            jolt-asset: jolt-v0.7.5-aarch64-macos.tar.gz
-            jolt-sha256: f65b597e81cafa99c908115e2ed3898e2bac4edcdabbf4bfc5d291d3e4bbfc0b
+            jolt-asset: jolt-v0.7.23-aarch64-macos.tar.gz
+            jolt-sha256: 2e4b9804382548b58b10079aa73688afe587d7b6d0986ee52c61f843ae912bb9
 
     env:
       JOLT_CACHE_DIR: ${{ github.workspace }}/.jolt/aot-cache
@@ -187,18 +45,44 @@ jobs:
 
       - uses: ./.github/actions/setup-jolt
         with:
-          version: 0.7.5
+          version: 0.7.23
           asset: ${{ matrix.jolt-asset }}
           sha256: ${{ matrix.jolt-sha256 }}
 
-      - name: Download released native dependencies
-        working-directory: test/consumer
+      - name: Require matching release tag
         shell: bash
         run: |
-          jolt -A:test -m hegel.install fetch-libhegel
-          jolt -A:test -m hegel.install fetch-shim
+          expected="v$(jolt -m hegel.install version)"
+          test "$GITHUB_REF_NAME" = "$expected"
 
-      - name: Run against the downloaded release shim
+      - name: Install native dependencies
+        shell: bash
+        run: jolt -m hegel.install fetch-libhegel
+
+      - name: Run integration suite
+        shell: bash
+        run: jolt -M:test
+
+      - name: Run Git dependency consumer smoke test
         working-directory: test/consumer
         shell: bash
         run: jolt -A:test -m consumer.smoke
+
+  publish:
+    name: Publish GitHub release
+    if: github.repository == 'chucklehead-dev/jolt-hegel'
+    needs: verify
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Create source release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --generate-notes \
+            --title "$GITHUB_REF_NAME"

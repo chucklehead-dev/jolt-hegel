@@ -16,18 +16,15 @@ rule selection.
 
 ## Requirements
 
-- Jolt 0.7.5
-- libhegel 0.32.3, installed and verified by jolt-hegel
+- Jolt 0.7.23 or later
+- libhegel 0.33.0, installed and verified by jolt-hegel
 - A supported native target:
 
-  | Target | Prebuilt libhegel | Prebuilt jolt-hegel shim |
-  | --- | --- | --- |
-  | Linux x86_64 | yes | yes |
-  | Windows x86_64 | yes | yes |
-  | macOS arm64 | yes | yes |
-
-- A C compiler compatible with `gcc` only when a prebuilt shim is
-  unavailable
+  | Target | Prebuilt libhegel |
+  | --- | --- |
+  | Linux x86_64 | yes |
+  | Windows x86_64 | yes |
+  | macOS arm64 | yes |
 
 macOS also needs OpenSSL 3 available to Jolt. Windows native acquisition uses
 PowerShell and does not require OpenSSL.
@@ -47,7 +44,7 @@ normally belongs in the test alias:
 ```
 
 Use the full commit SHA associated with the release tag. Then install the pinned
-libhegel binary and target-specific shim from the consuming project:
+libhegel binary from the consuming project:
 
 ```bash
 JOLT_CACHE_DIR=.jolt-cache/jolt-hegel-<release-commit-sha> \
@@ -58,24 +55,37 @@ Replace `test` with the alias containing jolt-hegel. If the dependency is in
 top-level `:deps`, omit `-A:test`; without the dependency's alias, Jolt cannot
 resolve the installer namespace.
 
-Downloads are verified with SHA-256 and cached with the dependency. If the
-release has no prebuilt shim for the target, the installer builds
-`native/hegel_shim.c` locally with `gcc` or
-`CC`.
+Downloads are verified with SHA-256 and cached with the dependency. Temporal
+generators bind libhegel directly through Jolt's by-value aggregate FFI; no
+target-specific jolt-hegel shim or local C compiler is required.
 
 The installer also compares the loaded `hegel.version` namespace with the
 currently resolved dependency source. If Jolt reused AOT output from another
-release, installation stops before fetching the wrong version's shim. Re-run
+release, installation stops before fetching the wrong libhegel version. Re-run
 installation and tests with a fresh cache directory keyed by the pinned SHA.
-Use the same `JOLT_CACHE_DIR` for the subsequent Jolt test command. Downloaded
-shims also carry a release marker, so a shared `HEGEL_CACHE_DIR` cannot silently
-reuse a verified binary from an older jolt-hegel release.
+Use the same `JOLT_CACHE_DIR` for the subsequent Jolt test command.
+
+## Choose an integration
+
+Both integrations use the same generators, shrinking, replay, and result data.
+Choose the boundary that matches the surrounding test suite:
+
+| Suite | Entry point | Failure behavior |
+| --- | --- | --- |
+| `clojure.test` | `hegel.clojure-test/with` inside `deftest` | Reports one passing property or the final minimal failure through `clojure.test` |
+| Any other runner or a program | `hegel.core/run-test!` | Returns a result map; the caller must treat `:passed? false` as failure |
+
+In either form, put generated values in the property body, keep failure origins
+stable, and keep resources needed by shrinking and final replay alive for the
+entire property run.
 
 ## Use with clojure.test
 
 `hegel.clojure-test/with` embeds a property in an ordinary `deftest`. Generator
 bindings are drawn for each case, failures are shrunk, and only the final
-minimal assertion is reported to `clojure.test`.
+minimal assertion is reported to `clojure.test`. The macro returns the
+underlying `run-test!` result, but ordinary suites can ignore that value and use
+their normal `clojure.test` runner and exit behavior.
 
 ```clojure
 (ns example.reverse-test
@@ -144,9 +154,10 @@ Invariants run on the initial state and after each successfully applied rule.
 ```
 
 libhegel chooses rule sequences, their length, and a nonempty swarm subset for
-each case; there is no separate swarm switch. `:stateful-step-count` sets the
-number of successfully applied rules per generated case. Rejected rules do not
-consume that budget. Keep rule names and order stable
+each case; there is no separate swarm switch. Pass `:stateful-step-count` to
+`run-test!` or `with` to replace libhegel's default 50-round budget. At the
+supported concurrency of one, rejected rules do not consume that budget. Keep
+rule names and order stable
 across generation and replay. Construct mutable systems under test inside the
 property body so every generated case and final replay starts fresh. Check a
 rule's preconditions before mutation; a false precondition or failed
@@ -173,11 +184,16 @@ Value pools let later rules draw handles or resources created by earlier rules:
 `hs/pool-size` and `hs/pool-empty?` inspect the active values. Pools belong to
 one test case and must not be retained between cases.
 
+libhegel 0.33 also defines concurrent state machines. jolt-hegel currently
+drives its round protocol at concurrency one; a public concurrent API remains
+out of scope until state sharing, scheduling diagnostics, and nondeterministic
+failure reporting have an explicit Jolt contract.
+
 ## Use without clojure.test
 
-A property body draws values and throws when the property does not hold.
-`run-test!` returns a result map, so the surrounding test runner must
-treat `:passed? false` as a test failure.
+A property body draws values and throws when its invariant does not hold.
+`run-test!` returns a result map; it does not report to a framework or choose a
+process exit code.
 
 ```clojure
 (ns example.integer-roundtrip
@@ -185,40 +201,45 @@ treat `:passed? false` as a test failure.
             [hegel.generator :as g]
             [hegel.report :as report]))
 
-(defn integer-roundtrip! [runner]
-  (report/run!
-   runner
-   "integer text round-trip"
-   (fn []
-     (h/run-test!
-      {:test-cases 200
-       :database ""
-       :verbosity :quiet}
-      (fn [_]
-        (let [n (h/draw! (g/integer))]
-          (when-not (= n (parse-long (str n)))
-            (throw
-             (ex-info "integer text round-trip failed"
-                      {:hegel/origin "integer-roundtrip/text"})))))))))
+(def result
+  (h/run-test!
+   {:test-cases 200
+    :database ""
+    :verbosity :quiet}
+   (fn [_]
+     (let [n (h/draw! (g/integer))]
+       (when-not (= n (parse-long (str n)))
+         (throw
+          (ex-info "integer text round-trip failed"
+                   {:hegel/origin "integer-roundtrip/text"})))))))
 
-(defn -main [& _]
-  (let [runner (report/counting-runner)]
-    (integer-roundtrip! runner)
-    (println "Ran properties;" (report/failure-count runner) "failures")
-    (flush)
-    (System/exit (if (report/passed? runner) 0 1))))
+(when-not (:passed? result)
+  (throw (ex-info "property failed" {:result result})))
 ```
 
-Ordinary property failures return `:passed? false`. Engine-detected outcome or
-generator nondeterminism returns `:status :error`, `:flaky? true`, and an
-`:error` explanation. Setup errors, health-check failures, and unexpected
-engine errors still throw. `hegel.report/run!` counts both forms, reports the
-seed and diagnostics, and lets the suite continue. Pass `{:reporter f}` to
-`counting-runner` to consume structured report events instead of stdout.
+For a suite that should continue after a property fails, use
+`hegel.report/counting-runner` and `hegel.report/run!`. `run!` counts returned
+failures and thrown setup or engine errors. At suite completion, use
+`report/passed?` to select the surrounding runner's exit status:
+
+```clojure
+(let [runner (report/counting-runner)]
+  (report/run! runner "integer text round-trip"
+               #(h/run-test! opts property-fn))
+  (System/exit (if (report/passed? runner) 0 1)))
+```
+
+Pass `{:reporter f}` to `counting-runner` to consume structured `:pass`,
+`:fail`, and `:error` events instead of its default stdout report. Ordinary
+property failures and engine-detected nondeterminism return `:passed? false`;
+setup errors, health-check failures, and unexpected engine errors throw unless
+wrapped by `report/run!`.
 
 Failure origins must identify the property or assertion site and must not
 contain generated values. Stable origins let Hegel group equivalent failures
-and spend its shrink budget on the correct counterexample.
+and spend its shrink budget on the correct counterexample. Final replay counts
+as reproduction only when it fails with that same origin; a different replay
+origin is reported as flaky instead of being mistaken for the same bug.
 
 Every result includes the selected seed as a string. To replay a run exactly,
 pass it back as a number:
@@ -236,10 +257,10 @@ failure does not reproduce or libhegel reports run-level nondeterminism without
 a counterexample.
 
 One `run-test!` call executes cases and adaptive shrinking sequentially; there
-is no worker option. Jolt 0.7.5 provides dynamically scoped `clojure.test`
-reporting, so separate `with` evaluations no longer share a process-global
-report sink. Concurrent native `run-test!` calls are not covered by
-jolt-hegel's shim/engine safety tests and should still be treated as
+is no worker option. The supported Jolt runtime provides dynamically scoped
+`clojure.test` reporting, so separate `with` evaluations do not share a
+process-global report sink. Concurrent native `run-test!` calls are not covered by
+jolt-hegel's engine safety tests and should still be treated as
 unsupported.
 
 ## Generators
@@ -326,11 +347,8 @@ for custom installations:
 | `JOLT_CACHE_DIR` | writable Jolt AOT cache directory; key it by the pinned release SHA |
 | `HEGEL_CACHE_DIR` | writable native cache directory |
 | `HEGEL_LIBHEGEL_LIBRARY` | caller-supplied libhegel path |
-| `HEGEL_SHIM_LIBRARY` | caller-supplied or build-output shim path |
 | `HEGEL_NATIVE_ARCH` | target override: `amd64` or `arm64` |
 | `HEGEL_LIBHEGEL_RELEASE_BASE` | mirror for the pinned libhegel release |
-| `HEGEL_SHIM_RELEASE_BASE` | mirror for the matching jolt-hegel release |
-| `CC` | compiler for the local shim fallback |
 
 ## Agent skill
 
@@ -345,18 +363,24 @@ $skill-installer install https://github.com/chucklehead-dev/jolt-hegel/tree/main
 
 ```bash
 jolt -m hegel.install fetch-libhegel
-jolt -m hegel.install build-shim
 jolt -M:test
 (cd test/consumer && jolt -A:test -m consumer.smoke)
 ```
 
 Implementation details are in
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md),
-[docs/DESIGN.md](docs/DESIGN.md), and
-[docs/UPSTREAM-IMPROVEMENTS.md](docs/UPSTREAM-IMPROVEMENTS.md). Accepted
-decisions are recorded in the
+[docs/DESIGN.md](docs/DESIGN.md), and the
 [architecture decision records](docs/adr/README.md). Maintainer release steps
 are in [docs/RELEASING.md](docs/RELEASING.md).
+
+## Acknowledgments
+
+The original jolt-hegel design and implementation were based in part on Kyle
+Kingsbury's [hegel-clj](https://github.com/aphyr/hegel-clj), including its
+imperative generator style, `run-test!` and `clojure.test` integration, and
+final-replay diagnostics. jolt-hegel is now an independent Jolt implementation
+which talks directly to libhegel, but that earlier Clojure binding established
+the shape of its first public API.
 
 ## License
 

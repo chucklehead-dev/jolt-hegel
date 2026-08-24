@@ -12,10 +12,6 @@
   "The shared object selected for this process."
   native/library-path)
 
-(def shim-library-path
-  "The date/time aggregate shim selected for this process. Loaded lazily."
-  native/shim-library-path)
-
 (try
   (ffi/load-library library-path)
   (catch Throwable cause
@@ -27,40 +23,6 @@
       {:type ::library-load-failed
        :library library-path
        :cause cause}))))
-
-(def ^:private shim-loaded? (atom false))
-
-(ffi/defcfn c-shim-init "jolt_hegel_shim_init" [:string] :int)
-(ffi/defcfn c-shim-error "jolt_hegel_shim_error" [] :string)
-
-(defn- ensure-shim-loaded! []
-  (when-not @shim-loaded?
-    (locking shim-loaded?
-      (when-not @shim-loaded?
-        (try
-          (ffi/load-library shim-library-path)
-          (catch Throwable cause
-            (throw
-             (ex-info
-              (str "could not load the Hegel date/time shim from "
-                   (pr-str shim-library-path)
-                   "; run `jolt -A:<dependency-alias> -m hegel.install` "
-                   "(or omit the alias for a top-level dependency), or set "
-                   "HEGEL_SHIM_LIBRARY")
-              {:type ::shim-load-failed
-               :library shim-library-path
-               :cause cause}))))
-        (let [rc (c-shim-init library-path)]
-          (when-not (zero? rc)
-            (throw
-             (ex-info
-              (str "could not initialize the Hegel date/time shim: "
-                   (or (c-shim-error) "no shim diagnostic"))
-              {:type ::shim-initialization-failed
-               :library shim-library-path
-               :libhegel-library library-path
-               :result rc})))
-          (reset! shim-loaded? true))))))
 
 ;; Context and settings.
 (ffi/defcfn c-context-new "hegel_context_new" [] :pointer)
@@ -97,8 +59,9 @@
   "hegel_settings_set_suppress_health_check"
   [:pointer :pointer :uint] :int)
 
-;; Run lifecycle. next-test-case blocks on libhegel's worker. run-free may drain
-;; and join that worker, so it is collect-safe too.
+;; Run lifecycle. Since libhegel 0.30.1, next-test-case performs generation and
+;; shrinking on the calling thread and may block until it offers the next case.
+;; run-free drops any remaining exploration. Keep both calls collect-safe.
 (ffi/defcfn c-run-start "hegel_run_start"
   [:pointer :pointer :pointer :pointer :pointer] :int)
 (ffi/defcfn c-next-test-case "hegel_next_test_case"
@@ -151,12 +114,34 @@
   [:pointer :pointer :pointer] :int)
 (ffi/defcfn c-generate-ipv6 "hegel_generate_ipv6"
   [:pointer :pointer :pointer] :int)
-(ffi/defcfn c-generate-date "jolt_hegel_generate_date"
-  [:pointer :pointer :pointer :pointer :pointer] :int)
-(ffi/defcfn c-generate-time "jolt_hegel_generate_time"
-  [:pointer :pointer :pointer :pointer :pointer] :int)
-(ffi/defcfn c-generate-datetime "jolt_hegel_generate_datetime"
-  [:pointer :pointer :pointer :pointer :pointer] :int)
+(ffi/defcfn c-generate-date "hegel_generate_date"
+  [:pointer :pointer
+   [:by-value [:struct [[:year :int32] [:month :uint8] [:day :uint8]]]]
+   [:by-value [:struct [[:year :int32] [:month :uint8] [:day :uint8]]]]
+   :pointer]
+  :int)
+(ffi/defcfn c-generate-time "hegel_generate_time"
+  [:pointer :pointer
+   [:by-value [:struct [[:hour :uint8] [:minute :uint8] [:second :uint8]
+                        [:microsecond :uint32]]]]
+   [:by-value [:struct [[:hour :uint8] [:minute :uint8] [:second :uint8]
+                        [:microsecond :uint32]]]]
+   :pointer]
+  :int)
+(ffi/defcfn c-generate-datetime "hegel_generate_datetime"
+  [:pointer :pointer
+   [:by-value
+    [:struct
+     [[:date [:struct [[:year :int32] [:month :uint8] [:day :uint8]]]]
+      [:time [:struct [[:hour :uint8] [:minute :uint8] [:second :uint8]
+                       [:microsecond :uint32]]]]]]]
+   [:by-value
+    [:struct
+     [[:date [:struct [[:year :int32] [:month :uint8] [:day :uint8]]]]
+      [:time [:struct [[:hour :uint8] [:minute :uint8] [:second :uint8]
+                       [:microsecond :uint32]]]]]]]
+   :pointer]
+  :int)
 (ffi/defcfn c-target "hegel_target"
   [:pointer :pointer :double :pointer] :int)
 (ffi/defcfn c-start-span "hegel_start_span"
@@ -180,12 +165,15 @@
 (ffi/defcfn c-pool-free "hegel_pool_free"
   [:pointer :pointer] :int)
 (ffi/defcfn c-new-state-machine "hegel_new_state_machine"
-  [:pointer :pointer :pointer :size_t :pointer :size_t :pointer] :int)
-(ffi/defcfn c-state-machine-next-rule "hegel_state_machine_next_rule"
+  [:pointer :pointer :pointer :pointer :size_t :pointer :size_t
+   :int64 :int64 :pointer :pointer]
+  :int)
+(ffi/defcfn c-state-machine-next-group "hegel_state_machine_next_group"
   [:pointer :pointer :pointer :pointer] :int)
-(ffi/defcfn c-state-machine-rule-rejected
-  "hegel_state_machine_rule_rejected"
-  [:pointer :pointer :pointer] :int)
+(ffi/defcfn c-state-machine-next-rule "hegel_state_machine_next_rule"
+  [:pointer :pointer :pointer :int64 :pointer] :int)
+(ffi/defcfn c-state-machine-rule-rejected "hegel_state_machine_rule_rejected"
+  [:pointer :pointer :pointer :int64] :int)
 (ffi/defcfn c-state-machine-free "hegel_state_machine_free"
   [:pointer :pointer] :int)
 (ffi/defcfn c-mark-complete "hegel_mark_complete"
@@ -218,6 +206,7 @@
 (def run-status-passed 0)
 (def run-status-failed 1)
 (def run-status-error 2)
+(def run-status-failed-nondeterministic 3)
 
 (def label-list 1)
 (def label-set 3)
@@ -230,8 +219,8 @@
 (def label-mapped 13)
 
 (def state-machine-done
-  "Sentinel returned by state-machine-next-rule! after the final step."
-  -1)
+  "Sentinel returned at a state-machine round or machine boundary."
+  -9223372036854775808N)
 
 (def no-max-size
   "UINT64_MAX, used by libhegel for an engine-bounded collection size."
@@ -274,35 +263,32 @@
 (defn assumption-rejected? [error]
   (= ::assumption-rejected (:type (ex-data error))))
 
+(defn error?
+  "True when error reports a libhegel harness/ABI failure rather than generated
+  property behavior."
+  [error]
+  (= ::error (:type (ex-data error))))
+
 (defn- call-out!
   [ctx operation type call]
-  (let [out (ffi/alloc (ffi/sizeof type))]
-    (try
-      (let [rc (call out)]
-        (check! ctx operation rc)
-        (ffi/read out type))
-      (finally
-        (ffi/free out)))))
+  (ffi/with-out [out type]
+    (let [rc (call out)]
+      (check! ctx operation rc)
+      (ffi/read out type))))
 
 (defn- call-draw-out!
   [ctx operation type call]
-  (let [out (ffi/alloc (ffi/sizeof type))]
-    (try
-      (let [rc (call out)]
-        (check-draw! ctx operation rc)
-        (ffi/read out type))
-      (finally
-        (ffi/free out)))))
+  (ffi/with-out [out type]
+    (let [rc (call out)]
+      (check-draw! ctx operation rc)
+      (ffi/read out type))))
 
 (defn- with-c-string
   [value call]
   (if (nil? value)
     (call ffi/null)
-    (let [ptr (ffi/string->ptr (str value))]
-      (try
-        (call ptr)
-        (finally
-          (ffi/free ptr))))))
+    (ffi/with-c-string [ptr (str value)]
+      (call ptr))))
 
 (defn- allocate-c-strings [values]
   (let [pointers (atom [])]
@@ -496,53 +482,66 @@
   (dotimes [offset size]
     (ffi/write ptr :uint8 offset 0)))
 
-(def ^:private date-size 8)
-(def ^:private time-size 8)
-(def ^:private datetime-size 16)
+(def date-layout
+  (ffi/layout
+   [:struct [[:year :int32]
+             [:month :uint8]
+             [:day :uint8]]]))
 
-(defn- write-date! [ptr offset value]
-  (ffi/write ptr :int offset (:year value))
-  (ffi/write ptr :uint8 (+ offset 4) (:month value))
-  (ffi/write ptr :uint8 (+ offset 5) (:day value)))
+(def time-layout
+  (ffi/layout
+   [:struct [[:hour :uint8]
+             [:minute :uint8]
+             [:second :uint8]
+             [:microsecond :uint32]]]))
 
-(defn- read-date [ptr offset]
-  {:year (ffi/read ptr :int offset)
-   :month (ffi/read ptr :uint8 (+ offset 4))
-   :day (ffi/read ptr :uint8 (+ offset 5))})
+(def datetime-layout
+  (ffi/layout
+   [:struct
+    [[:date [:struct [[:year :int32]
+                      [:month :uint8]
+                      [:day :uint8]]]]
+     [:time [:struct [[:hour :uint8]
+                      [:minute :uint8]
+                      [:second :uint8]
+                      [:microsecond :uint32]]]]]]))
 
-(defn- write-time! [ptr offset value]
-  (ffi/write ptr :uint8 offset (:hour value))
-  (ffi/write ptr :uint8 (+ offset 1) (:minute value))
-  (ffi/write ptr :uint8 (+ offset 2) (:second value))
-  (ffi/write ptr :uint (+ offset 4) (:microsecond value)))
+(defn- write-date! [ptr layout prefix value]
+  (doseq [field [:year :month :day]]
+    (ffi/write-field ptr layout (conj prefix field) (get value field))))
 
-(defn- read-time [ptr offset]
-  {:hour (ffi/read ptr :uint8 offset)
-   :minute (ffi/read ptr :uint8 (+ offset 1))
-   :second (ffi/read ptr :uint8 (+ offset 2))
-   :microsecond (ffi/read ptr :uint (+ offset 4))})
+(defn- read-date [ptr layout prefix]
+  (into {}
+        (map (fn [field]
+               [field (ffi/read-field ptr layout (conj prefix field))])
+             [:year :month :day])))
+
+(defn- write-time! [ptr layout prefix value]
+  (doseq [field [:hour :minute :second :microsecond]]
+    (ffi/write-field ptr layout (conj prefix field) (get value field))))
+
+(defn- read-time [ptr layout prefix]
+  (into {}
+        (map (fn [field]
+               [field (ffi/read-field ptr layout (conj prefix field))])
+             [:hour :minute :second :microsecond])))
 
 (defn- write-datetime! [ptr value]
-  (write-date! ptr 0 (:date value))
-  (write-time! ptr 8 (:time value)))
+  (write-date! ptr datetime-layout [:date] (:date value))
+  (write-time! ptr datetime-layout [:time] (:time value)))
 
 (defn- read-datetime [ptr]
-  {:date (read-date ptr 0)
-   :time (read-time ptr 8)})
+  {:date (read-date ptr datetime-layout [:date])
+   :time (read-time ptr datetime-layout [:time])})
 
-(defn- with-aggregate-buffers [size call]
-  ;; One aligned allocation means there is no partially-allocated failure path.
-  ;; All three struct sizes are multiples of their required four-byte alignment.
-  (let [allocation-size (* 3 size)
-        buffer (ffi/alloc allocation-size)
-        min-value buffer
-        max-value (+ buffer size)
-        out-value (+ buffer (* 2 size))]
-    (zero-memory! buffer allocation-size)
-    (try
-      (call min-value max-value out-value)
-      (finally
-        (ffi/free buffer)))))
+(defn- with-aggregate-buffers [layout call]
+  (ffi/with-layout [min-value layout]
+    (ffi/with-layout [max-value layout]
+      (ffi/with-layout [out-value layout]
+        (zero-memory! min-value (ffi/layout-size layout))
+        (zero-memory! max-value (ffi/layout-size layout))
+        (zero-memory! out-value (ffi/layout-size layout))
+        (call min-value max-value out-value)))))
 
 (defn generate-bytes! [ctx test-case min-size max-size]
   ;; hegel_generate_bytes_result_t is {uint8_t*, size_t}. Both released
@@ -647,17 +646,13 @@
 
 (defn new-collection! [ctx test-case min-size max-size]
   (call-draw-out! ctx :new-collection :pointer
-                  #(c-new-collection
-                    ctx test-case min-size max-size %)))
+                  #(c-new-collection ctx test-case min-size max-size %)))
 
 (defn collection-more! [ctx test-case collection]
-  (let [out (ffi/alloc (ffi/sizeof :uint8))]
-    (try
-      (let [rc (c-collection-more ctx test-case collection out)]
-        (check-draw! ctx :collection-more rc)
-        (not (zero? (ffi/read out :uint8))))
-      (finally
-        (ffi/free out)))))
+  (not
+   (zero?
+    (call-draw-out! ctx :collection-more :uint8
+                    #(c-collection-more ctx test-case collection %)))))
 
 (defn collection-reject! [ctx test-case collection reason]
   (with-c-string
@@ -686,32 +681,61 @@
   (c-pool-free ctx pool)
   nil)
 
+(defn- with-int64-array [values call]
+  (let [values (vec values)]
+    (ffi/with-alloc [pointer (max 1 (* (count values) (ffi/sizeof :int64)))]
+      (doseq [[index value] (map-indexed vector values)]
+        (ffi/write pointer :int64 (* index (ffi/sizeof :int64)) value))
+      (call pointer))))
+
 (defn new-state-machine!
   [ctx test-case rule-names invariant-names]
   (with-c-string-array
     rule-names
     (fn [rules rule-count]
-      (with-c-string-array
-        invariant-names
-        (fn [invariants invariant-count]
-          (call-draw-out!
-           ctx :new-state-machine :pointer
-           #(c-new-state-machine
-             ctx test-case rules rule-count
-             invariants invariant-count %)))))))
+      (with-int64-array
+        (repeat rule-count 0)
+        (fn [rule-groups]
+          (with-c-string-array
+            invariant-names
+            (fn [invariants invariant-count]
+              (ffi/with-out [machine-out :pointer]
+                (ffi/with-out [concurrency-out :int64]
+                  (check-draw!
+                   ctx :new-state-machine
+                   (c-new-state-machine
+                    ctx test-case rules rule-groups rule-count
+                    invariants invariant-count 1 1
+                    machine-out concurrency-out))
+                  (let [concurrency (ffi/read concurrency-out :int64)]
+                    (when-not (= 1 concurrency)
+                      (throw
+                       (ex-info
+                        (str "libhegel returned unexpected sequential "
+                             "state-machine concurrency " concurrency)
+                        {:type ::invalid-state-machine-concurrency
+                         :concurrency concurrency})))
+                    (ffi/read machine-out :pointer)))))))))))
+
+(defn state-machine-next-group! [ctx test-case state-machine]
+  (let [group
+        (call-draw-out!
+         ctx :state-machine-next-group :int64
+         #(c-state-machine-next-group ctx test-case state-machine %))]
+    (when-not (= state-machine-done group)
+      group)))
 
 (defn state-machine-next-rule! [ctx test-case state-machine]
   (let [index
         (call-draw-out!
          ctx :state-machine-next-rule :int64
-         #(c-state-machine-next-rule ctx test-case state-machine %))]
+         #(c-state-machine-next-rule ctx test-case state-machine 0 %))]
     (when-not (= state-machine-done index)
       index)))
 
 (defn state-machine-rule-rejected! [ctx test-case state-machine]
-  (check-draw! ctx :state-machine-rule-rejected
-               (c-state-machine-rule-rejected
-                ctx test-case state-machine)))
+  (check! ctx :state-machine-rule-rejected
+          (c-state-machine-rule-rejected ctx test-case state-machine 0)))
 
 (defn state-machine-free! [ctx state-machine]
   (c-state-machine-free ctx state-machine)
@@ -742,31 +766,28 @@
    #(c-generate-ipv6 ctx test-case %)))
 
 (defn generate-date! [ctx test-case min-value max-value]
-  (ensure-shim-loaded!)
   (with-aggregate-buffers
-    date-size
+    date-layout
     (fn [min-ptr max-ptr out-ptr]
-      (write-date! min-ptr 0 min-value)
-      (write-date! max-ptr 0 max-value)
+      (write-date! min-ptr date-layout [] min-value)
+      (write-date! max-ptr date-layout [] max-value)
       (check-draw! ctx :generate-date
                    (c-generate-date ctx test-case min-ptr max-ptr out-ptr))
-      (read-date out-ptr 0))))
+      (read-date out-ptr date-layout []))))
 
 (defn generate-time! [ctx test-case min-value max-value]
-  (ensure-shim-loaded!)
   (with-aggregate-buffers
-    time-size
+    time-layout
     (fn [min-ptr max-ptr out-ptr]
-      (write-time! min-ptr 0 min-value)
-      (write-time! max-ptr 0 max-value)
+      (write-time! min-ptr time-layout [] min-value)
+      (write-time! max-ptr time-layout [] max-value)
       (check-draw! ctx :generate-time
                    (c-generate-time ctx test-case min-ptr max-ptr out-ptr))
-      (read-time out-ptr 0))))
+      (read-time out-ptr time-layout []))))
 
 (defn generate-datetime! [ctx test-case min-value max-value]
-  (ensure-shim-loaded!)
   (with-aggregate-buffers
-    datetime-size
+    datetime-layout
     (fn [min-ptr max-ptr out-ptr]
       (write-datetime! min-ptr min-value)
       (write-datetime! max-ptr max-value)

@@ -5,12 +5,9 @@
    :test {:extra-paths ["test"]
          :main-opts ["-m" "hegel.test-runner"]}
   :fetch-libhegel {:extra-paths ["script"]
-                   :main-opts ["-m" "fetch-libhegel"]}
-  :build-hegel-shim {:extra-paths ["script"]
-                     :main-opts ["-m" "build-hegel-shim"]}}
+                   :main-opts ["-m" "fetch-libhegel"]}}
 
  :tasks
  {setup-native "jolt -M:setup-native"
   fetch-libhegel "jolt -M:fetch-libhegel"
-  build-hegel-shim "jolt -M:build-hegel-shim"
   test "jolt -M:test"}}

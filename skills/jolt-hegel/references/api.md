@@ -3,6 +3,7 @@
 ## Contents
 
 - [Install](#install)
+- [Choose an integration](#choose-an-integration)
 - [`clojure.test` property template](#clojuretest-property-template)
 - [Custom-runner property template](#custom-runner-property-template)
 - [Generators](#generators)
@@ -15,8 +16,11 @@
 
 ## Install
 
-Require Jolt 0.7.5 and add the public release by full commit SHA. A test-only
-dependency normally belongs in the project's test alias:
+Require Jolt 0.7.23 or later and use the executable selected by the consuming
+project's toolchain contract. Do not substitute a stale installed executable
+for a project-selected `jolt`, custom image, or simulation binary. Then add the
+public release by full commit SHA. A test-only dependency normally belongs in
+the project's test alias:
 
 ```clojure
 {:aliases
@@ -58,11 +62,20 @@ cannot write its default AOT cache, set `JOLT_CACHE_DIR` to a writable project
 or temporary directory. Key it by the pinned release SHA so another jolt-hegel
 release cannot reuse its compiled namespaces. The installer compares the loaded
 release with the resolved source checkout and fails before fetching a mismatched
-shim when it detects stale AOT output. Cached downloaded shims carry a
-jolt-hegel release marker; if the marker does not match, the installer fetches
-and verifies the current release's checksum instead of trusting the shared
-native cache. A local C compiler is needed only when the target has no published
-shim.
+libhegel release when it detects stale AOT output. Temporal generators use
+Jolt's direct by-value aggregate FFI, so there is no jolt-hegel native shim or
+local C compiler requirement.
+
+## Choose an integration
+
+| Suite | Entry point | Caller responsibility |
+| --- | --- | --- |
+| `clojure.test` | `hegel.clojure-test/with` inside `deftest` | Use ordinary `clojure.test` assertions and runner behavior |
+| Any other runner or a program | `hegel.core/run-test!` | Throw inside the property and treat returned `:passed? false` as failure |
+
+Use `hegel.report/counting-runner` with `hegel.report/run!` when a custom suite
+must continue after failed results or thrown run errors. The reporting helper
+counts outcomes but deliberately does not call `System/exit`.
 
 ## clojure.test property template
 
@@ -390,7 +403,7 @@ Common `run-test!` options:
 | Option | Meaning |
 | --- | --- |
 | `:test-cases` | maximum generated cases |
-| `:stateful-step-count` | positive count of successfully applied state-machine rules per case |
+| `:stateful-step-count` | positive state-machine round budget; libhegel defaults to 50 and rejected sequential rules do not consume it |
 | `:seed` | numeric seed for exact replay |
 | `:derandomize?` | derive repeatable behavior when no seed is supplied |
 | `:name` or `:database-key` | stable identity for derived seeds and persistence |
@@ -419,8 +432,9 @@ or run-level nondeterminism has no failure blob.
          :last-data (:data last))))
 ```
 
-There are two flakiness shapes. A shrunk failure that does not reproduce keeps
-its failure entry and sets `:flaky? true`. If libhegel detects different
+There are two flakiness shapes. A shrunk failure that does not reproduce with
+the same stable origin keeps its failure entry, records `:replay-origin`, and
+sets `:flaky? true`. If libhegel detects different
 outcomes or different generation for the same choice prefix, the result has
 `:status :error`, `:passed? false`, `:flaky? true`, and the explanation in
 `:error`; it has no counterexample to replay. Other run-level errors, including
@@ -432,10 +446,15 @@ One `run-test!` call is sequential. The public options have no worker setting,
 and libhegel's generation and adaptive shrinking depend on the preceding case
 history. Do not thread cases within a run.
 
-Jolt 0.7.5 gives each `hegel.clojure-test/with` evaluation a dynamically scoped
-report binding. Concurrent shim/engine safety has not been verified by
+The supported Jolt runtime gives each `hegel.clojure-test/with` evaluation a dynamically
+scoped report binding. Concurrent engine safety has not been verified by
 jolt-hegel's test suite, so concurrent native runs remain unsupported until
 that contract has a dedicated integration test.
+
+libhegel 0.33's concurrent state-machine protocol is not yet exposed. The
+current `hegel.stateful/run!` implementation drives the round protocol with
+fixed concurrency one so deterministic shrinking and final replay keep their
+existing contract.
 
 ## Verification commands
 
@@ -448,5 +467,8 @@ JOLT_CACHE_DIR=.jolt-cache/jolt-hegel-<release-commit-sha> \
 
 The first command assumes the dependency is in `:test :extra-deps`; omit the
 alias only for a top-level dependency. Use the consuming project's established
-test command when it differs from the jolt-hegel repository's own harness. The
-SHA-keyed cache is especially important after changing the dependency pin.
+test command and selected Jolt executable when they differ from the examples.
+For process-backed properties, pre-resolve every parent and worker alias before
+generation and preserve the first worker transcript when infrastructure setup
+fails. The SHA-keyed cache is especially important after changing the
+dependency pin.

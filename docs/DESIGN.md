@@ -52,11 +52,12 @@ The property body communicates with the run loop through values and exceptions:
 | returns normally | valid |
 | `assume!` or an engine assumption rejects | invalid |
 | an engine draw stops the test | overrun |
-| any other exception | interesting, with a stable origin |
+| an application/property exception | interesting, with a stable origin |
 
-Configuration and API usage errors are marked as usage errors and escape the
-property loop immediately. They must not be treated as counterexamples and sent
-through shrinking.
+Configuration, API usage, and native libhegel harness errors escape the property
+loop immediately. They must not be treated as counterexamples and sent through
+shrinking. Only the native STOP and ASSUME results are ordinary generated-case
+control flow.
 
 The public result distinguishes the aggregate run status, wrapper-observed case
 counts, failures, final replay summaries, the seed, and whether any failure was
@@ -93,8 +94,9 @@ invariants derive origins from their declared names.
 
 Failure blobs are copied before their native result objects are freed. Each blob
 is replayed through a final test case after shrinking completes. Only the replay
-runs with `final?` true. A failure that cannot be reproduced is retained but
-marks the aggregate result `:flaky? true`.
+runs with `final?` true. Reproduction requires both another interesting outcome
+and the original stable origin. A missing failure or a different replay origin
+is retained with `:replay-origin` and marks the aggregate result `:flaky? true`.
 
 Diagnostics should use `when-final`, `fprn`, or `note!` so they describe the
 minimal counterexample instead of every generated attempt. The database is
@@ -112,8 +114,8 @@ ordinary test assertion:
 - every nonpassing event includes the resolved Hegel seed;
 - blank exception messages fall back to the throwable-map cause or exception
   type and preserve original `ex-data`; and
-- report capture is isolated with Jolt 0.7.5's dynamically bindable
-  `clojure.test/report`.
+- report capture is isolated through the supported Jolt runtime's dynamically
+  bindable `clojure.test/report`.
 
 The direct `run-test!` API returns data and does not throw merely because a
 property failed or libhegel detected nondeterminism. A non-`clojure.test`
@@ -127,25 +129,33 @@ owning process exit.
 One `run-test!` invocation drives generation and adaptive shrinking
 sequentially; the public options expose no workers. Separate
 `hegel.clojure-test/with` evaluations have isolated report bindings, but
-concurrent shim and engine use is not a supported contract until it has a
+concurrent engine use is not a supported contract until it has a
 dedicated integration test.
 
 ## Stateful testing
 
 `hegel.stateful/run!` exposes immutable model transitions while libhegel owns
-rule selection, sequence shrinking, the configured successful-step budget,
-termination, and a random nonempty swarm subset for each case. A rejected rule
-is reported to libhegel and does not consume that budget.
+rule selection, sequence shrinking, the configurable round cap (50 by default),
+termination, and a random nonempty swarm subset for each case. At concurrency
+one, a rejected rule is reported to libhegel and does not consume that budget.
 
 Rules have stable, unique names and receive the current state. A rule
 precondition is evaluated before its step. A false precondition or `assume!`
-inside the rule skips that attempted rule and does not run invariants. Invariants
+inside the rule reports a rejected rule to libhegel, skips that attempt, and
+does not run invariants. Invariants
 run once on the initial state and after every successfully applied rule. Failures
 include `:hegel.stateful/trace` and stable rule or invariant origins.
 
 Rule names and order must remain unchanged between generation and replay.
 Mutable systems under test must be constructed inside the property body so each
 generated case and final replay begins from fresh external state.
+
+libhegel 0.33 uses one round protocol for sequential and concurrent machines.
+jolt-hegel fixes concurrency to one, advances the all-zero rule group at each
+join point, and exposes `:stateful-step-count` as the round budget. Concurrent
+machines remain outside the public contract because they require explicit
+semantics for shared state and nondeterministic failure capture; deterministic
+shrinking and final replay must not be implied for them.
 
 An expensive external service may wrap the complete property run when a fresh
 connection or session is the isolation unit and every body invocation restores

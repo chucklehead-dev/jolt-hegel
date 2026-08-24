@@ -448,8 +448,17 @@
   (let [fixed-date {:year 2024 :month 2 :day 29}
         fixed-time {:hour 14 :minute 30 :second 15 :microsecond 123456}
         fixed-datetime {:date fixed-date :time fixed-time}
+        minimum-date {:year 1 :month 1 :day 1}
+        maximum-date {:year 9999 :month 12 :day 31}
+        minimum-time {:hour 0 :minute 0 :second 0 :microsecond 0}
+        maximum-time {:hour 23 :minute 59 :second 59 :microsecond 999999}
+        minimum-datetime {:date minimum-date :time minimum-time}
+        maximum-datetime {:date maximum-date :time maximum-time}
         values (atom {:dates [] :times [] :datetimes []
-                      :fixed-dates [] :fixed-times [] :fixed-datetimes []})
+                      :fixed-dates [] :fixed-times [] :fixed-datetimes []
+                      :minimum-dates [] :maximum-dates []
+                      :minimum-times [] :maximum-times []
+                      :minimum-datetimes [] :maximum-datetimes []})
         result
         (h/run-test!
          {:test-cases 30
@@ -463,7 +472,19 @@
                  fixed-date-value (h/draw! (g/date fixed-date fixed-date))
                  fixed-time-value (h/draw! (g/time fixed-time fixed-time))
                  fixed-datetime-value
-                 (h/draw! (g/datetime fixed-datetime fixed-datetime))]
+                 (h/draw! (g/datetime fixed-datetime fixed-datetime))
+                 minimum-date-value
+                 (h/draw! (g/date minimum-date minimum-date))
+                 maximum-date-value
+                 (h/draw! (g/date maximum-date maximum-date))
+                 minimum-time-value
+                 (h/draw! (g/time minimum-time minimum-time))
+                 maximum-time-value
+                 (h/draw! (g/time maximum-time maximum-time))
+                 minimum-datetime-value
+                 (h/draw! (g/datetime minimum-datetime minimum-datetime))
+                 maximum-datetime-value
+                 (h/draw! (g/datetime maximum-datetime maximum-datetime))]
              (swap! values
                     (fn [seen]
                       (-> seen
@@ -473,8 +494,16 @@
                           (update :fixed-dates conj fixed-date-value)
                           (update :fixed-times conj fixed-time-value)
                           (update :fixed-datetimes conj
-                                  fixed-datetime-value)))))))]
-    (check "temporal generator run passes through the C shim"
+                                  fixed-datetime-value)
+                          (update :minimum-dates conj minimum-date-value)
+                          (update :maximum-dates conj maximum-date-value)
+                          (update :minimum-times conj minimum-time-value)
+                          (update :maximum-times conj maximum-time-value)
+                          (update :minimum-datetimes conj
+                                  minimum-datetime-value)
+                          (update :maximum-datetimes conj
+                                  maximum-datetime-value)))))))]
+    (check "temporal generator run passes through direct aggregate bindings"
            (:passed? result))
     (check "date draws use conventional ISO 8601 text"
            (and (seq (:dates @values))
@@ -496,6 +525,16 @@
     (check "fixed nested bounds round-trip through hegel_datetime_t"
            (every? #{"2024-02-29T14:30:15.123456"}
                    (:fixed-datetimes @values)))
+    (check "minimum temporal bounds round-trip through aggregate layouts"
+           (and (every? #{"0001-01-01"} (:minimum-dates @values))
+                (every? #{"00:00:00"} (:minimum-times @values))
+                (every? #{"0001-01-01T00:00:00"}
+                        (:minimum-datetimes @values))))
+    (check "maximum temporal bounds round-trip through aggregate layouts"
+           (and (every? #{"9999-12-31"} (:maximum-dates @values))
+                (every? #{"23:59:59.999999"} (:maximum-times @values))
+                (every? #{"9999-12-31T23:59:59.999999"}
+                        (:maximum-datetimes @values))))
     (check "invalid calendar bounds fail before entering native code"
            (try
              (g/date {:min {:year 2023 :month 2 :day 29}})
@@ -521,7 +560,8 @@
                          {:hegel/origin "hegel.test-runner:date-threshold"
                           :date value}))))))
         failure (first (:failures result))]
-    (check "date failures shrink through the C shim" (not (:passed? result)))
+    (check "date failures shrink through direct aggregate bindings"
+           (not (:passed? result)))
     (check "date shrinking finds and replays the minimal leap-day failure"
            (= ["2024-02-29"] @final-dates))
     (check "the temporal counterexample is reproduced, not flaky"
@@ -533,6 +573,85 @@
     false
     (catch Throwable _
       true)))
+
+(defn harness-integrity []
+  (let [events (atom [])
+        marker (ex-info "mapping failed" {:marker :mapping})
+        generator (g/fmap (fn [_] (throw marker)) (g/just :value))
+        error
+        (with-redefs [hffi/start-span!
+                      (fn [_ _ label] (swap! events conj [:start label]))
+                      hffi/stop-span!
+                      (fn
+                        ([_ _] (swap! events conj [:stop false]))
+                        ([_ _ discard?]
+                         (swap! events conj [:stop discard?])))]
+          (try
+            (generator {:context :context :handle :test-case})
+            nil
+            (catch Throwable error
+              error)))]
+    (check "combinator spans close exactly once when mapping throws"
+           (and (= marker error)
+                (= [[:start hffi/label-mapped] [:stop false]] @events))))
+  (let [events (atom [])
+        marker (ex-info "predicate failed" {:marker :predicate})
+        generator (g/filter (fn [_] (throw marker)) (g/just :value))
+        error
+        (with-redefs [hffi/start-span!
+                      (fn [_ _ label] (swap! events conj [:start label]))
+                      hffi/stop-span!
+                      (fn
+                        ([_ _] (swap! events conj [:stop false]))
+                        ([_ _ discard?]
+                         (swap! events conj [:stop discard?])))]
+          (try
+            (generator {:context :context :handle :test-case})
+            nil
+            (catch Throwable error
+              error)))]
+    (check "filter spans close exactly once when predicates throw"
+           (and (= marker error)
+                (= [[:start hffi/label-filter] [:stop false]] @events))))
+  (let [error
+        (with-redefs [hffi/generate-integer!
+                      (fn [& _]
+                        (throw
+                         (ex-info "native harness failed"
+                                  {:type ::hffi/error
+                                   :operation :generate-integer
+                                   :result 3})))]
+          (try
+            (h/run-test!
+             {:test-cases 1 :seed 41 :database "" :verbosity :quiet}
+             (fn [_] (h/draw! (g/integer 0 1))))
+            nil
+            (catch Throwable error
+              error)))]
+    (check "native harness errors abort instead of becoming counterexamples"
+           (= ::hffi/error (:type (ex-data error)))))
+  (let [result
+        (h/run-test!
+         {:test-cases 10
+          :seed 43
+          :database ""
+          :report-multiple-failures? false
+          :verbosity :quiet}
+         (fn [_]
+           (h/draw! (g/integer 0 10))
+           (throw
+            (ex-info "origin changed during final replay"
+                     {:hegel/origin
+                      (if (h/final?)
+                        "hegel.test-runner:replay-origin"
+                        "hegel.test-runner:original-origin")}))))
+        failure (first (:failures result))]
+    (check "final replay requires the original failure origin"
+           (and (true? (:flaky? result))
+                (false? (:reproduced? failure))
+                (= "hegel.test-runner:original-origin" (:origin failure))
+                (= "hegel.test-runner:replay-origin"
+                   (:replay-origin failure))))))
 
 (defn string-generators []
   (let [text-gen (g/string {:min-size 2 :max-size 5
@@ -910,7 +1029,7 @@
           :report-multiple-failures? false
           :verbosity :quiet}
          (fn [_]
-           (hs/run! config)))]
+           (hs/run! (if (fn? config) (config) config))))]
     {:result result
      :failure (first (:failures result))
      :trace (some-> result :failures first :exception ex-data ::hs/trace)}))
@@ -951,7 +1070,51 @@
          1
          {:initial-state 0
           :rules [(hs/rule :unused identity)]
-          :invariants [(hs/invariant :initially-valid (constantly false))]})]
+          :invariants [(hs/invariant :initially-valid (constantly false))]})
+        pool-double-increment
+        (stateful-failure
+         1
+         (fn []
+           (let [handles (hs/pool)]
+             {:initial-state {:counters []}
+              :rules
+              [(hs/rule
+                :new-counter
+                (fn [state]
+                  (let [id (count (:counters state))]
+                    (hs/add! handles id)
+                    (update state :counters conj 0))))
+               (hs/rule
+                :increment
+                {:precondition (fn [_] (not (hs/pool-empty? handles)))}
+                (fn [state]
+                  (let [id (h/draw! (hs/values-reusable handles))]
+                    (update-in state [:counters id] inc))))]
+              :invariants
+              [(hs/invariant :below-two
+                             #(every? (fn [n] (< n 2)) (:counters %)))]})))
+        pool-distinct-pair
+        (stateful-failure
+         2
+         (fn []
+           (let [handles (hs/pool)]
+             {:initial-state {:next-id 0}
+              :rules
+              [(hs/rule
+                :new-object
+                (fn [state]
+                  (hs/add! handles (:next-id state))
+                  (update state :next-id inc)))
+               (hs/rule
+                :pair
+                {:precondition (fn [_] (<= 2 (hs/pool-size handles)))}
+                (fn [state]
+                  (let [a (h/draw! (hs/values-reusable handles))
+                        b (h/draw! (hs/values-reusable handles))]
+                    (when-not (= a b)
+                      (throw (ex-info "distinct pair"
+                                      {:type ::distinct-pair})))
+                    state)))]})))]
     (check "stateful shrinking minimizes a counter failure to two increments"
            (= [:inc :inc] (:trace counter)))
     (check "stateful shrinking preserves the required open-close transition"
@@ -977,7 +1140,19 @@
            (and (= [] (:trace initial-invariant))
                 (= "hegel.stateful/invariant:initially-valid"
                    (-> initial-invariant :failure :origin))
-                (:reproduced? (:failure initial-invariant))))))
+                (:reproduced? (:failure initial-invariant))))
+    (check "pool shrinking removes unrelated counter insertions"
+           (= [:new-counter :increment :increment]
+              (:trace pool-double-increment)))
+    (check "pool shrinking preserves the minimal distinct pair"
+           (= [:new-object :new-object :pair]
+              (:trace pool-distinct-pair)))
+    (check "pool shrink regressions replay without flakiness"
+           (every? (fn [{:keys [result failure]}]
+                     (and (not (:passed? result))
+                          (:reproduced? failure)
+                          (false? (:flaky? result))))
+                   [pool-double-increment pool-distinct-pair]))))
 
 (defn- longest-run [values]
   (loop [values values
@@ -1016,6 +1191,25 @@
                 (every? #(<= 1 % 50) lengths)
                 (> (count (filter #(= 50 %) lengths))
                    (/ (count lengths) 2)))))
+  (let [lengths (atom [])
+        result
+        (h/run-test!
+         {:test-cases 40
+          :stateful-step-count 7
+          :seed 20260822
+          :database ""
+          :verbosity :quiet}
+         (fn [_]
+           (swap! lengths conj
+                  (count
+                   (hs/run!
+                    {:initial-state []
+                     :rules [(hs/rule :step #(conj % :step))]})))))]
+    (check "stateful-step-count configures Hegel's round budget"
+           (and (:passed? result)
+                (seq @lengths)
+                (every? #(<= 1 % 7) @lengths)
+                (some #(= 7 %) @lengths))))
   (let [first-rule? (atom true)
         result
         (h/run-test!
@@ -1260,6 +1454,43 @@
     (check "a real clojure.test deftest can host a passing Hegel property"
            (= [:pass] (mapv :type @events))))
   (let [events (atom [])
+        error
+        (with-redefs [t/report #(swap! events conj %)
+                      hffi/generate-integer!
+                      (fn [& _]
+                        (throw
+                         (ex-info "native harness failed"
+                                  {:type ::hffi/error
+                                   :operation :generate-integer
+                                   :result 3})))]
+          (try
+            (ht/with {:test-cases 1
+                      :seed 20260818
+                      :database ""
+                      :verbosity :quiet}
+              [x (g/integer 0 1)]
+              (t/is (<= 0 x 1)))
+            nil
+            (catch Throwable error
+              error)))]
+    (check "clojure.test properties preserve native harness errors"
+           (and (= ::hffi/error (:type (ex-data error)))
+                (empty? @events))))
+  (let [events (atom [])
+        calls (atom 0)
+        result
+        (with-redefs [t/report #(swap! events conj %)]
+          (ht/with {:test-cases 1
+                    :seed 20260819
+                    :database ""
+                    :verbosity :quiet}
+            []
+            (h/assume! (> (swap! calls inc) 1))))]
+    (check "clojure.test properties preserve assumption control flow"
+           (and (:passed? result)
+                (= 1 (:invalid-test-cases result))
+                (= [:pass] (mapv :type @events)))))
+  (let [events (atom [])
         final-values (atom [])
         result
         (with-redefs [t/report #(swap! events conj %)]
@@ -1351,7 +1582,9 @@
   (scenario "generated seed" generated-seed)
   (scenario "controls and sample" controls-and-sample)
   (scenario "primitive generators" primitive-generators)
-  (scenario "temporal generators through C shim" temporal-generators)
+  (scenario "temporal generators through direct aggregate bindings"
+            temporal-generators)
+  (scenario "harness and replay integrity" harness-integrity)
   (scenario "string and format generators" string-generators)
   (scenario "collection and composition generators" collection-combinators)
   (scenario "cross-binding combinator shrink quality"

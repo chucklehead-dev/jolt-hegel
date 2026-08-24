@@ -210,7 +210,8 @@
             (= ::assumption-rejected (:type (ex-data error))))
         {:status :invalid}
 
-        (usage-error? error)
+        (or (usage-error? error)
+            (hffi/error? error))
         (throw error)
 
         :else
@@ -354,11 +355,16 @@
     (let [handle (hffi/test-case-from-blob! ctx settings blob)
           test-case (test-case ctx handle true verbosity)]
       (try
-        (let [outcome (run-body test-case case-fn)]
+        (let [outcome (run-body test-case case-fn)
+              expected-origin (:origin failure)
+              replay-origin (:origin outcome)]
           (mark-outcome! test-case outcome)
           (merge failure
                  outcome
-                 {:reproduced? (= :interesting (:status outcome))}))
+                 {:origin expected-origin
+                  :replay-origin replay-origin
+                  :reproduced? (and (= :interesting (:status outcome))
+                                    (= expected-origin replay-origin))}))
         (finally
           (release-test-case! test-case))))
     (assoc failure
@@ -370,6 +376,7 @@
     0 :passed
     1 :failed
     2 :error
+    3 :failed-nondeterministic
     (throw (ex-info (str "unknown libhegel run status " native)
                     {:type ::unknown-run-status
                      :status native}))))
@@ -382,7 +389,8 @@
             "Your data generation is non-deterministic:"))))
 
 (defn- public-final [replayed]
-  (mapv #(select-keys % [:status :value :origin :exception]) replayed))
+  (mapv #(select-keys % [:status :value :origin :replay-origin :exception])
+        replayed))
 
 (defn run-test!
   "Run `case-fn` under libhegel and return an aggregate result map.
@@ -420,6 +428,14 @@
                         run-error (when (= :error status)
                                     (or (hffi/run-result-error! ctx result)
                                         "unknown error"))]
+                    (when (= :failed-nondeterministic status)
+                      (throw
+                       (ex-info
+                        (str "libhegel reported a concurrent state-machine "
+                             "failure, but jolt-hegel exposes only the "
+                             "sequential state-machine protocol")
+                        {:type ::unsupported-concurrent-state-machine
+                         :seed (str (:seed opts))})))
                     (if (nondeterministic-run-error? run-error)
                       ;; libhegel reports nondeterminism as a run-level error,
                       ;; before a counterexample is available to replay. Keep
