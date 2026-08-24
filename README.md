@@ -341,6 +341,13 @@ libraries (the test suite currently exercises Malli 0.20.1).
     metosin/malli {:mvn/version "0.20.1"}}}}}}
 ```
 
+Malli is a Maven dependency. On Windows, Jolt's Maven transport requires the
+OpenSSL DLLs and `unzip` supplied by Git for Windows. From PowerShell or `cmd`,
+put `C:\Program Files\Git\mingw64\bin` and
+`C:\Program Files\Git\usr\bin` on the native Windows `PATH`. The repository's
+CI setup action does this explicitly for hosted Windows runners; its Windows
+job uses PowerShell so MSYS path translation cannot hide those DLLs.
+
 ```clojure
 (require '[hegel.core :as h]
          '[hegel.malli :as hm])

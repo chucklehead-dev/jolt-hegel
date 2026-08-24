@@ -71,6 +71,18 @@ runs:
         Expand-Archive -LiteralPath $archive -DestinationPath $installDir
         $root = Join-Path $installDir "jolt-v$env:JOLT_SETUP_VERSION-x86_64-windows"
         $root | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        # Jolt resolves Maven coordinates with system OpenSSL and extracts jars
+        # with unzip. Git for Windows supplies both on hosted runners, but its
+        # executable directories are not inherited by later pwsh/bash steps.
+        $gitRoot = Join-Path $env:ProgramFiles 'Git'
+        $gitMingwBin = Join-Path $gitRoot 'mingw64\bin'
+        $gitUsrBin = Join-Path $gitRoot 'usr\bin'
+        foreach ($path in @($gitMingwBin, $gitUsrBin)) {
+          if (-not (Test-Path -LiteralPath $path)) {
+            throw "Required Git for Windows directory is missing: $path"
+          }
+          $path | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        }
 
     - name: Verify Jolt
       shell: bash
