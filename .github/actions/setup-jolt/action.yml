@@ -26,7 +26,7 @@ runs:
         set -euo pipefail
         archive="$RUNNER_TEMP/$JOLT_SETUP_ASSET"
         install_dir="$RUNNER_TEMP/jolt"
-        curl -fsSL \
+        curl --retry 3 --retry-delay 2 --retry-all-errors -fsSL \
           "https://github.com/jolt-lang/jolt/releases/download/v$JOLT_SETUP_VERSION/$JOLT_SETUP_ASSET" \
           -o "$archive"
         if [[ "$RUNNER_OS" == "macOS" ]]; then
@@ -54,7 +54,16 @@ runs:
         $archive = Join-Path $env:RUNNER_TEMP $env:JOLT_SETUP_ASSET
         $installDir = Join-Path $env:RUNNER_TEMP 'jolt'
         $url = "https://github.com/jolt-lang/jolt/releases/download/v$env:JOLT_SETUP_VERSION/$env:JOLT_SETUP_ASSET"
-        Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $archive
+        for ($attempt = 1; $attempt -le 3; $attempt++) {
+          try {
+            Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $archive
+            break
+          } catch {
+            Remove-Item -Force -ErrorAction SilentlyContinue $archive
+            if ($attempt -eq 3) { throw }
+            Start-Sleep -Seconds (2 * $attempt)
+          }
+        }
         $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $archive).Hash.ToLowerInvariant()
         if ($actual -ne $env:JOLT_SETUP_SHA256) {
           throw "Jolt SHA-256 mismatch: expected $env:JOLT_SETUP_SHA256, got $actual"
