@@ -111,3 +111,26 @@
   (or (get @functions* function-id)
       (throw (ex-info "Jolt libhegel bindings are not loaded"
                       {:function function-id}))))
+
+;; Memory operations deliberately mirror only what the shared libhegel wrapper
+;; needs. Allocation remains explicitly paired with free.
+(def null ffi/null)
+(defn null? [pointer] (ffi/null? pointer))
+(defn alloc [size] (ffi/alloc size))
+(defn free [pointer] (ffi/free pointer))
+(defn sizeof [type] (ffi/sizeof type))
+(defn read-value
+  ([pointer type] (ffi/read pointer type))
+  ([pointer type offset] (ffi/read pointer type offset)))
+(defn write-value [pointer type offset value]
+  (ffi/write pointer type offset value))
+(defn read-array [pointer length] (ffi/read-array pointer length))
+(defn write-array [pointer value] (ffi/write-array pointer value))
+(defn read-utf8 [pointer length] (ffi/read-bytes pointer length))
+(defn write-utf8 [pointer value] (ffi/write-bytes pointer value))
+(defn string->native [value] (ffi/string->ptr value))
+(defn native->string [pointer] (ffi/ptr->string pointer))
+(defn layout-size [layout] (ffi/layout-size layout))
+(defn read-field [pointer layout path] (ffi/read-field pointer layout path))
+(defn write-field [pointer layout path value]
+  (ffi/write-field pointer layout path value))

@@ -1,7 +1,8 @@
 (ns hegel.abi-check
   (:require [clojure.string :as str]
             [hegel.abi :as abi]
-            #?(:jolt [hegel.ffi.jolt :as jolt-backend])))
+            #?(:jolt [hegel.ffi.jolt :as selected-backend]
+               :clj [hegel.ffi.jvm :as selected-backend])))
 
 (defn- require! [description condition]
   (when-not condition
@@ -30,11 +31,24 @@
               (not-any? (fn [word] (str/includes? descriptor-text word))
                         ["jolt.ffi" "babashka.ffi" "java.lang.foreign"]))
     #?(:jolt
-       (let [report (abi/check-backend jolt-backend/backend descriptor)]
+       (let [report (abi/check-backend selected-backend/backend descriptor)]
          (require! "Jolt backend supports every descriptor signature"
                    (= {:supported 71 :unsupported 0 :total 71}
                       (:summary report)))
          (require! "Jolt backend selects direct FFI for every signature"
                    (every? (fn [entry] (= :jolt/direct (:route entry)))
-                           (vals (:functions report)))))))
+                           (vals (:functions report)))))
+       :clj
+       (let [report (abi/check-backend selected-backend/backend descriptor)]
+         (require! "JVM backend supports every descriptor signature"
+                   (= {:supported 71 :unsupported 0 :total 71}
+                      (:summary report)))
+         (require! "JVM backend selects direct FFM for every signature"
+                   (every? (fn [entry] (= :jvm/ffm (:route entry)))
+                           (vals (:functions report))))
+         (require! "JVM layouts preserve C aggregate size and nesting"
+                   (= [8 8 16]
+                      (mapv (comp selected-backend/layout-size
+                                  selected-backend/layout)
+                            [:hegel/date :hegel/time :hegel/datetime]))))))
   (flush))

@@ -7,7 +7,7 @@
             [malli.core :as m]))
 
 (def ^:private default-max-size 100)
-(def ^:private uint64-max (dec (* 2 (inc Long/MAX_VALUE))))
+(def ^:private uint64-max 18446744073709551615N)
 (def ^:private generated-value-origin "hegel.malli/generated-value")
 
 (defn- adapter-error [type message form path data]
@@ -153,8 +153,13 @@
                    :infinity? false}))
 
       :string
-      (g/string (bounded-size-properties form path properties
-                                         default-max-size))
+      ;; Malli on the JVM measures String bounds in UTF-16 code units, while
+      ;; libhegel and Jolt measure Unicode code points. Restrict this optional
+      ;; adapter to the BMP so the supported-schema validity contract and seed
+      ;; behavior agree on every host.
+      (g/string (assoc (bounded-size-properties form path properties
+                                                default-max-size)
+                       :max-codepoint 65535))
 
       :=
       (do (validate-properties! form path properties #{})

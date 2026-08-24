@@ -6,9 +6,9 @@
   `jolt -A:test -m hegel.install`; repository aliases are not inherited."
   (:require [clojure.java.shell :as shell]
             [clojure.string :as str]
+            [hegel.host :as host]
             [hegel.native :as native]
-            [hegel.version :as version]
-            [jolt.ffi :as ffi]))
+            [hegel.version :as version]))
 
 (def ^:private libhegel-release-base
   (str "https://github.com/hegeldev/hegel-rust/releases/download/v"
@@ -35,11 +35,33 @@
    {:name "libhegel-windows-arm64.dll"
     :sha256 "ccb39178181c3bdf5b2cc549ab3b766b22c9b47fc2d4993ae165f7c94206e677"}})
 
-;; Resolve libc's system(3) everywhere. Windows uses it because Jolt's current
-;; ProcessBuilder path preflight rejects otherwise-valid C:\... executables.
-(ffi/load-library)
-(ffi/defcfn c-system "system" [:string] :int)
-(ffi/defcfn c-sha256 "SHA256" [:pointer :size_t :pointer] :pointer)
+;; Only the Jolt installer needs native libc/libcrypto helpers. Keeping them
+;; dynamically resolved here prevents host-specific FFI from entering the
+;; shared installer namespace on bb and JVM Clojure.
+(def ^:private jolt? (= :jolt (host/runtime)))
+
+(defn- jolt-var [symbol]
+  (when jolt?
+    (requiring-resolve symbol)))
+
+(def ^:private jolt-load-library (jolt-var 'jolt.ffi/load-library))
+(def ^:private jolt-alloc (jolt-var 'jolt.ffi/alloc))
+(def ^:private jolt-free (jolt-var 'jolt.ffi/free))
+(def ^:private jolt-null? (jolt-var 'jolt.ffi/null?))
+(def ^:private jolt-read-array (jolt-var 'jolt.ffi/read-array))
+(def ^:private jolt-write-array (jolt-var 'jolt.ffi/write-array))
+
+(when jolt?
+  (jolt-load-library))
+
+(def ^:private c-system
+  (when jolt?
+    (eval '(jolt.ffi/foreign-fn "system" [:string] :int))))
+
+(def ^:private c-sha256
+  (when jolt?
+    (eval '(jolt.ffi/foreign-fn "SHA256" [:pointer :size_t :pointer]
+                                :pointer))))
 
 (defn- nonblank [value]
   (when-not (str/blank? value)
@@ -174,7 +196,9 @@
        "\""))
 
 (defn- run-windows! [description arguments]
-  (let [exit (c-system (windows-command arguments))]
+  (let [exit (if jolt?
+               (c-system (windows-command arguments))
+               (:exit (apply shell/sh arguments)))]
     (when-not (zero? exit)
       (throw
        (ex-info (str description " failed with exit " exit)
@@ -195,12 +219,14 @@
                    "-NonInteractive" "-Command" script])))
 
 (defn- posix-download! [url path]
-  (let [fetch (requiring-resolve 'jolt.mvn-http/fetch)]
-    (when-not (fetch url path)
-      (throw (ex-info (str "failed to download " url)
-                      {:type ::download-failed
-                       :url url
-                       :path path})))))
+  (if jolt?
+    (let [fetch (requiring-resolve 'jolt.mvn-http/fetch)]
+      (when-not (fetch url path)
+        (throw (ex-info (str "failed to download " url)
+                        {:type ::download-failed
+                         :url url
+                         :path path}))))
+    ((requiring-resolve 'hegel.install.jvm/download!) url path)))
 
 (defn- download! [url path]
   (println "native: downloading" url)
@@ -229,8 +255,8 @@
 (defn- ensure-crypto! []
   (when-not
    (some (fn [candidate]
-           (try
-             (ffi/load-library candidate)
+             (try
+             (jolt-load-library candidate)
              true
              (catch Throwable _ false)))
          (crypto-candidates))
@@ -243,21 +269,21 @@
   (with-open [input (java.io.FileInputStream. path)]
     (let [data (.readAllBytes input)
           length (alength data)
-          source (ffi/alloc (max 1 length))
-          digest (ffi/alloc 32)]
+          source (jolt-alloc (max 1 length))
+          digest (jolt-alloc 32)]
       (try
-        (ffi/write-array source data)
-        (when (ffi/null? (c-sha256 source length digest))
+        (jolt-write-array source data)
+        (when (jolt-null? (c-sha256 source length digest))
           (throw
            (ex-info (str "SHA256 failed for " path)
                     {:type ::checksum-failed
                      :path path})))
         (apply str
                (map #(format "%02x" (bit-and % 0xff))
-                    (seq (ffi/read-array digest 32))))
+                    (seq (jolt-read-array digest 32))))
         (finally
-          (ffi/free digest)
-          (ffi/free source))))))
+          (jolt-free digest)
+          (jolt-free source))))))
 
 (defn- windows-checksum-matches? [path expected]
   (let [script (str "$ErrorActionPreference='Stop';"
@@ -272,9 +298,12 @@
 
 (defn- checksum-matches? [path expected]
   (and (.isFile (java.io.File. path))
-       (if (= :windows (:os (native/platform)))
-         (windows-checksum-matches? path expected)
-         (= expected (posix-sha256 path)))))
+       (if jolt?
+         (if (= :windows (:os (native/platform)))
+           (windows-checksum-matches? path expected)
+           (= expected (posix-sha256 path)))
+         (= expected
+            ((requiring-resolve 'hegel.install.jvm/sha256) path)))))
 
 (defn- verify-file! [path expected]
   (when-not (checksum-matches? path expected)
@@ -350,7 +379,7 @@
 
 (defn- usage! []
   (println
-   (str "Usage: jolt [-A:alias] -m hegel.install "
+   (str "Usage: " (name (host/runtime)) " -m hegel.install "
         "[setup|fetch-libhegel|verify-source|paths|version]"))
   nil)
 

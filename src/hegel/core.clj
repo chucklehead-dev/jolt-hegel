@@ -329,13 +329,15 @@
          observed []]
     (if-let [handle (hffi/next-test-case! ctx run)]
       (let [test-case (test-case ctx handle false verbosity)]
-        (try
-          (let [outcome (run-body test-case case-fn)]
-            (mark-outcome! test-case outcome)
-            (recur (count-outcome counts outcome)
-                   (record-observed-failure observed outcome)))
-          (finally
-            (release-test-case! test-case))))
+        (let [{next-counts :counts next-observed :observed}
+              (try
+                (let [outcome (run-body test-case case-fn)]
+                  (mark-outcome! test-case outcome)
+                  {:counts (count-outcome counts outcome)
+                   :observed (record-observed-failure observed outcome)})
+                (finally
+                  (release-test-case! test-case)))]
+          (recur next-counts next-observed)))
       (assoc counts :observed-failures observed))))
 
 (defn- snapshot-failure! [ctx result index]

@@ -375,6 +375,11 @@
            (< (count groups) 8)
            (= 8 (count groups))))))
 
+(defn- codepoint-count [value]
+  ;; Both Java's regex engine and Jolt's irregex iterate this pattern by Unicode
+  ;; code point, unlike JVM String/count which counts UTF-16 code units.
+  (count (re-seq #"(?s)." value)))
+
 (defn primitive-generators []
   (let [values (atom {:true [] :false [] :octets [] :doubles [] :bytes []
                       :empty-bytes [] :uuids [] :ipv4 [] :ipv6 []})
@@ -689,7 +694,7 @@
     (check "string and format generators run through owned native handles"
            (:passed? result))
     (check "text sizes count Unicode code points"
-           (every? #(<= 2 (count (:text %)) 5) @values))
+           (every? #(<= 2 (codepoint-count (:text %)) 5) @values))
     (check "length-delimited UTF-8 preserves an embedded NUL"
            (every? #(= "\u0000" (:nul %)) @values))
     (check "character filters reach the native text generator"
@@ -857,7 +862,7 @@
   (let [string-case
         (minimal-value "hegel.test-runner:string-length"
                        (g/string)
-                       #(>= (count %) 10))
+                       #(>= (codepoint-count %) 10))
         vector-case
         (minimal-value "hegel.test-runner:vector-containment"
                        (g/vector (g/integer 0 100))
@@ -1509,16 +1514,16 @@
                                 "hegel.test-runner:malli-config-bound"}))))))]
     (check "applies the configured fallback collection bound"
            (:passed? result)))
-  (let [form [:int {:min 0 :max (inc Long/MAX_VALUE)}]
+  (let [form [:int {:min 0 :max 9223372036854775808N}]
         error (caught-error #(hm/generator form))]
     (check "rejects integer bounds outside Hegel's int64 domain"
            (= {:type :hegel.malli/invalid-property
                :path []
                :form form}
               (select-keys (ex-data error) [:type :path :form]))))
-  (let [uint64-max (dec (* 2 (inc Long/MAX_VALUE)))
-        forms [[:string {:max (inc uint64-max)}]
-               [:vector {:min (inc uint64-max)} :boolean]]]
+  (let [uint64-max 18446744073709551615N
+        forms [[:string {:max 18446744073709551616N}]
+               [:vector {:min 18446744073709551616N} :boolean]]]
     (doseq [form forms]
       (let [error (caught-error #(hm/generator form))]
         (check "rejects collection bounds outside Hegel's uint64 domain"
@@ -1527,7 +1532,7 @@
                    :form form}
                   (select-keys (ex-data error) [:type :path :form]))))))
   (let [form [:vector :boolean]
-        uint64-max (dec (* 2 (inc Long/MAX_VALUE)))
+        uint64-max 18446744073709551615N
         error (caught-error
                #(hm/generator form {:default-max-size (inc uint64-max)}))]
     (check "rejects adapter fallback outside Hegel's uint64 domain"
@@ -1581,7 +1586,7 @@
                  (h/draw! generator)]
              (when-not (and (<= -3 integer 7)
                             (<= -2.5 double 4.5)
-                            (<= 2 (count string) 6)
+                            (<= 2 (codepoint-count string) 6)
                             (<= 1 (count sequential) 3)
                             (<= 1 (count map) 2))
                (throw (ex-info "Malli bounds were violated"
@@ -1641,7 +1646,11 @@
     (with-redefs [t/report #(swap! events conj %)]
       (t/test-var #'embedded-hegel-property))
     (check "a real clojure.test deftest can host a passing Hegel property"
-           (= [:pass] (mapv :type @events))))
+           (= [:pass]
+              (into []
+                    (comp (map :type)
+                          (filter #{:pass :fail :error}))
+                    @events))))
   (let [events (atom [])
         error
         (with-redefs [t/report #(swap! events conj %)
