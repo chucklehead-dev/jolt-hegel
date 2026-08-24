@@ -30,7 +30,11 @@ jobs:
             jolt-sha256: feda9a68792b454fa540677069edc6b6d9b82aa8ab77ae8a322934f0b8cd32e7
           - name: Windows x86_64
             runner: windows-2022
-            shell: bash
+            # Maven resolution loads Git for Windows' OpenSSL DLLs through the
+            # native Windows search path. Windows PowerShell preserves that
+            # path and the module environment used by the installer's checksum
+            # subprocess; MSYS translation prevents Jolt from loading the DLLs.
+            shell: powershell
             jolt-asset: jolt-v0.7.23-x86_64-windows.zip
             jolt-sha256: d414dc30d6992613f8bf1bd6a5fd709fd583ef564ce9b684bc2f90a5be498074
           - name: macOS arm64

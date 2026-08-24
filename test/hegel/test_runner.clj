@@ -6,10 +6,12 @@
             [hegel.ffi :as hffi]
             [hegel.generator :as g]
             [hegel.install :as install]
+            [hegel.malli :as hm]
             [hegel.native :as native]
             [hegel.report :as report]
             [hegel.stateful :as hs]
-            [hegel.version :as version]))
+            [hegel.version :as version]
+            [malli.core :as m]))
 
 (def failures (atom 0))
 (def progress-file
@@ -1438,7 +1440,194 @@
             (hffi/settings-free! ctx settings))))
       (finally
         (hffi/context-free! ctx)))))
+(defn caught-error [f]
+  (try
+    (f)
+    nil
+    (catch Throwable error
+      error)))
 
+(defn malli-adapter-construction []
+  (let [cases
+        [{:description "rejects intersection schemas"
+          :form [:and :int [:> 0]]
+          :type :hegel.malli/unsupported-schema
+          :path []}
+         {:description "rejects regex schemas"
+          :form [:* :int]
+          :type :hegel.malli/unsupported-schema
+         :path []}
+         {:description "rejects predicate schemas"
+          :form 'string?
+          :type :hegel.malli/unsupported-schema
+          :path []}
+         {:description "rejects references"
+          :form [:ref {:registry {::node :int}} ::node]
+          :type :hegel.malli/unsupported-schema
+          :path []}
+         {:description "rejects custom generator properties"
+          :form [:vector [:string {:gen/elements ["x"]}]]
+          :type :hegel.malli/unsupported-property
+          :path [:child :properties :gen/elements]}
+         {:description "rejects registries on otherwise supported schemas"
+          :form [:int {:registry {::value :int}}]
+          :type :hegel.malli/unsupported-property
+          :path [:properties :registry]}
+         {:description "rejects open maps"
+          :form [:map [:x :int]]
+          :type :hegel.malli/unsupported-schema
+          :path []}
+         {:description "rejects default map entries"
+          :form [:map {:closed true} [::m/default :int]]
+          :type :hegel.malli/unsupported-schema
+          :path [:keys ::m/default]}]]
+    (doseq [{:keys [description form type path]} cases]
+      (let [error (caught-error #(hm/generator form))
+            data (ex-data error)]
+        (check description
+               (and error
+                    (= type (:type data))
+                    (= path (:path data))
+                    (= form (:form data)))))))
+  (let [form [:vector :int]
+        error (caught-error #(hm/generator form {:size 4}))]
+    (check "rejects unknown adapter config"
+           (= {:type :hegel.malli/invalid-config
+               :path [:config :size]
+               :form form}
+              (select-keys (ex-data error) [:type :path :form]))))
+  (let [generator (hm/generator [:vector :boolean]
+                                {:default-max-size 3})
+        result
+        (h/run-test!
+         {:test-cases 25 :seed 20260804 :database "" :verbosity :quiet}
+         (fn [_]
+           (let [value (h/draw! generator)]
+             (when (> (count value) 3)
+               (throw (ex-info "adapter fallback bound was violated"
+                               {:hegel/origin
+                                "hegel.test-runner:malli-config-bound"}))))))]
+    (check "applies the configured fallback collection bound"
+           (:passed? result)))
+  (let [form [:int {:min 0 :max (inc Long/MAX_VALUE)}]
+        error (caught-error #(hm/generator form))]
+    (check "rejects integer bounds outside Hegel's int64 domain"
+           (= {:type :hegel.malli/invalid-property
+               :path []
+               :form form}
+              (select-keys (ex-data error) [:type :path :form]))))
+  (let [uint64-max (dec (* 2 (inc Long/MAX_VALUE)))
+        forms [[:string {:max (inc uint64-max)}]
+               [:vector {:min (inc uint64-max)} :boolean]]]
+    (doseq [form forms]
+      (let [error (caught-error #(hm/generator form))]
+        (check "rejects collection bounds outside Hegel's uint64 domain"
+               (= {:type :hegel.malli/invalid-property
+                   :path []
+                   :form form}
+                  (select-keys (ex-data error) [:type :path :form]))))))
+  (let [form [:vector :boolean]
+        uint64-max (dec (* 2 (inc Long/MAX_VALUE)))
+        error (caught-error
+               #(hm/generator form {:default-max-size (inc uint64-max)}))]
+    (check "rejects adapter fallback outside Hegel's uint64 domain"
+           (= {:type :hegel.malli/invalid-config
+               :path [:config :default-max-size]
+               :form form}
+              (select-keys (ex-data error) [:type :path :form])))))
+
+(defn malli-adapter-generation []
+  (let [schema
+        [:map {:closed true}
+         [:id [:int {:min 1 :max 9}]]
+         [:payload
+          [:tuple
+           [:enum :left :right]
+           [:vector {:min 1 :max 4}
+            [:or :nil [:string {:min 1 :max 5}]]]]]
+         [:flags [:set {:min 1 :max 2} :boolean]]
+         [:attributes {:optional true}
+          [:map-of {:max 2}
+           [:enum :x :y]
+           [:double {:min -1.0 :max 1.0}]]]]
+        valid? (m/validator schema)
+        generator (hm/generator schema)
+        seen (atom 0)
+        result
+        (h/run-test!
+         {:test-cases 100 :seed 20260805 :database "" :verbosity :quiet}
+         (fn [_]
+           (let [value (h/draw! generator)]
+             (swap! seen inc)
+             (when-not (valid? value)
+               (throw (ex-info "nested Malli value was invalid"
+                               {:hegel/origin
+                                "hegel.test-runner:malli-nested-validity"}))))))]
+    (check "generates valid nested values from the supported Malli subset"
+           (and (:passed? result) (pos? @seen))))
+  (let [schema
+        [:tuple
+         [:int {:min -3 :max 7}]
+         [:double {:min -2.5 :max 4.5}]
+         [:string {:min 2 :max 6}]
+         [:sequential {:min 1 :max 3} :boolean]
+         [:map-of {:min 1 :max 2} [:enum :a :b] :nil]]
+        generator (hm/generator schema)
+        result
+        (h/run-test!
+         {:test-cases 100 :seed 20260806 :database "" :verbosity :quiet}
+         (fn [_]
+           (let [[integer double string sequential map]
+                 (h/draw! generator)]
+             (when-not (and (<= -3 integer 7)
+                            (<= -2.5 double 4.5)
+                            (<= 2 (count string) 6)
+                            (<= 1 (count sequential) 3)
+                            (<= 1 (count map) 2))
+               (throw (ex-info "Malli bounds were violated"
+                               {:hegel/origin
+                                "hegel.test-runner:malli-bounds"}))))))]
+    (check "honors numeric, string, and collection bounds"
+           (:passed? result)))
+  (let [seen (atom #{})
+        schema [:map {:closed true}
+                [:value {:optional true} [:maybe [:= :present]]]]
+        generator (hm/generator schema)
+        result
+        (h/run-test!
+         {:test-cases 100 :seed 20260807 :database "" :verbosity :quiet}
+         (fn [_]
+           (let [value (h/draw! generator)]
+             (swap! seen conj
+                    (cond
+                      (not (contains? value :value)) :absent
+                      (nil? (:value value)) :present-nil
+                      :else :present-value)))))]
+    (check "distinguishes an absent optional key from a present nil"
+           (and (:passed? result)
+                (= #{:absent :present-nil :present-value} @seen))))
+  (let [final-values (atom [])
+        generator (hm/generator [:int {:min 0 :max 100}])
+        result
+        (h/run-test!
+         {:test-cases 200
+          :seed 1777986545686
+          :database ""
+          :report-multiple-failures? false
+          :verbosity :quiet}
+         (fn [_]
+           (let [value (h/draw! generator)]
+             (when (h/final?)
+               (swap! final-values conj value))
+             (when (>= value 10)
+               (throw (ex-info "Malli shrink threshold violated"
+                               {:hegel/origin
+                                "hegel.test-runner:malli-native-shrink"
+                                :value value}))))))]
+    (check "retains native Hegel shrinking through the Malli adapter"
+           (and (not (:passed? result))
+                (= [10] @final-values)
+                (= 10 (-> result :final first :exception ex-data :value))))))
 (t/deftest embedded-hegel-property
   (ht/with {:test-cases 20
             :seed 20260727
@@ -1589,6 +1778,9 @@
   (scenario "collection and composition generators" collection-combinators)
   (scenario "cross-binding combinator shrink quality"
             combinator-shrink-quality)
+  (scenario "Malli adapter construction" malli-adapter-construction)
+  (scenario "Malli adapter generation and shrinking"
+            malli-adapter-generation)
   (scenario "stateful pools and model tests" stateful-pools-and-models)
   (scenario "stateful shrink quality" stateful-shrink-quality)
   (scenario "stateful swarm and control flow"
