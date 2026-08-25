@@ -14,10 +14,11 @@ x86_64-unknown-linux-gnu-a836dc6b7a6df7c434796123b874a4a0e89caa94399ea7c98b21166
 Run `jank check-health` first. Both JIT compilation and AOT compilation must be
 healthy, and the C++ compiler bundled with jank must be available.
 
-Hosted CI uses the official `jank-lang/setup-jank` action at an immutable action
-commit and records the installed binary identity. The action currently installs
-the latest jank binary built from upstream main, so the recorded identity is the
-runtime provenance for each run rather than a selectable jank release version.
+Hosted Linux CI downloads the current noble package directly and verifies its
+pinned SHA-256 before installation. Hosted macOS CI uses the official
+`jank-lang/setup-jank` action at an immutable action commit on macOS 26, the
+minimum OS targeted by its current binary. Both jobs record the installed binary
+identity as runtime provenance.
 
 ## What works
 

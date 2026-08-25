@@ -46,7 +46,7 @@ jobs:
           - name: Linux x86_64
             runner: ubuntu-24.04
           - name: macOS arm64
-            runner: macos-14
+            runner: macos-26
 
     env:
       HEGEL_CACHE_DIR: ${{ github.workspace }}/.hegel-lib
@@ -58,7 +58,18 @@ jobs:
       - uses: DeLaGuardo/setup-clojure@13.4
         with:
           bb: latest
-      - name: Set up jank
+      - name: Install pinned jank package (Linux)
+        if: runner.os == 'Linux'
+        env:
+          JANK_DEB_SHA256: 66b640b90a5acc729f6d246874b91aff3ee76769b110582ae99da894e0efd3d7
+        run: |
+          curl -fsSLo "$RUNNER_TEMP/jank.deb" \
+            https://ppa.jank-lang.org/pool/main/j/jank/jank_0.1-noble_amd64.deb
+          echo "$JANK_DEB_SHA256  $RUNNER_TEMP/jank.deb" | sha256sum --check --strict
+          sudo apt-get update
+          sudo apt-get install --yes "$RUNNER_TEMP/jank.deb"
+      - name: Set up jank (macOS)
+        if: runner.os == 'macOS'
         uses: jank-lang/setup-jank@89538130d4395e4b0301c938b027b9309712a0cc
       - name: Record and verify jank toolchain
         run: |
