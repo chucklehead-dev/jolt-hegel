@@ -1,182 +1,131 @@
 ---
 name: jolt-hegel
-description: Add, configure, and use jolt-hegel in Jolt projects and write shrinking property-based or stateful model tests with its current API. Use when a Jolt codebase needs generative tests, property tests, replayable randomized coverage, minimal counterexamples, model-based operation sequences, Hegel integration, or migration from hand-written randomized tests.
+description: Add, configure, and use jolt-hegel on Jolt, Babashka, or JVM Clojure; write shrinking property tests, replay failures, and model stateful systems with swarm selection and pools.
 ---
 
-# Jolt Hegel
+# jolt-hegel
 
-Use jolt-hegel to run property-based tests directly in Jolt through Hegel's
-native engine. Treat properties as ordinary test code that draws inputs and
-throws on failure.
+Use jolt-hegel to write property-based and model-based tests on Jolt,
+Babashka, or JVM Clojure. The public API and behavioral contract are shared;
+runtime choice affects installation and native diagnostics, not property code.
 
-Read [references/api.md](references/api.md) before editing dependencies or
-writing code. It is the exact supported API; do not invent generators or
-combinators from other Hegel bindings.
+Read [references/api.md](references/api.md) before writing tests. It lists the
+exact supported generators, options, result keys, Malli subset, and stateful
+contracts. Do not borrow names from another Hegel binding.
 
 ## Workflow
 
-1. Inspect the code under test, its docs, existing tests, and call sites.
-2. Check the project's Jolt version, selected executable, and test-runner
-   conventions. Prefer a checked-in Hegel gate runner when one exists. Do not
-   substitute a stale installed executable for a project-selected `jolt`,
-   custom image, or simulation binary.
-3. Resolve the current release tag to its full commit SHA using the command in
-   the API reference, add the pinned dependency, and run the installer through
-   the selected executable with the alias that contains it, normally
-   `jolt -A:test -m hegel.install`. Use the bare command only for a top-level
-   dependency. Never leave the example SHA
-   placeholder in project files. Key `JOLT_CACHE_DIR` by that SHA when the
-   project has reused a cache across dependency upgrades; the installer rejects
-   a loaded release that does not match the resolved source checkout.
-4. Identify evidence-backed properties rather than merely replacing constants
-   with random values.
-5. Add each property beside the existing tests for the same behavior. Prefer
-   `hegel.clojure-test/with` in a `clojure.test` suite; use `run-test!`
-   directly for custom runners.
-6. Run the relevant test command and inspect any minimal counterexample.
-7. Replay failures with the returned seed before changing the property or code.
+1. Inspect the code under test, its stated contract, existing examples, and the
+   project's actual test runner.
+2. Identify a general invariant: round-trip, idempotence, bounds, agreement
+   with a model, invariant preservation, or no-crash behavior over valid input.
+3. Confirm the selected host and dependency alias. Install libhegel with that
+   host before running the suite.
+4. Add the property beside examples for the same behavior. Prefer
+   `hegel.clojure-test/with` in a `clojure.test` suite; use `run-test!` for a
+   custom runner.
+5. Run the narrow test, inspect the minimized counterexample, and replay the
+   reported seed before changing code or narrowing a generator.
+6. Run the project's established suite on every host it claims to support.
 
-## Preflight process-backed properties
+## Host setup
 
-When a property launches fresh Jolt workers, dependency resolution and worker
-bootstrap are test-harness behavior, not generated application behavior.
+Pin jolt-hegel by full Git commit SHA. Git dependencies do not contribute their
+aliases to the consuming project, so activate the alias that contains the
+dependency when running the installer.
 
-- Use the repository's checked-in runner when present.
-- Otherwise pre-resolve the parent alias and every nested-worker alias with the
-  selected executable before starting Hegel.
-- Keep isolated home, cache, and temporary state separate from one complete
-  `JOLT_GITLIBS` cache. Do not copy a hand-picked subset of Git checkouts into a
-  fresh home; a changed child pin can otherwise fail every generated case.
-- Preserve the first worker artifact directory and full transcript. Abort on
-  dependency, spawn, bootstrap, or result-protocol errors; do not generate and
-  shrink identical infrastructure failures.
-- Give cold dependency and namespace startup its own evidence-backed budget.
-  Do not reuse an application deadline as a worker-startup timeout or widen a
-  real simulated deadline merely to make the test pass.
+```bash
+# Jolt 0.7.23+
+jolt -A:test -m hegel.install
 
-## Choose useful properties
+# Babashka; use the project-pinned casselc/babashka build while FFI work is unreleased
+bb -m hegel.install
 
-Prefer properties supported by the implementation's contract:
+# JVM Clojure, JDK 22+
+clojure -J--enable-native-access=ALL-UNNAMED -M:test -m hegel.install
+```
 
-- parse/format or encode/decode round trips;
-- invariant preservation after an operation;
-- agreement with a simpler independent implementation;
-- idempotence of normalization;
-- commutativity or monotonicity where documented;
-- output bounds and structural validity;
-- agreement between a stateful system and a simpler model across operation
-  sequences;
-- no-crash behavior across the valid input domain;
-- boundary behavior at zero, extrema, empty data, and calendar transitions.
+The direct Babashka command assumes the pin is in top-level `:deps` in
+`bb.edn`, or otherwise on Babashka's classpath. Activate the consuming
+project's alias when it is alias-scoped.
 
-Do not force property testing onto exact-output assertions, elaborate fixtures,
-or behavior with no meaningful general invariant.
+Use the project's selected executable, not a convenient global binary. For
+Jolt, keep `JOLT_CACHE_DIR` writable and key it by the dependency SHA when a
+cache survives upgrades. Use `HEGEL_CACHE_DIR` for a writable native cache or
+`HEGEL_LIBHEGEL_LIBRARY` for an explicit compatible library. Do not bypass
+checksum or runtime ABI-version checks.
+
+If native loading fails, inspect `(hegel.abi/backend-report)` after backend
+initialization. It reports coverage and routes such as `:jolt/direct`,
+`:bb/trampoline`, `:bb/libffi`, and `:jvm/ffm`. Property code must not branch on
+those routes.
 
 ## Write reliable properties
 
-- Start with the broadest generator allowed by the contract. Boundary cases are
-  part of the test.
-- Construct valid related inputs directly when possible. Use
-  `h/assume!` only when rejection is uncommon.
-- Use `clojure.test/is` inside `hegel.clojure-test/with`. Inside a property
-  passed to a custom runner, throw an exception when the property fails;
-  returning `false` does not mark a test case as failing.
-- Include a stable `:hegel/origin` in exception data. Base it on the
-  property or assertion site, never on generated values.
-- Check `:passed?` when calling `run-test!` directly. Use
-  `hegel.report/counting-runner` plus `hegel.report/run!` for a framework-less
-  suite that must count failed results, continue past thrown run errors, and
-  exit nonzero after all properties.
-- Treat `:status :error` with `:flaky? true` as a failed property result.
-  libhegel uses that shape when the same generated choices produce different
-  outcomes or generation. The explanation is in `:error`; there may be no
-  counterexample in `:failures`. Inspect `:observed-failures` for structured
-  exception summaries captured during exploration.
-  `hegel.clojure-test/with` reports all failed results automatically.
-- Preserve the result's `:seed` in failure output. Replay it by
-  parsing the string and passing it as the next run's numeric
-  `:seed`.
-- Put detailed diagnostics behind `h/final?`,
-  `h/when-final`, `h/fprn`, or `h/note!` so
-  ordinary generation stays quiet.
-- For operation-sequence tests, use `hegel.stateful/run!`. Return the next
-  state from every rule, check preconditions before mutation, and create fresh
-  per-case mutable state inside the property body.
-- Keep stateful rule names and order stable. libhegel performs swarm selection
-  automatically; do not hand-roll a competing rule-choice loop.
+- Generate the broadest valid domain. Boundary cases are part of the test.
+- Construct related values with `g/bind` or `g/let`; use `h/assume!` only when
+  rejection is uncommon.
+- Use `clojure.test/is` inside `hegel.clojure-test/with`. In a direct
+  `run-test!` property, throw on failure; returning `false` passes the case.
+- Give exceptions a stable `:hegel/origin` based on the property or assertion
+  site. Never include generated values in an origin.
+- Check `:passed?` when calling `run-test!`. `hegel.report/counting-runner` and
+  `hegel.report/run!` provide a continue-and-count policy for custom suites.
+- Keep expensive diagnostics behind `h/final?`, `h/when-final`, `h/fprn`, or
+  `h/note!`.
+- Preserve the result's string `:seed`; replay it as a number with
+  `(parse-long (:seed result))`.
+- Treat every `:flaky? true` result as a failed, untrusted counterexample until
+  shared state, timing, or generation nondeterminism is fixed.
 
-## Handle failures
+## Choose generators that shrink structurally
 
-When a property fails:
-
-1. Read the final replay exception and minimized value.
-2. Re-run with the reported seed and confirm reproduction.
-3. Decide whether the code violates its contract, the property assumes too
-   much, or the generator includes values outside the documented domain.
-4. Fix implementation bugs when authorized. Otherwise report the counterexample
-   clearly.
-5. Narrow a generator only with evidence that the excluded values are invalid.
-
-Do not replace a failing property with hard-coded examples or arbitrary bounds
-merely to make the suite green.
-
-## Build related data directly
-
-Use `g/string`, `g/regex-str`, and the format generators for text. Build
+Use `g/string`, `g/regex-str`, and formatted generators for text. Build
 structured values with `g/vector`, `g/set`, `g/map`, `g/tuple`, or `g/hmap`.
-Use `g/bind` to construct a reusable dependent generator. Use `g/let` inside
-an active property when later draws depend on earlier ones; it draws immediately
-and is not itself a reusable generator. Prefer these forms over broad draws
-followed by frequent assumptions; their native spans preserve useful shrinking
-structure.
+Use `g/bind` for a reusable dependent generator. Use `g/let` inside an active
+property when later draws depend on earlier values; it draws immediately and is
+not itself a generator constructor.
 
-Use `g/octet` for an unsigned protocol byte and call `unchecked-byte` only where
-an API requires Jolt's signed byte representation. Use `(g/integer -128 127)`
-when the property is defined over signed bytes, and `g/bytes` for byte arrays.
-For stream delivery, draw `(g/chunkings payload)`; its chunks stay nonempty,
-concatenate to the payload, and shrink toward simpler write boundaries.
+Use `g/octet` for an unsigned protocol byte and convert only at an API boundary
+that requires a signed host byte. Use `(g/integer -128 127)` for a property
+defined over signed bytes and `g/bytes` for byte arrays. For streaming input,
+draw `(g/chunkings payload)` so both content and write boundaries shrink.
 
-Use `hegel.stateful/pool` when one rule creates values that later rules must
-reuse or consume. Pools are scoped to one generated test case. If a test needs
-an unsupported generator or control, state that limitation instead of
-borrowing an API from another Hegel binding.
+## Stateful testing
 
-When the consuming project already uses Malli, read the optional Malli adapter
-section in [references/api.md](references/api.md). Add Malli explicitly to the
-consumer alias, construct a bounded generator with `hegel.malli/generator`, and
-draw from it inside the property. Do not make Malli a dependency for consumers
-that do not require `hegel.malli`.
+Call `hegel.stateful/run!` inside a Hegel property. Each `hs/rule` receives the
+current state and returns the next state. Check preconditions before mutation;
+a false precondition or failed assumption skips the attempted rule and cannot
+undo a side effect. Invariants run initially and after successful rules.
 
-## Share expensive external services safely
+Create fresh mutable systems inside the property body. Keep rule names and
+order stable. libhegel owns sequence length, shrinking, and per-case random
+nonempty swarm selection; do not add a competing rule-choice loop.
 
-Starting a TCP server inside every generated case is usually too expensive. It
-is acceptable to start an external service once around the complete
-`run-test!` call when each property invocation opens a fresh connection or
-session and begins from equivalent observable server state. Wait for readiness,
-then keep that service alive until `run-test!` returns: generation, shrinking,
-and automatic final replay all happen inside the call.
+Use `hs/pool` when one rule creates handles or identifiers consumed by later
+rules. Pools are scoped to one generated case. Draw with
+`hs/values-reusable` to retain an entry or `hs/values-consumed` to remove it.
 
-Close the per-case connection in `finally`, including on rejected and failing
-cases. Reset or namespace any shared server state before each case; if that is
-not possible, sharing the server makes shrinking order-dependent and is not a
-valid fixture. A manual seed replay may start a new equivalent server, but it
-must again wrap the whole `run-test!` call. Let startup, reset, and connection
-failures surface rather than turning them into rejected generated inputs. End
-each case with protocol signals, not sleeps: for a request stream, half-close
-the write side and drain a time- and byte-bounded response through actual EOF;
-reaching either bound is a failure. If the property throws first, closing the
-fresh connection in `finally` is the abort signal, and the server must still
-isolate the next case. An in-protocol reset must drain its acknowledgement
-before generated traffic. Shrinking against the live service remains sound
-only when every property invocation re-establishes equivalent state. If the
-result is `:flaky? true`, fix resource isolation or timing before trusting the
-minimized counterexample.
+## External systems
 
-## Keep property execution sequential
+An expensive service may wrap the complete `run-test!` call only when every
+property invocation opens a fresh session and restores equivalent observable
+state. The service must remain alive through generation, shrinking, and final
+replay. Close per-case resources in `finally` for passing, rejected, failing,
+and replayed cases.
 
-There is no worker option for one `run-test!` call; generation and adaptive
-shrinking execute sequentially. The supported Jolt runtime gives each
-`hegel.clojure-test/with` evaluation a dynamically scoped report sink.
-Concurrent native runs are still unsupported because engine safety for that
-pattern is unverified. Do not
-rely on concurrent property runs without a dedicated jolt-hegel test.
+Prefer protocol completion signals over sleeps. Bound both elapsed time and
+data volume. Startup, reset, dependency, and transport failures are harness
+errors, not reasons to reject a generated case. If state cannot be isolated,
+shrinking is order-dependent and the fixture is invalid.
+
+## Execution model
+
+One `run-test!` call is sequential because adaptive generation and shrinking
+depend on prior cases. There is no worker option. Do not assume concurrent
+native runs are supported without a project-specific conformance test.
+
+When a property launches fresh host processes, pre-resolve dependencies and
+treat worker bootstrap as harness setup. Preserve the first worker artifact and
+transcript. Do not send identical infrastructure failures through generation
+and shrinking.

@@ -1,149 +1,125 @@
 # Architecture
 
-jolt-hegel is a Jolt-native property-testing library backed by libhegel's C
-ABI. Jolt owns the public API and property body; libhegel owns choice generation,
-shrinking, replay blobs, collections, pools, and state-machine rule selection.
-There is no JVM, daemon, or sidecar process.
-
-## Runtime layers
+jolt-hegel is one Clojure-family property-testing library backed by libhegel.
+Generators, shrinking and replay orchestration, stateful testing, result data,
+reporting, and optional Malli integration are shared. Runtime-specific code is
+confined to resource/process discovery and a narrow native boundary.
 
 ```text
-consumer test
-    |
-    +-- hegel.clojure-test  clojure.test reporting
-    |
-    +-- hegel.core          run lifecycle, seeds, replay, diagnostics
-            |
-            +-- hegel.generator  primitive and compositional generators
-            +-- hegel.malli      optional Malli AST adapter
-            +-- hegel.stateful   rules, invariants, and value pools
-            |
-            +-- hegel.ffi        checked C ABI and native ownership
-                    |
-                    +-- libhegel
+                         resources/hegel/abi.edn
+                                   |
+                         hegel.abi validation
+                                   |
+       core / generators / stateful / reporting / Malli adapter
+                                   |
+                         hegel.ffi.backend
+                         /        |        \
+                jolt.ffi   babashka.ffi   java.lang.foreign
+                         \        |        /
+                                libhegel
 ```
 
-| Path | Responsibility |
-| --- | --- |
-| `src/hegel/core.clj` | Run settings, engine loop, outcome mapping, failure snapshots, and final replay |
-| `src/hegel/generator.clj` | Primitive, formatted, compositional, and collection generators |
-| `src/hegel/malli.clj` | Optional bounded Malli AST translation into native Hegel combinators |
-| `src/hegel/stateful.clj` | Engine-managed state machines and value pools |
-| `src/hegel/clojure_test.clj` | Dynamically scoped `clojure.test` report capture and publication |
-| `src/hegel/report.clj` | Counting and structured reporting for framework-less suites |
-| `src/hegel/ffi.clj` | Raw bindings, checked return codes, allocation ownership, and ABI compatibility |
-| `src/hegel/native.clj` | Cross-platform source-root, cache, and library path resolution |
-| `src/hegel/install.clj` | Verified libhegel acquisition |
+## Source layers
 
-`hegel.malli` is outside the native/runtime dependency spine. Requiring that
-namespace opts into a consumer-supplied Malli dependency; users that do not
-require it do not need Malli. The adapter compiles a schema and validator once,
-rejects unsupported AST constructs synchronously, and composes the existing
-Hegel generators without filtering generated values. An outer validating
-`fmap` treats any invalid generated value as an adapter defect with a stable
-failure origin.
+| Namespace or resource | Responsibility |
+| --- | --- |
+| `resources/hegel/abi.edn` | Canonical libhegel types, functions, blocking metadata, and ownership |
+| `hegel.abi` | Native-code-free descriptor loading, validation, and coverage reports |
+| `hegel.core` | Run lifecycle, case outcomes, seeds, shrinking, and final replay |
+| `hegel.generator` | Primitive, formatted, compositional, and collection generators |
+| `hegel.stateful` | Rules, invariants, swarm-driven state machines, and pools |
+| `hegel.clojure-test` | `clojure.test` capture and final publication |
+| `hegel.report` | Framework-independent counting and reporting |
+| `hegel.malli` | Optional Malli AST adapter built from shared generators |
+| `hegel.ffi` | Backend-neutral checked libhegel operations and explicit ownership |
+| `hegel.ffi.backend` | Selected-backend contract |
+| `hegel.ffi.jolt`, `.bb`, `.jvm` | Signature construction, native memory, calls, and layouts |
+| `hegel.host` | Host identity and resource loading |
+| `hegel.native` | Platform, cache, and library path selection |
+| `hegel.install` | Version-pinned, checksum-verified native acquisition |
+
+The common implementation never asks which runtime it is running on. Reader
+conditionals select a host implementation once; ordinary property and stateful
+code calls the same boundary.
+
+## Native backend contract
+
+The contract is intentionally smaller than any host FFI API. It can load one
+library, construct functions from the ABI descriptor, allocate and free native
+memory, read and write scalar values and byte ranges, convert UTF-8 strings,
+and access fields in descriptor-derived layouts.
+
+- Jolt translates descriptor types to `jolt.ffi` aggregate and function
+  descriptors. Calls marked blocking in the ABI use Jolt's blocking call path.
+- Babashka translates the same data to `babashka.ffi`. Common fixed signatures
+  use its compiled trampoline; signatures outside that fast family use its
+  general libffi path. The backend report records the selected route.
+- JVM Clojure constructs `MemoryLayout`, `FunctionDescriptor`, and downcall
+  `MethodHandle` values once per binding with `Linker/nativeLinker`. Symbols are
+  resolved through a lookup tied to the selected library.
+
+By-value `date`, `time`, and nested `datetime` arguments are ordinary descriptor
+types. Each backend computes native alignment, padding, offsets, and argument
+classification for its platform rather than sharing guessed constants.
+
+See [ABI.md](ABI.md) for the schema, diagnostics, and binding workflow.
 
 ## Property-run lifecycle
 
-1. `run-test!` checks that the loaded libhegel version matches the pinned ABI.
-2. The wrapper resolves a seed before starting the run, creates a context and
-   settings object, and supplies the resolved seed to libhegel.
-3. The pull loop calls `hegel_next_test_case`, binds the resulting handle as the
-   current Jolt test case, runs the property, marks the case complete, and
-   retains bounded structured summaries of interesting outcomes.
-4. libhegel returns an aggregate result and reproduction blob for each failure.
-5. jolt-hegel snapshots failure data, frees engine-owned result objects, and
-   replays every blob through `hegel_test_case_from_blob` with `final?` set.
-6. All collection, pool, state-machine, test-case, result, settings, run, and
-   context handles are freed by their exact owners in nested `finally` blocks.
+1. `run-test!` verifies the loaded libhegel version against the descriptor pin.
+2. It resolves a seed, creates a context and settings, and starts a native run.
+3. The pull loop binds each native test-case handle while the shared Clojure
+   property draws values and returns, rejects, overruns, or throws.
+4. libhegel shrinks interesting choices and returns reproduction blobs.
+5. jolt-hegel copies failure data before releasing result handles, then replays
+   each minimized blob with `final?` enabled.
+6. Nested `finally` paths release every wrapper-owned context, run, result,
+   collection, state-machine, pool, and temporary allocation.
 
-The final replay is part of the public behavior. It produces stable diagnostics,
-backs `final?`, `when-final`, and `fprn`, and detects failures that do not
-reproduce.
+Final replay is public behavior, not merely reporting. Reproduction requires a
+failure with the same stable origin; a missing or different failure marks the
+result flaky.
 
-## Native boundary
+## Ownership and lifetime
 
-Most libhegel calls are ordinary scalar-or-pointer functions and bind directly
-through `jolt.ffi/defcfn`. UUID and IP generation write into caller-owned byte
-buffers. Engine-owned byte arrays, strings, string generators, failures, and
-result handles are copied as needed and freed immediately by the wrapper.
+Ownership remains explicit across all hosts:
 
-`hegel_generate_date`, `hegel_generate_time`, and `hegel_generate_datetime`
-pass their bounds as C structs by value. Jolt's declarative layouts derive each
-size, alignment, and field offset from Chez, and `[:by-value ...]` signatures
-pass those caller-owned buffers directly to libhegel. No target-specific adapter
-or copied ABI constants remain in jolt-hegel.
+- caller-owned allocations are paired with `free` in lexical `finally` paths;
+- borrowed strings are copied while their owner remains alive;
+- engine result bytes and strings are copied before their release function;
+- collection and state-machine handles are released by the operation that
+  created them; and
+- pools register cleanup against their current test case and cannot escape it.
 
-libhegel 0.33 represents collections, value pools, and state machines as opaque
-caller-owned handles. Collection and state-machine handles are freed in the
-lexical operation that creates them. Pools remain public test-case values, so
-their frees are registered on the active `TestCase` and run before its native
-handle is released. Sequential state machines use Hegel's round protocol with
-one all-zero rule group and fixed concurrency one; rejected rules are reported
-back to the engine before the round continues.
+JVM arenas implement the backend's explicit allocation lifetime; garbage
+collection is not the primary ownership mechanism. A backend must preserve the
+same common ownership contract even if its host FFI offers automatic cleanup.
 
-Several boundary rules are load-bearing:
+## Stateful boundary
 
-- Optional C strings use null pointers, never Clojure `nil` passed to a
-  `:string` argument.
-- Potentially blocking engine calls, including next-case and run cleanup, are
-  declared `:blocking` so they do not pin Jolt's runtime.
-- Numeric values are coerced to the exact FFI type before a call.
-- Every native allocation has one explicit owner and a matching free path.
+libhegel owns rule choice, sequence length, shrinking, and random nonempty swarm
+selection. The shared layer maps rule indices to named Clojure transitions and
+runs invariants initially and after successful steps. The public API currently
+drives the libhegel round protocol at concurrency one.
 
-## Native installation and paths
+Pool variables are native integer identities mapped to arbitrary host values.
+Reusable draws retain a mapping, consumed draws remove it, and an empty draw is
+an assumption rejection.
 
-Git dependencies do not contribute aliases or tasks to a consuming project, so
-installation is a public namespace entry point. The consuming project must
-activate the alias which contains the dependency:
+## Installation boundary
 
-```bash
-jolt -A:test -m hegel.install
-```
+All hosts use the same pinned version and checksum table. `HEGEL_CACHE_DIR`
+selects a writable cache, while `HEGEL_LIBHEGEL_LIBRARY` selects an explicit
+library. Jolt retains its source/AOT identity check because cached compiled
+namespaces can otherwise point at a different Git checkout. JVM Clojure and
+Babashka use their normal download and digest facilities.
 
-`test` is only the conventional alias name. A top-level dependency needs no
-`-A` option, but an alias-scoped dependency is not on the source roots until its
-own alias is active.
+The runtime verifies libhegel's reported version before executing a property,
+including when the library path was supplied by the user.
 
-The installer downloads the version-pinned libhegel asset for the current target
-and verifies it against a SHA-256 embedded in source.
+## Optional dependencies
 
-Native paths are resolved from Jolt's current source roots instead of cached
-`*file*` metadata. This is required because the AOT cache can retain the path of
-the checkout that first compiled a namespace. All subprocess paths are absolute,
-which also keeps native Windows builds working when launched from a WSL UNC
-checkout.
-
-Before fetching native artifacts, the installer parses the release
-version from the currently resolved `src/hegel/version.clj` and compares it with
-the loaded `hegel.version` var. A mismatch means Jolt reused stale AOT output;
-the installer fails with instructions to use a fresh `JOLT_CACHE_DIR` keyed by
-the pinned release SHA.
-
-The default cache is `.hegel-lib/` under the dependency root. Environment
-overrides support writable external caches, caller-provided libraries, release
-mirrors, and alternate target architecture; the complete list is in the README.
-
-## `clojure.test` boundary
-
-The supported Jolt runtime makes `clojure.test/report` dynamically bindable, so
-report capture uses `binding` and is isolated per evaluation. Each generated case is evaluated
-without publishing intermediate assertion events. A successful property emits
-one pass. A failed property publishes only the final replay's minimal assertion
-events, with a synthetic failure as a fallback when replay produced no report.
-Every published failure includes the resolved seed. Exception diagnostics use
-Jolt's throwable map when `ex-message` is blank, preserving native condition
-text and original `ex-data` without exposing only a generic wrapper message.
-
-`run-test!` turns libhegel's two explicit nondeterminism errors into failed
-result maps with `:status :error`, `:flaky? true`, and the native explanation in
-`:error`. Other run-level errors still throw. One native run is sequential.
-Independent concurrent direct runs remain unsupported until engine
-safety are covered by a dedicated integration test.
-
-## Release boundary
-
-CI runs the same full integration and independent consumer tests on Linux
-x86_64, Windows x86_64, and macOS arm64. A version-matching public tag runs the
-same source and consumer gates; jolt-hegel publishes no native artifact of its
-own. See `RELEASING.md`.
+Requiring `hegel.malli` opts into a consumer-supplied Malli dependency. The
+adapter compiles a schema and validator once, rejects unsupported AST constructs
+synchronously, and composes shared Hegel generators so structural spans remain
+available to shrinking. The core library never loads Malli.

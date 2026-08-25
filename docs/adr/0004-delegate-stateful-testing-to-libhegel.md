@@ -7,20 +7,19 @@
 
 libhegel exposes state-machine and value-pool primitives. It already owns
 rule choice, sequence shrinking, a bounded attempt loop, termination, and random
-nonempty swarm selection. Reimplementing those policies in Jolt would duplicate
-engine behavior and weaken shrinking.
+nonempty swarm selection. Reimplementing those policies in host code would
+duplicate engine behavior and weaken shrinking.
 
 ## Decision
 
 Use libhegel's state-machine and pool APIs directly. Present rules as named
 immutable state transitions and invariants as named predicates. Keep arbitrary
-Jolt values in a host map keyed by libhegel pool variable identities. Treat false
+host values in a Clojure map keyed by libhegel pool variable identities. Treat false
 preconditions and rule assumptions as skipped attempts; run invariants initially
 and after successful rules. Drive libhegel 0.33's round protocol at fixed
 concurrency one until a separate public contract covers concurrent state.
 
-Do not add a separate public swarm combinator or another C shim for stateful
-testing.
+Do not add a separate public swarm combinator.
 
 ## Consequences
 

@@ -1,122 +1,129 @@
 # jolt-hegel
 
-Property-based testing for [Jolt](https://github.com/jolt-lang/jolt), backed by
-the [Hegel](https://hegel.dev/) generation and shrinking engine.
+Property-based and stateful testing for Jolt, Babashka, and JVM Clojure, backed
+by the [Hegel](https://hegel.dev/) generation and shrinking engine.
 
-jolt-hegel runs properties against generated inputs, shrinks failures to
-minimal counterexamples, replays the final failure, and reports the seed needed
-to reproduce the run. It runs directly in Jolt through native FFI; no JVM or
-sidecar process is involved.
+Examples are good at confirming cases you already thought of. A Hegel property
+describes a larger truth: values are generated across the input domain, a
+failure is reduced to a small counterexample, and the final case is replayed
+before the result is reported. The seed in every result makes the run
+repeatable.
 
-The implemented surface includes primitive and formatted values, Unicode and
-regex strings, protocol-oriented octet and chunking generators, collection and
-composition combinators, dependent generation, `clojure.test` and framework-less
-reporting, value pools, and engine-managed stateful testing with automatic swarm
-rule selection.
+jolt-hegel exposes one Clojure API on all three hosts. It calls the same
+libhegel 0.33 C ABI directly through `jolt.ffi`, `babashka.ffi`, or the final
+JDK Foreign Function & Memory API. There is no service to start and no
+subprocess protocol.
 
-## Requirements
+## What should be a property?
 
-- Jolt 0.7.23 or later
-- libhegel 0.33.0, installed and verified by jolt-hegel
-- A supported native target:
+Property tests are most useful when many inputs should obey one durable rule:
 
-  | Target | Prebuilt libhegel |
-  | --- | --- |
-  | Linux x86_64 | yes |
-  | Windows x86_64 | yes |
-  | macOS arm64 | yes |
+- encoding and decoding should round-trip;
+- normalization should be idempotent;
+- a result should stay inside documented bounds;
+- optimized code should agree with a simpler model;
+- a command sequence should leave a real system and its model in the same
+  state; or
+- arbitrary valid input should never crash a parser or protocol handler.
 
-macOS also needs OpenSSL 3 available to Jolt. Windows native acquisition uses
-PowerShell and does not require OpenSSL.
+Keep exact examples for named edge cases and user-visible output. Add a
+property where the input space or interaction sequence is the thing you cannot
+usefully enumerate.
 
-## Installation
+## A first property
 
-Add the release commit as a SHA-pinned Git dependency. A test-only dependency
-normally belongs in the test alias:
-
-```clojure
-{:aliases
- {:test
-  {:extra-deps
-   {io.github.chucklehead-dev/jolt-hegel
-    {:git/url "https://github.com/chucklehead-dev/jolt-hegel.git"
-     :git/sha "<release-commit-sha>"}}}}}}
-```
-
-Use the full commit SHA associated with the release tag. Then install the pinned
-libhegel binary from the consuming project:
-
-```bash
-JOLT_CACHE_DIR=.jolt-cache/jolt-hegel-<release-commit-sha> \
-  jolt -A:test -m hegel.install
-```
-
-Replace `test` with the alias containing jolt-hegel. If the dependency is in
-top-level `:deps`, omit `-A:test`; without the dependency's alias, Jolt cannot
-resolve the installer namespace.
-
-Downloads are verified with SHA-256 and cached with the dependency. Temporal
-generators bind libhegel directly through Jolt's by-value aggregate FFI; no
-target-specific jolt-hegel shim or local C compiler is required.
-
-The installer also compares the loaded `hegel.version` namespace with the
-currently resolved dependency source. If Jolt reused AOT output from another
-release, installation stops before fetching the wrong libhegel version. Re-run
-installation and tests with a fresh cache directory keyed by the pinned SHA.
-Use the same `JOLT_CACHE_DIR` for the subsequent Jolt test command.
-
-## Choose an integration
-
-Both integrations use the same generators, shrinking, replay, and result data.
-Choose the boundary that matches the surrounding test suite:
-
-| Suite | Entry point | Failure behavior |
-| --- | --- | --- |
-| `clojure.test` | `hegel.clojure-test/with` inside `deftest` | Reports one passing property or the final minimal failure through `clojure.test` |
-| Any other runner or a program | `hegel.core/run-test!` | Returns a result map; the caller must treat `:passed? false` as failure |
-
-In either form, put generated values in the property body, keep failure origins
-stable, and keep resources needed by shrinking and final replay alive for the
-entire property run.
-
-## Use with clojure.test
-
-`hegel.clojure-test/with` embeds a property in an ordinary `deftest`. Generator
-bindings are drawn for each case, failures are shrunk, and only the final
-minimal assertion is reported to `clojure.test`. The macro returns the
-underlying `run-test!` result, but ordinary suites can ignore that value and use
-their normal `clojure.test` runner and exit behavior.
+Suppose an application serializes user records. This test explores record
+sizes, Unicode names, optional values, role combinations, and UUIDs while
+asserting the contract that matters:
 
 ```clojure
-(ns example.reverse-test
+(ns example.codec-test
   (:require [clojure.test :refer [deftest is]]
+            [example.codec :as codec]
             [hegel.clojure-test :refer [with]]
             [hegel.core :as h]
             [hegel.generator :as g]))
 
-(deftest reverse-roundtrip
-  (with {:test-cases 200
-         :database ""
-         :verbosity :quiet}
-    [xs (g/vector {:max-size 100} (g/integer))]
-    (h/fprn :minimal-xs xs)
-    (is (= xs (-> xs reverse reverse vec)))))
+(def user-record
+  (g/hmap
+   {:id (g/uuid)
+    :display-name (g/string {:max-size 80})
+    :nickname (g/optional (g/string {:max-size 40}))
+    :roles (g/set {:max-size 6}
+                  (g/sampled-from [:reader :author :admin]))}))
+
+(deftest user-codec-round-trips
+  (with {:test-cases 500 :database "" :verbosity :quiet}
+    [user user-record]
+    ;; Printed only for the final, minimized replay.
+    (h/fprn :minimal-user user)
+    (is (= user (codec/decode (codec/encode user))))))
 ```
 
-`g/let` provides the same dependent-binding behavior outside the initial
-`with` bindings:
+`hegel.clojure-test/with` behaves like an ordinary `deftest`: a successful
+property reports one pass. If an assertion fails, exploration output is held
+back while Hegel shrinks the input, then only the final minimal failure is
+reported through `clojure.test`.
+
+Dependent draws can be expressed inside the property with `g/let`:
 
 ```clojure
-(g/let [size (g/integer 1 10)
-        xs (g/vector {:size size} (g/boolean))]
-  [size xs])
+(g/let [size (g/integer 1 256)
+        payload (g/vector {:size size} (g/octet))
+        chunks (g/chunkings payload)]
+  {:payload payload :chunks chunks})
 ```
 
-## Stateful tests
+Here `chunks` always concatenate to `payload`. Hegel can shrink both the data
+and its delivery boundaries, which makes this useful for parsers, sockets, and
+streaming APIs.
 
-Use `hegel.stateful/run!` for model-based tests that need generated operation
-sequences. Rules receive the current state and return the next state.
-Invariants run on the initial state and after each successfully applied rule.
+## Shrinking and replay
+
+When a property throws, jolt-hegel gives the failure a stable identity, lets
+libhegel minimize the choices that produced it, and executes the minimized case
+one final time. Put expensive diagnostics behind `h/final?`, `h/when-final`, or
+`h/fprn` so hundreds of exploratory cases stay quiet.
+
+Every result includes its selected seed as a decimal string. A direct runner
+can replay it exactly:
+
+```clojure
+(defn packet-property [_]
+  (let [packet (h/draw! packet-generator)]
+    (when-not (= packet (decode (encode packet)))
+      (throw (ex-info "packet round-trip failed"
+                      {:hegel/origin "packet-codec/round-trip"})))))
+
+(def result
+  (h/run-test! {:test-cases 500 :database "" :verbosity :quiet}
+               packet-property))
+
+(def replay
+  (h/run-test! {:test-cases 500
+                :seed (parse-long (:seed result))
+                :database ""
+                :verbosity :quiet}
+               packet-property))
+```
+
+Use a fixed, assertion-site origin such as `packet-codec/round-trip`; generated
+values do not belong in the origin. `:passed? false` is a property verdict, not
+an exception from `run-test!`, so a custom runner must check it. For a suite
+that should count failures and continue, use `hegel.report/counting-runner`
+with `hegel.report/run!`.
+
+The result map also records case counts, minimal failures, final replay data,
+observed failure summaries, and flakiness. A result with `:flaky? true` means
+the same generated choices did not reproduce the same outcome; fix shared
+state, timing, or other nondeterminism before trusting its counterexample.
+
+## Stateful and swarm testing
+
+A function can be correct in isolation while a sequence of operations is not.
+`hegel.stateful/run!` compares a real system with a simpler model across
+generated command sequences. libhegel selects and shrinks the rules, sequence
+length, and a random nonempty swarm subset for each case.
 
 ```clojure
 (ns example.stack-test
@@ -126,15 +133,15 @@ Invariants run on the initial state and after each successfully applied rule.
             [hegel.generator :as g]
             [hegel.stateful :as hs]))
 
-(deftest stack-agrees-with-model
+(deftest stack-agrees-with-a-vector-model
   (with {:test-cases 200
          :stateful-step-count 50
          :database ""
          :verbosity :quiet}
     []
-    (let [sut (atom [])]
+    (let [stack (atom [])]
       (hs/run!
-       {:initial-state {:model [] :sut sut}
+       {:initial-state {:model [] :sut stack}
         :rules
         [(hs/rule
           :push
@@ -153,183 +160,81 @@ Invariants run on the initial state and after each successfully applied rule.
                        #(= (:model %) @(:sut %)))]}))))
 ```
 
-libhegel chooses rule sequences, their length, and a nonempty swarm subset for
-each case; there is no separate swarm switch. Pass `:stateful-step-count` to
-`run-test!` or `with` to replace libhegel's default 50-round budget. At the
-supported concurrency of one, rejected rules do not consume that budget. Keep
-rule names and order stable
-across generation and replay. Construct mutable systems under test inside the
-property body so every generated case and final replay starts fresh. Check a
-rule's preconditions before mutation; a false precondition or failed
-`h/assume!` skips that attempted rule without running invariants.
+A false precondition or `h/assume!` inside a rule skips that attempted rule.
+Invariants run on the initial state and after each successful rule. Keep rule
+names and order stable for replay, and create mutable state inside the property
+body so generation, shrinking, and final replay each begin fresh.
 
-An expensive external service may instead wrap the whole property run when
-each case opens a fresh connection or session and re-establishes equivalent
-observable state. The service must remain alive through shrinking and final
-replay. Use deterministic protocol signals, never sleeps. For a stream request,
-half-close the write side and perform time- and byte-bounded reads through
-actual EOF. Close the per-case connection in `finally`. If a failing case
-aborts before half-close, connection close is the abort signal and the server
-must still isolate the next fresh connection.
+Swarm selection is especially useful for systems with many features: one case
+might exercise only create/read operations, another create/update/delete, and
+another the full rule set. This explores feature interactions without requiring
+you to hand-author each subset or a second rule-choice loop.
 
-Value pools let later rules draw handles or resources created by earlier rules:
+### Reusing generated resources with pools
+
+State machines often create identifiers, handles, or files that later rules
+must reuse. A pool lets libhegel track and shrink that dependency:
 
 ```clojure
 (let [handles (hs/pool)]
+  ;; In a create rule:
   (hs/add! handles newly-created-handle)
-  (h/draw! (hs/values-reusable handles)) ; keep it in the pool
-  (h/draw! (hs/values-consumed handles))) ; remove it
+
+  ;; In later rules:
+  (h/draw! (hs/values-reusable handles)) ; select and keep
+  (h/draw! (hs/values-consumed handles))) ; select and remove
 ```
 
-`hs/pool-size` and `hs/pool-empty?` inspect the active values. Pools belong to
-one test case and must not be retained between cases.
-
-libhegel 0.33 also defines concurrent state machines. jolt-hegel currently
-drives its round protocol at concurrency one; a public concurrent API remains
-out of scope until state sharing, scheduling diagnostics, and nondeterministic
-failure reporting have an explicit Jolt contract.
-
-## Use without clojure.test
-
-A property body draws values and throws when its invariant does not hold.
-`run-test!` returns a result map; it does not report to a framework or choose a
-process exit code.
-
-```clojure
-(ns example.integer-roundtrip
-  (:require [hegel.core :as h]
-            [hegel.generator :as g]
-            [hegel.report :as report]))
-
-(def result
-  (h/run-test!
-   {:test-cases 200
-    :database ""
-    :verbosity :quiet}
-   (fn [_]
-     (let [n (h/draw! (g/integer))]
-       (when-not (= n (parse-long (str n)))
-         (throw
-          (ex-info "integer text round-trip failed"
-                   {:hegel/origin "integer-roundtrip/text"})))))))
-
-(when-not (:passed? result)
-  (throw (ex-info "property failed" {:result result})))
-```
-
-For a suite that should continue after a property fails, use
-`hegel.report/counting-runner` and `hegel.report/run!`. `run!` counts returned
-failures and thrown setup or engine errors. At suite completion, use
-`report/passed?` to select the surrounding runner's exit status:
-
-```clojure
-(let [runner (report/counting-runner)]
-  (report/run! runner "integer text round-trip"
-               #(h/run-test! opts property-fn))
-  (System/exit (if (report/passed? runner) 0 1)))
-```
-
-Pass `{:reporter f}` to `counting-runner` to consume structured `:pass`,
-`:fail`, and `:error` events instead of its default stdout report. Ordinary
-property failures and engine-detected nondeterminism return `:passed? false`;
-setup errors, health-check failures, and unexpected engine errors throw unless
-wrapped by `report/run!`.
-
-Failure origins must identify the property or assertion site and must not
-contain generated values. Stable origins let Hegel group equivalent failures
-and spend its shrink budget on the correct counterexample. Final replay counts
-as reproduction only when it fails with that same origin; a different replay
-origin is reported as flaky instead of being mistaken for the same bug.
-
-Every result includes the selected seed as a string. To replay a run exactly,
-pass it back as a number:
-
-```clojure
-(h/run-test! {:test-cases 200
-              :seed (parse-long (:seed previous-result))
-              :database ""}
-             property-fn)
-```
-
-`:observed-failures` retains bounded, structured summaries of exceptions seen
-during exploration, grouped by stable origin. This remains available when a
-failure does not reproduce or libhegel reports run-level nondeterminism without
-a counterexample.
-
-One `run-test!` call executes cases and adaptive shrinking sequentially; there
-is no worker option. The supported Jolt runtime provides dynamically scoped
-`clojure.test` reporting, so separate `with` evaluations do not share a
-process-global report sink. Concurrent native `run-test!` calls are not covered by
-jolt-hegel's engine safety tests and should still be treated as
-unsupported.
+An empty-pool draw skips a stateful rule. Pools belong to one generated case;
+never retain one between cases.
 
 ## Generators
 
-Generators are passed to `hegel.core/draw!`.
+The built-in surface covers:
 
-| Generator | Value |
-| --- | --- |
-| `(g/integer)`, `(g/integer min max)` | signed 64-bit integer |
-| `(g/octet)` | unsigned wire octet as an integer from 0 through 255 |
-| `(g/boolean)`, `(g/boolean probability)` | boolean |
-| `(g/double opts)`, `(g/double min max)` | 64-bit floating-point number |
-| `(g/bytes opts)`, `(g/bytes min-size max-size)` | byte array |
-| `(g/uuid)`, `(g/uuid version)` | canonical lowercase UUID string |
-| `(g/ipv4)`, `(g/ipv6)` | canonical IP address string |
-| `(g/date opts)` | ISO 8601 date string |
-| `(g/time opts)` | ISO 8601 local-time string |
-| `(g/datetime opts)` | ISO 8601 naive-datetime string |
-| `(g/string opts)` | Unicode string |
-| `(g/character opts)` | one-code-point string |
-| `(g/regex-str pattern opts)` | regex-generated string |
-| `(g/email)`, `(g/url-str)`, `(g/domain opts)` | formatted string |
+- signed integers, unsigned octets, booleans, doubles, and byte arrays;
+- Unicode text, characters, regex strings, email addresses, domains, and URLs;
+- UUIDs, IPv4 and IPv6 addresses, dates, times, and datetimes;
+- constants, sampled values, mapping, dependent generation, filtering,
+  alternatives, and optional values; and
+- tuples, vectors, chunkings, lists, sets, sorted sets, maps, sorted maps, and
+  fixed-key heterogeneous maps.
 
-Use `unchecked-byte` on an octet only at signed-byte API boundaries. Draw
-`(g/integer -128 127)` when the property itself is defined over signed bytes;
-`g/bytes` remains the byte-array generator.
+Generators are ordinary values drawn with `h/draw!`. Prefer a generator that
+constructs valid data directly. Use `h/assume!` only for uncommon exclusions;
+rejecting most cases wastes the run and weakens shrinking.
 
-Date bounds are maps such as
-`{:year 2024 :month 1 :day 1}`. Time bounds use
-`{:hour 0 :minute 0 :second 0 :microsecond 0}`. Datetime bounds
-contain `{:date ... :time ...}`. All bounds are inclusive.
-
-String options include `:min-size`, `:max-size`, `:codec`, code-point bounds,
-Unicode category inclusion/exclusion, character inclusion/exclusion, and a
-fixed `:alphabet`. Pass `:alphabet`, `:include-characters`, and
-`:exclude-characters` as strings, not vectors or other character collections.
-Regex generation uses full-match semantics by default; pass
-`{:full-match? false}` to permit prefix or suffix text.
-
-Composition and collection generators include:
-
-| Form | Behavior |
-| --- | --- |
-| `(g/just value)` | constant value |
-| `(g/sampled-from values)` | one value from a non-empty collection |
-| `(g/fmap f generator)` | transform generated values |
-| `(g/bind f generator)` | dependent generation |
-| `(g/filter pred generator)` | retain values satisfying a predicate |
-| `(g/one-of generators)` | choose a generator |
-| `(g/optional generator)` | `nil` or a generated value |
-| `(g/tuple generators...)` | fixed-size vector of draws |
-| `(g/vector opts elements)` | vector, optionally unique |
-| `(g/chunkings payload)` | nonempty vector chunks that concatenate to `payload` |
-| `(g/list opts elements)` | list |
-| `(g/set opts elements)`, `(g/sorted-set opts elements)` | set |
-| `(g/map opts keys values)`, `(g/sorted-map opts keys values)` | map |
-| `(g/hmap key-to-generator)` | fixed-key heterogeneous map |
-
-Collection options are `:size`, `:min-size`, and `:max-size`; vectors also
-accept `:unique?`. Use `g/composite-fn` to tag a custom
-`(fn [test-case] value)` generator so `g/let` can distinguish it from an
-ordinary function value.
+The exact constructors and options are documented in the bundled
+[API reference](skills/jolt-hegel/references/api.md).
 
 ## Optional Malli adapter
 
-`hegel.malli/generator` derives a native Hegel generator from a bounded,
-nonrecursive subset of Malli schemas. Malli remains optional: jolt-hegel does
-not include it in runtime dependencies, so the consuming alias must supply both
-libraries (the test suite currently exercises Malli 0.20.1).
+Malli is not a runtime dependency. If the consuming project already uses
+Malli, `hegel.malli/generator` can derive a native Hegel generator for the
+adapter's bounded, nonrecursive schema subset:
+
+```clojure
+(require '[hegel.malli :as hm])
+
+(def request-generator
+  (hm/generator
+   [:map {:closed true}
+    [:id [:int {:min 1 :max 1000000}]]
+    [:query [:string {:min 1 :max 120}]]
+    [:limit {:optional true} [:int {:min 1 :max 100}]]]))
+```
+
+Add Malli to the test alias yourself. Unsupported schemas fail when the
+generator is built rather than silently falling back to a different generator.
+The supported schema contract is listed in the
+[API reference](skills/jolt-hegel/references/api.md#optional-malli-adapter).
+
+## Installation
+
+jolt-hegel uses libhegel 0.33.0. Prebuilt upstream libraries are available for
+Linux x86_64, Windows x86_64, and macOS arm64. The installer chooses the asset,
+verifies its pinned SHA-256, and caches it. The same SHA-pinned Git dependency
+can be used by each host:
 
 ```clojure
 {:aliases
@@ -338,113 +243,98 @@ libraries (the test suite currently exercises Malli 0.20.1).
    {io.github.chucklehead-dev/jolt-hegel
     {:git/url "https://github.com/chucklehead-dev/jolt-hegel.git"
      :git/sha "<release-commit-sha>"}
-    metosin/malli {:mvn/version "0.20.1"}}}}}}
+    ;; Only needed when requiring hegel.malli:
+    metosin/malli {:mvn/version "0.20.1"}}}}}
 ```
 
-Malli is a Maven dependency. On Windows, Jolt's Maven transport requires the
-OpenSSL DLLs and `unzip` supplied by Git for Windows. From PowerShell or `cmd`,
-put `C:\Program Files\Git\mingw64\bin` and
-`C:\Program Files\Git\usr\bin` on the native Windows `PATH`. The repository's
-CI setup action does this explicitly for hosted Windows runners; its Windows
-job uses PowerShell so MSYS path translation cannot hide those DLLs.
+For Babashka's direct `bb -m hegel.install` UX, put the same pin in the
+top-level `:deps` of `bb.edn` (or otherwise place it on Babashka's classpath):
 
 ```clojure
-(require '[hegel.core :as h]
-         '[hegel.malli :as hm])
-
-(def user-generator
-  (hm/generator
-   [:map {:closed true}
-    [:id [:int {:min 1 :max 1000000}]]
-    [:name [:string {:min 1 :max 80}]]
-    [:nickname {:optional true} [:maybe [:string {:max 40}]]]]))
-
-(h/run-test!
- {:test-cases 100 :database "" :verbosity :quiet}
- (fn [_]
-   ;; Add the property assertions around the drawn user value.
-   (h/draw! user-generator)))
+{:deps
+ {io.github.chucklehead-dev/jolt-hegel
+  {:git/url "https://github.com/chucklehead-dev/jolt-hegel.git"
+   :git/sha "<release-commit-sha>"}}}
 ```
 
-The v1 subset is `:nil`, `:boolean`, bounded `:int`, `:double`, and `:string`,
-`:=`, `:enum`, `:maybe`, `:or`, `:tuple`, `:vector`, `:sequential`, `:set`,
-`:map-of`, and closed maps with explicit required or optional keys. String and
-collection schemas without an explicit `:max` use 100 as their fallback
-maximum, raised to an explicit larger `:min` when necessary; override that
-fallback with `{:default-max-size n}` as the second argument.
+Replace the placeholder with the full commit behind the release tag; do not
+leave it in a consumer configuration.
 
-The adapter builds directly from `malli.core/ast` using Hegel combinators, so
-choice and collection spans remain available to shrinking. It compiles the
-Malli validator once and validates every final generated value through an outer
-`g/fmap`; a failure has stable origin `hegel.malli/generated-value` and means
-the adapter is incorrect.
+Run the installer with the host that will run the tests and the alias that
+contains jolt-hegel:
 
-References and recursion, regex schemas, intersections, predicates, functions,
-classes, transforms, custom `:gen/*` properties, open maps, default map entries,
-and unknown properties or config are rejected when the generator is built.
-Adapter exceptions include stable `:type`, `:path`, and `:form` data. Their
-types are `:hegel.malli/invalid-schema`, `:hegel.malli/unsupported-schema`,
-`:hegel.malli/unsupported-property`, `:hegel.malli/invalid-property`, and
-`:hegel.malli/invalid-config`; the generated-value guard uses
-`:hegel.malli/invalid-generated-value`.
+```bash
+# Jolt 0.7.23+
+jolt -A:test -m hegel.install
 
-The core namespace also provides:
+# Babashka built from the pinned casselc/babashka FFI branch
+bb -m hegel.install
 
-- `assume!` to reject inputs outside a property domain;
-- `target!` to guide Hegel toward larger finite scores;
-- `final?`, `when-final`, `fprn`, and
-  `note!` for final-replay diagnostics;
-- `sample` for interactive generator inspection.
+# JVM Clojure on JDK 22+ (JDK 25 is the primary target)
+clojure -J--enable-native-access=ALL-UNNAMED -M:test -m hegel.install
+```
 
-Prefer generators that directly produce valid inputs. Use
-`assume!` for infrequent exclusions; rejecting most generated cases
-makes a property ineffective.
+Git dependencies do not contribute their aliases to a consuming project. If
+jolt-hegel is in top-level `:deps`, no dependency alias is needed; otherwise
+make sure the consuming project's alias is active so the installer namespace is
+on the classpath.
 
-## Native configuration
+While the required Babashka FFI work is unreleased, use a binary built from the
+pinned `casselc/babashka` commit recorded by this repository's CI. JVM Clojure
+uses `java.lang.foreign` directly and therefore requires JDK 22 or later.
 
-Most users only need `jolt -A:test -m hegel.install`, with the dependency's
-actual alias substituted for `test`. These environment variables are available
-for custom installations:
+Environment overrides:
 
 | Variable | Purpose |
 | --- | --- |
-| `JOLT_CACHE_DIR` | writable Jolt AOT cache directory; key it by the pinned release SHA |
-| `HEGEL_CACHE_DIR` | writable native cache directory |
-| `HEGEL_LIBHEGEL_LIBRARY` | caller-supplied libhegel path |
+| `HEGEL_CACHE_DIR` | writable native-library cache |
+| `HEGEL_LIBHEGEL_LIBRARY` | explicit path to a compatible libhegel library |
 | `HEGEL_NATIVE_ARCH` | target override: `amd64` or `arm64` |
-| `HEGEL_LIBHEGEL_RELEASE_BASE` | mirror for the pinned libhegel release |
+| `HEGEL_LIBHEGEL_RELEASE_BASE` | mirror for the pinned upstream release |
+| `JOLT_CACHE_DIR` | writable Jolt AOT cache, preferably keyed by dependency SHA |
 
-## Agent skill
+Checksum verification is never skipped. A user-supplied library path controls
+where libhegel is loaded from; its ABI version is still checked at run startup.
 
-The repository includes an Agent Skill for installing jolt-hegel, identifying
-useful properties, and writing tests:
+## Backend diagnostics
 
-```text
-$skill-installer install https://github.com/chucklehead-dev/jolt-hegel/tree/main/skills/jolt-hegel
+The native ABI is data, so it can be inspected without loading libhegel:
+
+```clojure
+(require '[hegel.abi :as abi])
+
+(abi/functions) ; canonical function map from resources/hegel/abi.edn
+(abi/validate!) ; validates types, references, structs, and signatures
 ```
 
-## Development
+After the selected backend initializes, `(abi/backend-report)` returns
+structured per-function coverage and routing. Routes identify Jolt direct FFI,
+Babashka's compiled trampoline or libffi fallback, and JVM FFM. Ordinary
+property code does not need to select a backend.
 
-```bash
-jolt -m hegel.install fetch-libhegel
-jolt -M:test
-(cd test/consumer && jolt -A:test -m consumer.smoke)
-```
+## Development and design
 
-Implementation details are in
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md),
-[docs/DESIGN.md](docs/DESIGN.md), and the
-[architecture decision records](docs/adr/README.md). Maintainer release steps
-are in [docs/RELEASING.md](docs/RELEASING.md).
+The repository gates the same semantic suite under all supported hosts. Start
+with the host-specific installer, then run its test alias. Maintainer details
+live in:
+
+- [architecture and ownership](docs/ARCHITECTURE.md);
+- [ABI descriptor and backend development](docs/ABI.md);
+- [behavioral contracts](docs/DESIGN.md);
+- [architecture decisions](docs/adr/README.md); and
+- [release process](docs/RELEASING.md).
+
+The repository also ships an [Agent Skill](skills/jolt-hegel/SKILL.md) for
+adding evidence-backed property and stateful tests to another project.
 
 ## Acknowledgments
 
 The original jolt-hegel design and implementation were based in part on Kyle
-Kingsbury's [hegel-clj](https://github.com/aphyr/hegel-clj), including its
+Kingsbury (Aphyr)'s [hegel-clj](https://github.com/aphyr/hegel-clj), including its
 imperative generator style, `run-test!` and `clojure.test` integration, and
-final-replay diagnostics. jolt-hegel is now an independent Jolt implementation
-which talks directly to libhegel, but that earlier Clojure binding established
-the shape of its first public API.
+final-replay diagnostics. The project also builds on upstream Hegel and its
+libhegel engine. jolt-hegel remains an independent Clojure-family library with
+one public behavior across its supported hosts.
 
 ## License
 

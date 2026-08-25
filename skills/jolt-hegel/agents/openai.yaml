@@ -1,4 +1,4 @@
 interface:
-  display_name: "Jolt Hegel"
-  short_description: "Write shrinking property and model tests for Jolt"
-  default_prompt: "Use $jolt-hegel to add and run a shrinking property or stateful model test in this Jolt project."
+  display_name: "jolt-hegel"
+  short_description: "Write shrinking property and model tests"
+  default_prompt: "Use $jolt-hegel to add and run a shrinking property or stateful model test on this project's selected Clojure-family host."
