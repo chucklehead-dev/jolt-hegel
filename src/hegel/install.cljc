@@ -303,8 +303,12 @@
 
 (defn- windows-checksum-matches? [path expected]
   (let [script (str "$ErrorActionPreference='Stop';"
-                    "$actual=(Get-FileHash -Algorithm SHA256 -LiteralPath "
-                    (powershell-literal path) ").Hash.ToLowerInvariant();"
+                    "$bytes=[System.IO.File]::ReadAllBytes("
+                    (powershell-literal path) ");"
+                    "$hash=[System.Security.Cryptography.SHA256]::Create()"
+                    ".ComputeHash($bytes);"
+                    "$actual=[System.BitConverter]::ToString($hash)"
+                    ".Replace('-','').ToLowerInvariant();"
                     "if ($actual -ne " (powershell-literal expected)
                     ") { exit 9 }")]
     (zero? (c-system

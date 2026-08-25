@@ -88,7 +88,6 @@ jobs:
           lein: 2.9.8
 
       - name: Set up GraalVM
-        if: steps.bb-cache.outputs.cache-hit != 'true'
         uses: graalvm/setup-graalvm@v1.3.4
         with:
           java-version: '25.0.4'
