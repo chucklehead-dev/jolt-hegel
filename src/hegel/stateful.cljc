@@ -1,5 +1,6 @@
 (ns hegel.stateful
   "Engine-managed state-machine and value-pool testing."
+  (:refer-clojure :exclude [run!])
   (:require [clojure.string :as str]
             [hegel.core :as h]
             [hegel.ffi :as hffi]

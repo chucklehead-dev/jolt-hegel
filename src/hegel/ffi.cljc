@@ -648,7 +648,7 @@
   (c-state-machine-free ctx state-machine)
   nil)
 
-(defn- generate-fixed-bytes! [ctx test-case operation size draw]
+(defn- generate-fixed-bytes! [ctx operation size draw]
   (let [out (backend/alloc size)]
     (try
       (let [rc (draw out)]
@@ -659,17 +659,17 @@
 
 (defn generate-uuid! [ctx test-case version]
   (generate-fixed-bytes!
-   ctx test-case :generate-uuid 16
+   ctx :generate-uuid 16
    #(c-generate-uuid ctx test-case (or version 0) (if (some? version) 1 0) %)))
 
 (defn generate-ipv4! [ctx test-case]
   (generate-fixed-bytes!
-   ctx test-case :generate-ipv4 4
+   ctx :generate-ipv4 4
    #(c-generate-ipv4 ctx test-case %)))
 
 (defn generate-ipv6! [ctx test-case]
   (generate-fixed-bytes!
-   ctx test-case :generate-ipv6 16
+   ctx :generate-ipv6 16
    #(c-generate-ipv6 ctx test-case %)))
 
 (defn generate-date! [ctx test-case min-value max-value]

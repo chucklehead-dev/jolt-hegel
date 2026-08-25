@@ -1,5 +1,6 @@
 (ns hegel.report
-  "Reporting helpers for framework-less Jolt property suites.")
+  "Reporting helpers for framework-less Jolt property suites."
+  (:refer-clojure :exclude [run!]))
 
 (defrecord CountingRunner [runs failures reporter])
 

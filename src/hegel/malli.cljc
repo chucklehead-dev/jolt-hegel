@@ -195,12 +195,11 @@
              (ast-generator form (conj path :child) (:child ast) config))
 
       :map-of
-      (do
-        (let [bounds (bounded-size-properties form path properties
-                                              default-max-size)]
-          (g/map bounds
-                 (ast-generator form (conj path :key) (:key ast) config)
-                 (ast-generator form (conj path :value) (:value ast) config))))
+      (let [bounds (bounded-size-properties form path properties
+                                            default-max-size)]
+        (g/map bounds
+               (ast-generator form (conj path :key) (:key ast) config)
+               (ast-generator form (conj path :value) (:value ast) config)))
 
       :map
       (map-generator form path ast config)

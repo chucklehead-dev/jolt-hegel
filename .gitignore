@@ -1,6 +1,7 @@
 .hegel-lib/
 .jolt/
 .cpcache/
+.clj-kondo/.cache/
 dist/
 target/
 refs/

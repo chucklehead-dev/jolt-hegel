@@ -1,0 +1,11 @@
+{:cljc {:features #{:clj}}
+ :lint-as
+ {hegel.generator/let clojure.core/let}
+ :linters
+ {:redefined-var
+  {:level :off}
+  :unused-private-var
+  {:exclude [hegel.host/join-path]}}
+ :hooks
+ {:analyze-call
+  {hegel.clojure-test/with hooks.hegel/clojure-test-with}}}

@@ -19,6 +19,20 @@ env:
   BB_FORK_REF: 26367edf91905eb85c68e6fd77f3e108a60dc651
 
 jobs:
+  static-checks:
+    name: Static checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: DeLaGuardo/setup-clojure@13.4
+        with:
+          clj-kondo: latest
+      - name: Lint portable source, scripts, and tests
+        run: clj-kondo --fail-level warning --lint src script test
+
   abi-data:
     name: ABI descriptor
     runs-on: ubuntu-24.04
@@ -312,6 +326,21 @@ jobs:
       - name: Run semantic suite (JVM)
         if: matrix.host == 'jvm'
         run: clojure -J--enable-native-access=ALL-UNNAMED -M:test
+
+      - name: Run Git dependency consumer smoke test (Jolt)
+        if: matrix.host == 'jolt'
+        working-directory: test/consumer
+        run: jolt -A:test -m consumer.smoke
+
+      - name: Run Git dependency consumer smoke test (Babashka)
+        if: matrix.host == 'bb'
+        working-directory: test/consumer
+        run: bb --config bb.edn -m consumer.smoke
+
+      - name: Run Git dependency consumer smoke test (JVM)
+        if: matrix.host == 'jvm'
+        working-directory: test/consumer
+        run: clojure -J--enable-native-access=ALL-UNNAMED -M:test -m consumer.smoke
 
   jdk22-minimum:
     name: JVM minimum / Linux x86_64

@@ -61,7 +61,7 @@
    :return (native-type (:return function) descriptor)})
 
 (defn capability
-  [function-id function descriptor]
+  [_function-id function descriptor]
   (try
     (signature function descriptor)
     {:status :supported

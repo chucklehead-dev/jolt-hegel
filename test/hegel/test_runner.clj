@@ -1527,8 +1527,7 @@
                :path []
                :form form}
               (select-keys (ex-data error) [:type :path :form]))))
-  (let [uint64-max 18446744073709551615N
-        forms [[:string {:max 18446744073709551616N}]
+  (let [forms [[:string {:max 18446744073709551616N}]
                [:vector {:min 18446744073709551616N} :boolean]]]
     (doseq [form forms]
       (let [error (caught-error #(hm/generator form))]
