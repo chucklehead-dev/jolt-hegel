@@ -11,6 +11,13 @@
                     {:description description})))
   (println "PASS" description))
 
+(defn- rejected? [f]
+  (try
+    (f)
+    false
+    (catch Throwable _
+      true)))
+
 (defn -main [& _]
   (let [descriptor (abi/validate!)
         functions (abi/functions)
@@ -31,6 +38,27 @@
     (require! "descriptor contains no host-specific vocabulary"
               (not-any? (fn [word] (str/includes? descriptor-text word))
                         ["jolt.ffi" "babashka.ffi" "java.lang.foreign"]))
+    (require! "descriptor ownership release functions resolve"
+              (every?
+               (fn [[_ function]]
+                 (every?
+                  (fn [[_ rule]]
+                    (or (not= :owned (:kind rule))
+                        (contains? functions (:release rule))))
+                  (:ownership function)))
+               functions))
+    (require! "descriptor rejects an unknown ownership release function"
+              (rejected?
+               #(abi/validate!
+                 (assoc-in descriptor
+                           [:functions :context-new :ownership :return :release]
+                           :missing-release-function))))
+    (require! "descriptor rejects borrowed values without an owner"
+              (rejected?
+               #(abi/validate!
+                 (update-in descriptor
+                            [:functions :context-last-error :ownership :return]
+                            dissoc :owner))))
     #?(:jolt
        (let [report (abi/check-backend selected-backend/backend descriptor)]
          (require! "Jolt backend supports every descriptor signature"

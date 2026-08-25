@@ -101,6 +101,43 @@
             #{}
             (keys all-types))))
 
+(defn- validate-ownership!
+  [all-functions function-id ownership]
+  (when ownership
+    (when-not (and (map? ownership)
+                   (seq ownership)
+                   (every? #{:return :out} (keys ownership)))
+      (throw (ex-info "invalid function ownership metadata"
+                      {:function function-id :ownership ownership})))
+    (doseq [[position rule] ownership]
+      (let [{:keys [kind release owner]} rule]
+        (when-not (map? rule)
+          (throw (ex-info "invalid function ownership rule"
+                          {:function function-id
+                           :position position
+                           :rule rule})))
+        (case kind
+          :owned
+          (when-not (and (keyword? release)
+                         (contains? all-functions release)
+                         (nil? owner))
+            (throw (ex-info "owned native value requires a release function"
+                            {:function function-id
+                             :position position
+                             :rule rule})))
+
+          :borrowed
+          (when-not (and (keyword? owner) (nil? release))
+            (throw (ex-info "borrowed native value requires an owner"
+                            {:function function-id
+                             :position position
+                             :rule rule})))
+
+          (throw (ex-info "unknown native ownership kind"
+                          {:function function-id
+                           :position position
+                           :rule rule})))))))
+
 (defn validate!
   "Validate an ABI descriptor and return it. Does not load native code."
   ([] (validate! (descriptor)))
@@ -120,7 +157,8 @@
      (let [symbols (mapv :symbol (vals all-functions))]
        (when-not (= (count symbols) (count (set symbols)))
          (throw (ex-info "function symbols must be unique" {:symbols symbols}))))
-     (doseq [[function-id {:keys [symbol args return blocking?]}] all-functions]
+     (doseq [[function-id {:keys [symbol args return blocking? ownership]}]
+             all-functions]
        (when-not (and (keyword? function-id)
                       (string? symbol)
                       (not (empty? symbol)))
@@ -135,7 +173,8 @@
                          {:function function-id :return return})))
        (when-not (or (nil? blocking?) (boolean? blocking?))
          (throw (ex-info "invalid :blocking? metadata"
-                         {:function function-id :blocking? blocking?}))))
+                         {:function function-id :blocking? blocking?})))
+       (validate-ownership! all-functions function-id ownership))
      abi)))
 
 (defn check-backend
