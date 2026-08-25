@@ -124,7 +124,7 @@
 (defn- version-source-path []
   (native/join-path
    (native/join-path native/project-root-path "src")
-   "hegel/version.clj"))
+   "hegel/version.cljc"))
 
 (defn- source-jolt-hegel-version []
   (let [path (require-file! "jolt-hegel version source"
