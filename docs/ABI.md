@@ -124,14 +124,15 @@ registered by the selected runtime. Current route names are:
 | `:bb/libffi` | Babashka's general fixed-signature libffi path |
 | `:jvm/ffm` | cached JDK FFM downcall handle |
 | `:jank/generated` | generated jank C++ interop downcall |
+| `:clr/generated-pinvoke` | generated C# P/Invoke downcall |
 
 The report is intended for CI, diagnostics, and ABI upgrades. Application code
 should not branch on the route.
 
 ## Backend construction
 
-All three backends consume the function map; there are no hand-maintained
-per-host symbol lists.
+All backends consume the function map; there are no hand-maintained per-host
+symbol lists.
 
 The Jolt backend translates type forms to `jolt.ffi` descriptions and builds a
 foreign function once. The Babashka backend translates to `babashka.ffi`, which
@@ -142,6 +143,10 @@ selects its trampoline or libffi path per signature. The JVM backend builds a
 Native memory operations deliberately live outside the EDN. They implement the
 small boundary needed by the common wrapper: allocation and release, scalar
 and field access, byte ranges, and UTF-8 conversion.
+
+Experimental generated hosts also consume this model. `bb jank-codegen-check`
+and `bb clr-codegen-check` fail when their checked-in build artifacts differ
+from the descriptor.
 
 ## Adding or updating a binding
 

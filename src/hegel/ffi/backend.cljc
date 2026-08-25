@@ -1,6 +1,7 @@
 (ns hegel.ffi.backend
   "Selected runtime implementation of the small native boundary."
-  (:require #?(:jolt [hegel.ffi.jolt :as impl]
+  (:require #?(:cljr [hegel.ffi.clr :as impl]
+               :jolt [hegel.ffi.jolt :as impl]
                :bb [hegel.ffi.bb :as impl]
                :jank [hegel.ffi.jank-backend :as impl]
                :clj [hegel.ffi.jvm :as impl])))

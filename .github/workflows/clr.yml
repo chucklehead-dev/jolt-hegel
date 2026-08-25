@@ -1,0 +1,126 @@
+name: Experimental ClojureCLR
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/clr.yml'
+      - 'bb.edn'
+      - 'clr/**'
+      - 'resources/hegel/abi.edn'
+      - 'script/hegel/**'
+      - 'src/hegel/**'
+  push:
+    branches: [main, codex/clr-portable]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: clr-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CLOJURECLR_VERSION: 1.12.2
+  CLOJURECLR_NUPKG_SHA256: e916c78d8ec1054a0b8a449fb9b478af46f32fe4c9f9ca992ce037b5302a4d9f
+
+jobs:
+  generated-bindings:
+    name: CLR generated bindings
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: DeLaGuardo/setup-clojure@13.4
+        with:
+          bb: latest
+      - name: Verify generated ABI artifacts
+        run: bb clr-codegen-check
+
+  runtime:
+    name: ClojureCLR / ${{ matrix.name }}
+    needs: generated-bindings
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux x86_64
+            runner: ubuntu-24.04
+            library-name: libhegel_c.so
+          - name: Windows x86_64
+            runner: windows-2022
+            library-name: libhegel_c.dll
+          - name: macOS arm64
+            runner: macos-14
+            library-name: libhegel_c.dylib
+
+    env:
+      HEGEL_CACHE_DIR: ${{ github.workspace }}/.hegel-lib
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Install pinned ClojureCLR runtime
+        shell: pwsh
+        run: |
+          $package = Join-Path $env:RUNNER_TEMP "clojure.main.$env:CLOJURECLR_VERSION.nupkg"
+          $install = Join-Path $env:RUNNER_TEMP 'clojureclr'
+          $url = "https://api.nuget.org/v3-flatcontainer/clojure.main/$env:CLOJURECLR_VERSION/clojure.main.$env:CLOJURECLR_VERSION.nupkg"
+          Invoke-WebRequest -Uri $url -OutFile $package
+          $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $package).Hash.ToLowerInvariant()
+          if ($actual -ne $env:CLOJURECLR_NUPKG_SHA256) {
+            throw "ClojureCLR package checksum mismatch: expected $env:CLOJURECLR_NUPKG_SHA256, got $actual"
+          }
+          [System.IO.Compression.ZipFile]::ExtractToDirectory($package, $install)
+          $main = Join-Path $install 'tools/net8.0/any/Clojure.Main.dll'
+          if (-not (Test-Path -LiteralPath $main)) {
+            throw "ClojureCLR entry point is missing from pinned package: $main"
+          }
+          "CLR_MAIN=$main" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $loadPath = [string]::Join(
+            [System.IO.Path]::PathSeparator,
+            @((Join-Path $env:GITHUB_WORKSPACE 'src'),
+              (Join-Path $env:GITHUB_WORKSPACE 'resources'),
+              (Join-Path $env:GITHUB_WORKSPACE 'script')))
+          "CLOJURE_LOAD_PATH=$loadPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Build generated managed bridge
+        shell: pwsh
+        run: |
+          dotnet build clr/Hegel.Native/Hegel.Native.csproj --configuration Release
+          dotnet build clr/Hegel.Native.Smoke/Hegel.Native.Smoke.csproj --configuration Release
+          $bridge = Join-Path $env:GITHUB_WORKSPACE 'clr/Hegel.Native/bin/Release/net8.0/Hegel.Native.dll'
+          "HEGEL_CLR_BRIDGE_ASSEMBLY=$bridge" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Install checksum-verified libhegel through ClojureCLR
+        shell: pwsh
+        run: dotnet $env:CLR_MAIN -m hegel.install setup
+
+      - name: Select installed libhegel
+        shell: pwsh
+        run: |
+          $library = Join-Path $env:HEGEL_CACHE_DIR '${{ matrix.library-name }}'
+          if (-not (Test-Path -LiteralPath $library)) {
+            throw "libhegel installer did not produce $library"
+          }
+          "HEGEL_LIBHEGEL_LIBRARY=$library" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Run independent managed ABI smoke
+        shell: pwsh
+        run: >-
+          dotnet run --project clr/Hegel.Native.Smoke/Hegel.Native.Smoke.csproj
+          --configuration Release --no-build -- $env:HEGEL_LIBHEGEL_LIBRARY
+
+      - name: Run shared Clojure property semantics
+        shell: pwsh
+        run: dotnet $env:CLR_MAIN -m hegel.clr-property-smoke

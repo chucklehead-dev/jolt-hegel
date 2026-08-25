@@ -4,6 +4,8 @@
 .clj-kondo/.cache/
 dist/
 target/
+clr/**/bin/
+clr/**/obj/
 refs/
 .nrepl-port
 *.log

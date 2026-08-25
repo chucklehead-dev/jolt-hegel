@@ -884,7 +884,10 @@
   composite-fn so this macro can distinguish it from a function value."
   [binding-forms & body]
   (when-not (and (vector? binding-forms) (even? (count binding-forms)))
-    (throw #?(:jank
+    (throw #?(:cljr
+              (System.ArgumentException.
+               "hegel.generator/let requires an even binding vector")
+              :jank
               (ex-info "hegel.generator/let requires an even binding vector"
                        {:type ::invalid-bindings})
               :default

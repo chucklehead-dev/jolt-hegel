@@ -75,7 +75,9 @@
   (swap! (:runs runner) inc)
   (let [outcome (try
                   {:result (run)}
-                  (catch #?(:jank cpp/jank.runtime.object_ref :default Throwable) error
+                  (catch #?(:cljr System.Exception
+                            :jank cpp/jank.runtime.object_ref
+                            :default Throwable) error
                     {:exception error}))]
     (if-let [error (:exception outcome)]
       (do

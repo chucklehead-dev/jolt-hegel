@@ -14,7 +14,9 @@
 
 (try
   (backend/load! library-path)
-  (catch #?(:jank cpp/jank.runtime.object_ref :default Throwable) cause
+  (catch #?(:cljr System.Exception
+            :jank cpp/jank.runtime.object_ref
+            :default Throwable) cause
     (throw
      (ex-info
       (str "could not load libhegel from " (pr-str library-path)
@@ -204,7 +206,9 @@
       (doseq [value values]
         (swap! pointers conj (backend/string->native value)))
       @pointers
-      (catch #?(:jank cpp/jank.runtime.object_ref :default Throwable) error
+      (catch #?(:cljr System.Exception
+                :jank cpp/jank.runtime.object_ref
+                :default Throwable) error
         (doseq [ptr @pointers]
           (backend/free ptr))
         (throw error)))))

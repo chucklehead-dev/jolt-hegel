@@ -1,0 +1,254 @@
+(ns hegel.ffi.clr
+  "ClojureCLR backend over the descriptor-generated Hegel.Native bridge."
+  (:require [clojure.string :as str]
+            [hegel.abi :as abi]))
+
+(def null System.IntPtr/Zero)
+
+(defn null? [pointer]
+  (or (nil? pointer) (= System.IntPtr/Zero pointer)))
+
+(def ^:private memory-type-aliases
+  {:bool :c/bool
+   :int8 :c/int8
+   :uint8 :c/uint8
+   :int16 :c/int16
+   :uint16 :c/uint16
+   :int :c/int32
+   :int32 :c/int32
+   :uint :c/uint32
+   :uint32 :c/uint32
+   :int64 :c/int64
+   :uint64 :c/uint64
+   :size_t :c/size
+   :float :c/float
+   :double :c/double
+   :string :c/string
+   :pointer :pointer})
+
+(def ^:private bridge-type-name "Hegel.Native.Bridge, Hegel.Native")
+
+(defn- nonblank [value]
+  (when-not (str/blank? value) value))
+
+(defn- bridge-assembly-path []
+  (or (nonblank (System.Environment/GetEnvironmentVariable
+                 "HEGEL_CLR_BRIDGE_ASSEMBLY"))
+      (throw
+       (ex-info
+        "HEGEL_CLR_BRIDGE_ASSEMBLY must name the generated Hegel.Native.dll"
+        {:type ::missing-bridge-assembly}))))
+
+(defonce ^:private bridge-type*
+  (delay
+    (let [path (System.IO.Path/GetFullPath (bridge-assembly-path))]
+      (assembly-load-from path)
+      (or (System.Type/GetType bridge-type-name)
+          (throw (ex-info "loaded CLR bridge assembly does not contain Hegel.Native.Bridge"
+                          {:type ::invalid-bridge-assembly
+                           :path path}))))))
+
+(defonce ^:private bridge-methods* (atom {}))
+
+(defn- bridge-method [method-name]
+  (or (get @bridge-methods* method-name)
+      (let [method (.GetMethod @bridge-type* method-name)]
+        (when-not method
+          (throw (ex-info (str "CLR bridge method not found: " method-name)
+                          {:type ::missing-bridge-method
+                           :method method-name})))
+        (swap! bridge-methods* assoc method-name method)
+        method)))
+
+(defn- bridge-call [method-name & args]
+  (try
+    (.Invoke (bridge-method method-name) nil (object-array args))
+    (catch System.Reflection.TargetInvocationException error
+      (throw (or (.InnerException error) error)))))
+
+(defn- align-up [offset alignment]
+  (let [remainder (mod offset alignment)]
+    (if (zero? remainder) offset (+ offset (- alignment remainder)))))
+
+(declare type-info)
+
+(defn- scalar-info [{:keys [kind bits]}]
+  (case kind
+    :void {:size 0 :alignment 1}
+    :boolean {:size (quot bits 8) :alignment (quot bits 8)}
+    :integer (let [size (if (= :pointer-width bits)
+                          System.IntPtr/Size
+                          (quot bits 8))]
+               {:size size :alignment size})
+    :float (let [size (quot bits 8)] {:size size :alignment size})
+    :string {:size System.IntPtr/Size :alignment System.IntPtr/Size}
+    :function-pointer {:size System.IntPtr/Size :alignment System.IntPtr/Size}
+    nil))
+
+(defn- struct-info [type-id descriptor]
+  (let [fields (get-in descriptor [:types type-id :fields])
+        built
+        (reduce
+         (fn [{:keys [offset alignment field-info]} {:keys [name type]}]
+           (let [child (type-info type descriptor)
+                 field-offset (align-up offset (:alignment child))
+                 child-fields
+                 (if (:fields child)
+                   (into {[name] {:offset field-offset :type type}}
+                         (map (fn [[path info]]
+                                [(into [name] path)
+                                 (update info :offset + field-offset)]))
+                         (:fields child))
+                   {[name] {:offset field-offset :type type}})]
+             {:offset (+ field-offset (:size child))
+              :alignment (max alignment (:alignment child))
+              :field-info (merge field-info child-fields)}))
+         {:offset 0 :alignment 1 :field-info {}}
+         fields)]
+    {:type type-id
+     :size (align-up (:offset built) (:alignment built))
+     :alignment (:alignment built)
+     :fields (:field-info built)}))
+
+(defn type-info [type descriptor]
+  (cond
+    (vector? type)
+    (case (first type)
+      :pointer {:type type :size System.IntPtr/Size :alignment System.IntPtr/Size}
+      :by-value (type-info (second type) descriptor)
+      (throw (ex-info "unsupported CLR ABI type form" {:type type})))
+
+    :else
+    (let [type-descriptor (get-in descriptor [:types type])]
+      (if-let [info (scalar-info type-descriptor)]
+        (assoc info :type type)
+        (case (:kind type-descriptor)
+          :struct (struct-info type descriptor)
+          :opaque (throw (ex-info "opaque values must be passed through pointers"
+                                  {:type type}))
+          (throw (ex-info "unsupported CLR ABI type"
+                          {:type type :descriptor type-descriptor})))))))
+
+(defn capability [_function-id {:keys [args return]} descriptor]
+  (try
+    (doseq [type (conj args return)] (type-info type descriptor))
+    {:status :supported :route :clr/generated-pinvoke}
+    (catch System.Exception error
+      {:status :unsupported
+       :route :clr/generated-pinvoke
+       :reason (.Message error)
+       :data (ex-data error)})))
+
+(def backend {:id :clr :check-signature capability})
+
+(defonce ^:private layouts* (atom {}))
+(defonce ^:private functions* (atom nil))
+
+(defn layout [type-id]
+  (or (get @layouts* type-id)
+      (let [info (type-info type-id (abi/descriptor))]
+        (swap! layouts* assoc type-id info)
+        info)))
+
+(defn layout-size [layout-info] (:size layout-info))
+
+(defn load! [library-path]
+  (or @functions*
+      (locking functions*
+        (or @functions*
+            (let [descriptor (abi/validate!)
+                  coverage (abi/check-backend backend descriptor)]
+              (when-not (:supported? coverage)
+                (throw (ex-info "CLR bridge cannot express the canonical libhegel ABI"
+                                coverage)))
+              (bridge-call "Load" (System.IO.Path/GetFullPath library-path))
+              (let [bindings
+                    (into {}
+                          (map (fn [[function-id _]]
+                                 [function-id
+                                  (fn [& values]
+                                    (bridge-call "Invoke" (name function-id)
+                                                 (object-array values)))]))
+                          (:functions descriptor))]
+                (reset! functions* bindings)
+                (abi/register-backend-report! coverage)
+                bindings))))))
+
+(defn function [function-id]
+  (or (get @functions* function-id)
+      (throw (ex-info "CLR libhegel bindings are not loaded"
+                      {:function function-id}))))
+
+(defn alloc [size] (bridge-call "Alloc" (ulong size)))
+(defn free [pointer] (bridge-call "Free" pointer) nil)
+
+(defn sizeof [type]
+  (let [type (get memory-type-aliases type type)]
+    (if (= :pointer type)
+      System.IntPtr/Size
+      (:size (type-info type (abi/descriptor))))))
+
+(defn- bridge-memory-type [type]
+  (let [type (get memory-type-aliases type type)]
+    (case type
+      :pointer "pointer"
+      :c/string "string"
+      :c/bool "bool"
+      :c/int8 "int8"
+      :c/uint8 "uint8"
+      :c/int16 "int16"
+      :c/uint16 "uint16"
+      :c/int32 "int32"
+      :c/uint32 "uint32"
+      :c/int64 "int64"
+      :c/uint64 "uint64"
+      :c/size "size"
+      :c/float "float"
+      :c/double "double"
+      (throw (ex-info "unsupported CLR memory type" {:type type})))))
+
+(defn read-value
+  ([pointer type] (read-value pointer type 0))
+  ([pointer type offset]
+   (let [type (get memory-type-aliases type type)
+         value (bridge-call "ReadValue" (bridge-memory-type type)
+                            pointer (long offset))]
+     (if (= :c/size type)
+       (System.Convert/ToInt64 value)
+       value))))
+
+(defn write-value [pointer type offset value]
+  (bridge-call "WriteValue" (bridge-memory-type type) pointer (long offset) value)
+  nil)
+
+(defn read-array [pointer length]
+  (bridge-call "ReadBytes" pointer (System.Convert/ToInt32 length)))
+
+(defn write-array [pointer value]
+  (bridge-call "WriteBytes" pointer value)
+  nil)
+
+(defn read-utf8 [pointer length]
+  (bridge-call "ReadUtf8" pointer (System.Convert/ToInt32 length)))
+
+(defn write-utf8 [pointer value]
+  (bridge-call "WriteUtf8" pointer (str value)))
+
+(defn string->native [value]
+  (bridge-call "StringToNative" (str value)))
+
+(defn native->string [pointer]
+  (when-not (null? pointer)
+    (bridge-call "NativeToString" pointer)))
+
+(defn read-field [pointer layout-info path]
+  (if-let [{:keys [offset type]} (get (:fields layout-info) path)]
+    (read-value pointer type offset)
+    (throw (ex-info "unknown struct field path"
+                    {:path path :layout (:type layout-info)}))))
+
+(defn write-field [pointer layout-info path value]
+  (if-let [{:keys [offset type]} (get (:fields layout-info) path)]
+    (write-value pointer type offset value)
+    (throw (ex-info "unknown struct field path"
+                    {:path path :layout (:type layout-info)}))))

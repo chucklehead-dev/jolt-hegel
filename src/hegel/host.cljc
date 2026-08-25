@@ -7,29 +7,36 @@
                :clj [clojure.java.io :as io])))
 
 (defn runtime []
-  #?(:jolt :jolt
+  #?(:cljr :clr
+     :jolt :jolt
      :bb :bb
      :jank :jank
      :clj :jvm))
 
 (defn getenv [name]
-  #?(:jank (jank-host/getenv name)
+  #?(:cljr (System.Environment/GetEnvironmentVariable name)
+     :jank (jank-host/getenv name)
      :default (System/getenv name)))
 
 (defn current-directory []
-  #?(:jank (jank-host/current-directory)
+  #?(:cljr (System.IO.Directory/GetCurrentDirectory)
+     :jank (jank-host/current-directory)
      :default (System/getProperty "user.dir")))
 
 (defn absolute-path?
-  #?(:jank ([path] (jank-host/absolute-path? path))
+  #?(:cljr ([path] (System.IO.Path/IsPathFullyQualified path))
+     :jank ([path] (jank-host/absolute-path? path))
      :default ([_] nil)))
 
 (defn parent-path
-  #?(:jank ([path] (jank-host/parent-path path))
+  #?(:cljr ([path] (System.IO.Path/GetDirectoryName path))
+     :jank ([path] (jank-host/parent-path path))
      :default ([_] nil)))
 
 (defn join-path [parent child]
-  #?(:jank
+  #?(:cljr
+     (System.IO.Path/Combine parent child)
+     :jank
      (jank-host/join-path parent child)
      :default
      (str parent
@@ -42,15 +49,22 @@
   (join-path parent child))
 
 (defn os-name []
-  #?(:jank (jank-host/os-name)
+  #?(:cljr (cond
+             (System.OperatingSystem/IsWindows) "Windows"
+             (System.OperatingSystem/IsLinux) "Linux"
+             (System.OperatingSystem/IsMacOS) "macOS"
+             :else (System.Runtime.InteropServices.RuntimeInformation/OSDescription))
+     :jank (jank-host/os-name)
      :default (System/getProperty "os.name")))
 
 (defn nano-time []
-  #?(:jank (jank-host/nano-time)
+  #?(:cljr (* 1000000 (System.Environment/TickCount64))
+     :jank (jank-host/nano-time)
      :default (System/nanoTime)))
 
 (defn current-time-millis []
-  #?(:jank (jank-host/current-time-millis)
+  #?(:cljr (.ToUnixTimeMilliseconds (System.DateTimeOffset/UtcNow))
+     :jank (jank-host/current-time-millis)
      :default (System/currentTimeMillis)))
 
 #?(:jolt
@@ -68,7 +82,14 @@
   "Read a classpath/source-root resource as text, or throw without loading any
   native library."
   [resource-name]
-  #?(:jolt
+  #?(:cljr
+     (if-let [resource (clojure.lang.RT/FindFile resource-name)]
+       (slurp (.FullName resource))
+       (throw (ex-info (str "resource not found: " resource-name)
+                       {:type ::resource-not-found
+                        :resource resource-name})))
+
+     :jolt
      (if-let [path (jolt-resource-path resource-name)]
        (slurp path)
        (throw (ex-info (str "resource not found: " resource-name)

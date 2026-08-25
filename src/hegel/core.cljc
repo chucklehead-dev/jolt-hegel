@@ -39,7 +39,9 @@
     (doseq [cleanup (reverse @(:native-cleanups test-case))]
       (try
         (cleanup)
-        (catch #?(:jank cpp/jank.runtime.object_ref :default Throwable) error
+        (catch #?(:cljr System.Exception
+                  :jank cpp/jank.runtime.object_ref
+                  :default Throwable) error
           (when-not @first-error
             (reset! first-error error)))))
     (hffi/test-case-free! (:context test-case) (:handle test-case))
@@ -217,7 +219,9 @@
     {:status :valid
      :value (binding [*test-case* test-case]
               (case-fn test-case))}
-    (catch #?(:jank cpp/jank.runtime.object_ref :default Throwable) error
+    (catch #?(:cljr System.Exception
+              :jank cpp/jank.runtime.object_ref
+              :default Throwable) error
       (cond
         (hffi/stop-test? error)
         {:status :overrun}
