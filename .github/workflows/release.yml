@@ -23,16 +23,23 @@ jobs:
         include:
           - name: Linux x86_64
             runner: ubuntu-24.04
+            shell: bash
             jolt-asset: jolt-v0.7.23-x86_64-linux.tar.gz
             jolt-sha256: feda9a68792b454fa540677069edc6b6d9b82aa8ab77ae8a322934f0b8cd32e7
           - name: Windows x86_64
             runner: windows-2022
+            shell: pwsh
             jolt-asset: jolt-v0.7.23-x86_64-windows.zip
             jolt-sha256: d414dc30d6992613f8bf1bd6a5fd709fd583ef564ce9b684bc2f90a5be498074
           - name: macOS arm64
             runner: macos-14
+            shell: bash
             jolt-asset: jolt-v0.7.23-aarch64-macos.tar.gz
             jolt-sha256: 2e4b9804382548b58b10079aa73688afe587d7b6d0986ee52c61f843ae912bb9
+
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
 
     env:
       JOLT_CACHE_DIR: ${{ github.workspace }}/.jolt/aot-cache
@@ -44,7 +51,6 @@ jobs:
 
       - name: Install OpenSSL for Jolt on macOS
         if: runner.os == 'macOS'
-        shell: bash
         run: brew install openssl@3
 
       - uses: ./.github/actions/setup-jolt
@@ -53,23 +59,31 @@ jobs:
           asset: ${{ matrix.jolt-asset }}
           sha256: ${{ matrix.jolt-sha256 }}
 
-      - name: Require matching release tag
-        shell: bash
+      - name: Require matching release tag (POSIX)
+        if: runner.os != 'Windows'
         run: |
           expected="v$(jolt -m hegel.install version)"
           test "$GITHUB_REF_NAME" = "$expected"
 
+      - name: Require matching release tag (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          $expected = "v$(jolt -m hegel.install version)"
+          if ($env:GITHUB_REF_NAME -ne $expected) {
+            throw "release tag mismatch: expected $expected, got $env:GITHUB_REF_NAME"
+          }
+
+      - name: Resolve test dependencies over HTTPS
+        run: jolt -A:test -m hegel.install version
+
       - name: Install native dependencies
-        shell: bash
         run: jolt -m hegel.install fetch-libhegel
 
       - name: Run integration suite
-        shell: bash
         run: jolt -M:test
 
       - name: Run Git dependency consumer smoke test
         working-directory: test/consumer
-        shell: bash
         run: jolt -A:test -m consumer.smoke
 
   publish:
