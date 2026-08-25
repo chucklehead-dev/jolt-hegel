@@ -8,7 +8,8 @@
             [clojure.string :as str]
             [hegel.host :as host]
             [hegel.native :as native]
-            [hegel.version :as version]))
+            [hegel.version :as version]
+            #?(:jolt [jolt.host :as jolt-host])))
 
 (def ^:private libhegel-release-base
   (str "https://github.com/hegeldev/hegel-rust/releases/download/v"
@@ -103,17 +104,29 @@
           {:type ::unsupported-architecture
            :candidates candidates})))))
 
+(defn- path-exists? [path]
+  #?(:jolt (jolt-host/file-exists? path)
+     :default (.exists (java.io.File. path))))
+
+(defn- directory? [path]
+  #?(:jolt (jolt-host/directory? path)
+     :default (.isDirectory (java.io.File. path))))
+
+(defn- regular-file? [path]
+  (and (path-exists? path) (not (directory? path))))
+
 (defn- ensure-directory! [path]
-  (let [directory (java.io.File. path)]
-    (when-not (or (.isDirectory directory) (.mkdirs directory))
-      (throw
-       (ex-info (str "could not create " path)
-                {:type ::directory-failed
-                 :path path}))))
+  (when-not (or (directory? path)
+                #?(:jolt (jolt-host/mkdirs! path)
+                   :default (.mkdirs (java.io.File. path))))
+    (throw
+     (ex-info (str "could not create " path)
+              {:type ::directory-failed
+               :path path})))
   path)
 
 (defn- require-file! [description path]
-  (when-not (.isFile (java.io.File. path))
+  (when-not (regular-file? path)
     (throw
      (ex-info (str description " does not exist: " path)
               {:type ::missing-file
@@ -164,28 +177,26 @@
         source))))
 
 (defn- delete-if-present! [path]
-  (let [file (java.io.File. path)]
-    (when (and (.exists file) (not (.delete file)))
-      (throw
-       (ex-info (str "could not remove " path)
-                {:type ::delete-failed
-                 :path path})))))
+  (when (and (path-exists? path)
+             (not #?(:jolt (jolt-host/delete-file! path)
+                     :default (.delete (java.io.File. path)))))
+    (throw
+     (ex-info (str "could not remove " path)
+              {:type ::delete-failed
+               :path path}))))
 
 (defn- replace-file! [source target]
-  (let [source-file (java.io.File. source)
-        target-file (java.io.File. target)]
-    (when (and (.exists target-file) (not (.delete target-file)))
-      (throw
-       (ex-info (str "could not replace " target)
-                {:type ::replace-failed
-                 :path target})))
-    (when-not (.renameTo source-file target-file)
-      (throw
-       (ex-info (str "could not move verified download to " target
-                     "; verified file remains at " source)
-                {:type ::replace-failed
-                 :source source
-                 :path target}))))
+  (when (path-exists? target)
+    (delete-if-present! target))
+  (when-not #?(:jolt (jolt-host/rename-file! source target)
+               :default (.renameTo (java.io.File. source)
+                                   (java.io.File. target)))
+    (throw
+     (ex-info (str "could not move verified download to " target
+                   "; verified file remains at " source)
+              {:type ::replace-failed
+               :source source
+               :path target})))
   target)
 
 (defn- powershell-literal [value]
@@ -302,7 +313,7 @@
               "-Command" script])))))
 
 (defn- checksum-matches? [path expected]
-  (and (.isFile (java.io.File. path))
+  (and (regular-file? path)
        (if jolt?
          (if (= :windows (:os (native/platform)))
            (windows-checksum-matches? path expected)

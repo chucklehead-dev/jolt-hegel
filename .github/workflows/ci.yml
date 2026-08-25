@@ -273,7 +273,7 @@ jobs:
           java-version: '25'
 
       - name: Set up Clojure CLI
-        if: matrix.host == 'jvm'
+        if: matrix.host == 'jvm' || matrix.host == 'bb'
         uses: DeLaGuardo/setup-clojure@13.4
         with:
           cli: latest
@@ -284,7 +284,7 @@ jobs:
 
       - name: Install libhegel (Babashka)
         if: matrix.host == 'bb'
-        run: bb setup-native
+        run: bb -m hegel.install fetch-libhegel
 
       - name: Install libhegel (JVM)
         if: matrix.host == 'jvm'

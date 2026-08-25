@@ -1,7 +1,7 @@
 {:paths ["src" "resources"]
 
  :tasks
- {setup-native {:task (exec 'hegel.install/-main "setup")}
+ {setup-native {:task ((requiring-resolve 'hegel.install/-main) "setup")}
   abi-test {:extra-paths ["script"]
             :task (exec 'hegel.abi-check/-main)}
   test {:extra-paths ["test"]
