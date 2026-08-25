@@ -1,0 +1,161 @@
+(ns hegel.jank-backend-smoke
+  (:require [hegel.ffi.jank-backend :as backend]))
+
+(defn- require! [description condition]
+  (when-not condition
+    (throw (ex-info (str "jank backend smoke failed: " description)
+                    {:description description})))
+  (println "PASS" description))
+
+(defn- call-out [type call]
+  (let [out (backend/alloc (backend/sizeof type))]
+    (try
+      (let [rc (call out)]
+        (require! (str "native out call returned success for " type) (zero? rc))
+        (backend/read-value out type))
+      (finally
+        (backend/free out)))))
+
+(defn- write-date! [pointer layout value]
+  (backend/write-field pointer layout [:year] (:year value))
+  (backend/write-field pointer layout [:month] (:month value))
+  (backend/write-field pointer layout [:day] (:day value)))
+
+(defn- write-time! [pointer layout value]
+  (backend/write-field pointer layout [:hour] (:hour value))
+  (backend/write-field pointer layout [:minute] (:minute value))
+  (backend/write-field pointer layout [:second] (:second value))
+  (backend/write-field pointer layout [:microsecond] (:microsecond value)))
+
+(defn- read-date [pointer layout prefix]
+  {:year (backend/read-field pointer layout (conj prefix :year))
+   :month (backend/read-field pointer layout (conj prefix :month))
+   :day (backend/read-field pointer layout (conj prefix :day))})
+
+(defn- read-time [pointer layout prefix]
+  {:hour (backend/read-field pointer layout (conj prefix :hour))
+   :minute (backend/read-field pointer layout (conj prefix :minute))
+   :second (backend/read-field pointer layout (conj prefix :second))
+   :microsecond (backend/read-field pointer layout (conj prefix :microsecond))})
+
+(defn -main [& args]
+  (println "jank backend smoke: namespace loaded")
+  (backend/load! (or (first args) "/tmp/jolt-hegel-033-native/libhegel_c.so"))
+  (println "jank backend smoke: library and 71 symbols loaded")
+  (let [memory (backend/alloc 32)
+        pointee (backend/alloc 8)]
+    (try
+      (backend/write-array memory [0 127 255])
+      (require! "vector-backed bulk byte transfer"
+                (= [0 127 255] (backend/read-array memory 3)))
+      (let [value "hé"
+            length (backend/write-utf8 memory value)]
+        (require! "length-delimited UTF-8 transfer"
+                  (and (= 3 length)
+                       (= value (backend/read-utf8 memory length)))))
+      (let [value "a\u0000b"
+            length (backend/write-utf8 memory value)]
+        (require! "embedded-NUL UTF-8 transfer"
+                  (and (= 3 length)
+                       (= value (backend/read-utf8 memory length)))))
+      (backend/write-value memory :pointer 8 pointee)
+      (require! "boxed pointer memory round trip"
+                (not (backend/null? (backend/read-value memory :pointer 8))))
+      (finally
+        (backend/free pointee)
+        (backend/free memory))))
+  (let [context-new (backend/function :context-new)
+        context-free (backend/function :context-free)
+        settings-new (backend/function :settings-new)
+        settings-free (backend/function :settings-free)
+        settings-set-test-cases (backend/function :settings-set-test-cases)
+        run-start (backend/function :run-start)
+        run-free (backend/function :run-free)
+        next-test-case (backend/function :next-test-case)
+        test-case-free (backend/function :test-case-free)
+        generate-integer (backend/function :generate-integer)
+        generate-float (backend/function :generate-float)
+        generate-date (backend/function :generate-date)
+        generate-time (backend/function :generate-time)
+        generate-datetime (backend/function :generate-datetime)
+        start-span (backend/function :start-span)
+        stop-span (backend/function :stop-span)
+        context (context-new)
+        settings (call-out :pointer #(settings-new context %))]
+    (require! "context allocated" (not (backend/null? context)))
+    (try
+      (require! "test-case count configured"
+                (zero? (settings-set-test-cases context settings 1)))
+      (let [run (call-out :pointer #(run-start context settings backend/null backend/null %))]
+        (try
+          (let [test-case (call-out :pointer #(next-test-case context run %))]
+            (try
+              (require! "unsigned 64-bit maximum argument"
+                        (zero? (start-span context test-case 18446744073709551615N)))
+              (require! "span stopped after uint64 probe"
+                        (zero? (stop-span context test-case 0)))
+              (let [integer-out (backend/alloc 8)
+                    float-out (backend/alloc 8)]
+                (try
+                  (require! "integer downcall"
+                            (and (zero? (generate-integer context test-case 17 17 integer-out))
+                                 (= 17 (backend/read-value integer-out :int64))))
+                  (let [rc (generate-float context test-case 64 1.5 2.5
+                                           0 0 0 0 4.9406564584124654e-324 float-out)
+                        value (backend/read-value float-out :double)]
+                    (println "jank backend smoke: float rc/value" rc value)
+                    (require! "mixed float downcall"
+                              (and (zero? rc) (<= 1.5 value 2.5))))
+                  (finally
+                    (backend/free float-out)
+                    (backend/free integer-out))))
+              (let [date-layout (backend/layout :hegel/date)
+                    time-layout (backend/layout :hegel/time)
+                    datetime-layout (backend/layout :hegel/datetime)
+                    fixed-date {:year 2024 :month 2 :day 29}
+                    fixed-time {:hour 12 :minute 34 :second 56 :microsecond 789}
+                    min-date (backend/alloc (backend/layout-size date-layout))
+                    max-date (backend/alloc (backend/layout-size date-layout))
+                    date-out (backend/alloc (backend/layout-size date-layout))
+                    min-time (backend/alloc (backend/layout-size time-layout))
+                    max-time (backend/alloc (backend/layout-size time-layout))
+                    time-out (backend/alloc (backend/layout-size time-layout))
+                    min-datetime (backend/alloc (backend/layout-size datetime-layout))
+                    max-datetime (backend/alloc (backend/layout-size datetime-layout))
+                    datetime-out (backend/alloc (backend/layout-size datetime-layout))]
+                (try
+                  (write-date! min-date date-layout fixed-date)
+                  (write-date! max-date date-layout fixed-date)
+                  (write-time! min-time time-layout fixed-time)
+                  (write-time! max-time time-layout fixed-time)
+                  (doseq [pointer [min-datetime max-datetime]]
+                    (doseq [field [:year :month :day]]
+                      (backend/write-field pointer datetime-layout
+                                           [:date field] (get fixed-date field)))
+                    (doseq [field [:hour :minute :second :microsecond]]
+                      (backend/write-field pointer datetime-layout
+                                           [:time field] (get fixed-time field))))
+                  (require! "date struct passed by value"
+                            (and (zero? (generate-date context test-case min-date max-date date-out))
+                                 (= fixed-date (read-date date-out date-layout []))))
+                  (require! "time struct passed by value"
+                            (and (zero? (generate-time context test-case min-time max-time time-out))
+                                 (= fixed-time (read-time time-out time-layout []))))
+                  (require! "nested datetime struct passed by value"
+                            (and (zero? (generate-datetime context test-case
+                                                           min-datetime max-datetime datetime-out))
+                                 (= fixed-date (read-date datetime-out datetime-layout [:date]))
+                                 (= fixed-time (read-time datetime-out datetime-layout [:time]))))
+                  (finally
+                    (doseq [pointer [datetime-out max-datetime min-datetime
+                                     time-out max-time min-time
+                                     date-out max-date min-date]]
+                      (backend/free pointer)))))
+              (finally
+                (test-case-free context test-case))))
+          (finally
+            (run-free context run))))
+      (finally
+        (settings-free context settings)
+        (context-free context)))
+    (println "jank backend smoke: native lifecycle released")))

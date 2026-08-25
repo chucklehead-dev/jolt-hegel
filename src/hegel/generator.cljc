@@ -6,6 +6,11 @@
             [hegel.core :as h]
             [hegel.ffi :as hffi]))
 
+(def ^:private min-int64 -9223372036854775808N)
+(def ^:private max-int64 9223372036854775807)
+(def ^:private max-double 1.7976931348623157E308)
+(def ^:private min-positive-double 4.9406564584124654E-324)
+
 (defn- invalid-option [message data]
   (throw (ex-info message (assoc data :type ::invalid-option))))
 
@@ -44,10 +49,10 @@
   With no options, uses the complete int64 range. The one-argument form accepts
   {:min x :max y}; the two-argument form is shorthand for those bounds."
   ([]
-   (integer Long/MIN_VALUE Long/MAX_VALUE))
+   (integer min-int64 max-int64))
   ([opts]
-   (integer (if (contains? opts :min) (:min opts) Long/MIN_VALUE)
-            (if (contains? opts :max) (:max opts) Long/MAX_VALUE)))
+   (integer (if (contains? opts :min) (:min opts) min-int64)
+            (if (contains? opts :max) (:max opts) max-int64)))
   ([min-value max-value]
    (when (> min-value max-value)
      (throw (ex-info "integer generator minimum exceeds maximum"
@@ -90,13 +95,13 @@
          min-value (if has-min?
                      (clojure.core/double (:min opts))
                      (if allow-infinity?
-                       Double/NEGATIVE_INFINITY
-                       (- Double/MAX_VALUE)))
+                       ##-Inf
+                       (- max-double)))
          max-value (if has-max?
                      (clojure.core/double (:max opts))
                      (if allow-infinity?
-                       Double/POSITIVE_INFINITY
-                       Double/MAX_VALUE))]
+                       ##Inf
+                       max-double))]
      (when (> min-value max-value)
        (invalid-option "double generator minimum exceeds maximum"
                        {:min min-value :max max-value}))
@@ -112,7 +117,7 @@
         (hffi/generate-float!
          (:context test-case) (:handle test-case)
          64 min-value max-value allow-nan? allow-infinity?
-         (:exclude-min? opts) (:exclude-max? opts) Double/MIN_VALUE)))))
+         (:exclude-min? opts) (:exclude-max? opts) min-positive-double)))))
   ([min-value max-value]
    (double {:min min-value :max max-value})))
 
@@ -239,10 +244,10 @@
            (not (zero? (mod year 100))))))
 
 (defn- days-in-month [year month]
-  (case month
-    2 (if (leap-year? year) 29 28)
-    (4 6 9 11) 30
-    31))
+  (cond
+    (= 2 month) (if (leap-year? year) 29 28)
+    (contains? #{4 6 9 11} month) 30
+    :else 31))
 
 (defn- valid-date? [value]
   (and (map? value)
@@ -296,15 +301,22 @@
     (invalid-option (str kind " generator minimum exceeds maximum")
                     {:min minimum :max maximum})))
 
+(defn- zero-pad [width value]
+  (let [text (str value)]
+    (str (apply str (repeat (max 0 (- width (count text))) "0")) text)))
+
 (defn- format-date [value]
-  (format "%04d-%02d-%02d" (:year value) (:month value) (:day value)))
+  (str (zero-pad 4 (:year value))
+       "-" (zero-pad 2 (:month value))
+       "-" (zero-pad 2 (:day value))))
 
 (defn- format-time [value]
-  (let [base (format "%02d:%02d:%02d"
-                     (:hour value) (:minute value) (:second value))]
+  (let [base (str (zero-pad 2 (:hour value))
+                  ":" (zero-pad 2 (:minute value))
+                  ":" (zero-pad 2 (:second value)))]
     (if (zero? (:microsecond value))
       base
-      (str base "." (format "%06d" (:microsecond value))))))
+      (str base "." (zero-pad 6 (:microsecond value))))))
 
 (defn date
   "Generate an ISO 8601 calendar-date string.
@@ -872,8 +884,12 @@
   composite-fn so this macro can distinguish it from a function value."
   [binding-forms & body]
   (when-not (and (vector? binding-forms) (even? (count binding-forms)))
-    (throw (IllegalArgumentException.
-            "hegel.generator/let requires an even binding vector")))
+    (throw #?(:jank
+              (ex-info "hegel.generator/let requires an even binding vector"
+                       {:type ::invalid-bindings})
+              :default
+              (IllegalArgumentException.
+               "hegel.generator/let requires an even binding vector"))))
   (clojure.core/let
    [expanded
     (reduce

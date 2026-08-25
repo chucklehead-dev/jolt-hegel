@@ -2,6 +2,12 @@
 
  :tasks
  {setup-native {:task ((requiring-resolve 'hegel.install/-main) "setup")}
+  jank-codegen {:extra-paths ["script"]
+                :task (apply (requiring-resolve 'hegel.generate-jank-bindings/-main)
+                             *command-line-args*)}
+  jank-codegen-check {:extra-paths ["script"]
+                      :task ((requiring-resolve 'hegel.generate-jank-bindings/-main)
+                             "--check")}
   abi-test {:extra-paths ["script"]
             :task (exec 'hegel.abi-check/-main)}
   test {:extra-paths ["test"]

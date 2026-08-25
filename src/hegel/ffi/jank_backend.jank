@@ -1,0 +1,168 @@
+(ns hegel.ffi.jank-backend
+  "Direct jank C++-interop backend for the canonical libhegel ABI."
+  (:require [hegel.abi :as abi]
+            [hegel.ffi.jank-generated :as generated])
+  (:include "hegel/jank/libhegel_abi.hpp"))
+
+(defn- normalized-function [function]
+  (select-keys function [:symbol :args :return :blocking?]))
+
+(defn capability [function-id function _descriptor]
+  (let [generated-spec (get generated/binding-specs function-id)]
+    (if (= (normalized-function function)
+           (normalized-function generated-spec))
+      {:status :supported
+       :route :jank/cpp-dlsym
+       :native-ready? true
+       :cpp-function-type (:cpp-function-type generated-spec)}
+      {:status :unsupported
+       :route :jank/cpp-dlsym
+       :native-ready? false
+       :reason "generated jank signature does not match the canonical descriptor"})))
+
+(def backend
+  {:id :jank
+   :check-signature capability})
+
+(defn layout [type-id]
+  (or (get generated/type-layouts type-id)
+      (throw (ex-info "jank ABI type has no concrete layout"
+                      {:type type-id}))))
+
+(defn layout-size [layout-info] (:size layout-info))
+
+(defonce ^:private bindings* (atom nil))
+
+(defn load! [library-path]
+  (or @bindings*
+      (let [coverage (abi/check-backend backend)]
+        (when-not (:supported? coverage)
+          (throw (ex-info "jank cannot express the canonical libhegel ABI" coverage)))
+        (let [bindings (cpp/box (cpp/hegel_jank_load_bindings library-path))]
+          (reset! bindings* bindings)
+          (abi/register-backend-report! coverage)
+          bindings))))
+
+(defn function [function-id]
+  (let [invoker (get generated/invokers function-id)]
+    (when-not (and @bindings* invoker)
+      (throw (ex-info "jank libhegel binding is not loaded"
+                      {:function function-id})))
+    invoker))
+
+(def null (cpp/box (cpp/hegel_jank_null_pointer)))
+(defn null? [pointer]
+  (or (nil? pointer)
+      (cpp/hegel_jank_null_pointer_p (cpp/unbox (:* cpp/void) pointer))))
+
+(defn alloc [size]
+  (cpp/box (cpp/hegel_jank_alloc (cpp/cast cpp/size_t size))))
+
+(defn free [pointer]
+  (when-not (null? pointer)
+    (cpp/hegel_jank_free (cpp/unbox (:* cpp/void) pointer)))
+  nil)
+
+(def ^:private memory-type-aliases
+  {:bool :c/bool :int8 :c/int8 :uint8 :c/uint8
+   :int16 :c/int16 :uint16 :c/uint16 :int :c/int32 :int32 :c/int32
+   :uint :c/uint32 :uint32 :c/uint32 :int64 :c/int64 :uint64 :c/uint64
+   :size_t :c/size :float :c/float :double :c/double :string :c/string
+   :pointer :pointer})
+
+(def ^:private scalar-sizes
+  {:c/bool 1 :c/int8 1 :c/uint8 1 :c/int16 2 :c/uint16 2
+   :c/int32 4 :c/uint32 4 :c/int64 8 :c/uint64 8 :c/size 8
+   :c/float 4 :c/double 8 :c/string 8 :pointer 8})
+
+(defn- normalize-memory-type [type]
+  (get memory-type-aliases type type))
+
+(defn sizeof [type]
+  (let [type (normalize-memory-type type)]
+    (or (get scalar-sizes type)
+        (layout-size (layout type)))))
+
+(defn read-value
+  ([pointer type] (read-value pointer type 0))
+  ([pointer type offset]
+   (let [type (normalize-memory-type type)
+         raw (cpp/unbox (:* cpp/void) pointer)
+         offset (cpp/cast cpp/size_t offset)]
+     (case type
+       (:pointer :c/string) (cpp/box (cpp/hegel_jank_read_pointer raw offset))
+       :c/bool (cpp/hegel_jank_read_c_bool raw offset)
+       :c/int8 (cpp/hegel_jank_read_c_int8 raw offset)
+       :c/uint8 (cpp/hegel_jank_read_c_uint8 raw offset)
+       :c/int16 (cpp/hegel_jank_read_c_int16 raw offset)
+       :c/uint16 (cpp/hegel_jank_read_c_uint16 raw offset)
+       :c/int32 (cpp/hegel_jank_read_c_int32 raw offset)
+       :c/uint32 (cpp/hegel_jank_read_c_uint32 raw offset)
+       :c/int64 (cpp/hegel_jank_read_c_int64 raw offset)
+       :c/uint64 (cpp/hegel_jank_read_c_uint64 raw offset)
+       :c/size (cpp/hegel_jank_read_c_size raw offset)
+       :c/float (cpp/hegel_jank_read_c_float raw offset)
+       :c/double (cpp/hegel_jank_read_c_double raw offset)))))
+
+(defn write-value [pointer type offset value]
+  (let [type (normalize-memory-type type)
+        raw (cpp/unbox (:* cpp/void) pointer)
+        offset (cpp/cast cpp/size_t offset)]
+    (case type
+      (:pointer :c/string)
+      (cpp/hegel_jank_write_pointer raw offset
+                                    (cpp/unbox (:* cpp/void) (or value null)))
+      :c/bool (cpp/hegel_jank_write_c_bool raw offset (cpp/cast cpp/uint8_t value))
+      :c/int8 (cpp/hegel_jank_write_c_int8 raw offset (cpp/cast cpp/int8_t value))
+      :c/uint8 (cpp/hegel_jank_write_c_uint8 raw offset (cpp/cast cpp/uint8_t value))
+      :c/int16 (cpp/hegel_jank_write_c_int16 raw offset (cpp/cast cpp/int16_t value))
+      :c/uint16 (cpp/hegel_jank_write_c_uint16 raw offset (cpp/cast cpp/uint16_t value))
+      :c/int32 (cpp/hegel_jank_write_c_int32 raw offset (cpp/cast cpp/int32_t value))
+      :c/uint32 (cpp/hegel_jank_write_c_uint32 raw offset (cpp/cast cpp/uint32_t value))
+      :c/int64 (cpp/hegel_jank_write_c_int64 raw offset (cpp/cast cpp/int64_t value))
+      :c/uint64 (cpp/hegel_jank_write_c_uint64 raw offset (cpp/hegel_jank_to_uint64 value))
+      :c/size (cpp/hegel_jank_write_c_size raw offset (cpp/cast cpp/size_t value))
+      :c/float (cpp/hegel_jank_write_c_float raw offset (cpp/cast cpp/float value))
+      :c/double (cpp/hegel_jank_write_c_double raw offset (cpp/cast cpp/double value))))
+  nil)
+
+(defn read-array [pointer length]
+  ;; jank byte arrays are currently TODO, so expose the same byte values in a
+  ;; vector until native byte-array construction lands upstream.
+  (loop [index 0 result []]
+    (if (< index length)
+      (recur (inc index) (conj result (read-value pointer :uint8 index)))
+      result)))
+
+(defn write-array [pointer value]
+  (loop [index 0]
+    (when (< index (count value))
+      (write-value pointer :uint8 index (nth value index))
+      (recur (inc index))))
+  nil)
+
+(defn read-utf8 [pointer length]
+  (cpp/hegel_jank_read_utf8 (cpp/unbox (:* cpp/void) pointer)
+                            (cpp/cast cpp/size_t length)))
+
+(defn write-utf8 [pointer value]
+  (cpp/hegel_jank_write_utf8 (cpp/unbox (:* cpp/void) pointer) value))
+
+(defn string->native [value]
+  (cpp/box (cpp/hegel_jank_string_dup value)))
+
+(defn native->string [pointer]
+  (when-not (null? pointer)
+    (cpp/hegel_jank_native_string (cpp/unbox (:* cpp/void) pointer))))
+
+(defn read-field [pointer layout-info path]
+  (if-let [field (get (:fields layout-info) path)]
+    (read-value pointer (:type field) (:offset field))
+    (throw (ex-info "unknown struct field path"
+                    {:path path :layout (:type layout-info)}))))
+
+(defn write-field [pointer layout-info path value]
+  (if-let [field (get (:fields layout-info) path)]
+    (write-value pointer (:type field) (:offset field) value)
+    (throw (ex-info "unknown struct field path"
+                    {:path path :layout (:type layout-info)}))))

@@ -14,7 +14,7 @@
 
 (try
   (backend/load! library-path)
-  (catch Throwable cause
+  (catch #?(:jank cpp/jank.runtime.object_ref :default Throwable) cause
     (throw
      (ex-info
       (str "could not load libhegel from " (pr-str library-path)
@@ -204,7 +204,7 @@
       (doseq [value values]
         (swap! pointers conj (backend/string->native value)))
       @pointers
-      (catch Throwable error
+      (catch #?(:jank cpp/jank.runtime.object_ref :default Throwable) error
         (doseq [ptr @pointers]
           (backend/free ptr))
         (throw error)))))
@@ -766,22 +766,26 @@
 
 (def ^:private compatible-version-checked? (atom false))
 
+(defn- check-compatible-version! []
+  (when-not @compatible-version-checked?
+    (let [actual (version)]
+      (when-not (= libhegel-version actual)
+        (throw
+         (ex-info
+          (str "jolt-hegel requires libhegel v" libhegel-version
+               ", but loaded " (pr-str actual) " from "
+               (pr-str library-path))
+          {:type ::incompatible-libhegel-version
+           :expected libhegel-version
+           :actual actual
+           :library library-path})))
+      (reset! compatible-version-checked? true))))
+
 (defn ensure-compatible-version!
   "Fail before a property run if the loaded libhegel ABI version is unexpected."
   []
   (when-not @compatible-version-checked?
-    (locking compatible-version-checked?
-      (when-not @compatible-version-checked?
-        (let [actual (version)]
-          (when-not (= libhegel-version actual)
-            (throw
-             (ex-info
-              (str "jolt-hegel requires libhegel v" libhegel-version
-                   ", but loaded " (pr-str actual) " from "
-                   (pr-str library-path))
-              {:type ::incompatible-libhegel-version
-               :expected libhegel-version
-               :actual actual
-               :library library-path})))
-          (reset! compatible-version-checked? true)))))
+    #?(:jank (check-compatible-version!)
+       :default (locking compatible-version-checked?
+                  (check-compatible-version!))))
   true)

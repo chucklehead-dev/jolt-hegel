@@ -1,0 +1,495 @@
+;; Generated from resources/hegel/abi.edn. DO NOT EDIT.
+(ns hegel.abi-data
+  (:refer-clojure :exclude [descriptor]))
+
+(def descriptor
+{:functions
+ {:collection-free
+  {:args [[:pointer :hegel/context] [:pointer :hegel/collection]],
+   :return :c/int32,
+   :symbol "hegel_collection_free"},
+  :collection-more
+  {:args
+   [[:pointer :hegel/context]
+    [:pointer :hegel/test-case]
+    [:pointer :hegel/collection]
+    [:pointer :c/bool]],
+   :return :c/int32,
+   :symbol "hegel_collection_more"},
+  :collection-reject
+  {:args
+   [[:pointer :hegel/context] [:pointer :hegel/test-case] [:pointer :hegel/collection] :c/string],
+   :return :c/int32,
+   :symbol "hegel_collection_reject"},
+  :context-free
+  {:args [[:pointer :hegel/context]], :return :c/int32, :symbol "hegel_context_free"},
+  :context-last-error
+  {:args [[:pointer :hegel/context]],
+   :ownership {:return {:kind :borrowed, :owner :context}},
+   :return :c/string,
+   :symbol "hegel_context_last_error"},
+  :context-new
+  {:args [],
+   :ownership {:return {:kind :owned, :release :context-free}},
+   :return [:pointer :hegel/context],
+   :symbol "hegel_context_new"},
+  :failure-free
+  {:args [[:pointer :hegel/context] [:pointer :hegel/failure]],
+   :return :c/int32,
+   :symbol "hegel_failure_free"},
+  :failure-origin
+  {:args [[:pointer :hegel/context] [:pointer :hegel/failure] [:pointer :c/string]],
+   :ownership {:out {:kind :borrowed, :owner :failure}},
+   :return :c/int32,
+   :symbol "hegel_failure_origin"},
+  :failure-reproduction-blob
+  {:args [[:pointer :hegel/context] [:pointer :hegel/failure] [:pointer :c/string]],
+   :ownership {:out {:kind :borrowed, :owner :failure}},
+   :return :c/int32,
+   :symbol "hegel_failure_reproduction_blob"},
+  :generate-boolean
+  {:args
+   [[:pointer :hegel/context]
+    [:pointer :hegel/test-case]
+    :c/double
+    :c/bool
+    :c/bool
+    [:pointer :c/bool]],
+   :return :c/int32,
+   :symbol "hegel_generate_boolean"},
+  :generate-bytes
+  {:args
+   [[:pointer :hegel/context]
+    [:pointer :hegel/test-case]
+    :c/uint64
+    :c/uint64
+    [:pointer :hegel/bytes-result]],
+   :return :c/int32,
+   :symbol "hegel_generate_bytes"},
+  :generate-bytes-result-free
+  {:args [[:pointer :hegel/context] [:pointer :hegel/bytes-result]],
+   :return :c/int32,
+   :symbol "hegel_generate_bytes_result_free"},
+  :generate-date
+  {:args
+   [[:pointer :hegel/context]
+    [:pointer :hegel/test-case]
+    [:by-value :hegel/date]
+    [:by-value :hegel/date]
+    [:pointer :hegel/date]],
+   :return :c/int32,
+   :symbol "hegel_generate_date"},
+  :generate-datetime
+  {:args
+   [[:pointer :hegel/context]
+    [:pointer :hegel/test-case]
+    [:by-value :hegel/datetime]
+    [:by-value :hegel/datetime]
+    [:pointer :hegel/datetime]],
+   :return :c/int32,
+   :symbol "hegel_generate_datetime"},
+  :generate-float
+  {:args
+   [[:pointer :hegel/context]
+    [:pointer :hegel/test-case]
+    :c/uint32
+    :c/double
+    :c/double
+    :c/bool
+    :c/bool
+    :c/bool
+    :c/bool
+    :c/double
+    [:pointer :c/double]],
+   :return :c/int32,
+   :symbol "hegel_generate_float"},
+  :generate-integer
+  {:args
+   [[:pointer :hegel/context] [:pointer :hegel/test-case] :c/int64 :c/int64 [:pointer :c/int64]],
+   :return :c/int32,
+   :symbol "hegel_generate_integer"},
+  :generate-integer-big
+  {:args
+   [[:pointer :hegel/context]
+    [:pointer :hegel/test-case]
+    [:pointer :c/uint8]
+    :c/size
+    [:pointer :c/uint8]
+    :c/size
+    [:pointer :c/uint8]
+    :c/size
+    [:pointer :c/size]],
+   :return :c/int32,
+   :symbol "hegel_generate_integer_big"},
+  :generate-ipv4
+  {:args [[:pointer :hegel/context] [:pointer :hegel/test-case] [:pointer :c/uint8]],
+   :return :c/int32,
+   :symbol "hegel_generate_ipv4"},
+  :generate-ipv6
+  {:args [[:pointer :hegel/context] [:pointer :hegel/test-case] [:pointer :c/uint8]],
+   :return :c/int32,
+   :symbol "hegel_generate_ipv6"},
+  :generate-string
+  {:args
+   [[:pointer :hegel/context]
+    [:pointer :hegel/test-case]
+    [:pointer :hegel/string-generator]
+    [:pointer :hegel/string-result]],
+   :return :c/int32,
+   :symbol "hegel_generate_string"},
+  :generate-string-result-free
+  {:args [[:pointer :hegel/context] [:pointer :hegel/string-result]],
+   :return :c/int32,
+   :symbol "hegel_generate_string_result_free"},
+  :generate-time
+  {:args
+   [[:pointer :hegel/context]
+    [:pointer :hegel/test-case]
+    [:by-value :hegel/time]
+    [:by-value :hegel/time]
+    [:pointer :hegel/time]],
+   :return :c/int32,
+   :symbol "hegel_generate_time"},
+  :generate-uuid
+  {:args
+   [[:pointer :hegel/context] [:pointer :hegel/test-case] :c/uint8 :c/bool [:pointer :c/uint8]],
+   :return :c/int32,
+   :symbol "hegel_generate_uuid"},
+  :mark-complete
+  {:args [[:pointer :hegel/context] [:pointer :hegel/test-case] :c/uint32 :c/string],
+   :blocking? true,
+   :return :c/int32,
+   :symbol "hegel_mark_complete"},
+  :new-collection
+  {:args
+   [[:pointer :hegel/context]
+    [:pointer :hegel/test-case]
+    :c/uint64
+    :c/uint64
+    [:pointer [:pointer :hegel/collection]]],
+   :ownership {:out {:kind :owned, :release :collection-free}},
+   :return :c/int32,
+   :symbol "hegel_new_collection"},
+  :new-pool
+  {:args [[:pointer :hegel/context] [:pointer :hegel/test-case] [:pointer [:pointer :hegel/pool]]],
+   :ownership {:out {:kind :owned, :release :pool-free}},
+   :return :c/int32,
+   :symbol "hegel_new_pool"},
+  :new-state-machine
+  {:args
+   [[:pointer :hegel/context]
+    [:pointer :hegel/test-case]
+    [:pointer :c/string]
+    [:pointer :c/int64]
+    :c/size
+    [:pointer :c/string]
+    :c/size
+    :c/int64
+    :c/int64
+    [:pointer [:pointer :hegel/state-machine]]
+    [:pointer :c/int64]],
+   :ownership {:out {:kind :owned, :release :state-machine-free}},
+   :return :c/int32,
+   :symbol "hegel_new_state_machine"},
+  :next-test-case
+  {:args [[:pointer :hegel/context] [:pointer :hegel/run] [:pointer [:pointer :hegel/test-case]]],
+   :blocking? true,
+   :return :c/int32,
+   :symbol "hegel_next_test_case"},
+  :pool-add
+  {:args
+   [[:pointer :hegel/context]
+    [:pointer :hegel/test-case]
+    [:pointer :hegel/pool]
+    [:pointer :c/int64]],
+   :return :c/int32,
+   :symbol "hegel_pool_add"},
+  :pool-free
+  {:args [[:pointer :hegel/context] [:pointer :hegel/pool]],
+   :return :c/int32,
+   :symbol "hegel_pool_free"},
+  :pool-generate
+  {:args
+   [[:pointer :hegel/context]
+    [:pointer :hegel/test-case]
+    [:pointer :hegel/pool]
+    :c/bool
+    [:pointer :c/int64]],
+   :return :c/int32,
+   :symbol "hegel_pool_generate"},
+  :run-free
+  {:args [[:pointer :hegel/context] [:pointer :hegel/run]],
+   :blocking? true,
+   :return :c/int32,
+   :symbol "hegel_run_free"},
+  :run-result
+  {:args [[:pointer :hegel/context] [:pointer :hegel/run] [:pointer [:pointer :hegel/run-result]]],
+   :ownership {:out {:kind :owned, :release :run-result-free}},
+   :return :c/int32,
+   :symbol "hegel_run_result"},
+  :run-result-error
+  {:args [[:pointer :hegel/context] [:pointer :hegel/run-result] [:pointer :c/string]],
+   :return :c/int32,
+   :symbol "hegel_run_result_error"},
+  :run-result-failure
+  {:args
+   [[:pointer :hegel/context]
+    [:pointer :hegel/run-result]
+    :c/size
+    [:pointer [:pointer :hegel/failure]]],
+   :ownership {:out {:kind :owned, :release :failure-free}},
+   :return :c/int32,
+   :symbol "hegel_run_result_failure"},
+  :run-result-failure-count
+  {:args [[:pointer :hegel/context] [:pointer :hegel/run-result] [:pointer :c/size]],
+   :return :c/int32,
+   :symbol "hegel_run_result_failure_count"},
+  :run-result-free
+  {:args [[:pointer :hegel/context] [:pointer :hegel/run-result]],
+   :return :c/int32,
+   :symbol "hegel_run_result_free"},
+  :run-result-status
+  {:args [[:pointer :hegel/context] [:pointer :hegel/run-result] [:pointer :c/int32]],
+   :return :c/int32,
+   :symbol "hegel_run_result_status"},
+  :run-start
+  {:args
+   [[:pointer :hegel/context]
+    [:pointer :hegel/settings]
+    :hegel/output-callback
+    [:pointer :c/void]
+    [:pointer [:pointer :hegel/run]]],
+   :ownership {:out {:kind :owned, :release :run-free}},
+   :return :c/int32,
+   :symbol "hegel_run_start"},
+  :settings-free
+  {:args [[:pointer :hegel/context] [:pointer :hegel/settings]],
+   :return :c/int32,
+   :symbol "hegel_settings_free"},
+  :settings-new
+  {:args [[:pointer :hegel/context] [:pointer [:pointer :hegel/settings]]],
+   :ownership {:out {:kind :owned, :release :settings-free}},
+   :return :c/int32,
+   :symbol "hegel_settings_new"},
+  :settings-set-backend
+  {:args [[:pointer :hegel/context] [:pointer :hegel/settings] :c/uint32],
+   :return :c/int32,
+   :symbol "hegel_settings_set_backend"},
+  :settings-set-database
+  {:args [[:pointer :hegel/context] [:pointer :hegel/settings] :c/string],
+   :return :c/int32,
+   :symbol "hegel_settings_set_database"},
+  :settings-set-database-key
+  {:args [[:pointer :hegel/context] [:pointer :hegel/settings] :c/string],
+   :return :c/int32,
+   :symbol "hegel_settings_set_database_key"},
+  :settings-set-derandomize
+  {:args [[:pointer :hegel/context] [:pointer :hegel/settings] :c/bool],
+   :return :c/int32,
+   :symbol "hegel_settings_set_derandomize"},
+  :settings-set-mode
+  {:args [[:pointer :hegel/context] [:pointer :hegel/settings] :c/uint32],
+   :return :c/int32,
+   :symbol "hegel_settings_set_mode"},
+  :settings-set-phases
+  {:args [[:pointer :hegel/context] [:pointer :hegel/settings] :c/uint32],
+   :return :c/int32,
+   :symbol "hegel_settings_set_phases"},
+  :settings-set-report-multiple-failures
+  {:args [[:pointer :hegel/context] [:pointer :hegel/settings] :c/bool],
+   :return :c/int32,
+   :symbol "hegel_settings_set_report_multiple_failures"},
+  :settings-set-seed
+  {:args [[:pointer :hegel/context] [:pointer :hegel/settings] :c/uint64 :c/bool],
+   :return :c/int32,
+   :symbol "hegel_settings_set_seed"},
+  :settings-set-stateful-step-count
+  {:args [[:pointer :hegel/context] [:pointer :hegel/settings] :c/int64],
+   :return :c/int32,
+   :symbol "hegel_settings_set_stateful_step_count"},
+  :settings-set-suppress-health-check
+  {:args [[:pointer :hegel/context] [:pointer :hegel/settings] :c/uint32],
+   :return :c/int32,
+   :symbol "hegel_settings_set_suppress_health_check"},
+  :settings-set-test-cases
+  {:args [[:pointer :hegel/context] [:pointer :hegel/settings] :c/uint64],
+   :return :c/int32,
+   :symbol "hegel_settings_set_test_cases"},
+  :settings-set-verbosity
+  {:args [[:pointer :hegel/context] [:pointer :hegel/settings] :c/uint32],
+   :return :c/int32,
+   :symbol "hegel_settings_set_verbosity"},
+  :start-span
+  {:args [[:pointer :hegel/context] [:pointer :hegel/test-case] :c/uint64],
+   :return :c/int32,
+   :symbol "hegel_start_span"},
+  :state-machine-free
+  {:args [[:pointer :hegel/context] [:pointer :hegel/state-machine]],
+   :return :c/int32,
+   :symbol "hegel_state_machine_free"},
+  :state-machine-next-group
+  {:args
+   [[:pointer :hegel/context]
+    [:pointer :hegel/test-case]
+    [:pointer :hegel/state-machine]
+    [:pointer :c/int64]],
+   :return :c/int32,
+   :symbol "hegel_state_machine_next_group"},
+  :state-machine-next-rule
+  {:args
+   [[:pointer :hegel/context]
+    [:pointer :hegel/test-case]
+    [:pointer :hegel/state-machine]
+    :c/int64
+    [:pointer :c/int64]],
+   :return :c/int32,
+   :symbol "hegel_state_machine_next_rule"},
+  :state-machine-rule-rejected
+  {:args
+   [[:pointer :hegel/context]
+    [:pointer :hegel/test-case]
+    [:pointer :hegel/state-machine]
+    :c/int64],
+   :return :c/int32,
+   :symbol "hegel_state_machine_rule_rejected"},
+  :stop-span
+  {:args [[:pointer :hegel/context] [:pointer :hegel/test-case] :c/bool],
+   :return :c/int32,
+   :symbol "hegel_stop_span"},
+  :string-generator-domain
+  {:args [[:pointer :hegel/context] :c/uint64 [:pointer [:pointer :hegel/string-generator]]],
+   :ownership {:out {:kind :owned, :release :string-generator-free}},
+   :return :c/int32,
+   :symbol "hegel_string_generator_domain"},
+  :string-generator-email
+  {:args [[:pointer :hegel/context] [:pointer [:pointer :hegel/string-generator]]],
+   :ownership {:out {:kind :owned, :release :string-generator-free}},
+   :return :c/int32,
+   :symbol "hegel_string_generator_email"},
+  :string-generator-free
+  {:args [[:pointer :hegel/context] [:pointer :hegel/string-generator]],
+   :return :c/int32,
+   :symbol "hegel_string_generator_free"},
+  :string-generator-regex
+  {:args
+   [[:pointer :hegel/context]
+    :c/string
+    :c/bool
+    [:pointer :hegel/string-generator]
+    [:pointer [:pointer :hegel/string-generator]]],
+   :ownership {:out {:kind :owned, :release :string-generator-free}},
+   :return :c/int32,
+   :symbol "hegel_string_generator_regex"},
+  :string-generator-text
+  {:args
+   [[:pointer :hegel/context]
+    :c/uint64
+    :c/uint64
+    :c/string
+    :c/uint32
+    :c/uint32
+    [:pointer :c/string]
+    :c/size
+    [:pointer :c/string]
+    :c/size
+    [:pointer :c/uint8]
+    :c/size
+    [:pointer :c/uint8]
+    :c/size
+    [:pointer [:pointer :hegel/string-generator]]],
+   :ownership {:out {:kind :owned, :release :string-generator-free}},
+   :return :c/int32,
+   :symbol "hegel_string_generator_text"},
+  :string-generator-url
+  {:args [[:pointer :hegel/context] [:pointer [:pointer :hegel/string-generator]]],
+   :ownership {:out {:kind :owned, :release :string-generator-free}},
+   :return :c/int32,
+   :symbol "hegel_string_generator_url"},
+  :target
+  {:args [[:pointer :hegel/context] [:pointer :hegel/test-case] :c/double :c/string],
+   :return :c/int32,
+   :symbol "hegel_target"},
+  :test-case-clone
+  {:args
+   [[:pointer :hegel/context] [:pointer :hegel/test-case] [:pointer [:pointer :hegel/test-case]]],
+   :ownership {:out {:kind :owned, :release :test-case-free}},
+   :return :c/int32,
+   :symbol "hegel_test_case_clone"},
+  :test-case-free
+  {:args [[:pointer :hegel/context] [:pointer :hegel/test-case]],
+   :return :c/int32,
+   :symbol "hegel_test_case_free"},
+  :test-case-from-blob
+  {:args
+   [[:pointer :hegel/context]
+    [:pointer :hegel/settings]
+    :c/string
+    :hegel/output-callback
+    [:pointer :c/void]
+    [:pointer [:pointer :hegel/test-case]]],
+   :ownership {:out {:kind :owned, :release :test-case-free}},
+   :return :c/int32,
+   :symbol "hegel_test_case_from_blob"},
+  :test-case-is-nondeterministic
+  {:args [[:pointer :hegel/context] [:pointer :hegel/test-case] [:pointer :c/bool]],
+   :return :c/int32,
+   :symbol "hegel_test_case_is_nondeterministic"},
+  :version
+  {:args [[:pointer :hegel/context] [:pointer :c/string]],
+   :ownership {:out {:kind :borrowed, :owner :library}},
+   :return :c/int32,
+   :symbol "hegel_version"}},
+ :library
+ {:header
+  {:commit "e5fcdb10d422ceadb635991353b1c9b20ee4a697",
+   :path "hegel-c/include/hegel.h",
+   :repository "hegeldev/hegel-rust",
+   :tag "v0.33.0"},
+  :name "libhegel",
+  :version "0.33.0"},
+ :schema-version 1,
+ :types
+ {:c/bool {:bits 8, :kind :boolean, :signed? false},
+  :c/double {:bits 64, :kind :float},
+  :c/float {:bits 32, :kind :float},
+  :c/int16 {:bits 16, :kind :integer, :signed? true},
+  :c/int32 {:bits 32, :kind :integer, :signed? true},
+  :c/int64 {:bits 64, :kind :integer, :signed? true},
+  :c/int8 {:bits 8, :kind :integer, :signed? true},
+  :c/size {:bits :pointer-width, :kind :integer, :signed? false},
+  :c/string {:encoding :utf-8, :kind :string, :termination :nul},
+  :c/uint16 {:bits 16, :kind :integer, :signed? false},
+  :c/uint32 {:bits 32, :kind :integer, :signed? false},
+  :c/uint64 {:bits 64, :kind :integer, :signed? false},
+  :c/uint8 {:bits 8, :kind :integer, :signed? false},
+  :c/void {:kind :void},
+  :hegel/bytes-result
+  {:fields [{:name :data, :type [:pointer :c/uint8]} {:name :len, :type :c/size}], :kind :struct},
+  :hegel/collection {:kind :opaque},
+  :hegel/context {:kind :opaque},
+  :hegel/date
+  {:fields
+   [{:name :year, :type :c/int32} {:name :month, :type :c/uint8} {:name :day, :type :c/uint8}],
+   :kind :struct},
+  :hegel/datetime
+  {:fields [{:name :date, :type :hegel/date} {:name :time, :type :hegel/time}], :kind :struct},
+  :hegel/failure {:kind :opaque},
+  :hegel/output-callback
+  {:args [[:pointer :c/void] :c/string :c/size], :kind :function-pointer, :return :c/void},
+  :hegel/pool {:kind :opaque},
+  :hegel/run {:kind :opaque},
+  :hegel/run-result {:kind :opaque},
+  :hegel/settings {:kind :opaque},
+  :hegel/state-machine {:kind :opaque},
+  :hegel/string-generator {:kind :opaque},
+  :hegel/string-result
+  {:fields [{:name :data, :type [:pointer :c/int8]} {:name :len, :type :c/size}], :kind :struct},
+  :hegel/test-case {:kind :opaque},
+  :hegel/time
+  {:fields
+   [{:name :hour, :type :c/uint8}
+    {:name :minute, :type :c/uint8}
+    {:name :second, :type :c/uint8}
+    {:name :microsecond, :type :c/uint32}],
+   :kind :struct}}}
+)

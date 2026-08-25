@@ -168,7 +168,7 @@
   (try
     (install-backend/download! (:os (native/platform)) url path)
     (require-file! "download" path)
-    (catch Throwable cause
+    (catch #?(:jank cpp/jank.runtime.object_ref :default Throwable) cause
       (delete-if-present! path)
       (throw
        (ex-info (str "failed to download " url)
@@ -197,7 +197,7 @@
     (try
       (verify-file! staged expected)
       (replace-file! staged target)
-      (catch Throwable cause
+      (catch #?(:jank cpp/jank.runtime.object_ref :default Throwable) cause
         (delete-if-present! staged)
         (throw cause)))
     (println "native: verified" target "(sha256" expected ")")

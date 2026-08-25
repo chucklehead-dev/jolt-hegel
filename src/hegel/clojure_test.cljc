@@ -38,7 +38,7 @@
 (defn- throwable-details [error]
   (let [throwable (try
                     (Throwable->map error)
-                    (catch Throwable _
+                    (catch #?(:jank cpp/jank.runtime.object_ref :default Throwable) _
                       nil))
         error-data (ex-data error)
         wrapped-body-error? (and (= ::body-error (:type error-data))
@@ -71,7 +71,7 @@
            (binding [ct/report (fn [event]
                                  (swap! reports conj event))]
              (body))}
-          (catch Throwable error
+          (catch #?(:jank cpp/jank.runtime.object_ref :default Throwable) error
             {:error error}))]
     (when (h/final?)
       (swap! final-reports into @reports))

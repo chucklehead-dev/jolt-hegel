@@ -126,3 +126,11 @@ Requiring `hegel.malli` opts into a consumer-supplied Malli dependency. The
 adapter compiles a schema and validator once, rejects unsupported AST constructs
 synchronously, and composes shared Hegel generators so structural spans remain
 available to shrinking. The core library never loads Malli.
+
+## Experimental hosts
+
+The jank spike selects a generated C++ interop backend at the same boundary;
+ordinary property, generator, and stateful namespaces remain shared. Its
+generated artifacts are derived from `resources/hegel/abi.edn`, not maintained
+as another signature list. See [JANK.md](JANK.md) for the proven surface,
+commands, and remaining release gates.

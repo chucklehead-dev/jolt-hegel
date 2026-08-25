@@ -1,13 +1,16 @@
 (ns hegel.abi
   "Canonical, native-code-free model and validation of the libhegel C ABI."
-  (:require [clojure.edn :as edn]
+  (:refer-clojure :exclude [descriptor])
+  (:require #?(:jank [hegel.abi-data :as abi-data]
+               :default [clojure.edn :as edn])
             [clojure.set :as set]
             [hegel.host :as host]))
 
 (def ^:private descriptor-resource "hegel/abi.edn")
 
 (defonce ^:private descriptor*
-  (delay (edn/read-string (host/resource-text descriptor-resource))))
+  (delay #?(:jank abi-data/descriptor
+            :default (edn/read-string (host/resource-text descriptor-resource)))))
 
 (defonce ^:private selected-backend-report* (atom nil))
 

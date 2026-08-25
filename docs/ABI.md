@@ -123,6 +123,7 @@ registered by the selected runtime. Current route names are:
 | `:bb/trampoline` | Babashka's compiled fixed-signature fast path |
 | `:bb/libffi` | Babashka's general fixed-signature libffi path |
 | `:jvm/ffm` | cached JDK FFM downcall handle |
+| `:jank/generated` | generated jank C++ interop downcall |
 
 The report is intended for CI, diagnostics, and ABI upgrades. Application code
 should not branch on the route.

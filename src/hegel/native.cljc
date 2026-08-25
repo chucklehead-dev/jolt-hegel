@@ -1,51 +1,61 @@
 (ns hegel.native
   "Shared target and path resolution for libhegel."
   (:require [clojure.string :as str]
+            [hegel.host :as host]
             #?(:jolt [jolt.host :as jolt-host])))
 
 (defn nonblank-env
   "Return an environment value only when it contains non-whitespace text."
   [name]
-  (let [value (System/getenv name)]
+  (let [value (host/getenv name)]
     (when-not (str/blank? value)
       value)))
 
-(defn- last-separator-index [path]
-  (max (or (str/last-index-of path "/") -1)
-       (or (str/last-index-of path "\\") -1)))
+#?(:jank nil
+   :default
+   (defn- last-separator-index [path]
+     (max (or (str/last-index-of path "/") -1)
+          (or (str/last-index-of path "\\") -1))))
 
 (defn parent-path [path]
-  (let [index (last-separator-index path)]
-    (when (pos? index)
-      (subs path 0 index))))
+  #?(:jank (host/parent-path path)
+     :default
+     (let [index (last-separator-index path)]
+       (when (pos? index)
+         (subs path 0 index)))))
 
 (defn join-path [parent child]
-  (str parent
-       (when-not (or (str/ends-with? parent "/")
-                     (str/ends-with? parent "\\"))
-         (if (str/includes? parent "\\") "\\" "/"))
-       child))
+  #?(:jank (host/join-native-path parent child)
+     :default
+     (str parent
+          (when-not (or (str/ends-with? parent "/")
+                        (str/ends-with? parent "\\"))
+            (if (str/includes? parent "\\") "\\" "/"))
+          child)))
 
 (defn absolute-path? [path]
-  (or (str/starts-with? path "/")
-      (str/starts-with? path "\\")
-      (and (<= 3 (count path))
-           (= \: (nth path 1))
-           (let [drive (nth path 0)
-                 separator (nth path 2)]
-             (and (str/includes?
-                   "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-                   (str drive))
-                  (or (= \/ separator)
-                      (= \\ separator)))))))
+  #?(:jank (host/absolute-path? path)
+     :default
+     (or (str/starts-with? path "/")
+         (str/starts-with? path "\\")
+         (and (<= 3 (count path))
+              (= \: (nth path 1))
+              (let [drive (nth path 0)
+                    separator (nth path 2)]
+                (and (str/includes?
+                      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+                      (str drive))
+                     (or (= \/ separator)
+                         (= \\ separator))))))))
 
 (defn- resolve-from-launch-directory [path]
   (let [launch-dir #?(:jolt (nonblank-env "JOLT_PWD")
-                      :default (System/getProperty "user.dir"))]
+                      :default (host/current-directory))]
     (cond
       (absolute-path? path) path
       (not (str/blank? launch-dir)) (join-path launch-dir path)
-      :else (.getAbsolutePath (java.io.File. path)))))
+      :else #?(:jank (join-path (host/current-directory) path)
+               :default (.getAbsolutePath (java.io.File. path))))))
 
 #?(:jolt
    (defn- dependency-source-root []
@@ -67,7 +77,7 @@
 (defn platform
   "Return the supported native target description for the current process."
   []
-  (let [name (str/lower-case (or (System/getProperty "os.name") ""))]
+  (let [name (str/lower-case (or (host/os-name) ""))]
     (cond
       (str/includes? name "windows")
       {:os :windows
@@ -91,7 +101,7 @@
       (throw
        (ex-info
         (str "jolt-hegel has no native mapping for operating system "
-             (pr-str (System/getProperty "os.name")))
+             (pr-str (host/os-name)))
         {:type ::unsupported-platform})))))
 
 (def cache-directory-path

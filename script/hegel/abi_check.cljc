@@ -3,6 +3,7 @@
             [hegel.abi :as abi]
             #?(:jolt [hegel.ffi.jolt :as selected-backend]
                :bb [hegel.ffi.bb :as selected-backend]
+               :jank [hegel.ffi.jank-backend :as selected-backend]
                :clj [hegel.ffi.jvm :as selected-backend])))
 
 (defn- require! [description condition]
@@ -73,10 +74,25 @@
          (require! "Babashka backend supports every descriptor signature"
                    (= {:supported 71 :unsupported 0 :total 71}
                       (:summary report)))
-         (require! "Babashka uses both trampoline and libffi routes"
-                   (and (some #{:bb/trampoline} routes)
+         (require! "Babashka uses a direct route plus libffi fallback"
+                   (and (some #{:bb/trampoline :bb/ffm} routes)
                         (some #{:bb/libffi} routes)))
          (require! "Babashka layouts preserve C aggregate size and nesting"
+                   (= [8 8 16]
+                      (mapv (comp selected-backend/layout-size
+                                  selected-backend/layout)
+                            [:hegel/date :hegel/time :hegel/datetime]))))
+       :jank
+       (let [report (abi/check-backend selected-backend/backend descriptor)]
+         (require! "jank generator covers every descriptor signature"
+                   (= {:supported 71 :unsupported 0 :total 71}
+                      (:summary report)))
+         (require! "jank reports generated C++ downcalls as native-ready"
+                   (every? (fn [entry]
+                             (and (= :jank/cpp-dlsym (:route entry))
+                                  (true? (:native-ready? entry))))
+                           (vals (:functions report))))
+         (require! "jank generated layouts preserve C aggregate size and nesting"
                    (= [8 8 16]
                       (mapv (comp selected-backend/layout-size
                                   selected-backend/layout)
@@ -94,4 +110,5 @@
                       (mapv (comp selected-backend/layout-size
                                   selected-backend/layout)
                             [:hegel/date :hegel/time :hegel/datetime]))))))
-  (flush))
+  #?(:jank nil
+     :default (flush)))
