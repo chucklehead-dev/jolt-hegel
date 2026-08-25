@@ -54,7 +54,8 @@
     (cond
       (absolute-path? path) path
       (not (str/blank? launch-dir)) (join-path launch-dir path)
-      :else #?(:jank (join-path (host/current-directory) path)
+      :else #?(:cljr (System.IO.Path/GetFullPath path)
+               :jank (join-path (host/current-directory) path)
                :default (.getAbsolutePath (java.io.File. path))))))
 
 #?(:jolt

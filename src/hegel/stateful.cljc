@@ -202,7 +202,9 @@
   (let [valid?
         (try
           ((::predicate item) state)
-          (catch #?(:jank cpp/jank.runtime.object_ref :default Throwable) error
+          (catch #?(:cljr System.Exception
+                    :jank cpp/jank.runtime.object_ref
+                    :default Throwable) error
             (if (control-flow? error)
               (throw error)
               (throw (stateful-error :invariant item trace error)))))]
@@ -230,7 +232,9 @@
        :applied? true}
       {:state state
        :applied? false})
-    (catch #?(:jank cpp/jank.runtime.object_ref :default Throwable) error
+    (catch #?(:cljr System.Exception
+              :jank cpp/jank.runtime.object_ref
+              :default Throwable) error
       (cond
         (hffi/assumption-rejected? error)
         {:state state

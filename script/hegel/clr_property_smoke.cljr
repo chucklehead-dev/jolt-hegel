@@ -1,0 +1,142 @@
+(ns hegel.clr-property-smoke
+  (:require [hegel.abi :as abi]
+            [hegel.core :as h]
+            [hegel.generator :as g]
+            [hegel.stateful :as hs]))
+
+(defn- require! [description condition data]
+  (when-not condition
+    (throw (ex-info (str "CLR property smoke failed: " description) data)))
+  (println "PASS" description))
+
+(defn- check-primitive-and-composite-generators! []
+  (let [observed (atom [])
+        result
+        (h/run-test!
+         {:test-cases 10 :seed 424242 :database "" :verbosity :quiet}
+         (fn [_]
+           (let [value
+                 {:integer (h/draw! (g/integer 0 10))
+                  :boolean (h/draw! (g/boolean))
+                  :double (h/draw! (g/double 1.0 2.0))
+                  :bytes (vec (h/draw! (g/bytes 0 8)))
+                  :string (h/draw! (g/string {:min-size 1 :max-size 8}))
+                  :uuid (h/draw! (g/uuid))
+                  :ipv4 (h/draw! (g/ipv4))
+                  :ipv6 (h/draw! (g/ipv6))
+                  :vector (h/draw! (g/vector {:max-size 3} (g/integer 0 9)))}]
+             (swap! observed conj value)
+             (when-not (<= 0 (:integer value) 10)
+               (throw (ex-info "bounded integer escaped its range"
+                               {:hegel/origin "hegel.clr-property-smoke/bounds"}))))))]
+    (require! "shared primitive and composite generators"
+              (and (:passed? result)
+                   (= 10 (:valid-test-cases result))
+                   (= 10 (count @observed)))
+              {:result result :observed @observed})))
+
+(defn- check-shrinking-and-replay! []
+  (let [final-values (atom [])
+        result
+        (h/run-test!
+         {:test-cases 200
+          :seed 1777986545686
+          :database ""
+          :report-multiple-failures? false
+          :verbosity :quiet}
+         (fn [_]
+           (let [value (h/draw! (g/integer 0 1000))]
+             (when (h/final?) (swap! final-values conj value))
+             (when (>= value 500)
+               (throw (ex-info "threshold violated"
+                               {:hegel/origin "hegel.clr-property-smoke/threshold"
+                                :value value}))))))
+        failure (first (:failures result))]
+    (require! "shared shrinking and final replay"
+              (and (not (:passed? result))
+                   (= :failed (:status result))
+                   (= [500] @final-values)
+                   (= "hegel.clr-property-smoke/threshold" (:origin failure))
+                   (= "AAEAAAAACgIAAAD0AQ==" (:reproduction-blob failure))
+                   (:reproduced? failure)
+                   (false? (:flaky? result)))
+              {:result result :final-values @final-values})))
+
+(defn- check-temporal-generators! []
+  (let [fixed-date {:year 2024 :month 2 :day 29}
+        fixed-time {:hour 14 :minute 30 :second 15 :microsecond 123456}
+        fixed-datetime {:date fixed-date :time fixed-time}
+        observed (atom [])
+        result
+        (h/run-test!
+         {:test-cases 5 :seed 20240829 :database "" :verbosity :quiet}
+         (fn [_]
+           (swap! observed conj
+                  [(h/draw! (g/date fixed-date fixed-date))
+                   (h/draw! (g/time fixed-time fixed-time))
+                   (h/draw! (g/datetime fixed-datetime fixed-datetime))])))]
+    (require! "date, time, and nested datetime by value"
+              (and (:passed? result)
+                   (every? #(= ["2024-02-29"
+                                "14:30:15.123456"
+                                "2024-02-29T14:30:15.123456"] %)
+                           @observed))
+              {:result result :observed @observed})))
+
+(defn- check-pools-and-stateful! []
+  (let [pool-observations (atom [])
+        pool-result
+        (h/run-test!
+         {:test-cases 10 :seed 20260825 :database "" :verbosity :quiet}
+         (fn [_]
+           (let [pool (hs/pool)]
+             (hs/add! pool 10)
+             (hs/add! pool 20)
+             (let [reusable (h/draw! (hs/values-reusable pool))
+                   first-value (h/draw! (hs/values-consumed pool))
+                   second-value (h/draw! (hs/values-consumed pool))]
+               (swap! pool-observations conj
+                      {:reusable reusable
+                       :consumed #{first-value second-value}
+                       :empty? (hs/pool-empty? pool)})))))
+        steps (atom 0)
+        stateful-result
+        (h/run-test!
+         {:test-cases 10
+          :stateful-step-count 12
+          :seed 99117
+          :database ""
+          :verbosity :quiet}
+         (fn [_]
+           (hs/run!
+            {:initial-state 0
+             :rules
+             [(hs/rule :increment (fn [state] (swap! steps inc) (inc state)))
+              (hs/rule :decrement {:precondition pos?}
+                       (fn [state] (swap! steps inc) (dec state)))]
+             :invariants [(hs/invariant :nonnegative #(<= 0 %))]})))]
+    (require! "shared reusable and consumed pools"
+              (and (:passed? pool-result)
+                   (= 10 (count @pool-observations))
+                   (every? (fn [{:keys [reusable consumed empty?]}]
+                             (and (contains? #{10 20} reusable)
+                                  (= #{10 20} consumed)
+                                  empty?))
+                           @pool-observations))
+              {:result pool-result :observed @pool-observations})
+    (require! "shared stateful and swarm execution"
+              (and (:passed? stateful-result) (pos? @steps))
+              {:result stateful-result :steps @steps})))
+
+(defn -main [& _]
+  (let [report (abi/backend-report)]
+    (require! "canonical ABI coverage is 71/71"
+              (and (:supported? report)
+                   (= {:supported 71 :unsupported 0 :total 71}
+                      (:summary report)))
+              {:report report}))
+  (check-primitive-and-composite-generators!)
+  (check-shrinking-and-replay!)
+  (check-temporal-generators!)
+  (check-pools-and-stateful!)
+  (println "PASS CLR shared semantic smoke"))
