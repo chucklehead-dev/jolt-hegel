@@ -1,0 +1,76 @@
+name: Experimental jank
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/jank.yml'
+      - 'bb.edn'
+      - 'resources/hegel/abi.edn'
+      - 'script/hegel/**'
+      - 'src/hegel/**'
+  push:
+    branches: [main, codex/jank-portable]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jank-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  generated-bindings:
+    name: jank generated bindings
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: DeLaGuardo/setup-clojure@13.4
+        with:
+          bb: latest
+      - name: Verify generated ABI artifacts
+        run: bb jank-codegen-check
+
+  runtime:
+    name: jank / ${{ matrix.name }}
+    needs: generated-bindings
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux x86_64
+            runner: ubuntu-24.04
+          - name: macOS arm64
+            runner: macos-14
+
+    env:
+      HEGEL_CACHE_DIR: ${{ github.workspace }}/.hegel-lib
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: DeLaGuardo/setup-clojure@13.4
+        with:
+          bb: latest
+      - name: Set up jank
+        uses: jank-lang/setup-jank@89538130d4395e4b0301c938b027b9309712a0cc
+      - name: Record and verify jank toolchain
+        run: |
+          jank print-binary-version
+          jank check-health
+      - name: Install checksum-verified libhegel
+        run: bb setup-native
+      - name: Run direct ABI backend smoke
+        run: >-
+          jank -I generated --module-path src:resources:script
+          run-main hegel.jank-backend-smoke
+      - name: Run focused shared-semantics smoke
+        run: >-
+          jank -I generated --module-path src:resources:script
+          run-main hegel.jank-property-smoke
