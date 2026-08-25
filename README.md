@@ -14,6 +14,10 @@ libhegel 0.33 C ABI directly through `jolt.ffi`, `babashka.ffi`, or the final
 JDK Foreign Function & Memory API. There is no service to start and no
 subprocess protocol.
 
+Experimental ports reuse that same implementation and boundary on jank and
+ClojureCLR. They have focused cross-platform CI but are not yet part of the
+supported release contract.
+
 ## What should be a property?
 
 Property tests are most useful when many inputs should obey one durable rule:
@@ -322,6 +326,7 @@ live in:
 - [ABI descriptor and backend development](docs/ABI.md);
 - [behavioral contracts](docs/DESIGN.md);
 - [experimental jank host status](docs/JANK.md);
+- [experimental ClojureCLR host status](docs/CLR.md);
 - [architecture decisions](docs/adr/README.md); and
 - [release process](docs/RELEASING.md).
 

@@ -1,7 +1,11 @@
 (ns hegel.clr-property-smoke
-  (:require [hegel.abi :as abi]
+  (:require [clojure.string :as str]
+            [clojure.test :as ct]
+            [hegel.abi :as abi]
+            [hegel.clojure-test :as ht]
             [hegel.core :as h]
             [hegel.generator :as g]
+            [hegel.report :as report]
             [hegel.stateful :as hs]))
 
 (defn- require! [description condition data]
@@ -21,6 +25,10 @@
                   :double (h/draw! (g/double 1.0 2.0))
                   :bytes (vec (h/draw! (g/bytes 0 8)))
                   :string (h/draw! (g/string {:min-size 1 :max-size 8}))
+                  :regex (h/draw! (g/regex-str "clr-[0-9]{1,3}"))
+                  :email (h/draw! (g/email))
+                  :url (h/draw! (g/url-str))
+                  :domain (h/draw! (g/domain {:max-length 80}))
                   :uuid (h/draw! (g/uuid))
                   :ipv4 (h/draw! (g/ipv4))
                   :ipv6 (h/draw! (g/ipv6))
@@ -32,8 +40,65 @@
     (require! "shared primitive and composite generators"
               (and (:passed? result)
                    (= 10 (:valid-test-cases result))
-                   (= 10 (count @observed)))
+                   (= 10 (count @observed))
+                   (every? #(str/starts-with? (:regex %) "clr-") @observed)
+                   (every? #(str/includes? (:email %) "@") @observed)
+                   (every? #(or (str/starts-with? (:url %) "http://")
+                                (str/starts-with? (:url %) "https://"))
+                           @observed))
               {:result result :observed @observed})))
+
+(defn- check-controls-and-reporting! []
+  (let [calls (atom 0)
+        assumption-result
+        (h/run-test!
+         {:test-cases 1 :seed 27 :database "" :verbosity :quiet}
+         (fn [_]
+           (h/assume! (> (swap! calls inc) 1))))
+        events (atom [])
+        runner (report/counting-runner {:reporter #(swap! events conj %)})
+        pass-result
+        (report/run!
+         runner "pass"
+         #(h/run-test! {:test-cases 1 :seed 31 :database "" :verbosity :quiet}
+                       (fn [_] nil)))
+        fail-result
+        (report/run!
+         runner "fail"
+         #(h/run-test!
+           {:test-cases 1 :seed 37 :database "" :verbosity :quiet}
+           (fn [_]
+             (throw (ex-info "expected" {:hegel/origin "clr/report"})))))
+        error-result
+        (report/run! runner "error"
+                     #(throw (ex-info "expected setup error" {:phase :setup})))]
+    (require! "assumptions classify rejected cases without failing"
+              (and (:passed? assumption-result)
+                   (= 1 (:invalid-test-cases assumption-result)))
+              {:result assumption-result :calls @calls})
+    (require! "shared counting and structured reporting"
+              (and (:passed? pass-result)
+                   (not (:passed? fail-result))
+                   (nil? error-result)
+                   (= 3 (report/run-count runner))
+                   (= 2 (report/failure-count runner))
+                   (= [:pass :fail :error] (mapv :type @events)))
+              {:events @events})))
+
+(defn- check-clojure-test-integration! []
+  (let [events (atom [])
+        result
+        (with-redefs [ct/report #(swap! events conj %)]
+          (ht/with {:test-cases 5
+                    :seed 20260824
+                    :database ""
+                    :verbosity :quiet}
+            [value (g/integer 0 10)]
+            (ct/is (<= 0 value 10))))]
+    (require! "clojure.test integration reports one property result"
+              (and (:passed? result)
+                   (= [:pass] (mapv :type @events)))
+              {:result result :events @events})))
 
 (defn- check-shrinking-and-replay! []
   (let [final-values (atom [])
@@ -136,6 +201,8 @@
                       (:summary report)))
               {:report report}))
   (check-primitive-and-composite-generators!)
+  (check-controls-and-reporting!)
+  (check-clojure-test-integration!)
   (check-shrinking-and-replay!)
   (check-temporal-generators!)
   (check-pools-and-stateful!)

@@ -13,9 +13,9 @@ confined to resource/process discovery and a narrow native boundary.
        core / generators / stateful / reporting / Malli adapter
                                    |
                          hegel.ffi.backend
-                         /        |        \
-                jolt.ffi   babashka.ffi   java.lang.foreign
-                         \        |        /
+                      /       /       |       \       \
+           jolt.ffi  babashka.ffi  java.lang.foreign  generated hosts
+                      \       \       |       /       /
                                 libhegel
 ```
 
@@ -33,7 +33,7 @@ confined to resource/process discovery and a narrow native boundary.
 | `hegel.malli` | Optional Malli AST adapter built from shared generators |
 | `hegel.ffi` | Backend-neutral checked libhegel operations and explicit ownership |
 | `hegel.ffi.backend` | Selected-backend contract |
-| `hegel.ffi.jolt`, `.bb`, `.jvm` | Signature construction, native memory, calls, and layouts |
+| `hegel.ffi.jolt`, `.bb`, `.jvm`, `.clr` | Signature construction, native memory, calls, and layouts |
 | `hegel.host` | Host identity and resource loading |
 | `hegel.native` | Platform, cache, and library path selection |
 | `hegel.install` | Version-pinned, checksum-verified native acquisition |
@@ -57,6 +57,10 @@ and access fields in descriptor-derived layouts.
 - JVM Clojure constructs `MemoryLayout`, `FunctionDescriptor`, and downcall
   `MethodHandle` values once per binding with `Linker/nativeLinker`. Symbols are
   resolved through a lookup tied to the selected library.
+- ClojureCLR loads an AnyCPU managed bridge whose P/Invoke declarations and
+  typed invokers are generated from the descriptor. The bridge loads the exact
+  selected library, validates all exports eagerly, and exposes the same memory
+  contract to shared Clojure code.
 
 By-value `date`, `time`, and nested `datetime` arguments are ordinary descriptor
 types. Each backend computes native alignment, padding, offsets, and argument
@@ -112,7 +116,7 @@ All hosts use the same pinned version and checksum table. `HEGEL_CACHE_DIR`
 selects a writable cache, while `HEGEL_LIBHEGEL_LIBRARY` selects an explicit
 library. Common selection and verification orchestration calls the narrow
 `hegel.install.backend` seam; filesystem, process, download, and digest
-mechanics live in `hegel.install.jolt` or `hegel.install.jvm`. Jolt retains its
+mechanics live in host-specific installer namespaces. Jolt retains its
 source/AOT identity check because cached compiled namespaces can otherwise
 point at a different Git checkout. JVM Clojure and Babashka use their normal
 download and digest facilities.
@@ -129,8 +133,9 @@ available to shrinking. The core library never loads Malli.
 
 ## Experimental hosts
 
-The jank spike selects a generated C++ interop backend at the same boundary;
-ordinary property, generator, and stateful namespaces remain shared. Its
-generated artifacts are derived from `resources/hegel/abi.edn`, not maintained
-as another signature list. See [JANK.md](JANK.md) for the proven surface,
+The jank spike selects generated C++ interop and the ClojureCLR spike selects a
+generated AnyCPU P/Invoke bridge at the same boundary; ordinary property,
+generator, and stateful namespaces remain shared. Both generated surfaces are
+derived from `resources/hegel/abi.edn`, not maintained as additional signature
+lists. See [JANK.md](JANK.md) and [CLR.md](CLR.md) for proven surfaces,
 commands, and remaining release gates.
