@@ -2,6 +2,7 @@
   (:require [clojure.string :as str]
             [hegel.abi :as abi]
             #?(:jolt [hegel.ffi.jolt :as selected-backend]
+               :bb [hegel.ffi.bb :as selected-backend]
                :clj [hegel.ffi.jvm :as selected-backend])))
 
 (defn- require! [description condition]
@@ -38,6 +39,20 @@
          (require! "Jolt backend selects direct FFI for every signature"
                    (every? (fn [entry] (= :jolt/direct (:route entry)))
                            (vals (:functions report)))))
+       :bb
+       (let [report (abi/check-backend selected-backend/backend descriptor)
+             routes (map :route (vals (:functions report)))]
+         (require! "Babashka backend supports every descriptor signature"
+                   (= {:supported 71 :unsupported 0 :total 71}
+                      (:summary report)))
+         (require! "Babashka uses both trampoline and libffi routes"
+                   (and (some #{:bb/trampoline} routes)
+                        (some #{:bb/libffi} routes)))
+         (require! "Babashka layouts preserve C aggregate size and nesting"
+                   (= [8 8 16]
+                      (mapv (comp selected-backend/layout-size
+                                  selected-backend/layout)
+                            [:hegel/date :hegel/time :hegel/datetime]))))
        :clj
        (let [report (abi/check-backend selected-backend/backend descriptor)]
          (require! "JVM backend supports every descriptor signature"

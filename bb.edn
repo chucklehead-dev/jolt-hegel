@@ -1,0 +1,10 @@
+{:paths ["src" "resources"]
+
+ :tasks
+ {setup-native {:task (exec 'hegel.install/-main "setup")}
+  abi-test {:extra-paths ["script"]
+            :task (exec 'hegel.abi-check/-main)}
+  test {:extra-paths ["test"]
+        ;; Development-only: Malli remains optional for consumers.
+        :extra-deps {metosin/malli {:mvn/version "0.20.1"}}
+        :task (exec 'hegel.test-runner/-main)}}}
