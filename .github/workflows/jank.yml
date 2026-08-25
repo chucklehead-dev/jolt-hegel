@@ -52,7 +52,6 @@ jobs:
 
     env:
       HEGEL_CACHE_DIR: ${{ github.workspace }}/.hegel-lib
-      HEGEL_LIBHEGEL_LIBRARY: ${{ github.workspace }}/.hegel-lib/${{ matrix.library-name }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -81,10 +80,14 @@ jobs:
       - name: Install checksum-verified libhegel
         run: bb setup-native
       - name: Run direct ABI backend smoke
+        env:
+          HEGEL_LIBHEGEL_LIBRARY: ${{ github.workspace }}/.hegel-lib/${{ matrix.library-name }}
         run: >-
           jank -I generated --module-path src:resources:script
           run-main hegel.jank-backend-smoke
       - name: Run focused shared-semantics smoke
+        env:
+          HEGEL_LIBHEGEL_LIBRARY: ${{ github.workspace }}/.hegel-lib/${{ matrix.library-name }}
         run: >-
           jank -I generated --module-path src:resources:script
           run-main hegel.jank-property-smoke
