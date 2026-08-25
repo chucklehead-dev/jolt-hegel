@@ -1,0 +1,1316 @@
+;; Generated from resources/hegel/abi.edn. DO NOT EDIT.
+(ns hegel.ffi.jank-generated
+  (:include "hegel/jank/libhegel_abi.hpp"))
+
+(def pointer-size 8)
+
+(def binding-specs
+{:collection-free
+ {:args [[:pointer :hegel/context] [:pointer :hegel/collection]],
+  :cpp-function-type "hegel_jank_fn_collection_free",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_collection_free"},
+ :collection-more
+ {:args
+  [[:pointer :hegel/context]
+   [:pointer :hegel/test-case]
+   [:pointer :hegel/collection]
+   [:pointer :c/bool]],
+  :cpp-function-type "hegel_jank_fn_collection_more",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_collection_more"},
+ :collection-reject
+ {:args
+  [[:pointer :hegel/context] [:pointer :hegel/test-case] [:pointer :hegel/collection] :c/string],
+  :cpp-function-type "hegel_jank_fn_collection_reject",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_collection_reject"},
+ :context-free
+ {:args [[:pointer :hegel/context]],
+  :cpp-function-type "hegel_jank_fn_context_free",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_context_free"},
+ :context-last-error
+ {:args [[:pointer :hegel/context]],
+  :cpp-function-type "hegel_jank_fn_context_last_error",
+  :native-ready? false,
+  :return :c/string,
+  :route :jank/generated,
+  :symbol "hegel_context_last_error"},
+ :context-new
+ {:args [],
+  :cpp-function-type "hegel_jank_fn_context_new",
+  :native-ready? false,
+  :return [:pointer :hegel/context],
+  :route :jank/generated,
+  :symbol "hegel_context_new"},
+ :failure-free
+ {:args [[:pointer :hegel/context] [:pointer :hegel/failure]],
+  :cpp-function-type "hegel_jank_fn_failure_free",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_failure_free"},
+ :failure-origin
+ {:args [[:pointer :hegel/context] [:pointer :hegel/failure] [:pointer :c/string]],
+  :cpp-function-type "hegel_jank_fn_failure_origin",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_failure_origin"},
+ :failure-reproduction-blob
+ {:args [[:pointer :hegel/context] [:pointer :hegel/failure] [:pointer :c/string]],
+  :cpp-function-type "hegel_jank_fn_failure_reproduction_blob",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_failure_reproduction_blob"},
+ :generate-boolean
+ {:args
+  [[:pointer :hegel/context]
+   [:pointer :hegel/test-case]
+   :c/double
+   :c/bool
+   :c/bool
+   [:pointer :c/bool]],
+  :cpp-function-type "hegel_jank_fn_generate_boolean",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_generate_boolean"},
+ :generate-bytes
+ {:args
+  [[:pointer :hegel/context]
+   [:pointer :hegel/test-case]
+   :c/uint64
+   :c/uint64
+   [:pointer :hegel/bytes-result]],
+  :cpp-function-type "hegel_jank_fn_generate_bytes",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_generate_bytes"},
+ :generate-bytes-result-free
+ {:args [[:pointer :hegel/context] [:pointer :hegel/bytes-result]],
+  :cpp-function-type "hegel_jank_fn_generate_bytes_result_free",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_generate_bytes_result_free"},
+ :generate-date
+ {:args
+  [[:pointer :hegel/context]
+   [:pointer :hegel/test-case]
+   [:by-value :hegel/date]
+   [:by-value :hegel/date]
+   [:pointer :hegel/date]],
+  :cpp-function-type "hegel_jank_fn_generate_date",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_generate_date"},
+ :generate-datetime
+ {:args
+  [[:pointer :hegel/context]
+   [:pointer :hegel/test-case]
+   [:by-value :hegel/datetime]
+   [:by-value :hegel/datetime]
+   [:pointer :hegel/datetime]],
+  :cpp-function-type "hegel_jank_fn_generate_datetime",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_generate_datetime"},
+ :generate-float
+ {:args
+  [[:pointer :hegel/context]
+   [:pointer :hegel/test-case]
+   :c/uint32
+   :c/double
+   :c/double
+   :c/bool
+   :c/bool
+   :c/bool
+   :c/bool
+   :c/double
+   [:pointer :c/double]],
+  :cpp-function-type "hegel_jank_fn_generate_float",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_generate_float"},
+ :generate-integer
+ {:args
+  [[:pointer :hegel/context] [:pointer :hegel/test-case] :c/int64 :c/int64 [:pointer :c/int64]],
+  :cpp-function-type "hegel_jank_fn_generate_integer",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_generate_integer"},
+ :generate-integer-big
+ {:args
+  [[:pointer :hegel/context]
+   [:pointer :hegel/test-case]
+   [:pointer :c/uint8]
+   :c/size
+   [:pointer :c/uint8]
+   :c/size
+   [:pointer :c/uint8]
+   :c/size
+   [:pointer :c/size]],
+  :cpp-function-type "hegel_jank_fn_generate_integer_big",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_generate_integer_big"},
+ :generate-ipv4
+ {:args [[:pointer :hegel/context] [:pointer :hegel/test-case] [:pointer :c/uint8]],
+  :cpp-function-type "hegel_jank_fn_generate_ipv4",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_generate_ipv4"},
+ :generate-ipv6
+ {:args [[:pointer :hegel/context] [:pointer :hegel/test-case] [:pointer :c/uint8]],
+  :cpp-function-type "hegel_jank_fn_generate_ipv6",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_generate_ipv6"},
+ :generate-string
+ {:args
+  [[:pointer :hegel/context]
+   [:pointer :hegel/test-case]
+   [:pointer :hegel/string-generator]
+   [:pointer :hegel/string-result]],
+  :cpp-function-type "hegel_jank_fn_generate_string",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_generate_string"},
+ :generate-string-result-free
+ {:args [[:pointer :hegel/context] [:pointer :hegel/string-result]],
+  :cpp-function-type "hegel_jank_fn_generate_string_result_free",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_generate_string_result_free"},
+ :generate-time
+ {:args
+  [[:pointer :hegel/context]
+   [:pointer :hegel/test-case]
+   [:by-value :hegel/time]
+   [:by-value :hegel/time]
+   [:pointer :hegel/time]],
+  :cpp-function-type "hegel_jank_fn_generate_time",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_generate_time"},
+ :generate-uuid
+ {:args
+  [[:pointer :hegel/context] [:pointer :hegel/test-case] :c/uint8 :c/bool [:pointer :c/uint8]],
+  :cpp-function-type "hegel_jank_fn_generate_uuid",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_generate_uuid"},
+ :mark-complete
+ {:args [[:pointer :hegel/context] [:pointer :hegel/test-case] :c/uint32 :c/string],
+  :blocking? true,
+  :cpp-function-type "hegel_jank_fn_mark_complete",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_mark_complete"},
+ :new-collection
+ {:args
+  [[:pointer :hegel/context]
+   [:pointer :hegel/test-case]
+   :c/uint64
+   :c/uint64
+   [:pointer [:pointer :hegel/collection]]],
+  :cpp-function-type "hegel_jank_fn_new_collection",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_new_collection"},
+ :new-pool
+ {:args [[:pointer :hegel/context] [:pointer :hegel/test-case] [:pointer [:pointer :hegel/pool]]],
+  :cpp-function-type "hegel_jank_fn_new_pool",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_new_pool"},
+ :new-state-machine
+ {:args
+  [[:pointer :hegel/context]
+   [:pointer :hegel/test-case]
+   [:pointer :c/string]
+   [:pointer :c/int64]
+   :c/size
+   [:pointer :c/string]
+   :c/size
+   :c/int64
+   :c/int64
+   [:pointer [:pointer :hegel/state-machine]]
+   [:pointer :c/int64]],
+  :cpp-function-type "hegel_jank_fn_new_state_machine",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_new_state_machine"},
+ :next-test-case
+ {:args [[:pointer :hegel/context] [:pointer :hegel/run] [:pointer [:pointer :hegel/test-case]]],
+  :blocking? true,
+  :cpp-function-type "hegel_jank_fn_next_test_case",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_next_test_case"},
+ :pool-add
+ {:args
+  [[:pointer :hegel/context]
+   [:pointer :hegel/test-case]
+   [:pointer :hegel/pool]
+   [:pointer :c/int64]],
+  :cpp-function-type "hegel_jank_fn_pool_add",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_pool_add"},
+ :pool-free
+ {:args [[:pointer :hegel/context] [:pointer :hegel/pool]],
+  :cpp-function-type "hegel_jank_fn_pool_free",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_pool_free"},
+ :pool-generate
+ {:args
+  [[:pointer :hegel/context]
+   [:pointer :hegel/test-case]
+   [:pointer :hegel/pool]
+   :c/bool
+   [:pointer :c/int64]],
+  :cpp-function-type "hegel_jank_fn_pool_generate",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_pool_generate"},
+ :run-free
+ {:args [[:pointer :hegel/context] [:pointer :hegel/run]],
+  :blocking? true,
+  :cpp-function-type "hegel_jank_fn_run_free",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_run_free"},
+ :run-result
+ {:args [[:pointer :hegel/context] [:pointer :hegel/run] [:pointer [:pointer :hegel/run-result]]],
+  :cpp-function-type "hegel_jank_fn_run_result",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_run_result"},
+ :run-result-error
+ {:args [[:pointer :hegel/context] [:pointer :hegel/run-result] [:pointer :c/string]],
+  :cpp-function-type "hegel_jank_fn_run_result_error",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_run_result_error"},
+ :run-result-failure
+ {:args
+  [[:pointer :hegel/context]
+   [:pointer :hegel/run-result]
+   :c/size
+   [:pointer [:pointer :hegel/failure]]],
+  :cpp-function-type "hegel_jank_fn_run_result_failure",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_run_result_failure"},
+ :run-result-failure-count
+ {:args [[:pointer :hegel/context] [:pointer :hegel/run-result] [:pointer :c/size]],
+  :cpp-function-type "hegel_jank_fn_run_result_failure_count",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_run_result_failure_count"},
+ :run-result-free
+ {:args [[:pointer :hegel/context] [:pointer :hegel/run-result]],
+  :cpp-function-type "hegel_jank_fn_run_result_free",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_run_result_free"},
+ :run-result-status
+ {:args [[:pointer :hegel/context] [:pointer :hegel/run-result] [:pointer :c/int32]],
+  :cpp-function-type "hegel_jank_fn_run_result_status",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_run_result_status"},
+ :run-start
+ {:args
+  [[:pointer :hegel/context]
+   [:pointer :hegel/settings]
+   :hegel/output-callback
+   [:pointer :c/void]
+   [:pointer [:pointer :hegel/run]]],
+  :cpp-function-type "hegel_jank_fn_run_start",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_run_start"},
+ :settings-free
+ {:args [[:pointer :hegel/context] [:pointer :hegel/settings]],
+  :cpp-function-type "hegel_jank_fn_settings_free",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_settings_free"},
+ :settings-new
+ {:args [[:pointer :hegel/context] [:pointer [:pointer :hegel/settings]]],
+  :cpp-function-type "hegel_jank_fn_settings_new",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_settings_new"},
+ :settings-set-backend
+ {:args [[:pointer :hegel/context] [:pointer :hegel/settings] :c/uint32],
+  :cpp-function-type "hegel_jank_fn_settings_set_backend",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_settings_set_backend"},
+ :settings-set-database
+ {:args [[:pointer :hegel/context] [:pointer :hegel/settings] :c/string],
+  :cpp-function-type "hegel_jank_fn_settings_set_database",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_settings_set_database"},
+ :settings-set-database-key
+ {:args [[:pointer :hegel/context] [:pointer :hegel/settings] :c/string],
+  :cpp-function-type "hegel_jank_fn_settings_set_database_key",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_settings_set_database_key"},
+ :settings-set-derandomize
+ {:args [[:pointer :hegel/context] [:pointer :hegel/settings] :c/bool],
+  :cpp-function-type "hegel_jank_fn_settings_set_derandomize",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_settings_set_derandomize"},
+ :settings-set-mode
+ {:args [[:pointer :hegel/context] [:pointer :hegel/settings] :c/uint32],
+  :cpp-function-type "hegel_jank_fn_settings_set_mode",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_settings_set_mode"},
+ :settings-set-phases
+ {:args [[:pointer :hegel/context] [:pointer :hegel/settings] :c/uint32],
+  :cpp-function-type "hegel_jank_fn_settings_set_phases",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_settings_set_phases"},
+ :settings-set-report-multiple-failures
+ {:args [[:pointer :hegel/context] [:pointer :hegel/settings] :c/bool],
+  :cpp-function-type "hegel_jank_fn_settings_set_report_multiple_failures",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_settings_set_report_multiple_failures"},
+ :settings-set-seed
+ {:args [[:pointer :hegel/context] [:pointer :hegel/settings] :c/uint64 :c/bool],
+  :cpp-function-type "hegel_jank_fn_settings_set_seed",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_settings_set_seed"},
+ :settings-set-stateful-step-count
+ {:args [[:pointer :hegel/context] [:pointer :hegel/settings] :c/int64],
+  :cpp-function-type "hegel_jank_fn_settings_set_stateful_step_count",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_settings_set_stateful_step_count"},
+ :settings-set-suppress-health-check
+ {:args [[:pointer :hegel/context] [:pointer :hegel/settings] :c/uint32],
+  :cpp-function-type "hegel_jank_fn_settings_set_suppress_health_check",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_settings_set_suppress_health_check"},
+ :settings-set-test-cases
+ {:args [[:pointer :hegel/context] [:pointer :hegel/settings] :c/uint64],
+  :cpp-function-type "hegel_jank_fn_settings_set_test_cases",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_settings_set_test_cases"},
+ :settings-set-verbosity
+ {:args [[:pointer :hegel/context] [:pointer :hegel/settings] :c/uint32],
+  :cpp-function-type "hegel_jank_fn_settings_set_verbosity",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_settings_set_verbosity"},
+ :start-span
+ {:args [[:pointer :hegel/context] [:pointer :hegel/test-case] :c/uint64],
+  :cpp-function-type "hegel_jank_fn_start_span",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_start_span"},
+ :state-machine-free
+ {:args [[:pointer :hegel/context] [:pointer :hegel/state-machine]],
+  :cpp-function-type "hegel_jank_fn_state_machine_free",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_state_machine_free"},
+ :state-machine-next-group
+ {:args
+  [[:pointer :hegel/context]
+   [:pointer :hegel/test-case]
+   [:pointer :hegel/state-machine]
+   [:pointer :c/int64]],
+  :cpp-function-type "hegel_jank_fn_state_machine_next_group",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_state_machine_next_group"},
+ :state-machine-next-rule
+ {:args
+  [[:pointer :hegel/context]
+   [:pointer :hegel/test-case]
+   [:pointer :hegel/state-machine]
+   :c/int64
+   [:pointer :c/int64]],
+  :cpp-function-type "hegel_jank_fn_state_machine_next_rule",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_state_machine_next_rule"},
+ :state-machine-rule-rejected
+ {:args
+  [[:pointer :hegel/context] [:pointer :hegel/test-case] [:pointer :hegel/state-machine] :c/int64],
+  :cpp-function-type "hegel_jank_fn_state_machine_rule_rejected",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_state_machine_rule_rejected"},
+ :stop-span
+ {:args [[:pointer :hegel/context] [:pointer :hegel/test-case] :c/bool],
+  :cpp-function-type "hegel_jank_fn_stop_span",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_stop_span"},
+ :string-generator-domain
+ {:args [[:pointer :hegel/context] :c/uint64 [:pointer [:pointer :hegel/string-generator]]],
+  :cpp-function-type "hegel_jank_fn_string_generator_domain",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_string_generator_domain"},
+ :string-generator-email
+ {:args [[:pointer :hegel/context] [:pointer [:pointer :hegel/string-generator]]],
+  :cpp-function-type "hegel_jank_fn_string_generator_email",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_string_generator_email"},
+ :string-generator-free
+ {:args [[:pointer :hegel/context] [:pointer :hegel/string-generator]],
+  :cpp-function-type "hegel_jank_fn_string_generator_free",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_string_generator_free"},
+ :string-generator-regex
+ {:args
+  [[:pointer :hegel/context]
+   :c/string
+   :c/bool
+   [:pointer :hegel/string-generator]
+   [:pointer [:pointer :hegel/string-generator]]],
+  :cpp-function-type "hegel_jank_fn_string_generator_regex",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_string_generator_regex"},
+ :string-generator-text
+ {:args
+  [[:pointer :hegel/context]
+   :c/uint64
+   :c/uint64
+   :c/string
+   :c/uint32
+   :c/uint32
+   [:pointer :c/string]
+   :c/size
+   [:pointer :c/string]
+   :c/size
+   [:pointer :c/uint8]
+   :c/size
+   [:pointer :c/uint8]
+   :c/size
+   [:pointer [:pointer :hegel/string-generator]]],
+  :cpp-function-type "hegel_jank_fn_string_generator_text",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_string_generator_text"},
+ :string-generator-url
+ {:args [[:pointer :hegel/context] [:pointer [:pointer :hegel/string-generator]]],
+  :cpp-function-type "hegel_jank_fn_string_generator_url",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_string_generator_url"},
+ :target
+ {:args [[:pointer :hegel/context] [:pointer :hegel/test-case] :c/double :c/string],
+  :cpp-function-type "hegel_jank_fn_target",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_target"},
+ :test-case-clone
+ {:args
+  [[:pointer :hegel/context] [:pointer :hegel/test-case] [:pointer [:pointer :hegel/test-case]]],
+  :cpp-function-type "hegel_jank_fn_test_case_clone",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_test_case_clone"},
+ :test-case-free
+ {:args [[:pointer :hegel/context] [:pointer :hegel/test-case]],
+  :cpp-function-type "hegel_jank_fn_test_case_free",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_test_case_free"},
+ :test-case-from-blob
+ {:args
+  [[:pointer :hegel/context]
+   [:pointer :hegel/settings]
+   :c/string
+   :hegel/output-callback
+   [:pointer :c/void]
+   [:pointer [:pointer :hegel/test-case]]],
+  :cpp-function-type "hegel_jank_fn_test_case_from_blob",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_test_case_from_blob"},
+ :test-case-is-nondeterministic
+ {:args [[:pointer :hegel/context] [:pointer :hegel/test-case] [:pointer :c/bool]],
+  :cpp-function-type "hegel_jank_fn_test_case_is_nondeterministic",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_test_case_is_nondeterministic"},
+ :version
+ {:args [[:pointer :hegel/context] [:pointer :c/string]],
+  :cpp-function-type "hegel_jank_fn_version",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_version"}}
+)
+
+(def type-layouts
+{:c/bool {:alignment 1, :size 1, :type :c/bool},
+ :c/double {:alignment 8, :size 8, :type :c/double},
+ :c/float {:alignment 4, :size 4, :type :c/float},
+ :c/int16 {:alignment 2, :size 2, :type :c/int16},
+ :c/int32 {:alignment 4, :size 4, :type :c/int32},
+ :c/int64 {:alignment 8, :size 8, :type :c/int64},
+ :c/int8 {:alignment 1, :size 1, :type :c/int8},
+ :c/size {:alignment 8, :size 8, :type :c/size},
+ :c/string {:alignment 8, :size 8, :type :c/string},
+ :c/uint16 {:alignment 2, :size 2, :type :c/uint16},
+ :c/uint32 {:alignment 4, :size 4, :type :c/uint32},
+ :c/uint64 {:alignment 8, :size 8, :type :c/uint64},
+ :c/uint8 {:alignment 1, :size 1, :type :c/uint8},
+ :c/void {:alignment 1, :size 0, :type :c/void},
+ :hegel/bytes-result
+ {:alignment 8,
+  :fields {[:data] {:offset 0, :type [:pointer :c/uint8]}, [:len] {:offset 8, :type :c/size}},
+  :size 16,
+  :type :hegel/bytes-result},
+ :hegel/date
+ {:alignment 4,
+  :fields
+  {[:day] {:offset 5, :type :c/uint8},
+   [:month] {:offset 4, :type :c/uint8},
+   [:year] {:offset 0, :type :c/int32}},
+  :size 8,
+  :type :hegel/date},
+ :hegel/datetime
+ {:alignment 4,
+  :fields
+  {[:date :day] {:offset 5, :type :c/uint8},
+   [:date :month] {:offset 4, :type :c/uint8},
+   [:date :year] {:offset 0, :type :c/int32},
+   [:date] {:offset 0, :type :hegel/date},
+   [:time :hour] {:offset 8, :type :c/uint8},
+   [:time :microsecond] {:offset 12, :type :c/uint32},
+   [:time :minute] {:offset 9, :type :c/uint8},
+   [:time :second] {:offset 10, :type :c/uint8},
+   [:time] {:offset 8, :type :hegel/time}},
+  :size 16,
+  :type :hegel/datetime},
+ :hegel/output-callback {:alignment 8, :size 8, :type :hegel/output-callback},
+ :hegel/string-result
+ {:alignment 8,
+  :fields {[:data] {:offset 0, :type [:pointer :c/int8]}, [:len] {:offset 8, :type :c/size}},
+  :size 16,
+  :type :hegel/string-result},
+ :hegel/time
+ {:alignment 4,
+  :fields
+  {[:hour] {:offset 0, :type :c/uint8},
+   [:microsecond] {:offset 4, :type :c/uint32},
+   [:minute] {:offset 1, :type :c/uint8},
+   [:second] {:offset 2, :type :c/uint8}},
+  :size 8,
+  :type :hegel/time}}
+)
+
+(defn invoke-collection_free [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_collection_free native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_collection) (cpp/unbox (:* cpp/void) (nth values 1))))))
+
+(defn invoke-collection_more [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_collection_more native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_test_case) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_collection) (cpp/unbox (:* cpp/void) (nth values 2)))
+     (cpp/unsafe-cast (:* cpp/std.uint8_t) (cpp/unbox (:* cpp/void) (nth values 3))))))
+
+(defn invoke-collection_reject [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_collection_reject native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_test_case) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_collection) (cpp/unbox (:* cpp/void) (nth values 2)))
+     (cpp/unsafe-cast (:* (:const cpp/char)) (cpp/unbox (:* cpp/void) (nth values 3))))))
+
+(defn invoke-context_free [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_context_free native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0))))))
+
+(defn invoke-context_last_error [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/box (cpp/unsafe-cast (:* cpp/void) (cpp/hegel_jank_call_context_last_error native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0))))))))
+
+(defn invoke-context_new [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/box (cpp/unsafe-cast (:* cpp/void) (cpp/hegel_jank_call_context_new native-bindings)))))
+
+(defn invoke-failure_free [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_failure_free native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_failure) (cpp/unbox (:* cpp/void) (nth values 1))))))
+
+(defn invoke-failure_origin [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_failure_origin native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_failure) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/unsafe-cast (:* (:* (:const cpp/char))) (cpp/unbox (:* cpp/void) (nth values 2))))))
+
+(defn invoke-failure_reproduction_blob [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_failure_reproduction_blob native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_failure) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/unsafe-cast (:* (:* (:const cpp/char))) (cpp/unbox (:* cpp/void) (nth values 2))))))
+
+(defn invoke-generate_boolean [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_generate_boolean native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_test_case) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/cast cpp/double (nth values 2))
+     (cpp/cast cpp/std.uint8_t (nth values 3))
+     (cpp/cast cpp/std.uint8_t (nth values 4))
+     (cpp/unsafe-cast (:* cpp/std.uint8_t) (cpp/unbox (:* cpp/void) (nth values 5))))))
+
+(defn invoke-generate_bytes [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_generate_bytes native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_test_case) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/hegel_jank_to_uint64 (nth values 2))
+     (cpp/hegel_jank_to_uint64 (nth values 3))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_bytes_result) (cpp/unbox (:* cpp/void) (nth values 4))))))
+
+(defn invoke-generate_bytes_result_free [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_generate_bytes_result_free native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_bytes_result) (cpp/unbox (:* cpp/void) (nth values 1))))))
+
+(defn invoke-generate_date [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_generate_date native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_test_case) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/* (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_date) (cpp/unbox (:* cpp/void) (nth values 2))))
+     (cpp/* (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_date) (cpp/unbox (:* cpp/void) (nth values 3))))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_date) (cpp/unbox (:* cpp/void) (nth values 4))))))
+
+(defn invoke-generate_datetime [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_generate_datetime native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_test_case) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/* (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_datetime) (cpp/unbox (:* cpp/void) (nth values 2))))
+     (cpp/* (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_datetime) (cpp/unbox (:* cpp/void) (nth values 3))))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_datetime) (cpp/unbox (:* cpp/void) (nth values 4))))))
+
+(defn invoke-generate_float [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_generate_float native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_test_case) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/cast cpp/std.uint32_t (nth values 2))
+     (cpp/cast cpp/double (nth values 3))
+     (cpp/cast cpp/double (nth values 4))
+     (cpp/cast cpp/std.uint8_t (nth values 5))
+     (cpp/cast cpp/std.uint8_t (nth values 6))
+     (cpp/cast cpp/std.uint8_t (nth values 7))
+     (cpp/cast cpp/std.uint8_t (nth values 8))
+     (cpp/cast cpp/double (nth values 9))
+     (cpp/unsafe-cast (:* cpp/double) (cpp/unbox (:* cpp/void) (nth values 10))))))
+
+(defn invoke-generate_integer [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_generate_integer native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_test_case) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/cast cpp/std.int64_t (nth values 2))
+     (cpp/cast cpp/std.int64_t (nth values 3))
+     (cpp/unsafe-cast (:* cpp/std.int64_t) (cpp/unbox (:* cpp/void) (nth values 4))))))
+
+(defn invoke-generate_integer_big [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_generate_integer_big native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_test_case) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/unsafe-cast (:* cpp/std.uint8_t) (cpp/unbox (:* cpp/void) (nth values 2)))
+     (cpp/cast cpp/std.size_t (nth values 3))
+     (cpp/unsafe-cast (:* cpp/std.uint8_t) (cpp/unbox (:* cpp/void) (nth values 4)))
+     (cpp/cast cpp/std.size_t (nth values 5))
+     (cpp/unsafe-cast (:* cpp/std.uint8_t) (cpp/unbox (:* cpp/void) (nth values 6)))
+     (cpp/cast cpp/std.size_t (nth values 7))
+     (cpp/unsafe-cast (:* cpp/std.size_t) (cpp/unbox (:* cpp/void) (nth values 8))))))
+
+(defn invoke-generate_ipv4 [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_generate_ipv4 native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_test_case) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/unsafe-cast (:* cpp/std.uint8_t) (cpp/unbox (:* cpp/void) (nth values 2))))))
+
+(defn invoke-generate_ipv6 [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_generate_ipv6 native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_test_case) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/unsafe-cast (:* cpp/std.uint8_t) (cpp/unbox (:* cpp/void) (nth values 2))))))
+
+(defn invoke-generate_string [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_generate_string native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_test_case) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_string_generator) (cpp/unbox (:* cpp/void) (nth values 2)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_string_result) (cpp/unbox (:* cpp/void) (nth values 3))))))
+
+(defn invoke-generate_string_result_free [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_generate_string_result_free native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_string_result) (cpp/unbox (:* cpp/void) (nth values 1))))))
+
+(defn invoke-generate_time [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_generate_time native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_test_case) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/* (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_time) (cpp/unbox (:* cpp/void) (nth values 2))))
+     (cpp/* (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_time) (cpp/unbox (:* cpp/void) (nth values 3))))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_time) (cpp/unbox (:* cpp/void) (nth values 4))))))
+
+(defn invoke-generate_uuid [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_generate_uuid native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_test_case) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/cast cpp/std.uint8_t (nth values 2))
+     (cpp/cast cpp/std.uint8_t (nth values 3))
+     (cpp/unsafe-cast (:* cpp/std.uint8_t) (cpp/unbox (:* cpp/void) (nth values 4))))))
+
+(defn invoke-mark_complete [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_mark_complete native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_test_case) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/cast cpp/std.uint32_t (nth values 2))
+     (cpp/unsafe-cast (:* (:const cpp/char)) (cpp/unbox (:* cpp/void) (nth values 3))))))
+
+(defn invoke-new_collection [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_new_collection native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_test_case) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/hegel_jank_to_uint64 (nth values 2))
+     (cpp/hegel_jank_to_uint64 (nth values 3))
+     (cpp/unsafe-cast (:* (:* cpp/hegel_jank_hegel_collection)) (cpp/unbox (:* cpp/void) (nth values 4))))))
+
+(defn invoke-new_pool [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_new_pool native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_test_case) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/unsafe-cast (:* (:* cpp/hegel_jank_hegel_pool)) (cpp/unbox (:* cpp/void) (nth values 2))))))
+
+(defn invoke-new_state_machine [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_new_state_machine native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_test_case) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/unsafe-cast (:* (:* (:const cpp/char))) (cpp/unbox (:* cpp/void) (nth values 2)))
+     (cpp/unsafe-cast (:* cpp/std.int64_t) (cpp/unbox (:* cpp/void) (nth values 3)))
+     (cpp/cast cpp/std.size_t (nth values 4))
+     (cpp/unsafe-cast (:* (:* (:const cpp/char))) (cpp/unbox (:* cpp/void) (nth values 5)))
+     (cpp/cast cpp/std.size_t (nth values 6))
+     (cpp/cast cpp/std.int64_t (nth values 7))
+     (cpp/cast cpp/std.int64_t (nth values 8))
+     (cpp/unsafe-cast (:* (:* cpp/hegel_jank_hegel_state_machine)) (cpp/unbox (:* cpp/void) (nth values 9)))
+     (cpp/unsafe-cast (:* cpp/std.int64_t) (cpp/unbox (:* cpp/void) (nth values 10))))))
+
+(defn invoke-next_test_case [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_next_test_case native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_run) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/unsafe-cast (:* (:* cpp/hegel_jank_hegel_test_case)) (cpp/unbox (:* cpp/void) (nth values 2))))))
+
+(defn invoke-pool_add [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_pool_add native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_test_case) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_pool) (cpp/unbox (:* cpp/void) (nth values 2)))
+     (cpp/unsafe-cast (:* cpp/std.int64_t) (cpp/unbox (:* cpp/void) (nth values 3))))))
+
+(defn invoke-pool_free [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_pool_free native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_pool) (cpp/unbox (:* cpp/void) (nth values 1))))))
+
+(defn invoke-pool_generate [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_pool_generate native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_test_case) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_pool) (cpp/unbox (:* cpp/void) (nth values 2)))
+     (cpp/cast cpp/std.uint8_t (nth values 3))
+     (cpp/unsafe-cast (:* cpp/std.int64_t) (cpp/unbox (:* cpp/void) (nth values 4))))))
+
+(defn invoke-run_free [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_run_free native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_run) (cpp/unbox (:* cpp/void) (nth values 1))))))
+
+(defn invoke-run_result [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_run_result native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_run) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/unsafe-cast (:* (:* cpp/hegel_jank_hegel_run_result)) (cpp/unbox (:* cpp/void) (nth values 2))))))
+
+(defn invoke-run_result_error [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_run_result_error native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_run_result) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/unsafe-cast (:* (:* (:const cpp/char))) (cpp/unbox (:* cpp/void) (nth values 2))))))
+
+(defn invoke-run_result_failure [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_run_result_failure native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_run_result) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/cast cpp/std.size_t (nth values 2))
+     (cpp/unsafe-cast (:* (:* cpp/hegel_jank_hegel_failure)) (cpp/unbox (:* cpp/void) (nth values 3))))))
+
+(defn invoke-run_result_failure_count [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_run_result_failure_count native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_run_result) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/unsafe-cast (:* cpp/std.size_t) (cpp/unbox (:* cpp/void) (nth values 2))))))
+
+(defn invoke-run_result_free [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_run_result_free native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_run_result) (cpp/unbox (:* cpp/void) (nth values 1))))))
+
+(defn invoke-run_result_status [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_run_result_status native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_run_result) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/unsafe-cast (:* cpp/std.int32_t) (cpp/unbox (:* cpp/void) (nth values 2))))))
+
+(defn invoke-run_start [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_run_start native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_settings) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/unsafe-cast cpp/hegel_jank_hegel_output_callback (cpp/unbox (:* cpp/void) (nth values 2)))
+     (cpp/unsafe-cast (:* cpp/void) (cpp/unbox (:* cpp/void) (nth values 3)))
+     (cpp/unsafe-cast (:* (:* cpp/hegel_jank_hegel_run)) (cpp/unbox (:* cpp/void) (nth values 4))))))
+
+(defn invoke-settings_free [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_settings_free native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_settings) (cpp/unbox (:* cpp/void) (nth values 1))))))
+
+(defn invoke-settings_new [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_settings_new native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* (:* cpp/hegel_jank_hegel_settings)) (cpp/unbox (:* cpp/void) (nth values 1))))))
+
+(defn invoke-settings_set_backend [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_settings_set_backend native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_settings) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/cast cpp/std.uint32_t (nth values 2)))))
+
+(defn invoke-settings_set_database [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_settings_set_database native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_settings) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/unsafe-cast (:* (:const cpp/char)) (cpp/unbox (:* cpp/void) (nth values 2))))))
+
+(defn invoke-settings_set_database_key [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_settings_set_database_key native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_settings) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/unsafe-cast (:* (:const cpp/char)) (cpp/unbox (:* cpp/void) (nth values 2))))))
+
+(defn invoke-settings_set_derandomize [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_settings_set_derandomize native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_settings) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/cast cpp/std.uint8_t (nth values 2)))))
+
+(defn invoke-settings_set_mode [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_settings_set_mode native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_settings) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/cast cpp/std.uint32_t (nth values 2)))))
+
+(defn invoke-settings_set_phases [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_settings_set_phases native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_settings) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/cast cpp/std.uint32_t (nth values 2)))))
+
+(defn invoke-settings_set_report_multiple_failures [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_settings_set_report_multiple_failures native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_settings) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/cast cpp/std.uint8_t (nth values 2)))))
+
+(defn invoke-settings_set_seed [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_settings_set_seed native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_settings) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/hegel_jank_to_uint64 (nth values 2))
+     (cpp/cast cpp/std.uint8_t (nth values 3)))))
+
+(defn invoke-settings_set_stateful_step_count [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_settings_set_stateful_step_count native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_settings) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/cast cpp/std.int64_t (nth values 2)))))
+
+(defn invoke-settings_set_suppress_health_check [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_settings_set_suppress_health_check native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_settings) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/cast cpp/std.uint32_t (nth values 2)))))
+
+(defn invoke-settings_set_test_cases [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_settings_set_test_cases native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_settings) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/hegel_jank_to_uint64 (nth values 2)))))
+
+(defn invoke-settings_set_verbosity [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_settings_set_verbosity native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_settings) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/cast cpp/std.uint32_t (nth values 2)))))
+
+(defn invoke-start_span [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_start_span native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_test_case) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/hegel_jank_to_uint64 (nth values 2)))))
+
+(defn invoke-state_machine_free [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_state_machine_free native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_state_machine) (cpp/unbox (:* cpp/void) (nth values 1))))))
+
+(defn invoke-state_machine_next_group [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_state_machine_next_group native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_test_case) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_state_machine) (cpp/unbox (:* cpp/void) (nth values 2)))
+     (cpp/unsafe-cast (:* cpp/std.int64_t) (cpp/unbox (:* cpp/void) (nth values 3))))))
+
+(defn invoke-state_machine_next_rule [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_state_machine_next_rule native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_test_case) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_state_machine) (cpp/unbox (:* cpp/void) (nth values 2)))
+     (cpp/cast cpp/std.int64_t (nth values 3))
+     (cpp/unsafe-cast (:* cpp/std.int64_t) (cpp/unbox (:* cpp/void) (nth values 4))))))
+
+(defn invoke-state_machine_rule_rejected [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_state_machine_rule_rejected native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_test_case) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_state_machine) (cpp/unbox (:* cpp/void) (nth values 2)))
+     (cpp/cast cpp/std.int64_t (nth values 3)))))
+
+(defn invoke-stop_span [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_stop_span native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_test_case) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/cast cpp/std.uint8_t (nth values 2)))))
+
+(defn invoke-string_generator_domain [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_string_generator_domain native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/hegel_jank_to_uint64 (nth values 1))
+     (cpp/unsafe-cast (:* (:* cpp/hegel_jank_hegel_string_generator)) (cpp/unbox (:* cpp/void) (nth values 2))))))
+
+(defn invoke-string_generator_email [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_string_generator_email native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* (:* cpp/hegel_jank_hegel_string_generator)) (cpp/unbox (:* cpp/void) (nth values 1))))))
+
+(defn invoke-string_generator_free [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_string_generator_free native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_string_generator) (cpp/unbox (:* cpp/void) (nth values 1))))))
+
+(defn invoke-string_generator_regex [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_string_generator_regex native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* (:const cpp/char)) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/cast cpp/std.uint8_t (nth values 2))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_string_generator) (cpp/unbox (:* cpp/void) (nth values 3)))
+     (cpp/unsafe-cast (:* (:* cpp/hegel_jank_hegel_string_generator)) (cpp/unbox (:* cpp/void) (nth values 4))))))
+
+(defn invoke-string_generator_text [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_string_generator_text native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/hegel_jank_to_uint64 (nth values 1))
+     (cpp/hegel_jank_to_uint64 (nth values 2))
+     (cpp/unsafe-cast (:* (:const cpp/char)) (cpp/unbox (:* cpp/void) (nth values 3)))
+     (cpp/cast cpp/std.uint32_t (nth values 4))
+     (cpp/cast cpp/std.uint32_t (nth values 5))
+     (cpp/unsafe-cast (:* (:* (:const cpp/char))) (cpp/unbox (:* cpp/void) (nth values 6)))
+     (cpp/cast cpp/std.size_t (nth values 7))
+     (cpp/unsafe-cast (:* (:* (:const cpp/char))) (cpp/unbox (:* cpp/void) (nth values 8)))
+     (cpp/cast cpp/std.size_t (nth values 9))
+     (cpp/unsafe-cast (:* cpp/std.uint8_t) (cpp/unbox (:* cpp/void) (nth values 10)))
+     (cpp/cast cpp/std.size_t (nth values 11))
+     (cpp/unsafe-cast (:* cpp/std.uint8_t) (cpp/unbox (:* cpp/void) (nth values 12)))
+     (cpp/cast cpp/std.size_t (nth values 13))
+     (cpp/unsafe-cast (:* (:* cpp/hegel_jank_hegel_string_generator)) (cpp/unbox (:* cpp/void) (nth values 14))))))
+
+(defn invoke-string_generator_url [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_string_generator_url native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* (:* cpp/hegel_jank_hegel_string_generator)) (cpp/unbox (:* cpp/void) (nth values 1))))))
+
+(defn invoke-target [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_target native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_test_case) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/cast cpp/double (nth values 2))
+     (cpp/unsafe-cast (:* (:const cpp/char)) (cpp/unbox (:* cpp/void) (nth values 3))))))
+
+(defn invoke-test_case_clone [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_test_case_clone native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_test_case) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/unsafe-cast (:* (:* cpp/hegel_jank_hegel_test_case)) (cpp/unbox (:* cpp/void) (nth values 2))))))
+
+(defn invoke-test_case_free [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_test_case_free native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_test_case) (cpp/unbox (:* cpp/void) (nth values 1))))))
+
+(defn invoke-test_case_from_blob [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_test_case_from_blob native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_settings) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/unsafe-cast (:* (:const cpp/char)) (cpp/unbox (:* cpp/void) (nth values 2)))
+     (cpp/unsafe-cast cpp/hegel_jank_hegel_output_callback (cpp/unbox (:* cpp/void) (nth values 3)))
+     (cpp/unsafe-cast (:* cpp/void) (cpp/unbox (:* cpp/void) (nth values 4)))
+     (cpp/unsafe-cast (:* (:* cpp/hegel_jank_hegel_test_case)) (cpp/unbox (:* cpp/void) (nth values 5))))))
+
+(defn invoke-test_case_is_nondeterministic [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_test_case_is_nondeterministic native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_test_case) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/unsafe-cast (:* cpp/std.uint8_t) (cpp/unbox (:* cpp/void) (nth values 2))))))
+
+(defn invoke-version [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_version native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* (:* (:const cpp/char))) (cpp/unbox (:* cpp/void) (nth values 1))))))
+
+(def invokers
+{:collection-free invoke-collection_free,
+ :collection-more invoke-collection_more,
+ :collection-reject invoke-collection_reject,
+ :context-free invoke-context_free,
+ :context-last-error invoke-context_last_error,
+ :context-new invoke-context_new,
+ :failure-free invoke-failure_free,
+ :failure-origin invoke-failure_origin,
+ :failure-reproduction-blob invoke-failure_reproduction_blob,
+ :generate-boolean invoke-generate_boolean,
+ :generate-bytes invoke-generate_bytes,
+ :generate-bytes-result-free invoke-generate_bytes_result_free,
+ :generate-date invoke-generate_date,
+ :generate-datetime invoke-generate_datetime,
+ :generate-float invoke-generate_float,
+ :generate-integer invoke-generate_integer,
+ :generate-integer-big invoke-generate_integer_big,
+ :generate-ipv4 invoke-generate_ipv4,
+ :generate-ipv6 invoke-generate_ipv6,
+ :generate-string invoke-generate_string,
+ :generate-string-result-free invoke-generate_string_result_free,
+ :generate-time invoke-generate_time,
+ :generate-uuid invoke-generate_uuid,
+ :mark-complete invoke-mark_complete,
+ :new-collection invoke-new_collection,
+ :new-pool invoke-new_pool,
+ :new-state-machine invoke-new_state_machine,
+ :next-test-case invoke-next_test_case,
+ :pool-add invoke-pool_add,
+ :pool-free invoke-pool_free,
+ :pool-generate invoke-pool_generate,
+ :run-free invoke-run_free,
+ :run-result invoke-run_result,
+ :run-result-error invoke-run_result_error,
+ :run-result-failure invoke-run_result_failure,
+ :run-result-failure-count invoke-run_result_failure_count,
+ :run-result-free invoke-run_result_free,
+ :run-result-status invoke-run_result_status,
+ :run-start invoke-run_start,
+ :settings-free invoke-settings_free,
+ :settings-new invoke-settings_new,
+ :settings-set-backend invoke-settings_set_backend,
+ :settings-set-database invoke-settings_set_database,
+ :settings-set-database-key invoke-settings_set_database_key,
+ :settings-set-derandomize invoke-settings_set_derandomize,
+ :settings-set-mode invoke-settings_set_mode,
+ :settings-set-phases invoke-settings_set_phases,
+ :settings-set-report-multiple-failures invoke-settings_set_report_multiple_failures,
+ :settings-set-seed invoke-settings_set_seed,
+ :settings-set-stateful-step-count invoke-settings_set_stateful_step_count,
+ :settings-set-suppress-health-check invoke-settings_set_suppress_health_check,
+ :settings-set-test-cases invoke-settings_set_test_cases,
+ :settings-set-verbosity invoke-settings_set_verbosity,
+ :start-span invoke-start_span,
+ :state-machine-free invoke-state_machine_free,
+ :state-machine-next-group invoke-state_machine_next_group,
+ :state-machine-next-rule invoke-state_machine_next_rule,
+ :state-machine-rule-rejected invoke-state_machine_rule_rejected,
+ :stop-span invoke-stop_span,
+ :string-generator-domain invoke-string_generator_domain,
+ :string-generator-email invoke-string_generator_email,
+ :string-generator-free invoke-string_generator_free,
+ :string-generator-regex invoke-string_generator_regex,
+ :string-generator-text invoke-string_generator_text,
+ :string-generator-url invoke-string_generator_url,
+ :target invoke-target,
+ :test-case-clone invoke-test_case_clone,
+ :test-case-free invoke-test_case_free,
+ :test-case-from-blob invoke-test_case_from_blob,
+ :test-case-is-nondeterministic invoke-test_case_is_nondeterministic,
+ :version invoke-version}
+)

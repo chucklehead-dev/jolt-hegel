@@ -1,0 +1,141 @@
+(ns hegel.jank-property-smoke
+  (:require [hegel.core :as h]
+            [hegel.generator :as g]
+            [hegel.stateful :as hs]))
+
+(defn -main [& _]
+  (let [seen (atom [])
+        result (h/run-test!
+                {:test-cases 10
+                 :database ""
+                 :seed 424242
+                 :verbosity :quiet}
+                (fn [_]
+                  (let [value (h/draw! (g/integer 0 10))]
+                    (swap! seen conj value)
+                    (when-not (<= 0 value 10)
+                      (throw (ex-info "bounded integer escaped its range"
+                                      {:value value}))))))]
+    (when-not (and (:passed? result)
+                   (= 10 (:valid-test-cases result))
+                   (= 10 (count @seen)))
+      (throw (ex-info "jank property smoke failed"
+                      {:result result :seen @seen})))
+    (println "PASS shared property run generated 10 bounded integers")
+    (println "PASS seed" (:seed result)))
+  (let [final-values (atom [])
+        result
+        (h/run-test!
+         {:test-cases 200
+          :seed 1777986545686
+          :database ""
+          :report-multiple-failures? false
+          :verbosity :quiet}
+         (fn [_]
+           (let [value (h/draw! (g/integer 0 1000))]
+             (when (h/final?)
+               (swap! final-values conj value))
+             (when (>= value 500)
+               (throw
+                (ex-info "threshold violated"
+                         {:hegel/origin "hegel.jank-property-smoke:threshold"
+                          :value value}))))))
+        failure (first (:failures result))
+        final-outcome (first (:final result))]
+    (when-not (and (not (:passed? result))
+                   (= :failed (:status result))
+                   (= 1 (:n-failures result))
+                   (= "hegel.jank-property-smoke:threshold" (:origin failure))
+                   (= "AAEAAAAACgIAAAD0AQ==" (:reproduction-blob failure))
+                   (= [500] @final-values)
+                   (= 500 (-> final-outcome :exception ex-data :value))
+                   (:reproduced? failure)
+                   (false? (:flaky? result)))
+      (throw (ex-info "jank shrinking/replay smoke failed"
+                      {:result result :final-values @final-values})))
+    (println "PASS shared shrinking found and replayed threshold 500"))
+  (let [fixed-date {:year 2024 :month 2 :day 29}
+        fixed-time {:hour 14 :minute 30 :second 15 :microsecond 123456}
+        fixed-datetime {:date fixed-date :time fixed-time}
+        observed (atom [])
+        result
+        (h/run-test!
+         {:test-cases 5
+          :seed 20240829
+          :database ""
+          :verbosity :quiet}
+         (fn [_]
+           (swap! observed conj
+                  [(h/draw! (g/date fixed-date fixed-date))
+                   (h/draw! (g/time fixed-time fixed-time))
+                   (h/draw! (g/datetime fixed-datetime fixed-datetime))])))]
+    (when-not (and (:passed? result)
+                   (seq @observed)
+                   (every? #(= ["2024-02-29"
+                                "14:30:15.123456"
+                                "2024-02-29T14:30:15.123456"]
+                               %)
+                           @observed))
+      (throw (ex-info "jank temporal generator smoke failed"
+                      {:result result :observed @observed})))
+    (println "PASS shared date/time/datetime generators use by-value structs"))
+  (let [observed (atom [])
+        result
+        (h/run-test!
+         {:test-cases 10
+          :seed 20260825
+          :database ""
+          :verbosity :quiet}
+         (fn [_]
+           (let [pool (hs/pool)]
+             (hs/add! pool 10)
+             (hs/add! pool 20)
+             (let [reusable (h/draw! (hs/values-reusable pool))
+                   first-value (h/draw! (hs/values-consumed pool))
+                   second-value (h/draw! (hs/values-consumed pool))]
+               (swap! observed conj
+                      {:reusable reusable
+                       :consumed #{first-value second-value}
+                       :empty? (hs/pool-empty? pool)})))))]
+    (when-not (and (:passed? result)
+                   (= 10 (count @observed))
+                   (every? (fn [{:keys [reusable consumed empty?]}]
+                             (and (contains? #{10 20} reusable)
+                                  (= #{10 20} consumed)
+                                  empty?))
+                           @observed))
+      (throw (ex-info "jank stateful pool smoke failed"
+                      {:result result :observed @observed})))
+    (println "PASS shared reusable and consumed pools preserve ownership"))
+  (let [steps (atom 0)
+        result
+        (h/run-test!
+         {:test-cases 10
+          :stateful-step-count 12
+          :seed 99117
+          :database ""
+          :verbosity :quiet}
+         (fn [_]
+           (let [final-state
+                 (hs/run!
+                  {:initial-state 0
+                   :rules
+                   [(hs/rule :increment
+                             (fn [state]
+                               (swap! steps inc)
+                               (inc state)))
+                    (hs/rule :decrement
+                             {:precondition pos?}
+                             (fn [state]
+                               (swap! steps inc)
+                               (dec state)))]
+                   :invariants
+                   [(hs/invariant :nonnegative
+                                  (fn [state] (<= 0 state)))]})]
+             (when (neg? final-state)
+               (throw (ex-info "state machine escaped invariant"
+                               {:state final-state}))))))]
+    (when-not (and (:passed? result) (pos? @steps))
+      (throw (ex-info "jank stateful/swarm smoke failed"
+                      {:result result :steps @steps})))
+    (println "PASS shared stateful/swarm run preserved its model invariant")))

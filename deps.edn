@@ -4,6 +4,8 @@
   {:setup-native {:main-opts ["-m" "hegel.install"]}
    :abi-test {:extra-paths ["script"]
               :main-opts ["-m" "hegel.abi-check"]}
+   :jank-codegen {:extra-paths ["script"]
+                  :main-opts ["-m" "hegel.generate-jank-bindings"]}
    :test {:extra-paths ["test"]
          :extra-deps {metosin/malli {:mvn/version "0.20.1"}}
          :main-opts ["-m" "hegel.test-runner"]}

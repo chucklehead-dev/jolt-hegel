@@ -1,0 +1,13 @@
+(ns hegel.jank-native-smoke
+  "Focused executable smoke for the generated jank native backend."
+  (:require [hegel.ffi :as ffi]))
+
+(defn- require! [description condition]
+  (when-not condition
+    (throw (ex-info (str "jank native smoke failed: " description)
+                    {:description description})))
+  (println "PASS" description))
+
+(defn -main [& _]
+  (require! "libhegel version and context lifecycle"
+            (= ffi/libhegel-version (ffi/version))))

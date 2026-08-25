@@ -321,6 +321,7 @@ live in:
 - [architecture and ownership](docs/ARCHITECTURE.md);
 - [ABI descriptor and backend development](docs/ABI.md);
 - [behavioral contracts](docs/DESIGN.md);
+- [experimental jank host status](docs/JANK.md);
 - [architecture decisions](docs/adr/README.md); and
 - [release process](docs/RELEASING.md).
 

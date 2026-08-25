@@ -244,7 +244,7 @@
    (let [compiled-schema
          (try
            (m/schema schema)
-           (catch Throwable error
+           (catch #?(:jank cpp/jank.runtime.object_ref :default Throwable) error
              (adapter-error ::invalid-schema "invalid Malli schema"
                             schema [] {:cause error})))
          form (m/form compiled-schema)

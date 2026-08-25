@@ -2,7 +2,13 @@
   "Reporting helpers for framework-less Jolt property suites."
   (:refer-clojure :exclude [run!]))
 
-(defrecord CountingRunner [runs failures reporter])
+#?(:jank
+   ;; CountingRunner is an associative value; jank can preserve that contract
+   ;; with a map until defrecord support lands in the runtime.
+   (defn ->CountingRunner [runs failures reporter]
+     {:runs runs :failures failures :reporter reporter})
+   :default
+   (defrecord CountingRunner [runs failures reporter]))
 
 (defn- default-reporter [{:keys [type description result exception]}]
   (case type
@@ -69,7 +75,7 @@
   (swap! (:runs runner) inc)
   (let [outcome (try
                   {:result (run)}
-                  (catch Throwable error
+                  (catch #?(:jank cpp/jank.runtime.object_ref :default Throwable) error
                     {:exception error}))]
     (if-let [error (:exception outcome)]
       (do

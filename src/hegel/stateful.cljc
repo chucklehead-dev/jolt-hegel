@@ -202,7 +202,7 @@
   (let [valid?
         (try
           ((::predicate item) state)
-          (catch Throwable error
+          (catch #?(:jank cpp/jank.runtime.object_ref :default Throwable) error
             (if (control-flow? error)
               (throw error)
               (throw (stateful-error :invariant item trace error)))))]
@@ -230,7 +230,7 @@
        :applied? true}
       {:state state
        :applied? false})
-    (catch Throwable error
+    (catch #?(:jank cpp/jank.runtime.object_ref :default Throwable) error
       (cond
         (hffi/assumption-rejected? error)
         {:state state
@@ -256,6 +256,44 @@
       (invalid-argument (str "state machine has duplicate " (name kind) " names")
                         {:kind kind :names names})))
   items)
+
+(defn- run-group!
+  [test-case machine rules invariants initial-state initial-trace initial-step]
+  (loop [state initial-state
+         trace initial-trace
+         step-number initial-step]
+    (if-some [index
+              (hffi/state-machine-next-rule!
+               (:context test-case) (:handle test-case) machine)]
+      (do
+        (when-not (and (integer? index)
+                       (<= 0 index)
+                       (< index (count rules)))
+          (throw
+           (ex-info
+            (str "libhegel returned out-of-range "
+                 "state-machine rule index " index)
+            {:type ::invalid-rule-index
+             :hegel/origin "hegel.stateful/engine"
+             :index index
+             :rule-count (count rules)})))
+        (let [item (nth rules index)
+              next-trace (conj trace (:name item))]
+          (h/note! (str "Step " step-number ": " (::native-name item)))
+          (let [{next-state :state applied? :applied?}
+                (apply-rule item state next-trace)]
+            (if applied?
+              (do
+                (check-invariants! invariants next-state next-trace)
+                (recur next-state next-trace (inc step-number)))
+              (do
+                (hffi/state-machine-rule-rejected!
+                 (:context test-case) (:handle test-case) machine)
+                (h/note! "Rule stopped early due to violated assumption.")
+                (recur state trace step-number))))))
+      {:state state
+       :trace trace
+       :step-number step-number})))
 
 (defn run!
   "Run an engine-managed state machine and return its final state.
@@ -296,46 +334,12 @@
           (if-some [_group
                     (hffi/state-machine-next-group!
                      (:context test-case) (:handle test-case) machine)]
-            (let [[state trace step-number]
-                  (loop [state state
-                         trace trace
-                         step-number step-number]
-                    (if-some [index
-                              (hffi/state-machine-next-rule!
-                               (:context test-case) (:handle test-case)
-                               machine)]
-                      (do
-                        (when-not
-                         (and (integer? index)
-                              (<= 0 index)
-                              (< index (count rules)))
-                          (throw
-                           (ex-info
-                            (str "libhegel returned out-of-range "
-                                 "state-machine rule index " index)
-                            {:type ::invalid-rule-index
-                             :hegel/origin "hegel.stateful/engine"
-                             :index index
-                             :rule-count (count rules)})))
-                        (let [item (nth rules index)
-                              next-trace (conj trace (:name item))]
-                          (h/note!
-                           (str "Step " step-number ": " (::native-name item)))
-                          (let [{:keys [state applied?]}
-                                (apply-rule item state next-trace)]
-                            (if applied?
-                              (do
-                                (check-invariants! invariants state next-trace)
-                                (recur state next-trace (inc step-number)))
-                              (do
-                                (hffi/state-machine-rule-rejected!
-                                 (:context test-case) (:handle test-case)
-                                 machine)
-                                (h/note!
-                                 "Rule stopped early due to violated assumption.")
-                                (recur state trace step-number))))))
-                      [state trace step-number]))]
-              (recur state trace step-number))
+            (let [group-result
+                  (run-group! test-case machine rules invariants
+                              state trace step-number)]
+              (recur (:state group-result)
+                     (:trace group-result)
+                     (:step-number group-result)))
             state))
         (finally
           (hffi/state-machine-free! (:context test-case) machine))))))

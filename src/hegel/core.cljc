@@ -1,13 +1,24 @@
 (ns hegel.core
   "The property-test run loop and dynamic test-case API."
   (:require [clojure.string :as str]
-            [hegel.ffi :as hffi]))
+            [hegel.ffi :as hffi]
+            [hegel.host :as host]))
 
 (def ^:dynamic *test-case*
   "The test case currently being executed by run-test!."
   nil)
 
-(defrecord TestCase [context handle final? verbosity])
+#?(:jank
+   ;; jank does not implement records yet. Test cases are intentionally used
+   ;; through associative lookup, so a plain map preserves the public behavior
+   ;; without pushing a host distinction into generators or stateful testing.
+   (defn ->TestCase [context handle final? verbosity]
+     {:context context
+      :handle handle
+      :final? final?
+      :verbosity verbosity})
+   :default
+   (defrecord TestCase [context handle final? verbosity]))
 
 (defn register-native-cleanup!
   "Register a no-argument native cleanup for the active test case.
@@ -28,7 +39,7 @@
     (doseq [cleanup (reverse @(:native-cleanups test-case))]
       (try
         (cleanup)
-        (catch Throwable error
+        (catch #?(:jank cpp/jank.runtime.object_ref :default Throwable) error
           (when-not @first-error
             (reset! first-error error)))))
     (hffi/test-case-free! (:context test-case) (:handle test-case))
@@ -40,6 +51,7 @@
          :native-cleanups (atom [])))
 
 (def ^:private max-observed-failure-origins 16)
+(def ^:private max-int64 9223372036854775807)
 
 (def ^:private mode-values
   {:test-run 0
@@ -76,15 +88,15 @@
   (let [key (str (or (:database-key opts) (:name opts) "jolt-hegel"))
         high (bit-and 0xffffffff (hash key))
         low (bit-and 0xffffffff (hash (str key "\u0000seed")))]
-    (bit-and Long/MAX_VALUE
+    (bit-and max-int64
              (bit-or (bit-shift-left high 32) low))))
 
 (defn- fresh-seed []
   ;; Jolt does not currently provide java.util.Random, but its core rand source,
   ;; monotonic clock, and wall clock together give us a fresh, replayable seed.
-  (bit-and Long/MAX_VALUE
-           (bit-xor (System/nanoTime)
-                    (System/currentTimeMillis)
+  (bit-and max-int64
+           (bit-xor (host/nano-time)
+                    (host/current-time-millis)
                     (rand-int 2147483647))))
 
 (defn- resolve-seed [opts]
@@ -186,12 +198,16 @@
                    (double value)
                    (if (string? label) label (pr-str label))))))
 
+(defn- exception-type-name [error]
+  #?(:jank (str (or (:type (ex-data error)) :jank/error))
+     :default (str (class error))))
+
 (defn- exception-origin [error]
   ;; :hegel/origin is reserved for integrations such as hegel.clojure-test,
   ;; which can supply a stable assertion-site origin. The fallback mirrors the
   ;; C++ binding: exception class, never exception message or drawn data.
   (or (:hegel/origin (ex-data error))
-      (str (class error))))
+      (exception-type-name error)))
 
 (defn- usage-error? [error]
   (true? (:hegel/usage-error? (ex-data error))))
@@ -201,7 +217,7 @@
     {:status :valid
      :value (binding [*test-case* test-case]
               (case-fn test-case))}
-    (catch Throwable error
+    (catch #?(:jank cpp/jank.runtime.object_ref :default Throwable) error
       (cond
         (hffi/stop-test? error)
         {:status :overrun}
@@ -243,7 +259,7 @@
               inc)))
 
 (defn- throwable-observation [error]
-  {:type (str (class error))
+  {:type (exception-type-name error)
    :message (ex-message error)
    :data (ex-data error)})
 
