@@ -21,10 +21,10 @@ Use the runtime selected by the consuming project's toolchain contract: Jolt
 0.7.23 or later, a project-pinned Babashka build with the required
 `babashka.ffi`, or JVM Clojure on JDK 22 or later. Do not substitute a
 convenient global executable for a project-selected binary. Add the public
-release by full commit SHA. The current `0.3.0` source is merged on `main` but
-not tagged; `v0.2.0` predates the portable implementation. Until `v0.3.0` is
-published, use a reviewed full `main` SHA rather than a moving branch. A
-test-only dependency normally belongs in the project's test alias:
+release by full commit SHA. `v0.3.0` is the first portable release; resolve its
+annotated tag to the full peeled commit rather than using the tag-object SHA,
+tag name, or a moving branch. A test-only dependency normally belongs in the
+project's test alias:
 
 ```clojure
 {:aliases
@@ -58,10 +58,9 @@ Git dependencies do not contribute aliases to a consuming project. Activate
 the alias that contains jolt-hegel where the host requires it. If the dependency
 is in top-level `:deps`, no dependency alias is needed.
 
-Replace `<jolt-hegel-commit-sha>` with the full commit behind the intended
-release tag or the reviewed unreleased `main` revision; never copy the
-placeholder into a project. Without a local checkout, list and resolve the
-remote tags with:
+Replace `<jolt-hegel-commit-sha>` with the full peeled commit behind the
+intended release tag; never copy the placeholder into a project. Without a
+local checkout, list and resolve the remote tags with:
 
 ```bash
 git ls-remote --tags --sort=-v:refname \

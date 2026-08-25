@@ -28,11 +28,9 @@ supported release contract.
 | jank | Experimental focused suite | Linux x86_64 and macOS arm64 |
 | ClojureCLR 1.12.2 on .NET 8 | Experimental focused suite | Linux x86_64, Windows x86_64, macOS arm64 |
 
-The portability work is merged on `main`, whose source version is `0.3.0`.
-There is not yet a `v0.3.0` release tag: the latest published tag, `v0.2.0`,
-predates the multi-host implementation. Until `v0.3.0` is released, evaluate
-the current implementation by pinning a reviewed full commit SHA from `main`.
-Do not use a moving branch reference as a consumer dependency.
+The current release is `v0.3.0`, the first release of the portable
+implementation. Consumer Git dependencies should pin the tag's full peeled
+commit SHA, not the tag-object SHA or a moving branch reference.
 
 ## What should be a property?
 
@@ -277,9 +275,9 @@ top-level `:deps` of `bb.edn` (or otherwise place it on Babashka's classpath):
    :git/sha "<jolt-hegel-commit-sha>"}}}
 ```
 
-Replace the placeholder with the full commit behind the intended release tag,
-or with a reviewed `main` commit while testing the unreleased `0.3.0` source.
-Do not leave the placeholder or a moving branch in consumer configuration.
+Replace the placeholder with the full peeled commit behind the intended
+release tag. Do not leave the placeholder, a tag name, or a moving branch in
+consumer configuration.
 
 Run the installer with the host that will run the tests and the alias that
 contains jolt-hegel:

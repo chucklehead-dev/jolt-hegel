@@ -4,13 +4,12 @@
 Development may be proven in a private fork first, but a release candidate is
 not publishable until its public pull request and public `main` workflows pass.
 
-## Current release state
+## Current release
 
-The source on `main` declares jolt-hegel `0.3.0` and contains the portable
-Jolt, Babashka, JVM, jank, and ClojureCLR work. No `v0.3.0` tag has been
-published yet. The latest public tag is `v0.2.0`, which predates the portable
-implementation. Do not describe the merged portability work as a tagged
-release until the `v0.3.0` release workflow succeeds.
+`v0.3.0` is the first portable jolt-hegel release. It supports Jolt,
+Babashka, and JVM Clojure and includes the experimental jank and ClojureCLR
+ports. The source declaration in `hegel.version/jolt-hegel-version`, annotated
+tag, and GitHub release must all identify `0.3.0`.
 
 ## Private proving ground
 
