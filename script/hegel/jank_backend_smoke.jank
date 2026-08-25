@@ -1,5 +1,6 @@
 (ns hegel.jank-backend-smoke
-  (:require [hegel.ffi.jank-backend :as backend]))
+  (:require [hegel.ffi.jank-backend :as backend]
+            [hegel.host :as host]))
 
 (defn- require! [description condition]
   (when-not condition
@@ -40,7 +41,12 @@
 
 (defn -main [& args]
   (println "jank backend smoke: namespace loaded")
-  (backend/load! (or (first args) "/tmp/jolt-hegel-033-native/libhegel_c.so"))
+  (let [library-path (or (first args)
+                         (host/getenv "HEGEL_LIBHEGEL_LIBRARY"))]
+    (when-not library-path
+      (throw (ex-info "pass the absolute libhegel library path"
+                      {:type ::missing-library-path})))
+    (backend/load! library-path))
   (println "jank backend smoke: library and 71 symbols loaded")
   (let [memory (backend/alloc 32)
         pointee (backend/alloc 8)]
