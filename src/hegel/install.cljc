@@ -139,24 +139,29 @@
                    :path path})))))
 
 (defn verify-source-version!
-  "Fail when Jolt loaded a different release than the resolved source checkout."
+  "On Jolt, fail when AOT code came from a different release than the resolved
+  source checkout. Other hosts do not AOT dependency namespaces and therefore
+  return the loaded version without assuming the consumer's working directory
+  is the dependency checkout."
   []
-  (let [loaded version/jolt-hegel-version
-        source (source-jolt-hegel-version)]
-    (when-not (= loaded source)
-      (throw
-       (ex-info
-        (str "Jolt loaded jolt-hegel " loaded
-             " from a stale AOT cache, but the resolved source checkout is "
-             source ". Set JOLT_CACHE_DIR to a fresh directory keyed by the "
-             "pinned release SHA and rerun the install and test commands.")
-        {:type ::stale-aot-cache
-         :loaded-version loaded
-         :source-version source
-         :source-path (version-source-path)
-         :jolt-cache-directory
-         (native/nonblank-env "JOLT_CACHE_DIR")})))
-    source))
+  (let [loaded version/jolt-hegel-version]
+    (if-not jolt?
+      loaded
+      (let [source (source-jolt-hegel-version)]
+        (when-not (= loaded source)
+          (throw
+           (ex-info
+            (str "Jolt loaded jolt-hegel " loaded
+                 " from a stale AOT cache, but the resolved source checkout is "
+                 source ". Set JOLT_CACHE_DIR to a fresh directory keyed by the "
+                 "pinned release SHA and rerun the install and test commands.")
+            {:type ::stale-aot-cache
+             :loaded-version loaded
+             :source-version source
+             :source-path (version-source-path)
+             :jolt-cache-directory
+             (native/nonblank-env "JOLT_CACHE_DIR")})))
+        source))))
 
 (defn- delete-if-present! [path]
   (let [file (java.io.File. path)]

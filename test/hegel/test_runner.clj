@@ -5,6 +5,7 @@
             [hegel.core :as h]
             [hegel.ffi :as hffi]
             [hegel.generator :as g]
+            [hegel.host :as host]
             [hegel.install :as install]
             [hegel.malli :as hm]
             [hegel.native :as native]
@@ -278,19 +279,24 @@
   (check "installer verifies the loaded release against current source"
          (= version/jolt-hegel-version
             (install/verify-source-version!)))
-  (let [error
-        (with-redefs [version/jolt-hegel-version "0.0.0-stale"]
-          (try
-            (install/verify-source-version!)
-            nil
-            (catch Throwable error
-              error)))]
-    (check "installer rejects a stale Jolt AOT namespace"
-           (and (= ::install/stale-aot-cache (:type (ex-data error)))
-                (= "0.0.0-stale" (:loaded-version (ex-data error)))
-                (= version/jolt-hegel-version
-                   (:source-version (ex-data error)))
-                (str/includes? (ex-message error) "JOLT_CACHE_DIR")))))
+  (if (= :jolt (host/runtime))
+    (let [error
+          (with-redefs [version/jolt-hegel-version "0.0.0-stale"]
+            (try
+              (install/verify-source-version!)
+              nil
+              (catch Throwable error
+                error)))]
+      (check "installer rejects a stale Jolt AOT namespace"
+             (and (= ::install/stale-aot-cache (:type (ex-data error)))
+                  (= "0.0.0-stale" (:loaded-version (ex-data error)))
+                  (= version/jolt-hegel-version
+                     (:source-version (ex-data error)))
+                  (str/includes? (ex-message error) "JOLT_CACHE_DIR"))))
+    (check "installer skips Jolt-only source identity checks on this host"
+           (= "0.0.0-stale"
+              (with-redefs [version/jolt-hegel-version "0.0.0-stale"]
+                (install/verify-source-version!))))))
 
 (defn generated-seed []
   (let [first-values (atom [])
