@@ -55,3 +55,13 @@ backend selection.
   on one ABI does not imply another.
 - Malli remains an optional consumer dependency and may be limited only where
   the host or Malli itself is incompatible.
+
+## 2026-08-25 implementation note
+
+The supported decision above is now implemented on Jolt, Babashka, and JVM
+Clojure. Experimental jank and ClojureCLR ports were subsequently added without
+changing the boundary: both derive checked native artifacts from the same EDN
+descriptor and reuse shared property behavior. Their focused CI is useful
+portability evidence, but neither port joins the supported release contract
+until it passes the corresponding full semantic, consumer, packaging, and
+platform gates.

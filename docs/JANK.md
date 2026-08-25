@@ -5,6 +5,12 @@ Jolt, Babashka, and JVM release matrix. Linux x86_64 and macOS arm64 CI load
 libhegel directly through jank's C++ interop and preserve the shared Hegel API;
 this does not introduce another property-testing implementation.
 
+The implementation is merged on `main`, and both hosted cells run on every
+relevant pull request and `main` push. They validate generated-artifact drift,
+the direct ABI backend, and focused shared property/stateful semantics. Windows
+remains outside the matrix because there is no comparably consumable pinned
+jank toolchain for that runner yet.
+
 The initial local gate was exercised with `jank-0.1-alpha`, binary identity:
 
 ```text

@@ -1,8 +1,16 @@
 # Releasing jolt-hegel
 
-Development is proven in a private repository before the exact release
-candidate is pushed to the public source and release repository,
-`chucklehead-dev/jolt-hegel`.
+`chucklehead-dev/jolt-hegel` is the public source and release authority.
+Development may be proven in a private fork first, but a release candidate is
+not publishable until its public pull request and public `main` workflows pass.
+
+## Current release state
+
+The source on `main` declares jolt-hegel `0.3.0` and contains the portable
+Jolt, Babashka, JVM, jank, and ClojureCLR work. No `v0.3.0` tag has been
+published yet. The latest public tag is `v0.2.0`, which predates the portable
+implementation. Do not describe the merged portability work as a tagged
+release until the `v0.3.0` release workflow succeeds.
 
 ## Private proving ground
 
@@ -18,35 +26,28 @@ candidate is pushed to the public source and release repository,
 
 ## Public release
 
-For the first public release, create an empty `chucklehead-dev/jolt-hegel`
-repository without starter files, then add it as a second remote:
-
-```bash
-git remote add public git@github.com:chucklehead-dev/jolt-hegel.git
-```
-
-Keep `origin` pointed at the private proving ground.
-
 For every release:
 
-1. Record the exact tree of the private CI-green merge:
-   `git rev-parse <release-candidate-sha>^{tree}`.
-2. Create a public release-branch commit with that tree and public `main` as its
-   parent, then open a pull request to the protected public default branch. Do
-   not merge the private history into the public repository.
-3. Confirm the same host-by-platform cells pass in the public repository, merge
-   the pull request, and verify that public `main` has the recorded tree.
-   After the first public matrix, configure the default branch to require the
-   aggregate Jolt, Babashka, JVM, ABI, and native-image gates.
-4. Confirm `hegel.version/jolt-hegel-version` matches the intended tag without
+1. If development happened in another repository, record its CI-green tree with
+   `git rev-parse <release-candidate-sha>^{tree}` and publish that tree through
+   a pull request to public `main`. Do not merge unrelated private history into
+   the public repository.
+2. Confirm the public pull request and resulting `main` push pass the complete
+   supported matrix: Jolt, pinned Babashka native image, JVM Clojure, ABI data,
+   static checks, and consumer smoke tests. Experimental jank and ClojureCLR
+   workflows should also be green on `main`, but they are not supported-release
+   targets until their remaining gates close.
+3. Confirm `hegel.version/jolt-hegel-version` matches the intended tag without
    the `v` prefix. Use a fresh `JOLT_CACHE_DIR`; the installer rejects a loaded
    release version that differs from the resolved source.
-5. Create and push an annotated tag on the public merge commit, for example
+4. Create and push an annotated tag on the public merge commit, for example
    `v0.3.0`.
-6. Wait for the Release workflow. It:
+5. Wait for the Release workflow. It:
    - installs the checksum-pinned libhegel release in each matrix cell;
    - runs the shared integration suite under the selected host; and
    - runs the independent consumer fixture again.
+6. Verify that GitHub created the source release only after all reusable
+   portable-CI and release-verification jobs passed.
 7. Resolve the tag's full commit SHA and use it in consumer `deps.edn` files:
 
    ```bash
@@ -62,11 +63,14 @@ Review these together for each release:
 
 - `src/hegel/version.cljc`: jolt-hegel release and libhegel ABI pins
 - `.github/workflows/ci.yml`: host and OS matrix, pinned Jolt and Babashka builds
+- `.github/workflows/clr.yml`: experimental ClojureCLR/.NET pins and matrix
+- `.github/workflows/jank.yml`: experimental jank packages/actions and matrix
 - `.github/workflows/release.yml`: release verification target matrix
 - `README.md` and `THIRD_PARTY_NOTICES.md`: documented versions and notices
 
-Jolt 0.7.23 and the required Babashka fork commit are pinned in CI.
-libhegel 0.33.0 release hashes are pinned in `hegel.install`. The JVM lane uses
-JDK 25 and should retain a JDK 22 minimum-version compatibility gate. The
-release workflow also rejects a tag that does not match
-`hegel.version/jolt-hegel-version`.
+Jolt 0.7.23 and Babashka fork commit
+`26367edf91905eb85c68e6fd77f3e108a60dc651` are pinned in CI. libhegel 0.33.0
+release hashes are pinned in `hegel.install`. The JVM lane uses JDK 25 and
+retains a JDK 22 minimum-version compatibility gate. Experimental CLR CI pins
+ClojureCLR 1.12.2 and .NET 8. The release workflow also rejects a tag that does
+not match `hegel.version/jolt-hegel-version`.

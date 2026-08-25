@@ -129,6 +129,14 @@ registered by the selected runtime. Current route names are:
 The report is intended for CI, diagnostics, and ABI upgrades. Application code
 should not branch on the route.
 
+The supported Jolt, Babashka, and JVM backends cover all 71 functions in the
+current libhegel 0.33 descriptor. The jank and ClojureCLR generators also cover
+the complete descriptor at code-generation time, but those hosts currently run
+focused experimental semantic suites rather than the full supported-host parity
+matrix. Descriptor coverage therefore answers "can this backend express every
+binding?"; it does not by itself promote a host into the supported release
+contract.
+
 ## Backend construction
 
 All backends consume the function map; there are no hand-maintained per-host
@@ -160,8 +168,9 @@ from the descriptor.
    not call a host backend from generator, core, or stateful code.
 6. Add backend-neutral semantic tests, including boundary widths and ownership
    cleanup. Add aggregate layout cases when a struct changes.
-7. Run the property parity suite on Jolt, Babashka, and JVM Clojure across the
-   platform matrix.
+7. Run the full property parity suite on Jolt, Babashka, and JVM Clojure across
+   the supported platform matrix. Run the focused jank and ClojureCLR suites
+   when their generated bindings change.
 
 If Babashka cannot express a new signature, first determine whether the gap is
 general. Improvements belong in `babashka.ffi` with independent tests and
