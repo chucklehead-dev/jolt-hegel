@@ -1,8 +1,9 @@
 # Third-party notices
 
-`jolt-hegel` does not bundle Jolt or libhegel in its source distribution. Jolt
-is the user-provided runtime. The native installer downloads libhegel directly
-from Hegel's official GitHub release and stores it in a local cache.
+`jolt-hegel` does not bundle Jolt, Babashka, a JDK, or libhegel in its source
+distribution. The Clojure-family host is user-provided. The native installer
+downloads libhegel directly from Hegel's official GitHub release and stores it
+in a local cache.
 
 ## hegel-clj
 
@@ -10,8 +11,9 @@ Source: <https://github.com/aphyr/hegel-clj>
 
 Copyright © 2026 Kyle Kingsbury
 
-The original jolt-hegel design and implementation were based in part on
-hegel-clj. Both projects are licensed under the Eclipse Public License 2.0.
+The original jolt-hegel design and implementation were based in part on Kyle
+Kingsbury (Aphyr)'s hegel-clj. Both projects are licensed under the Eclipse
+Public License 2.0.
 hegel-clj is not bundled as a runtime dependency; see its source repository for
 its license text and copyright notices.
 

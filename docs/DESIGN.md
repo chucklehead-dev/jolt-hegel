@@ -12,7 +12,7 @@ in `ARCHITECTURE.md`.
 - `:derandomize? true` derives a stable seed from `:database-key`, `:name`, or a
   library default; and
 - every other run receives a fresh non-negative 63-bit seed assembled from
-  Jolt's clocks and random source.
+  the host clocks and random source.
 
 The resolved seed is supplied to libhegel and returned as a decimal string in
 the result map. This makes every run replayable even though the C ABI does not
@@ -114,8 +114,7 @@ ordinary test assertion:
 - every nonpassing event includes the resolved Hegel seed;
 - blank exception messages fall back to the throwable-map cause or exception
   type and preserve original `ex-data`; and
-- report capture is isolated through the supported Jolt runtime's dynamically
-  bindable `clojure.test/report`.
+- report capture is isolated for the active host.
 
 The direct `run-test!` API returns data and does not throw merely because a
 property failed or libhegel detected nondeterminism. A non-`clojure.test`
@@ -168,7 +167,7 @@ against a live service is valid only while either path leaves the next case in
 equivalent state and earlier candidates cannot affect later cases.
 
 Value pools let the engine shrink dependencies between rules. libhegel stores
-integer variable identities; the Jolt layer maps those identities to arbitrary
+integer variable identities; the shared layer maps those identities to arbitrary
 host values. Reusable draws retain an entry, consumed draws remove it, and an
 empty draw becomes an assumption rejection. Pools belong to exactly one test
 case and cannot be retained or reused.

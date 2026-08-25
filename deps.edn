@@ -1,7 +1,9 @@
-{:paths ["src"]
+{:paths ["src" "resources"]
 
  :aliases
   {:setup-native {:main-opts ["-m" "hegel.install"]}
+   :abi-test {:extra-paths ["script"]
+              :main-opts ["-m" "hegel.abi-check"]}
    :test {:extra-paths ["test"]
          :extra-deps {metosin/malli {:mvn/version "0.20.1"}}
          :main-opts ["-m" "hegel.test-runner"]}
@@ -10,5 +12,6 @@
 
  :tasks
  {setup-native "jolt -M:setup-native"
+  abi-test "jolt -M:abi-test"
   fetch-libhegel "jolt -M:fetch-libhegel"
   test "jolt -M:test"}}

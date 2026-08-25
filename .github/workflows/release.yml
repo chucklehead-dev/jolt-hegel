@@ -9,6 +9,10 @@ permissions:
   contents: read
 
 jobs:
+  portable-ci:
+    name: Portable runtime matrix
+    uses: ./.github/workflows/ci.yml
+
   verify:
     name: Verify release on ${{ matrix.name }}
     runs-on: ${{ matrix.runner }}
@@ -71,7 +75,7 @@ jobs:
   publish:
     name: Publish GitHub release
     if: github.repository == 'chucklehead-dev/jolt-hegel'
-    needs: verify
+    needs: [portable-ci, verify]
     runs-on: ubuntu-24.04
     permissions:
       contents: write

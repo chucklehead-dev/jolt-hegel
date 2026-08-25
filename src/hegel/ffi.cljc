@@ -1,8 +1,8 @@
 (ns hegel.ffi
   "Low-level, ownership-aware bindings to libhegel's C ABI."
-  (:require [hegel.native :as native]
-            [hegel.version :as version]
-            [jolt.ffi :as ffi]))
+  (:require [hegel.ffi.backend :as backend]
+            [hegel.native :as native]
+            [hegel.version :as version]))
 
 (def libhegel-version
   "The libhegel release whose C ABI this namespace binds."
@@ -13,7 +13,7 @@
   native/library-path)
 
 (try
-  (ffi/load-library library-path)
+  (backend/load! library-path)
   (catch Throwable cause
     (throw
      (ex-info
@@ -24,179 +24,76 @@
        :library library-path
        :cause cause}))))
 
-;; Context and settings.
-(ffi/defcfn c-context-new "hegel_context_new" [] :pointer)
-(ffi/defcfn c-context-free "hegel_context_free" [:pointer] :int)
-(ffi/defcfn c-context-last-error "hegel_context_last_error" [:pointer] :string)
-
-(ffi/defcfn c-settings-new "hegel_settings_new" [:pointer :pointer] :int)
-(ffi/defcfn c-settings-free "hegel_settings_free" [:pointer :pointer] :int)
-(ffi/defcfn c-settings-set-mode "hegel_settings_set_mode"
-  [:pointer :pointer :uint] :int)
-(ffi/defcfn c-settings-set-backend "hegel_settings_set_backend"
-  [:pointer :pointer :uint] :int)
-(ffi/defcfn c-settings-set-test-cases "hegel_settings_set_test_cases"
-  [:pointer :pointer :uint64] :int)
-(ffi/defcfn c-settings-set-stateful-step-count
-  "hegel_settings_set_stateful_step_count"
-  [:pointer :pointer :int64] :int)
-(ffi/defcfn c-settings-set-verbosity "hegel_settings_set_verbosity"
-  [:pointer :pointer :uint] :int)
-(ffi/defcfn c-settings-set-seed "hegel_settings_set_seed"
-  [:pointer :pointer :uint64 :uint8] :int)
-(ffi/defcfn c-settings-set-derandomize "hegel_settings_set_derandomize"
-  [:pointer :pointer :uint8] :int)
-(ffi/defcfn c-settings-set-report-multiple-failures
-  "hegel_settings_set_report_multiple_failures"
-  [:pointer :pointer :uint8] :int)
-(ffi/defcfn c-settings-set-database "hegel_settings_set_database"
-  [:pointer :pointer :pointer] :int)
-(ffi/defcfn c-settings-set-database-key "hegel_settings_set_database_key"
-  [:pointer :pointer :pointer] :int)
-(ffi/defcfn c-settings-set-phases "hegel_settings_set_phases"
-  [:pointer :pointer :uint] :int)
-(ffi/defcfn c-settings-set-suppress-health-check
-  "hegel_settings_set_suppress_health_check"
-  [:pointer :pointer :uint] :int)
-
-;; Run lifecycle. Since libhegel 0.30.1, next-test-case performs generation and
-;; shrinking on the calling thread and may block until it offers the next case.
-;; run-free drops any remaining exploration. Keep both calls collect-safe.
-(ffi/defcfn c-run-start "hegel_run_start"
-  [:pointer :pointer :pointer :pointer :pointer] :int)
-(ffi/defcfn c-next-test-case "hegel_next_test_case"
-  [:pointer :pointer :pointer] :int :blocking)
-(ffi/defcfn c-run-result "hegel_run_result"
-  [:pointer :pointer :pointer] :int)
-(ffi/defcfn c-run-free "hegel_run_free"
-  [:pointer :pointer] :int :blocking)
-
-;; Test cases and primitive draws.
-(ffi/defcfn c-test-case-from-blob "hegel_test_case_from_blob"
-  [:pointer :pointer :pointer :pointer :pointer :pointer] :int)
-(ffi/defcfn c-test-case-free "hegel_test_case_free"
-  [:pointer :pointer] :int)
-(ffi/defcfn c-generate-integer "hegel_generate_integer"
-  [:pointer :pointer :int64 :int64 :pointer] :int)
-(ffi/defcfn c-generate-boolean "hegel_generate_boolean"
-  [:pointer :pointer :double :uint8 :uint8 :pointer] :int)
-(ffi/defcfn c-generate-float "hegel_generate_float"
-  [:pointer :pointer :uint :double :double :uint8 :uint8 :uint8 :uint8
-   :double :pointer]
-  :int)
-(ffi/defcfn c-generate-bytes "hegel_generate_bytes"
-  [:pointer :pointer :uint64 :uint64 :pointer] :int)
-(ffi/defcfn c-generate-bytes-result-free "hegel_generate_bytes_result_free"
-  [:pointer :pointer] :int)
-(ffi/defcfn c-string-generator-text "hegel_string_generator_text"
-  [:pointer :uint64 :uint64 :pointer :uint :uint
-   :pointer :size_t :pointer :size_t
-   :pointer :size_t :pointer :size_t :pointer]
-  :int)
-(ffi/defcfn c-string-generator-regex "hegel_string_generator_regex"
-  [:pointer :pointer :uint8 :pointer :pointer] :int)
-(ffi/defcfn c-string-generator-email "hegel_string_generator_email"
-  [:pointer :pointer] :int)
-(ffi/defcfn c-string-generator-url "hegel_string_generator_url"
-  [:pointer :pointer] :int)
-(ffi/defcfn c-string-generator-domain "hegel_string_generator_domain"
-  [:pointer :uint64 :pointer] :int)
-(ffi/defcfn c-string-generator-free "hegel_string_generator_free"
-  [:pointer :pointer] :int)
-(ffi/defcfn c-generate-string "hegel_generate_string"
-  [:pointer :pointer :pointer :pointer] :int)
-(ffi/defcfn c-generate-string-result-free
-  "hegel_generate_string_result_free"
-  [:pointer :pointer] :int)
-(ffi/defcfn c-generate-uuid "hegel_generate_uuid"
-  [:pointer :pointer :uint8 :uint8 :pointer] :int)
-(ffi/defcfn c-generate-ipv4 "hegel_generate_ipv4"
-  [:pointer :pointer :pointer] :int)
-(ffi/defcfn c-generate-ipv6 "hegel_generate_ipv6"
-  [:pointer :pointer :pointer] :int)
-(ffi/defcfn c-generate-date "hegel_generate_date"
-  [:pointer :pointer
-   [:by-value [:struct [[:year :int32] [:month :uint8] [:day :uint8]]]]
-   [:by-value [:struct [[:year :int32] [:month :uint8] [:day :uint8]]]]
-   :pointer]
-  :int)
-(ffi/defcfn c-generate-time "hegel_generate_time"
-  [:pointer :pointer
-   [:by-value [:struct [[:hour :uint8] [:minute :uint8] [:second :uint8]
-                        [:microsecond :uint32]]]]
-   [:by-value [:struct [[:hour :uint8] [:minute :uint8] [:second :uint8]
-                        [:microsecond :uint32]]]]
-   :pointer]
-  :int)
-(ffi/defcfn c-generate-datetime "hegel_generate_datetime"
-  [:pointer :pointer
-   [:by-value
-    [:struct
-     [[:date [:struct [[:year :int32] [:month :uint8] [:day :uint8]]]]
-      [:time [:struct [[:hour :uint8] [:minute :uint8] [:second :uint8]
-                       [:microsecond :uint32]]]]]]]
-   [:by-value
-    [:struct
-     [[:date [:struct [[:year :int32] [:month :uint8] [:day :uint8]]]]
-      [:time [:struct [[:hour :uint8] [:minute :uint8] [:second :uint8]
-                       [:microsecond :uint32]]]]]]]
-   :pointer]
-  :int)
-(ffi/defcfn c-target "hegel_target"
-  [:pointer :pointer :double :pointer] :int)
-(ffi/defcfn c-start-span "hegel_start_span"
-  [:pointer :pointer :uint64] :int)
-(ffi/defcfn c-stop-span "hegel_stop_span"
-  [:pointer :pointer :uint8] :int)
-(ffi/defcfn c-new-collection "hegel_new_collection"
-  [:pointer :pointer :uint64 :uint64 :pointer] :int)
-(ffi/defcfn c-collection-more "hegel_collection_more"
-  [:pointer :pointer :pointer :pointer] :int)
-(ffi/defcfn c-collection-reject "hegel_collection_reject"
-  [:pointer :pointer :pointer :pointer] :int)
-(ffi/defcfn c-collection-free "hegel_collection_free"
-  [:pointer :pointer] :int)
-(ffi/defcfn c-new-pool "hegel_new_pool"
-  [:pointer :pointer :pointer] :int)
-(ffi/defcfn c-pool-add "hegel_pool_add"
-  [:pointer :pointer :pointer :pointer] :int)
-(ffi/defcfn c-pool-generate "hegel_pool_generate"
-  [:pointer :pointer :pointer :uint8 :pointer] :int)
-(ffi/defcfn c-pool-free "hegel_pool_free"
-  [:pointer :pointer] :int)
-(ffi/defcfn c-new-state-machine "hegel_new_state_machine"
-  [:pointer :pointer :pointer :pointer :size_t :pointer :size_t
-   :int64 :int64 :pointer :pointer]
-  :int)
-(ffi/defcfn c-state-machine-next-group "hegel_state_machine_next_group"
-  [:pointer :pointer :pointer :pointer] :int)
-(ffi/defcfn c-state-machine-next-rule "hegel_state_machine_next_rule"
-  [:pointer :pointer :pointer :int64 :pointer] :int)
-(ffi/defcfn c-state-machine-rule-rejected "hegel_state_machine_rule_rejected"
-  [:pointer :pointer :pointer :int64] :int)
-(ffi/defcfn c-state-machine-free "hegel_state_machine_free"
-  [:pointer :pointer] :int)
-(ffi/defcfn c-mark-complete "hegel_mark_complete"
-  [:pointer :pointer :uint :pointer] :int :blocking)
-
-;; Result and failure snapshots.
-(ffi/defcfn c-run-result-free "hegel_run_result_free"
-  [:pointer :pointer] :int)
-(ffi/defcfn c-run-result-status "hegel_run_result_status"
-  [:pointer :pointer :pointer] :int)
-(ffi/defcfn c-run-result-error "hegel_run_result_error"
-  [:pointer :pointer :pointer] :int)
-(ffi/defcfn c-run-result-failure-count "hegel_run_result_failure_count"
-  [:pointer :pointer :pointer] :int)
-(ffi/defcfn c-run-result-failure "hegel_run_result_failure"
-  [:pointer :pointer :size_t :pointer] :int)
-(ffi/defcfn c-failure-free "hegel_failure_free"
-  [:pointer :pointer] :int)
-(ffi/defcfn c-failure-origin "hegel_failure_origin"
-  [:pointer :pointer :pointer] :int)
-(ffi/defcfn c-failure-reproduction-blob "hegel_failure_reproduction_blob"
-  [:pointer :pointer :pointer] :int)
-(ffi/defcfn c-version "hegel_version" [:pointer :pointer] :int)
+;; Public wrapper names stay stable, but every signature is constructed from
+;; the canonical EDN descriptor by hegel.ffi.jolt.
+(def c-context-new (backend/function :context-new))
+(def c-context-free (backend/function :context-free))
+(def c-context-last-error (backend/function :context-last-error))
+(def c-settings-new (backend/function :settings-new))
+(def c-settings-free (backend/function :settings-free))
+(def c-settings-set-mode (backend/function :settings-set-mode))
+(def c-settings-set-backend (backend/function :settings-set-backend))
+(def c-settings-set-test-cases (backend/function :settings-set-test-cases))
+(def c-settings-set-stateful-step-count (backend/function :settings-set-stateful-step-count))
+(def c-settings-set-verbosity (backend/function :settings-set-verbosity))
+(def c-settings-set-seed (backend/function :settings-set-seed))
+(def c-settings-set-derandomize (backend/function :settings-set-derandomize))
+(def c-settings-set-report-multiple-failures (backend/function :settings-set-report-multiple-failures))
+(def c-settings-set-database (backend/function :settings-set-database))
+(def c-settings-set-database-key (backend/function :settings-set-database-key))
+(def c-settings-set-phases (backend/function :settings-set-phases))
+(def c-settings-set-suppress-health-check (backend/function :settings-set-suppress-health-check))
+(def c-run-start (backend/function :run-start))
+(def c-next-test-case (backend/function :next-test-case))
+(def c-run-result (backend/function :run-result))
+(def c-run-result-free (backend/function :run-result-free))
+(def c-run-free (backend/function :run-free))
+(def c-test-case-from-blob (backend/function :test-case-from-blob))
+(def c-test-case-free (backend/function :test-case-free))
+(def c-generate-integer (backend/function :generate-integer))
+(def c-generate-boolean (backend/function :generate-boolean))
+(def c-generate-float (backend/function :generate-float))
+(def c-generate-bytes (backend/function :generate-bytes))
+(def c-generate-bytes-result-free (backend/function :generate-bytes-result-free))
+(def c-string-generator-text (backend/function :string-generator-text))
+(def c-string-generator-regex (backend/function :string-generator-regex))
+(def c-string-generator-email (backend/function :string-generator-email))
+(def c-string-generator-url (backend/function :string-generator-url))
+(def c-string-generator-domain (backend/function :string-generator-domain))
+(def c-string-generator-free (backend/function :string-generator-free))
+(def c-generate-string (backend/function :generate-string))
+(def c-generate-string-result-free (backend/function :generate-string-result-free))
+(def c-generate-uuid (backend/function :generate-uuid))
+(def c-generate-ipv4 (backend/function :generate-ipv4))
+(def c-generate-ipv6 (backend/function :generate-ipv6))
+(def c-generate-date (backend/function :generate-date))
+(def c-generate-time (backend/function :generate-time))
+(def c-generate-datetime (backend/function :generate-datetime))
+(def c-target (backend/function :target))
+(def c-start-span (backend/function :start-span))
+(def c-stop-span (backend/function :stop-span))
+(def c-new-collection (backend/function :new-collection))
+(def c-collection-more (backend/function :collection-more))
+(def c-collection-reject (backend/function :collection-reject))
+(def c-collection-free (backend/function :collection-free))
+(def c-new-pool (backend/function :new-pool))
+(def c-pool-add (backend/function :pool-add))
+(def c-pool-generate (backend/function :pool-generate))
+(def c-pool-free (backend/function :pool-free))
+(def c-new-state-machine (backend/function :new-state-machine))
+(def c-state-machine-next-group (backend/function :state-machine-next-group))
+(def c-state-machine-next-rule (backend/function :state-machine-next-rule))
+(def c-state-machine-rule-rejected (backend/function :state-machine-rule-rejected))
+(def c-state-machine-free (backend/function :state-machine-free))
+(def c-mark-complete (backend/function :mark-complete))
+(def c-run-result-status (backend/function :run-result-status))
+(def c-run-result-error (backend/function :run-result-error))
+(def c-run-result-failure-count (backend/function :run-result-failure-count))
+(def c-run-result-failure (backend/function :run-result-failure))
+(def c-failure-free (backend/function :failure-free))
+(def c-failure-origin (backend/function :failure-origin))
+(def c-failure-reproduction-blob (backend/function :failure-reproduction-blob))
+(def c-version (backend/function :version))
 
 (def status-valid 0)
 (def status-invalid 1)
@@ -227,8 +124,10 @@
   18446744073709551615N)
 
 (defn- context-error [ctx]
-  (when (and ctx (not (ffi/null? ctx)))
-    (c-context-last-error ctx)))
+  (when (and ctx (not (backend/null? ctx)))
+    (let [ptr (c-context-last-error ctx)]
+      (when-not (backend/null? ptr)
+        (backend/native->string ptr)))))
 
 (defn check!
   "Return nil for HEGEL_OK, otherwise throw with the context diagnostic."
@@ -271,70 +170,79 @@
 
 (defn- call-out!
   [ctx operation type call]
-  (ffi/with-out [out type]
+  (let [out (backend/alloc (backend/sizeof type))]
+    (try
     (let [rc (call out)]
       (check! ctx operation rc)
-      (ffi/read out type))))
+        (backend/read-value out type))
+      (finally
+        (backend/free out)))))
 
 (defn- call-draw-out!
   [ctx operation type call]
-  (ffi/with-out [out type]
+  (let [out (backend/alloc (backend/sizeof type))]
+    (try
     (let [rc (call out)]
       (check-draw! ctx operation rc)
-      (ffi/read out type))))
+        (backend/read-value out type))
+      (finally
+        (backend/free out)))))
 
 (defn- with-c-string
   [value call]
   (if (nil? value)
-    (call ffi/null)
-    (ffi/with-c-string [ptr (str value)]
-      (call ptr))))
+    (call backend/null)
+    (let [ptr (backend/string->native (str value))]
+      (try
+        (call ptr)
+        (finally
+          (backend/free ptr))))))
 
 (defn- allocate-c-strings [values]
   (let [pointers (atom [])]
     (try
       (doseq [value values]
-        (swap! pointers conj (ffi/string->ptr value)))
+        (swap! pointers conj (backend/string->native value)))
       @pointers
       (catch Throwable error
         (doseq [ptr @pointers]
-          (ffi/free ptr))
+          (backend/free ptr))
         (throw error)))))
 
 (defn- with-c-string-array
   "Pass nil as a NULL list and a collection, including empty, as a real list."
   [values call]
   (if (nil? values)
-    (call ffi/null 0)
+    (call backend/null 0)
     (let [pointers (allocate-c-strings values)]
       (try
-        (let [pointer-size (ffi/sizeof :pointer)
+        (let [pointer-size (backend/sizeof :pointer)
               ;; A non-NULL pointer distinguishes [] from an unspecified list.
-              array (ffi/alloc (max 1 (* pointer-size (count pointers))))]
+              array (backend/alloc (max 1 (* pointer-size (count pointers))))]
           (try
             (doseq [[index ptr] (map-indexed vector pointers)]
-              (ffi/write array :pointer (* index pointer-size) ptr))
+              (backend/write-value array :pointer (* index pointer-size) ptr))
             (call array (count pointers))
             (finally
-              (ffi/free array))))
+              (backend/free array))))
         (finally
           (doseq [ptr pointers]
-            (ffi/free ptr)))))))
+            (backend/free ptr)))))))
 
 (defn- with-utf8-buffer
   "Pass a length-delimited UTF-8 buffer, preserving empty strings and U+0000."
   [value call]
   (if (nil? value)
-    (call ffi/null 0)
-    (let [ptr (ffi/string->ptr value)]
+    (call backend/null 0)
+    (let [ptr (backend/string->native value)]
       (try
-        (call ptr (ffi/write-bytes ptr value))
+        (call ptr (backend/write-utf8 ptr value))
         (finally
-          (ffi/free ptr))))))
+          (backend/free ptr))))))
 
 (defn context-new! []
   (let [ctx (c-context-new)]
-    (when (ffi/null? ctx)
+    (when (backend/null? ctx)
       (throw (ex-info "hegel_context_new returned NULL"
                       {:type ::context-allocation-failed})))
     ctx))
@@ -408,12 +316,12 @@
 
 (defn run-start! [ctx settings]
   (call-out! ctx :run-start :pointer
-             #(c-run-start ctx settings ffi/null ffi/null %)))
+             #(c-run-start ctx settings backend/null backend/null %)))
 
 (defn next-test-case! [ctx run]
   (let [handle (call-out! ctx :next-test-case :pointer
                           #(c-next-test-case ctx run %))]
-    (when-not (ffi/null? handle)
+    (when-not (backend/null? handle)
       handle)))
 
 (defn run-result! [ctx run]
@@ -434,37 +342,37 @@
     (fn [blob-ptr]
       (call-out! ctx :test-case-from-blob :pointer
                  #(c-test-case-from-blob
-                   ctx settings blob-ptr ffi/null ffi/null %)))))
+                   ctx settings blob-ptr backend/null backend/null %)))))
 
 (defn test-case-free! [ctx test-case]
   (c-test-case-free ctx test-case)
   nil)
 
 (defn generate-integer! [ctx test-case min-value max-value]
-  (let [out (ffi/alloc (ffi/sizeof :int64))]
+  (let [out (backend/alloc (backend/sizeof :int64))]
     (try
       (let [rc (c-generate-integer
                 ctx test-case min-value max-value out)]
         (check-draw! ctx :generate-integer rc)
-        (ffi/read out :int64))
+        (backend/read-value out :int64))
       (finally
-        (ffi/free out)))))
+        (backend/free out)))))
 
 (defn generate-boolean! [ctx test-case probability forced forced?]
-  (let [out (ffi/alloc (ffi/sizeof :uint8))]
+  (let [out (backend/alloc (backend/sizeof :uint8))]
     (try
       (let [rc (c-generate-boolean
                 ctx test-case probability
                 (if forced 1 0) (if forced? 1 0) out)]
         (check-draw! ctx :generate-boolean rc)
-        (not (zero? (ffi/read out :uint8))))
+        (not (zero? (backend/read-value out :uint8))))
       (finally
-        (ffi/free out)))))
+        (backend/free out)))))
 
 (defn generate-float!
   [ctx test-case width min-value max-value allow-nan? allow-infinity?
    exclude-min? exclude-max? smallest-nonzero-magnitude]
-  (let [out (ffi/alloc (ffi/sizeof :double))]
+  (let [out (backend/alloc (backend/sizeof :double))]
     (try
       (let [rc (c-generate-float
                 ctx test-case width
@@ -474,56 +382,41 @@
                 (double smallest-nonzero-magnitude)
                 out)]
         (check-draw! ctx :generate-float rc)
-        (ffi/read out :double))
+        (backend/read-value out :double))
       (finally
-        (ffi/free out)))))
+        (backend/free out)))))
 
 (defn- zero-memory! [ptr size]
   (dotimes [offset size]
-    (ffi/write ptr :uint8 offset 0)))
+    (backend/write-value ptr :uint8 offset 0)))
 
 (def date-layout
-  (ffi/layout
-   [:struct [[:year :int32]
-             [:month :uint8]
-             [:day :uint8]]]))
+  (backend/layout :hegel/date))
 
 (def time-layout
-  (ffi/layout
-   [:struct [[:hour :uint8]
-             [:minute :uint8]
-             [:second :uint8]
-             [:microsecond :uint32]]]))
+  (backend/layout :hegel/time))
 
 (def datetime-layout
-  (ffi/layout
-   [:struct
-    [[:date [:struct [[:year :int32]
-                      [:month :uint8]
-                      [:day :uint8]]]]
-     [:time [:struct [[:hour :uint8]
-                      [:minute :uint8]
-                      [:second :uint8]
-                      [:microsecond :uint32]]]]]]))
+  (backend/layout :hegel/datetime))
 
 (defn- write-date! [ptr layout prefix value]
   (doseq [field [:year :month :day]]
-    (ffi/write-field ptr layout (conj prefix field) (get value field))))
+    (backend/write-field ptr layout (conj prefix field) (get value field))))
 
 (defn- read-date [ptr layout prefix]
   (into {}
         (map (fn [field]
-               [field (ffi/read-field ptr layout (conj prefix field))])
+               [field (backend/read-field ptr layout (conj prefix field))])
              [:year :month :day])))
 
 (defn- write-time! [ptr layout prefix value]
   (doseq [field [:hour :minute :second :microsecond]]
-    (ffi/write-field ptr layout (conj prefix field) (get value field))))
+    (backend/write-field ptr layout (conj prefix field) (get value field))))
 
 (defn- read-time [ptr layout prefix]
   (into {}
         (map (fn [field]
-               [field (ffi/read-field ptr layout (conj prefix field))])
+               [field (backend/read-field ptr layout (conj prefix field))])
              [:hour :minute :second :microsecond])))
 
 (defn- write-datetime! [ptr value]
@@ -535,33 +428,39 @@
    :time (read-time ptr datetime-layout [:time])})
 
 (defn- with-aggregate-buffers [layout call]
-  (ffi/with-layout [min-value layout]
-    (ffi/with-layout [max-value layout]
-      (ffi/with-layout [out-value layout]
-        (zero-memory! min-value (ffi/layout-size layout))
-        (zero-memory! max-value (ffi/layout-size layout))
-        (zero-memory! out-value (ffi/layout-size layout))
-        (call min-value max-value out-value)))))
+  (let [size (backend/layout-size layout)
+        min-value (backend/alloc size)
+        max-value (backend/alloc size)
+        out-value (backend/alloc size)]
+    (try
+        (zero-memory! min-value (backend/layout-size layout))
+        (zero-memory! max-value (backend/layout-size layout))
+        (zero-memory! out-value (backend/layout-size layout))
+      (call min-value max-value out-value)
+      (finally
+        (backend/free out-value)
+        (backend/free max-value)
+        (backend/free min-value)))))
 
 (defn generate-bytes! [ctx test-case min-size max-size]
   ;; hegel_generate_bytes_result_t is {uint8_t*, size_t}. Both released
   ;; libhegel targets are 64-bit, and deriving the offsets from jolt.ffi keeps
   ;; this correct for any same-width pointer/size_t target as well.
-  (let [pointer-size (ffi/sizeof :pointer)
-        size-size (ffi/sizeof :size_t)
+  (let [pointer-size (backend/sizeof :pointer)
+        size-size (backend/sizeof :size_t)
         result-size (+ pointer-size size-size)
-        result (ffi/alloc result-size)]
+        result (backend/alloc result-size)]
     (zero-memory! result result-size)
     (try
       (let [rc (c-generate-bytes ctx test-case min-size max-size result)]
         (check-draw! ctx :generate-bytes rc)
-        (let [data (ffi/read result :pointer 0)
-              length (ffi/read result :size_t pointer-size)]
-          (ffi/read-array data length)))
+        (let [data (backend/read-value result :pointer 0)
+              length (backend/read-value result :size_t pointer-size)]
+          (backend/read-array data length)))
       (finally
         ;; Safe for a zeroed or partially populated result, per hegel.h.
         (c-generate-bytes-result-free ctx result)
-        (ffi/free result)))))
+        (backend/free result)))))
 
 (defn string-generator-text!
   [ctx {:keys [min-size max-size codec min-codepoint max-codepoint
@@ -598,7 +497,7 @@
     (fn [pattern-ptr]
       (call-out! ctx :string-generator-regex :pointer
                  #(c-string-generator-regex
-                   ctx pattern-ptr (if full-match? 1 0) ffi/null %)))))
+                   ctx pattern-ptr (if full-match? 1 0) backend/null %)))))
 
 (defn string-generator-email! [ctx]
   (call-out! ctx :string-generator-email :pointer
@@ -619,20 +518,20 @@
 (defn generate-string! [ctx test-case generator]
   ;; hegel_generate_string_result_t has the same pointer/size_t layout as the
   ;; bytes result, but its data is length-delimited UTF-8 rather than binary.
-  (let [pointer-size (ffi/sizeof :pointer)
-        size-size (ffi/sizeof :size_t)
+  (let [pointer-size (backend/sizeof :pointer)
+        size-size (backend/sizeof :size_t)
         result-size (+ pointer-size size-size)
-        result (ffi/alloc result-size)]
+        result (backend/alloc result-size)]
     (zero-memory! result result-size)
     (try
       (let [rc (c-generate-string ctx test-case generator result)]
         (check-draw! ctx :generate-string rc)
-        (let [data (ffi/read result :pointer 0)
-              length (ffi/read result :size_t pointer-size)]
-          (ffi/read-bytes data length)))
+        (let [data (backend/read-value result :pointer 0)
+              length (backend/read-value result :size_t pointer-size)]
+          (backend/read-utf8 data length)))
       (finally
         (c-generate-string-result-free ctx result)
-        (ffi/free result)))))
+        (backend/free result)))))
 
 (defn start-span! [ctx test-case label]
   (check-draw! ctx :start-span (c-start-span ctx test-case label)))
@@ -682,11 +581,15 @@
   nil)
 
 (defn- with-int64-array [values call]
-  (let [values (vec values)]
-    (ffi/with-alloc [pointer (max 1 (* (count values) (ffi/sizeof :int64)))]
+  (let [values (vec values)
+        pointer (backend/alloc
+                 (max 1 (* (count values) (backend/sizeof :int64))))]
+    (try
       (doseq [[index value] (map-indexed vector values)]
-        (ffi/write pointer :int64 (* index (ffi/sizeof :int64)) value))
-      (call pointer))))
+        (backend/write-value pointer :int64 (* index (backend/sizeof :int64)) value))
+      (call pointer)
+      (finally
+        (backend/free pointer)))))
 
 (defn new-state-machine!
   [ctx test-case rule-names invariant-names]
@@ -699,15 +602,16 @@
           (with-c-string-array
             invariant-names
             (fn [invariants invariant-count]
-              (ffi/with-out [machine-out :pointer]
-                (ffi/with-out [concurrency-out :int64]
+              (let [machine-out (backend/alloc (backend/sizeof :pointer))
+                    concurrency-out (backend/alloc (backend/sizeof :int64))]
+                (try
                   (check-draw!
                    ctx :new-state-machine
                    (c-new-state-machine
                     ctx test-case rules rule-groups rule-count
                     invariants invariant-count 1 1
                     machine-out concurrency-out))
-                  (let [concurrency (ffi/read concurrency-out :int64)]
+                  (let [concurrency (backend/read-value concurrency-out :int64)]
                     (when-not (= 1 concurrency)
                       (throw
                        (ex-info
@@ -715,7 +619,10 @@
                              "state-machine concurrency " concurrency)
                         {:type ::invalid-state-machine-concurrency
                          :concurrency concurrency})))
-                    (ffi/read machine-out :pointer)))))))))))
+                    (backend/read-value machine-out :pointer))
+                  (finally
+                    (backend/free concurrency-out)
+                    (backend/free machine-out)))))))))))
 
 (defn state-machine-next-group! [ctx test-case state-machine]
   (let [group
@@ -741,28 +648,28 @@
   (c-state-machine-free ctx state-machine)
   nil)
 
-(defn- generate-fixed-bytes! [ctx test-case operation size draw]
-  (let [out (ffi/alloc size)]
+(defn- generate-fixed-bytes! [ctx operation size draw]
+  (let [out (backend/alloc size)]
     (try
       (let [rc (draw out)]
         (check-draw! ctx operation rc)
-        (ffi/read-array out size))
+        (backend/read-array out size))
       (finally
-        (ffi/free out)))))
+        (backend/free out)))))
 
 (defn generate-uuid! [ctx test-case version]
   (generate-fixed-bytes!
-   ctx test-case :generate-uuid 16
+   ctx :generate-uuid 16
    #(c-generate-uuid ctx test-case (or version 0) (if (some? version) 1 0) %)))
 
 (defn generate-ipv4! [ctx test-case]
   (generate-fixed-bytes!
-   ctx test-case :generate-ipv4 4
+   ctx :generate-ipv4 4
    #(c-generate-ipv4 ctx test-case %)))
 
 (defn generate-ipv6! [ctx test-case]
   (generate-fixed-bytes!
-   ctx test-case :generate-ipv6 16
+   ctx :generate-ipv6 16
    #(c-generate-ipv6 ctx test-case %)))
 
 (defn generate-date! [ctx test-case min-value max-value]
@@ -818,8 +725,8 @@
 (defn run-result-error! [ctx result]
   (let [ptr (call-out! ctx :run-result-error :pointer
                        #(c-run-result-error ctx result %))]
-    (when-not (ffi/null? ptr)
-      (ffi/ptr->string ptr))))
+    (when-not (backend/null? ptr)
+      (backend/native->string ptr))))
 
 (defn run-result-failure-count! [ctx result]
   (call-out! ctx :run-result-failure-count :size_t
@@ -836,14 +743,14 @@
 (defn failure-origin! [ctx failure]
   (let [ptr (call-out! ctx :failure-origin :pointer
                        #(c-failure-origin ctx failure %))]
-    (when-not (ffi/null? ptr)
-      (ffi/ptr->string ptr))))
+    (when-not (backend/null? ptr)
+      (backend/native->string ptr))))
 
 (defn failure-reproduction-blob! [ctx failure]
   (let [ptr (call-out! ctx :failure-reproduction-blob :pointer
                        #(c-failure-reproduction-blob ctx failure %))]
-    (when-not (ffi/null? ptr)
-      (ffi/ptr->string ptr))))
+    (when-not (backend/null? ptr)
+      (backend/native->string ptr))))
 
 (defn version
   "Return the loaded libhegel version string."
@@ -852,8 +759,8 @@
     (try
       (let [ptr (call-out! ctx :version :pointer
                            #(c-version ctx %))]
-        (when-not (ffi/null? ptr)
-          (ffi/ptr->string ptr)))
+        (when-not (backend/null? ptr)
+          (backend/native->string ptr)))
       (finally
         (context-free! ctx)))))
 

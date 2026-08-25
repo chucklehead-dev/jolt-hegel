@@ -1,7 +1,7 @@
 (ns hegel.generator
   "Composable generators backed by libhegel draws and shrinker spans."
   (:refer-clojure :exclude [boolean bytes double filter integer list map set
-                            sorted-map sorted-set string time vector])
+                            sorted-map sorted-set string time uuid vector])
   (:require [clojure.string :as str]
             [hegel.core :as h]
             [hegel.ffi :as hffi]))

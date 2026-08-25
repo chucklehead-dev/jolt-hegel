@@ -5,25 +5,20 @@
 
 ## Context
 
-Jolt now supports declarative C struct layouts, structs passed by value, and
-lexically scoped native allocations. The limitation which required
-`native/hegel_shim.c` in ADR 0002 no longer applies.
+libhegel's date, time, and datetime generators pass nested C structs by value.
+Every supported host FFI can describe native aggregate layouts and by-value
+arguments directly.
 
 ## Decision
 
-Require Jolt 0.7.23 or later.
 Bind `hegel_generate_date`, `hegel_generate_time`, and
-`hegel_generate_datetime` directly with literal `[:by-value [:struct ...]]`
-descriptors. Use the same compiled layouts for allocation and field access.
-
-Remove the shim source, loader, compiler fallback, environment variables,
-workflow jobs, and release artifacts. Continue to download and verify libhegel
-itself through `hegel.install`.
+`hegel_generate_datetime` directly from canonical type and function data. Use
+the same backend-derived layouts for allocation and field access. Jolt requires
+0.7.23 or later; other minimums are recorded by ADR 0006 and CI.
 
 ## Consequences
 
-- Chez derives temporal sizes, alignments, offsets, and argument classification
-  for each supported ABI.
-- jolt-hegel no longer publishes or compiles native code.
+- Each host backend derives temporal sizes, alignments, offsets, and argument
+  classification for its supported ABI.
 - The minimum supported Jolt version is 0.7.23.
 - Linux x86_64, Windows x86_64, and macOS arm64 remain required test targets.

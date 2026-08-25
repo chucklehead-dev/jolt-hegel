@@ -17,11 +17,12 @@
 
 ## Install
 
-Require Jolt 0.7.23 or later and use the executable selected by the consuming
-project's toolchain contract. Do not substitute a stale installed executable
-for a project-selected `jolt`, custom image, or simulation binary. Then add the
-public release by full commit SHA. A test-only dependency normally belongs in
-the project's test alias:
+Use the runtime selected by the consuming project's toolchain contract: Jolt
+0.7.23 or later, a project-pinned Babashka build with the required
+`babashka.ffi`, or JVM Clojure on JDK 22 or later. Do not substitute a
+convenient global executable for a project-selected binary. Add the public
+release by full commit SHA. A test-only dependency normally belongs in the
+project's test alias:
 
 ```clojure
 {:aliases
@@ -29,20 +30,31 @@ the project's test alias:
   {:extra-deps
    {io.github.chucklehead-dev/jolt-hegel
     {:git/url "https://github.com/chucklehead-dev/jolt-hegel.git"
-     :git/sha "<release-commit-sha>"}}}}}}
+     :git/sha "<release-commit-sha>"}}}}}
 ```
 
-From the consuming project, activate the alias which contains jolt-hegel when
-installing the verified native dependencies:
+From the consuming project, install the verified libhegel release with the host
+that will run the tests:
 
 ```bash
+# Jolt
 JOLT_CACHE_DIR=.jolt-cache/jolt-hegel-<release-commit-sha> \
   jolt -A:test -m hegel.install
+
+# Babashka
+bb -m hegel.install
+
+# JVM Clojure
+clojure -J--enable-native-access=ALL-UNNAMED -M:test -m hegel.install
 ```
 
-If jolt-hegel is instead in the top-level `:deps` map, omit `-A:test`. Replace
-`test` with the consuming project's actual alias name; otherwise the installer
-namespace is not on Jolt's source roots.
+The direct Babashka command assumes the SHA-pinned dependency is in top-level
+`:deps` in `bb.edn` or is otherwise on the classpath. Activate a consuming
+project alias when it is alias-scoped.
+
+Git dependencies do not contribute aliases to a consuming project. Activate
+the alias that contains jolt-hegel where the host requires it. If the dependency
+is in top-level `:deps`, no dependency alias is needed.
 
 Replace `<release-commit-sha>` with the full commit behind the current release
 tag; never copy the placeholder into a project. Without a local checkout, list
@@ -58,14 +70,12 @@ you intend to pin. For an annotated tag, use the full SHA on its `^{}` line (the
 peeled commit), not the tag-object SHA on the plain tag line. A lightweight tag
 has no peeled line, so its plain line already names the commit.
 
-Use `HEGEL_CACHE_DIR` when the dependency checkout is not writable. If Jolt
-cannot write its default AOT cache, set `JOLT_CACHE_DIR` to a writable project
-or temporary directory. Key it by the pinned release SHA so another jolt-hegel
-release cannot reuse its compiled namespaces. The installer compares the loaded
-release with the resolved source checkout and fails before fetching a mismatched
-libhegel release when it detects stale AOT output. Temporal generators use
-Jolt's direct by-value aggregate FFI, so there is no jolt-hegel native shim or
-local C compiler requirement.
+Use `HEGEL_CACHE_DIR` when the dependency checkout is not writable and
+`HEGEL_LIBHEGEL_LIBRARY` for an explicit compatible library. If Jolt cannot
+write its default AOT cache, set `JOLT_CACHE_DIR` to a writable directory keyed
+by the pinned release SHA. The installer retains a Jolt-only source/AOT identity
+check and verifies SHA-256 on every downloaded asset. All hosts verify the
+loaded libhegel ABI version before a run.
 
 ## Choose an integration
 
@@ -177,7 +187,7 @@ All generators return `(fn [test-case] value)` and are consumed with
 
 Use `(g/integer -128 127)` when the property is defined over signed byte values.
 For wire formats, prefer `g/octet` and call `(unchecked-byte octet)` only at an
-API boundary that requires Jolt's signed byte representation. In the other
+API boundary that requires a host signed-byte representation. In the other
 direction, `(bit-and signed-byte 0xff)` recovers the unsigned octet. Use
 `g/bytes` when the property needs an array.
 
@@ -495,10 +505,10 @@ One `run-test!` call is sequential. The public options have no worker setting,
 and libhegel's generation and adaptive shrinking depend on the preceding case
 history. Do not thread cases within a run.
 
-The supported Jolt runtime gives each `hegel.clojure-test/with` evaluation a dynamically
-scoped report binding. Concurrent engine safety has not been verified by
-jolt-hegel's test suite, so concurrent native runs remain unsupported until
-that contract has a dedicated integration test.
+`hegel.clojure-test/with` isolates its report capture for the active host.
+Concurrent engine safety has not been verified by jolt-hegel's test suite, so
+concurrent native runs remain unsupported until that contract has a dedicated
+integration test.
 
 libhegel 0.33's concurrent state-machine protocol is not yet exposed. The
 current `hegel.stateful/run!` implementation drives the round protocol with
@@ -508,16 +518,22 @@ existing contract.
 ## Verification commands
 
 ```bash
+# Jolt
 JOLT_CACHE_DIR=.jolt-cache/jolt-hegel-<release-commit-sha> \
   jolt -A:test -m hegel.install
 JOLT_CACHE_DIR=.jolt-cache/jolt-hegel-<release-commit-sha> \
   jolt -M:test
+
+# Babashka
+bb setup-native
+bb test
+
+# JVM Clojure
+clojure -J--enable-native-access=ALL-UNNAMED -M:test -m hegel.install
+clojure -J--enable-native-access=ALL-UNNAMED -M:test
 ```
 
-The first command assumes the dependency is in `:test :extra-deps`; omit the
-alias only for a top-level dependency. Use the consuming project's established
-test command and selected Jolt executable when they differ from the examples.
-For process-backed properties, pre-resolve every parent and worker alias before
-generation and preserve the first worker transcript when infrastructure setup
-fails. The SHA-keyed cache is especially important after changing the
-dependency pin.
+Use the consuming project's established test command and selected executable
+when they differ from these examples. For process-backed properties, pre-resolve
+every parent and worker dependency set before generation and preserve the first
+worker transcript when infrastructure setup fails.

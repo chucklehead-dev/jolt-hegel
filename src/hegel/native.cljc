@@ -1,7 +1,7 @@
 (ns hegel.native
   "Shared target and path resolution for libhegel."
   (:require [clojure.string :as str]
-            [jolt.host :as host]))
+            #?(:jolt [jolt.host :as jolt-host])))
 
 (defn nonblank-env
   "Return an environment value only when it contains non-whitespace text."
@@ -40,31 +40,29 @@
                       (= \\ separator)))))))
 
 (defn- resolve-from-launch-directory [path]
-  (let [launch-dir (nonblank-env "JOLT_PWD")]
+  (let [launch-dir #?(:jolt (nonblank-env "JOLT_PWD")
+                      :default (System/getProperty "user.dir"))]
     (cond
       (absolute-path? path) path
       (not (str/blank? launch-dir)) (join-path launch-dir path)
       :else (.getAbsolutePath (java.io.File. path)))))
 
-(defn- dependency-source-root []
-  ;; *file* is not reliable after Jolt loads a namespace from its AOT cache: its
-  ;; metadata can name the checkout that first populated the cache.
-  ;; Current source roots are resolved for every launch, so locate this
-  ;; namespace in those roots instead.
-  (some (fn [root]
-          (when (.isFile
-                 (java.io.File. (join-path root "hegel/native.clj")))
-            root))
-        (host/source-roots)))
+#?(:jolt
+   (defn- dependency-source-root []
+     ;; *file* is not reliable after Jolt loads an AOT namespace. Resolve the
+     ;; current dependency root and accept either portable or legacy suffixes.
+     (some (fn [root]
+             (when (or (.isFile (java.io.File. (join-path root "hegel/native.cljc")))
+                       (.isFile (java.io.File. (join-path root "hegel/native.clj"))))
+               root))
+           (jolt-host/source-roots))))
 
 (def project-root-path
   (if-let [override (nonblank-env "HEGEL_PROJECT_ROOT")]
     (resolve-from-launch-directory override)
-    ;; Jolt's source-root resolver already anchors dependency roots to the
-    ;; launch directory. On Windows, resolving that rooted value a second time
-    ;; can prefix the launch directory again before java.io.File sees it.
-    (or (some-> (dependency-source-root) parent-path)
-        (resolve-from-launch-directory "."))))
+    #?(:jolt (or (some-> (dependency-source-root) parent-path)
+                   (resolve-from-launch-directory "."))
+       :default (resolve-from-launch-directory "."))))
 
 (defn platform
   "Return the supported native target description for the current process."
