@@ -110,9 +110,12 @@ an assumption rejection.
 
 All hosts use the same pinned version and checksum table. `HEGEL_CACHE_DIR`
 selects a writable cache, while `HEGEL_LIBHEGEL_LIBRARY` selects an explicit
-library. Jolt retains its source/AOT identity check because cached compiled
-namespaces can otherwise point at a different Git checkout. JVM Clojure and
-Babashka use their normal download and digest facilities.
+library. Common selection and verification orchestration calls the narrow
+`hegel.install.backend` seam; filesystem, process, download, and digest
+mechanics live in `hegel.install.jolt` or `hegel.install.jvm`. Jolt retains its
+source/AOT identity check because cached compiled namespaces can otherwise
+point at a different Git checkout. JVM Clojure and Babashka use their normal
+download and digest facilities.
 
 The runtime verifies libhegel's reported version before executing a property,
 including when the library path was supplied by the user.

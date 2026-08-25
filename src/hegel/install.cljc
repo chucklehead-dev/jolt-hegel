@@ -4,12 +4,11 @@
   This namespace lives on the normal source path. Consumers activate whichever
   alias contains the dependency, for example
   `jolt -A:test -m hegel.install`; repository aliases are not inherited."
-  (:require [clojure.java.shell :as shell]
-            [clojure.string :as str]
+  (:require [clojure.string :as str]
             [hegel.host :as host]
+            [hegel.install.backend :as install-backend]
             [hegel.native :as native]
-            [hegel.version :as version]
-            #?(:jolt [jolt.host :as jolt-host])))
+            [hegel.version :as version]))
 
 (def ^:private libhegel-release-base
   (str "https://github.com/hegeldev/hegel-rust/releases/download/v"
@@ -36,40 +35,14 @@
    {:name "libhegel-windows-arm64.dll"
     :sha256 "ccb39178181c3bdf5b2cc549ab3b766b22c9b47fc2d4993ae165f7c94206e677"}})
 
-;; Only the Jolt installer needs native libc/libcrypto helpers. Keeping them
-;; dynamically resolved here prevents host-specific FFI from entering the
-;; shared installer namespace on bb and JVM Clojure.
 (def ^:private jolt? (= :jolt (host/runtime)))
-
-(defn- jolt-var [symbol]
-  (when jolt?
-    (requiring-resolve symbol)))
-
-(def ^:private jolt-load-library (jolt-var 'jolt.ffi/load-library))
-(def ^:private jolt-alloc (jolt-var 'jolt.ffi/alloc))
-(def ^:private jolt-free (jolt-var 'jolt.ffi/free))
-(def ^:private jolt-null? (jolt-var 'jolt.ffi/null?))
-(def ^:private jolt-read-array (jolt-var 'jolt.ffi/read-array))
-(def ^:private jolt-write-array (jolt-var 'jolt.ffi/write-array))
-
-(when jolt?
-  (jolt-load-library))
-
-(def ^:private c-system
-  (when jolt?
-    (eval '(jolt.ffi/foreign-fn "system" [:string] :int))))
-
-(def ^:private c-sha256
-  (when jolt?
-    (eval '(jolt.ffi/foreign-fn "SHA256" [:pointer :size_t :pointer]
-                                :pointer))))
 
 (defn- nonblank [value]
   (when-not (str/blank? value)
     value))
 
 (defn- property [name]
-  (nonblank (System/getProperty name)))
+  (nonblank (install-backend/property name)))
 
 (defn- normalize-architecture [machine]
   (case (some-> machine str/trim str/lower-case)
@@ -78,11 +51,7 @@
     nil))
 
 (defn- uname-machine []
-  (try
-    (let [{:keys [exit out]} (shell/sh "uname" "-m")]
-      (when (zero? exit)
-        (nonblank (str/trim out))))
-    (catch Throwable _ nil)))
+  (nonblank (install-backend/uname-machine)))
 
 (defn architecture
   "Return the release architecture name for the current Jolt process."
@@ -105,20 +74,17 @@
            :candidates candidates})))))
 
 (defn- path-exists? [path]
-  #?(:jolt (jolt-host/file-exists? path)
-     :default (.exists (java.io.File. path))))
+  (install-backend/path-exists? path))
 
 (defn- directory? [path]
-  #?(:jolt (jolt-host/directory? path)
-     :default (.isDirectory (java.io.File. path))))
+  (install-backend/directory? path))
 
 (defn- regular-file? [path]
   (and (path-exists? path) (not (directory? path))))
 
 (defn- ensure-directory! [path]
   (when-not (or (directory? path)
-                #?(:jolt (jolt-host/mkdirs! path)
-                   :default (.mkdirs (java.io.File. path))))
+                (install-backend/mkdirs! path))
     (throw
      (ex-info (str "could not create " path)
               {:type ::directory-failed
@@ -144,7 +110,7 @@
                             (version-source-path))
         match (re-find
                #"(?s)\(def\s+jolt-hegel-version\s+\"[^\"]*\"\s+\"([^\"]+)\"\s*\)"
-               (slurp path))]
+               (install-backend/read-text path))]
     (or (second match)
         (throw
          (ex-info (str "could not read jolt-hegel version from " path)
@@ -178,8 +144,7 @@
 
 (defn- delete-if-present! [path]
   (when (and (path-exists? path)
-             (not #?(:jolt (jolt-host/delete-file! path)
-                     :default (.delete (java.io.File. path)))))
+             (not (install-backend/delete-file! path)))
     (throw
      (ex-info (str "could not remove " path)
               {:type ::delete-failed
@@ -188,9 +153,7 @@
 (defn- replace-file! [source target]
   (when (path-exists? target)
     (delete-if-present! target))
-  (when-not #?(:jolt (jolt-host/rename-file! source target)
-               :default (.renameTo (java.io.File. source)
-                                   (java.io.File. target)))
+  (when-not (install-backend/rename-file! source target)
     (throw
      (ex-info (str "could not move verified download to " target
                    "; verified file remains at " source)
@@ -199,58 +162,11 @@
                :path target})))
   target)
 
-(defn- powershell-literal [value]
-  (str "'" (str/replace value "'" "''") "'"))
-
-(defn- windows-command [arguments]
-  ;; cmd.exe requires an extra outer quote when the executable itself is
-  ;; quoted: `\"\"C:\path\cc.exe\" \"arg\"\"`.
-  (str "\""
-       (str/join " "
-                 (map #(str "\"" (str/replace % "\"" "\\\"") "\"")
-                      arguments))
-       "\""))
-
-(defn- run-windows! [description arguments]
-  (let [exit (if jolt?
-               (c-system (windows-command arguments))
-               (:exit (apply shell/sh arguments)))]
-    (when-not (zero? exit)
-      (throw
-       (ex-info (str description " failed with exit " exit)
-                {:type ::command-failed
-                 :description description
-                 :arguments arguments
-                 :exit exit}))))
-  nil)
-
-(defn- windows-download! [url path]
-  (let [script (str "$ErrorActionPreference='Stop';"
-                    "$ProgressPreference='SilentlyContinue';"
-                    "Invoke-WebRequest -UseBasicParsing -Uri "
-                    (powershell-literal url)
-                    " -OutFile " (powershell-literal path))]
-    (run-windows! "PowerShell download"
-                  ["powershell.exe" "-NoLogo" "-NoProfile"
-                   "-NonInteractive" "-Command" script])))
-
-(defn- posix-download! [url path]
-  (if jolt?
-    (let [fetch (requiring-resolve 'jolt.mvn-http/fetch)]
-      (when-not (fetch url path)
-        (throw (ex-info (str "failed to download " url)
-                        {:type ::download-failed
-                         :url url
-                         :path path}))))
-    ((requiring-resolve 'hegel.install.jvm/download!) url path)))
-
 (defn- download! [url path]
   (println "native: downloading" url)
   (delete-if-present! path)
   (try
-    (if (= :windows (:os (native/platform)))
-      (windows-download! url path)
-      (posix-download! url path))
+    (install-backend/download! (:os (native/platform)) url path)
     (require-file! "download" path)
     (catch Throwable cause
       (delete-if-present! path)
@@ -261,69 +177,10 @@
                  :path path
                  :cause cause})))))
 
-(defn- crypto-candidates []
-  (if (= :darwin (:os (native/platform)))
-    ["/opt/homebrew/opt/openssl@3/lib/libcrypto.dylib"
-     "/opt/homebrew/lib/libcrypto.dylib"
-     "/usr/local/opt/openssl@3/lib/libcrypto.dylib"]
-    ["libcrypto.so.3" "libcrypto.so.1.1" "libcrypto.so"]))
-
-(defn- ensure-crypto! []
-  (when-not
-   (some (fn [candidate]
-             (try
-             (jolt-load-library candidate)
-             true
-             (catch Throwable _ false)))
-         (crypto-candidates))
-    (throw
-     (ex-info "could not load OpenSSL libcrypto to verify native downloads"
-              {:type ::crypto-unavailable}))))
-
-(defn- posix-sha256 [path]
-  (ensure-crypto!)
-  (with-open [input (java.io.FileInputStream. path)]
-    (let [data (.readAllBytes input)
-          length (alength data)
-          source (jolt-alloc (max 1 length))
-          digest (jolt-alloc 32)]
-      (try
-        (jolt-write-array source data)
-        (when (jolt-null? (c-sha256 source length digest))
-          (throw
-           (ex-info (str "SHA256 failed for " path)
-                    {:type ::checksum-failed
-                     :path path})))
-        (apply str
-               (map #(format "%02x" (bit-and % 0xff))
-                    (seq (jolt-read-array digest 32))))
-        (finally
-          (jolt-free digest)
-          (jolt-free source))))))
-
-(defn- windows-checksum-matches? [path expected]
-  (let [script (str "$ErrorActionPreference='Stop';"
-                    "$bytes=[System.IO.File]::ReadAllBytes("
-                    (powershell-literal path) ");"
-                    "$hash=[System.Security.Cryptography.SHA256]::Create()"
-                    ".ComputeHash($bytes);"
-                    "$actual=[System.BitConverter]::ToString($hash)"
-                    ".Replace('-','').ToLowerInvariant();"
-                    "if ($actual -ne " (powershell-literal expected)
-                    ") { exit 9 }")]
-    (zero? (c-system
-            (windows-command
-             ["powershell.exe" "-NoLogo" "-NoProfile" "-NonInteractive"
-              "-Command" script])))))
-
 (defn- checksum-matches? [path expected]
   (and (regular-file? path)
-       (if jolt?
-         (if (= :windows (:os (native/platform)))
-           (windows-checksum-matches? path expected)
-           (= expected (posix-sha256 path)))
-         (= expected
-            ((requiring-resolve 'hegel.install.jvm/sha256) path)))))
+       (install-backend/checksum-matches?
+        (:os (native/platform)) path expected)))
 
 (defn- verify-file! [path expected]
   (when-not (checksum-matches? path expected)
