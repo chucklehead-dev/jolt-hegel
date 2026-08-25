@@ -1,0 +1,57 @@
+(ns hegel.install.clr
+  "ClojureCLR download, filesystem, and checksum mechanics for hegel.install."
+  (:require [clojure.string :as str]))
+
+(assembly-load "System.Net.Http")
+(assembly-load "System.Security.Cryptography")
+
+(defn property [name]
+  (case name
+    "os.name" (System.Runtime.InteropServices.RuntimeInformation/OSDescription)
+    "os.arch" (str System.Runtime.InteropServices.RuntimeInformation/ProcessArchitecture)
+    "java.io.tmpdir" (System.IO.Path/GetTempPath)
+    nil))
+
+(defn uname-machine [] nil)
+
+(defn path-exists? [path]
+  (or (System.IO.File/Exists path)
+      (System.IO.Directory/Exists path)))
+
+(defn directory? [path]
+  (System.IO.Directory/Exists path))
+
+(defn mkdirs! [path]
+  (System.IO.Directory/CreateDirectory path)
+  true)
+
+(defn delete-file! [path]
+  (System.IO.File/Delete path)
+  (not (System.IO.File/Exists path)))
+
+(defn rename-file! [source target]
+  (System.IO.File/Move source target)
+  (and (System.IO.File/Exists target)
+       (not (System.IO.File/Exists source))))
+
+(defn read-text [path]
+  (System.IO.File/ReadAllText path))
+
+(defn download! [_os url path]
+  (let [client (System.Net.Http.HttpClient.)]
+    (try
+      (let [task (.GetByteArrayAsync client url)
+            bytes (.GetResult (.GetAwaiter task))]
+        (System.IO.File/WriteAllBytes path bytes)
+        true)
+      (finally
+        (.Dispose client)))))
+
+(defn sha256 [path]
+  (-> (System.IO.File/ReadAllBytes path)
+      System.Security.Cryptography.SHA256/HashData
+      System.Convert/ToHexString
+      str/lower-case))
+
+(defn checksum-matches? [_os path expected]
+  (= expected (sha256 path)))

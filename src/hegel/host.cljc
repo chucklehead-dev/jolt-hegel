@@ -49,7 +49,11 @@
   (join-path parent child))
 
 (defn os-name []
-  #?(:cljr (System.Runtime.InteropServices.RuntimeInformation/OSDescription)
+  #?(:cljr (cond
+             (System.OperatingSystem/IsWindows) "Windows"
+             (System.OperatingSystem/IsLinux) "Linux"
+             (System.OperatingSystem/IsMacOS) "macOS"
+             :else (System.Runtime.InteropServices.RuntimeInformation/OSDescription))
      :jank (jank-host/os-name)
      :default (System/getProperty "os.name")))
 
