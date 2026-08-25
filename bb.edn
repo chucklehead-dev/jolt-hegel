@@ -8,6 +8,12 @@
   jank-codegen-check {:extra-paths ["script"]
                       :task ((requiring-resolve 'hegel.generate-jank-bindings/-main)
                              "--check")}
+  clr-codegen {:extra-paths ["script"]
+               :task (apply (requiring-resolve 'hegel.generate-clr-bindings/-main)
+                            *command-line-args*)}
+  clr-codegen-check {:extra-paths ["script"]
+                     :task ((requiring-resolve 'hegel.generate-clr-bindings/-main)
+                            "--check")}
   abi-test {:extra-paths ["script"]
             :task (exec 'hegel.abi-check/-main)}
   test {:extra-paths ["test"]
