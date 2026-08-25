@@ -20,13 +20,13 @@
   #?(:jank (jank-host/current-directory)
      :default (System/getProperty "user.dir")))
 
-(defn absolute-path? [path]
-  #?(:jank (jank-host/absolute-path? path)
-     :default nil))
+(defn absolute-path?
+  #?(:jank ([path] (jank-host/absolute-path? path))
+     :default ([_] nil)))
 
-(defn parent-path [path]
-  #?(:jank (jank-host/parent-path path)
-     :default nil))
+(defn parent-path
+  #?(:jank ([path] (jank-host/parent-path path))
+     :default ([_] nil)))
 
 (defn join-path [parent child]
   #?(:jank
