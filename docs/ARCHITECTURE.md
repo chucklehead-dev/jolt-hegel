@@ -13,10 +13,10 @@ confined to resource/process discovery and a narrow native boundary.
        core / generators / stateful / reporting / Malli adapter
                                    |
                          hegel.ffi.backend
-                      /       /       |       \       \
-           jolt.ffi  babashka.ffi  java.lang.foreign  generated hosts
-                      \       \       |       /       /
-                                libhegel
+                     /       /       |       \       \
+             jolt.ffi  babashka.ffi  JDK FFM  jank C++  CLR P/Invoke
+                     \       \       |       /       /
+                                libhegel 0.33
 ```
 
 ## Source layers
@@ -33,7 +33,7 @@ confined to resource/process discovery and a narrow native boundary.
 | `hegel.malli` | Optional Malli AST adapter built from shared generators |
 | `hegel.ffi` | Backend-neutral checked libhegel operations and explicit ownership |
 | `hegel.ffi.backend` | Selected-backend contract |
-| `hegel.ffi.jolt`, `.bb`, `.jvm`, `.clr` | Signature construction, native memory, calls, and layouts |
+| `hegel.ffi.jolt`, `.bb`, `.jvm`, `.clr` and generated jank artifacts | Signature construction, native memory, calls, and layouts |
 | `hegel.host` | Host identity and resource loading |
 | `hegel.native` | Platform, cache, and library path selection |
 | `hegel.install` | Version-pinned, checksum-verified native acquisition |
@@ -61,6 +61,8 @@ and access fields in descriptor-derived layouts.
   typed invokers are generated from the descriptor. The bridge loads the exact
   selected library, validates all exports eagerly, and exposes the same memory
   contract to shared Clojure code.
+- jank compiles generated C++ layouts, symbol lookup, memory operations, and
+  typed downcalls derived from the same descriptor.
 
 By-value `date`, `time`, and nested `datetime` arguments are ordinary descriptor
 types. Each backend computes native alignment, padding, offsets, and argument
@@ -112,14 +114,18 @@ an assumption rejection.
 
 ## Installation boundary
 
-All hosts use the same pinned version and checksum table. `HEGEL_CACHE_DIR`
-selects a writable cache, while `HEGEL_LIBHEGEL_LIBRARY` selects an explicit
-library. Common selection and verification orchestration calls the narrow
-`hegel.install.backend` seam; filesystem, process, download, and digest
-mechanics live in host-specific installer namespaces. Jolt retains its
-source/AOT identity check because cached compiled namespaces can otherwise
-point at a different Git checkout. JVM Clojure and Babashka use their normal
-download and digest facilities.
+Jolt, Babashka, JVM Clojure, and ClojureCLR use the same pinned version and
+checksum table. `HEGEL_CACHE_DIR` selects a writable cache, while
+`HEGEL_LIBHEGEL_LIBRARY` selects an explicit library. Common selection and
+verification orchestration calls the narrow `hegel.install.backend` seam;
+filesystem, process, download, and digest mechanics live in host-specific
+installer namespaces. Jolt retains its source/AOT identity check because cached
+compiled namespaces can otherwise point at a different Git checkout. JVM
+Clojure and Babashka use their normal download and digest facilities.
+
+jank does not yet have a native installer backend. Its CI uses Babashka to
+download and verify the same pinned artifact before jank loads it through an
+explicit path.
 
 The runtime verifies libhegel's reported version before executing a property,
 including when the library path was supplied by the user.
@@ -139,3 +145,9 @@ generator, and stateful namespaces remain shared. Both generated surfaces are
 derived from `resources/hegel/abi.edn`, not maintained as additional signature
 lists. See [JANK.md](JANK.md) and [CLR.md](CLR.md) for proven surfaces,
 commands, and remaining release gates.
+
+The support distinction is a release and evidence boundary, not a source-tree
+fork. Jolt, Babashka, and JVM Clojure run the complete shared semantic and
+consumer suites on the core three-OS matrix. jank and ClojureCLR run focused
+backend and shared-semantics suites; they remain experimental until their
+documented packaging and full-suite gates close.

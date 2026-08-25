@@ -21,7 +21,9 @@ Use the runtime selected by the consuming project's toolchain contract: Jolt
 0.7.23 or later, a project-pinned Babashka build with the required
 `babashka.ffi`, or JVM Clojure on JDK 22 or later. Do not substitute a
 convenient global executable for a project-selected binary. Add the public
-release by full commit SHA. A test-only dependency normally belongs in the
+release by full commit SHA. `v0.3.0` is the first portable release; resolve its
+annotated tag to the full peeled commit rather than using the tag-object SHA,
+tag name, or a moving branch. A test-only dependency normally belongs in the
 project's test alias:
 
 ```clojure
@@ -30,7 +32,7 @@ project's test alias:
   {:extra-deps
    {io.github.chucklehead-dev/jolt-hegel
     {:git/url "https://github.com/chucklehead-dev/jolt-hegel.git"
-     :git/sha "<release-commit-sha>"}}}}}
+     :git/sha "<jolt-hegel-commit-sha>"}}}}}
 ```
 
 From the consuming project, install the verified libhegel release with the host
@@ -38,7 +40,7 @@ that will run the tests:
 
 ```bash
 # Jolt
-JOLT_CACHE_DIR=.jolt-cache/jolt-hegel-<release-commit-sha> \
+JOLT_CACHE_DIR=.jolt-cache/jolt-hegel-<jolt-hegel-commit-sha> \
   jolt -A:test -m hegel.install
 
 # Babashka
@@ -56,9 +58,9 @@ Git dependencies do not contribute aliases to a consuming project. Activate
 the alias that contains jolt-hegel where the host requires it. If the dependency
 is in top-level `:deps`, no dependency alias is needed.
 
-Replace `<release-commit-sha>` with the full commit behind the current release
-tag; never copy the placeholder into a project. Without a local checkout, list
-and resolve the remote tags with:
+Replace `<jolt-hegel-commit-sha>` with the full peeled commit behind the
+intended release tag; never copy the placeholder into a project. Without a
+local checkout, list and resolve the remote tags with:
 
 ```bash
 git ls-remote --tags --sort=-v:refname \
@@ -76,6 +78,19 @@ write its default AOT cache, set `JOLT_CACHE_DIR` to a writable directory keyed
 by the pinned release SHA. The installer retains a Jolt-only source/AOT identity
 check and verifies SHA-256 on every downloaded asset. All hosts verify the
 loaded libhegel ABI version before a run.
+
+### Host status
+
+| Host | Status and current evidence |
+| --- | --- |
+| Jolt 0.7.23+ | Supported on Linux x86_64, Windows x86_64, and macOS arm64 |
+| `casselc/babashka` at `26367edf91905eb85c68e6fd77f3e108a60dc651` | Supported on the same three-OS native-image matrix while its required FFI work is unreleased upstream |
+| JVM Clojure on JDK 22+ | Supported on the same matrix with JDK 25 primary and a Linux JDK 22 minimum gate |
+| jank | Experimental focused Linux and macOS suites; see `docs/JANK.md` |
+| ClojureCLR 1.12.2 on .NET 8 | Experimental focused three-OS suite; see `docs/CLR.md` |
+
+The experimental hosts reuse shared property behavior, but their focused CI is
+not equivalent to the complete supported-host semantic and consumer matrix.
 
 ## Choose an integration
 
@@ -202,7 +217,7 @@ consumer alias. The adapter test suite uses Malli 0.20.1.
 {:extra-deps
  {io.github.chucklehead-dev/jolt-hegel
   {:git/url "https://github.com/chucklehead-dev/jolt-hegel.git"
-   :git/sha "<release-commit-sha>"}
+   :git/sha "<jolt-hegel-commit-sha>"}
   metosin/malli {:mvn/version "0.20.1"}}}
 ```
 
@@ -519,9 +534,9 @@ existing contract.
 
 ```bash
 # Jolt
-JOLT_CACHE_DIR=.jolt-cache/jolt-hegel-<release-commit-sha> \
+JOLT_CACHE_DIR=.jolt-cache/jolt-hegel-<jolt-hegel-commit-sha> \
   jolt -A:test -m hegel.install
-JOLT_CACHE_DIR=.jolt-cache/jolt-hegel-<release-commit-sha> \
+JOLT_CACHE_DIR=.jolt-cache/jolt-hegel-<jolt-hegel-commit-sha> \
   jolt -M:test
 
 # Babashka

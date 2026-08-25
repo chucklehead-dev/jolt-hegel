@@ -18,6 +18,20 @@ Experimental ports reuse that same implementation and boundary on jank and
 ClojureCLR. They have focused cross-platform CI but are not yet part of the
 supported release contract.
 
+## Current status
+
+| Host | Contract | Continuously tested targets |
+| --- | --- | --- |
+| Jolt 0.7.23+ | Supported | Linux x86_64, Windows x86_64, macOS arm64 |
+| Babashka fork `26367edf` | Supported while the required FFI work is unreleased upstream | Linux x86_64, Windows x86_64, macOS arm64 native images |
+| JVM Clojure, JDK 22+ | Supported; JDK 25 is primary | Linux x86_64, Windows x86_64, macOS arm64, plus a Linux JDK 22 minimum gate |
+| jank | Experimental focused suite | Linux x86_64 and macOS arm64 |
+| ClojureCLR 1.12.2 on .NET 8 | Experimental focused suite | Linux x86_64, Windows x86_64, macOS arm64 |
+
+The current release is `v0.3.0`, the first release of the portable
+implementation. Consumer Git dependencies should pin the tag's full peeled
+commit SHA, not the tag-object SHA or a moving branch reference.
+
 ## What should be a property?
 
 Property tests are most useful when many inputs should obey one durable rule:
@@ -246,7 +260,7 @@ can be used by each host:
   {:extra-deps
    {io.github.chucklehead-dev/jolt-hegel
     {:git/url "https://github.com/chucklehead-dev/jolt-hegel.git"
-     :git/sha "<release-commit-sha>"}
+     :git/sha "<jolt-hegel-commit-sha>"}
     ;; Only needed when requiring hegel.malli:
     metosin/malli {:mvn/version "0.20.1"}}}}}
 ```
@@ -258,11 +272,12 @@ top-level `:deps` of `bb.edn` (or otherwise place it on Babashka's classpath):
 {:deps
  {io.github.chucklehead-dev/jolt-hegel
   {:git/url "https://github.com/chucklehead-dev/jolt-hegel.git"
-   :git/sha "<release-commit-sha>"}}}
+   :git/sha "<jolt-hegel-commit-sha>"}}}
 ```
 
-Replace the placeholder with the full commit behind the release tag; do not
-leave it in a consumer configuration.
+Replace the placeholder with the full peeled commit behind the intended
+release tag. Do not leave the placeholder, a tag name, or a moving branch in
+consumer configuration.
 
 Run the installer with the host that will run the tests and the alias that
 contains jolt-hegel:
@@ -271,7 +286,7 @@ contains jolt-hegel:
 # Jolt 0.7.23+
 jolt -A:test -m hegel.install
 
-# Babashka built from the pinned casselc/babashka FFI branch
+# Babashka built from casselc/babashka commit 26367edf...
 bb -m hegel.install
 
 # JVM Clojure on JDK 22+ (JDK 25 is the primary target)
@@ -283,9 +298,11 @@ jolt-hegel is in top-level `:deps`, no dependency alias is needed; otherwise
 make sure the consuming project's alias is active so the installer namespace is
 on the classpath.
 
-While the required Babashka FFI work is unreleased, use a binary built from the
-pinned `casselc/babashka` commit recorded by this repository's CI. JVM Clojure
-uses `java.lang.foreign` directly and therefore requires JDK 22 or later.
+While the required Babashka FFI work is unreleased, use a binary built from
+`casselc/babashka` commit
+`26367edf91905eb85c68e6fd77f3e108a60dc651`, the exact revision built and
+tested by this repository's CI. JVM Clojure uses `java.lang.foreign` directly
+and therefore requires JDK 22 or later.
 
 Environment overrides:
 
@@ -313,8 +330,9 @@ The native ABI is data, so it can be inspected without loading libhegel:
 
 After the selected backend initializes, `(abi/backend-report)` returns
 structured per-function coverage and routing. Routes identify Jolt direct FFI,
-Babashka's compiled trampoline or libffi fallback, and JVM FFM. Ordinary
-property code does not need to select a backend.
+Babashka's compiled trampoline or libffi fallback, JVM FFM, generated jank
+interop, or generated CLR P/Invoke. Ordinary property code does not need to
+select a backend.
 
 ## Development and design
 

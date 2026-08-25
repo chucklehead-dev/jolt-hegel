@@ -5,6 +5,12 @@ supported Jolt, Babashka, and JVM release matrix. Linux x86_64, Windows x86_64,
 and macOS arm64 CI run the shared property API against the official libhegel
 0.33 native artifacts. Ordinary Hegel code does not call a CLR-specific API.
 
+The implementation is merged on `main`. Hosted CI pins ClojureCLR 1.12.2 and
+.NET 8, verifies the ClojureCLR NuGet package checksum, and runs both the
+independent managed ABI smoke and focused shared-semantics smoke on all three
+operating systems. This is continuous experimental evidence, not a supported
+consumer-release promise.
+
 The port uses a small AnyCPU .NET 8 bridge because ClojureCLR cannot declare
 arbitrary P/Invoke methods dynamically. Its structs, P/Invoke declarations,
 function invokers, and expected export list are generated from
@@ -81,11 +87,12 @@ paths; native strings and result bytes are copied before their owners are
 released. The bridge holds the selected libhegel library for process lifetime
 because bindings are constructed once and reused.
 
-The bridge is AnyCPU and uses `LibraryImport`-generated marshalling. That makes
-the bridge itself compatible with .NET trimming and NativeAOT constraints, but
-it does not make the full ClojureCLR runtime NativeAOT-compatible: current
-ClojureCLR relies on runtime code generation. This experiment therefore makes
-no full-application NativeAOT claim.
+The bridge is AnyCPU and uses `LibraryImport`-generated marshalling, an
+AOT-friendly design. Current CI runs it on the managed .NET runtime; it does not
+publish or validate a NativeAOT bridge artifact. More importantly, current
+ClojureCLR relies on runtime code generation, so the full ClojureCLR application
+is not a NativeAOT target. This experiment makes no full-application NativeAOT
+claim.
 
 ## Remaining release gates
 
