@@ -243,6 +243,13 @@ Sequence order is explicit: `:nondecreasing` permits duplicates and gaps,
 requires increments of exactly one. `:scope` checks independent cursors or
 partitions without imposing a global order on their interleaving.
 
+For richer protocols, `event-model` folds each event through a tiny pure state
+machine and checks an invariant after every transition plus a final predicate.
+Its optional `:scope` makes the same model independently check file
+descriptors, buffer loans, requests, spans, DB handles, or queue partitions.
+This covers linear resource lifecycles without coupling the journal producer to
+Hegel.
+
 ## Generators
 
 The built-in surface covers:

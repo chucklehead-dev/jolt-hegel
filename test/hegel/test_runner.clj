@@ -1706,6 +1706,33 @@
                    {:order :nondecreasing})])]
     (check "nondecreasing sequence rules permit duplicates and gaps"
            (= events checked)))
+  (let [transition (fn [state event]
+                     (case [state (:event event)]
+                       [nil :open] :open
+                       [:open :use] :open
+                       [:open :close] :closed
+                       :invalid))
+        fd-rule (htrace/event-model
+                 :fd-linear-lifecycle
+                 {:scope :fd
+                  :initial nil
+                  :step transition
+                  :invariant (fn [state _event] (not= :invalid state))
+                  :final #(= :closed %)})
+        valid [{:fd 3 :event :open}
+               {:fd 4 :event :open}
+               {:fd 3 :event :use}
+               {:fd 4 :event :close}
+               {:fd 3 :event :close}]
+        invalid (conj valid {:fd 3 :event :use})
+        failure (try
+                  (htrace/check! invalid [fd-rule])
+                  nil
+                  (catch Throwable error error))]
+    (check "scoped event models express linear resource lifecycles"
+           (and (= valid (htrace/check! valid [fd-rule]))
+                (= "hegel.trace/fd-linear-lifecycle"
+                   (:hegel/origin (ex-data failure))))))
   (let [final-values (atom [])
         result
         (h/run-test!

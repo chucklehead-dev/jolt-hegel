@@ -126,6 +126,57 @@
                             (map ordered? values (rest values))))))
            groups)))))))
 
+(defn event-model
+  "Fold events through a small pure state model and check every transition.
+
+  Options require `:step`, a function of `[state event]`. `:initial` defaults
+  to nil, `:invariant` checks `[next-state event]` after every transition, and
+  `:final` checks the state after a complete scope. Optional callable `:scope`
+  runs one independent model per scope while preserving each scope's observed
+  order."
+  [name opts]
+  (when-not (map? opts)
+    (throw (ex-info "trace event-model options must be a map"
+                    {:type ::invalid-rule :name name :options opts})))
+  (let [allowed #{:initial :step :invariant :final :scope}
+        unknown (seq (remove allowed (keys opts)))
+        {:keys [initial step invariant final scope]
+         :or {invariant (fn [_ _] true)
+              final (fn [_] true)}} opts]
+    (when unknown
+      (throw (ex-info "unsupported trace event-model option"
+                      {:type ::invalid-rule :name name
+                       :unknown-keys (vec unknown)})))
+    (when-not (ifn? step)
+      (throw (ex-info "trace event-model :step must be callable"
+                      {:type ::invalid-rule :name name :step step})))
+    (when-not (ifn? invariant)
+      (throw (ex-info "trace event-model :invariant must be callable"
+                      {:type ::invalid-rule :name name :invariant invariant})))
+    (when-not (ifn? final)
+      (throw (ex-info "trace event-model :final must be callable"
+                      {:type ::invalid-rule :name name :final final})))
+    (when-not (or (nil? scope) (ifn? scope))
+      (throw (ex-info "trace event-model :scope must be nil or callable"
+                      {:type ::invalid-rule :name name :scope scope})))
+    (rule
+     name
+     (fn [events]
+       (let [groups (if scope
+                      (vals (group-by scope events))
+                      [events])]
+         (every?
+          (fn [group]
+            (loop [state initial
+                   remaining (seq group)]
+              (if-let [event (first remaining)]
+                (let [next-state (step state event)]
+                  (if (invariant next-state event)
+                    (recur next-state (next remaining))
+                    false))
+                (final state))))
+          groups))))))
+
 (defn contiguous-sequence
   "Require integer `:seq` values to be contiguous from `start` (default 1).
   This detects a bounded ring journal that silently dropped the beginning of a

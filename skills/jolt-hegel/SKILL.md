@@ -127,6 +127,11 @@ Choose sequence semantics explicitly: nondecreasing allows duplicates and
 gaps, strictly increasing allows gaps, and contiguous requires `+1`. Use a
 scope function for independently ordered partitions or cursors.
 
+Use `hegel.trace/event-model` for a pure per-event state fold. It is the
+preferred small abstraction for linear resources such as fds, callbacks,
+buffer loans, spans, and result handles: define `:step`, check `:invariant`
+after each event, and use `:final` for the completed-snapshot obligation.
+
 Run trace assertions outside aspect advice. Jolt's aspect runtime fails open on
 advice errors, so an assertion thrown inside advice is intentionally not a
 reliable test verdict. Keep the snapshot within `:max-events` and use

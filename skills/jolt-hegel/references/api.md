@@ -505,6 +505,7 @@ property failure.
 | `(ht/check! events rules)` | Check rules with the default 256-event evidence bound |
 | `(ht/check! events rules {:max-events n})` | Check with an explicit positive bound |
 | `(ht/ordered-sequence name opts)` | Check integer values as `:nondecreasing`, `:strictly-increasing`, or `:contiguous`, optionally per `:scope` and from `:start` |
+| `(ht/event-model name opts)` | Fold events through `:initial` and required `:step`, checking optional `:invariant`, `:final`, and independent `:scope` models |
 | `(ht/contiguous-sequence name start)` | Require contiguous integer `:seq` values, defaulting to start 1 |
 | `(ht/closed-lifecycles name)` | Require each `:operation-id` to have `:enter` then exactly one `:return` or `:throw` |
 | `(ht/synchronous-parentage name)` | Require each child lifecycle to be wholly nested in its declared parent |
@@ -518,6 +519,13 @@ For `ordered-sequence`, `:value` defaults to `:seq`; `:scope` may select an
 independent cursor or partition. Nondecreasing permits duplicates and gaps,
 strictly increasing permits gaps only, and contiguous requires exact `+1`
 steps.
+
+`event-model` calls `:step` as `[state event]`, then calls `:invariant` as
+`[next-state event]`. After the complete trace or scoped subtrace, it calls
+`:final` with the last state. Both checks default to true. `:scope` groups
+interleaved events while preserving their order within each group. Keep the
+model pure so generation, shrinking, and final replay begin from the same
+`:initial` value.
 
 ## Run options
 
