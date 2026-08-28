@@ -220,7 +220,10 @@ the trace is shrunk normally.
 
 (ht/check!
  (journal/snapshot observations)
- [(ht/contiguous-sequence :journal-not-truncated)
+ [(ht/ordered-sequence :partition-cursors-increase
+                       {:value :cursor :scope :partition
+                        :order :strictly-increasing})
+  (ht/contiguous-sequence :journal-not-truncated)
   (ht/closed-lifecycles :aspect-lifecycles-close)
   (ht/synchronous-parentage :aspect-parentage)
   (ht/every-eventually
@@ -234,6 +237,11 @@ open when advice throws, so an assertion inside advice can be swallowed while
 the application correctly proceeds. Also reject wrapped ring-journal snapshots:
 `contiguous-sequence` detects a missing prefix, while `:max-events` on `check!`
 keeps failure evidence bounded.
+
+Sequence order is explicit: `:nondecreasing` permits duplicates and gaps,
+`:strictly-increasing` permits gaps but not duplicates, and `:contiguous`
+requires increments of exactly one. `:scope` checks independent cursors or
+partitions without imposing a global order on their interleaving.
 
 ## Generators
 

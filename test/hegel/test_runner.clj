@@ -1674,6 +1674,38 @@
                 (= 2 (:hegel.trace/event-count (ex-data failure)))
                 (= [2 3]
                    (mapv :seq (:hegel.trace/events (ex-data failure)))))))
+  (let [events [{:partition :a :cursor 1}
+                {:partition :b :cursor 1}
+                {:partition :a :cursor 3}
+                {:partition :b :cursor 2}]
+        checked (htrace/check!
+                 events
+                 [(htrace/ordered-sequence
+                   :partition-cursors-increase
+                   {:value :cursor :scope :partition
+                    :order :strictly-increasing :start 1})])
+        gap-failure
+        (try
+          (htrace/check!
+           events
+           [(htrace/ordered-sequence
+             :partition-cursors-contiguous
+             {:value :cursor :scope :partition
+              :order :contiguous :start 1})])
+          nil
+          (catch Throwable error error))]
+    (check "sequence rules distinguish scoped strict increase from continuity"
+           (and (= events checked)
+                (= "hegel.trace/partition-cursors-contiguous"
+                   (:hegel/origin (ex-data gap-failure))))))
+  (let [events [{:seq 1} {:seq 1} {:seq 4}]
+        checked (htrace/check!
+                 events
+                 [(htrace/ordered-sequence
+                   :delivery-watermark-does-not-decrease
+                   {:order :nondecreasing})])]
+    (check "nondecreasing sequence rules permit duplicates and gaps"
+           (= events checked)))
   (let [final-values (atom [])
         result
         (h/run-test!

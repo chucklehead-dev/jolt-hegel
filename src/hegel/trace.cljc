@@ -83,6 +83,49 @@
                             :hegel.trace/events events})))))
      events)))
 
+(defn ordered-sequence
+  "Require integer event values to follow one ordering contract.
+
+  Options are `:value` (callable, default `:seq`), optional callable `:scope`,
+  `:order` as `:nondecreasing`, `:strictly-increasing`, or `:contiguous`, and an
+  optional integer `:start`. With `:scope`, ordering is checked independently
+  for each scope in its original observation order."
+  ([name] (ordered-sequence name {}))
+  ([name {:keys [value scope order start]
+          :or {value :seq order :strictly-increasing}}]
+   (when-not (ifn? value)
+     (throw (ex-info "trace sequence :value must be callable"
+                     {:type ::invalid-rule :name name :value value})))
+   (when-not (or (nil? scope) (ifn? scope))
+     (throw (ex-info "trace sequence :scope must be nil or callable"
+                     {:type ::invalid-rule :name name :scope scope})))
+   (when-not (contains? #{:nondecreasing :strictly-increasing :contiguous}
+                        order)
+     (throw (ex-info "unsupported trace sequence order"
+                     {:type ::invalid-rule :name name :order order})))
+   (when-not (or (nil? start) (integer? start))
+     (throw (ex-info "trace sequence :start must be an integer"
+                     {:type ::invalid-rule :name name :start start})))
+   (let [ordered?
+         (case order
+           :nondecreasing <=
+           :strictly-increasing <
+           :contiguous #(= (inc %1) %2))]
+     (rule
+      name
+      (fn [events]
+        (let [groups (if scope
+                       (vals (group-by scope events))
+                       [events])]
+          (every?
+           (fn [group]
+             (let [values (mapv value group)]
+               (and (every? integer? values)
+                    (or (nil? start) (empty? values) (= start (first values)))
+                    (every? true?
+                            (map ordered? values (rest values))))))
+           groups)))))))
+
 (defn contiguous-sequence
   "Require integer `:seq` values to be contiguous from `start` (default 1).
   This detects a bounded ring journal that silently dropped the beginning of a
@@ -90,10 +133,7 @@
   ([] (contiguous-sequence :contiguous-sequence 1))
   ([name] (contiguous-sequence name 1))
   ([name start]
-   (rule name
-         (fn [events]
-           (= (mapv :seq events)
-              (vec (range start (+ start (count events)))))))))
+   (ordered-sequence name {:value :seq :order :contiguous :start start})))
 
 (defn closed-lifecycles
   "Require every `:operation-id` to have exactly `:enter` followed by one

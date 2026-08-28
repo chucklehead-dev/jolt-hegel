@@ -504,6 +504,7 @@ property failure.
 | `(ht/rule name predicate)` | Create a stable named predicate over the complete event vector |
 | `(ht/check! events rules)` | Check rules with the default 256-event evidence bound |
 | `(ht/check! events rules {:max-events n})` | Check with an explicit positive bound |
+| `(ht/ordered-sequence name opts)` | Check integer values as `:nondecreasing`, `:strictly-increasing`, or `:contiguous`, optionally per `:scope` and from `:start` |
 | `(ht/contiguous-sequence name start)` | Require contiguous integer `:seq` values, defaulting to start 1 |
 | `(ht/closed-lifecycles name)` | Require each `:operation-id` to have `:enter` then exactly one `:return` or `:throw` |
 | `(ht/synchronous-parentage name)` | Require each child lifecycle to be wholly nested in its declared parent |
@@ -513,6 +514,10 @@ Run checks outside compiler-aspect advice. Jolt's advice safety contract fails
 open on advice exceptions, so an assertion inside advice can be swallowed while
 the application operation correctly proceeds. A bounded ring journal must not
 silently wrap during a test; `contiguous-sequence` detects a discarded prefix.
+For `ordered-sequence`, `:value` defaults to `:seq`; `:scope` may select an
+independent cursor or partition. Nondecreasing permits duplicates and gaps,
+strictly increasing permits gaps only, and contiguous requires exact `+1`
+steps.
 
 ## Run options
 

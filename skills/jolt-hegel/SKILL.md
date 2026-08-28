@@ -123,6 +123,10 @@ the generated action or checkpoint has completed. Apply the built-in sequence,
 lifecycle, parentage, and eventual-outcome rules, or add a stable named
 predicate with `hegel.trace/rule`.
 
+Choose sequence semantics explicitly: nondecreasing allows duplicates and
+gaps, strictly increasing allows gaps, and contiguous requires `+1`. Use a
+scope function for independently ordered partitions or cursors.
+
 Run trace assertions outside aspect advice. Jolt's aspect runtime fails open on
 advice errors, so an assertion thrown inside advice is intentionally not a
 reliable test verdict. Keep the snapshot within `:max-events` and use
