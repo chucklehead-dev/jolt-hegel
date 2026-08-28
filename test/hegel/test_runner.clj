@@ -11,6 +11,7 @@
             [hegel.native :as native]
             [hegel.report :as report]
             [hegel.stateful :as hs]
+            [hegel.trace :as htrace]
             [hegel.version :as version]
             [malli.core :as m]))
 
@@ -1638,6 +1639,72 @@
            (and (not (:passed? result))
                 (= [10] @final-values)
                 (= 10 (-> result :final first :exception ex-data :value))))))
+(defn semantic-trace-rules []
+  (let [events [{:seq 1 :operation-id 1 :parent-operation-id nil
+                 :phase :enter :role :agent/run}
+                {:seq 2 :operation-id 2 :parent-operation-id 1
+                 :phase :enter :role :agent/model}
+                {:seq 3 :operation-id 2 :parent-operation-id 1
+                 :phase :return :role :agent/model}
+                {:seq 4 :operation-id 1 :parent-operation-id nil
+                 :phase :return :role :agent/run}]
+        checked (htrace/check!
+                 events
+                 [(htrace/contiguous-sequence)
+                  (htrace/closed-lifecycles)
+                  (htrace/synchronous-parentage)
+                  (htrace/every-eventually
+                   :model-terminates
+                   #(and (= :agent/model (:role %))
+                         (= :enter (:phase %)))
+                   #(contains? #{:return :throw} (:phase %)))])]
+    (check "semantic trace rules accept a complete nested aspect trace"
+           (= events checked)))
+  (let [failure
+        (try
+          (htrace/check!
+           [{:seq 2 :operation-id 1 :phase :enter}
+            {:seq 3 :operation-id 1 :phase :return}]
+           [(htrace/contiguous-sequence :journal-not-truncated)])
+          nil
+          (catch Throwable error error))]
+    (check "trace-rule failures expose a stable Hegel origin and bounded evidence"
+           (and (= "hegel.trace/journal-not-truncated"
+                   (:hegel/origin (ex-data failure)))
+                (= 2 (:hegel.trace/event-count (ex-data failure)))
+                (= [2 3]
+                   (mapv :seq (:hegel.trace/events (ex-data failure)))))))
+  (let [final-values (atom [])
+        result
+        (h/run-test!
+         {:test-cases 100
+          :seed 20260828
+          :database ""
+          :verbosity :quiet
+          :report-multiple-failures? false}
+         (fn [_]
+           (let [duplicate-at (h/draw! (g/integer 0 20))
+                 events (cond->
+                         [{:seq 1 :operation-id 1 :phase :enter}
+                          {:seq 2 :operation-id 1 :phase :return}]
+                          (>= duplicate-at 5)
+                          (conj {:seq 3 :operation-id 1 :phase :return}))]
+             (when (h/final?)
+               (swap! final-values conj duplicate-at))
+             (htrace/check! events
+                            [(htrace/closed-lifecycles
+                              :operation-has-one-terminal)]))))
+        failure (first (:failures result))]
+    (check "Hegel shrinks the input which produced an invalid semantic trace"
+           (and (not (:passed? result))
+                (:reproduced? failure)
+                (= "hegel.trace/operation-has-one-terminal" (:origin failure))
+                (= [5] @final-values)
+                (= [:enter :return :return]
+                   (mapv :phase
+                         (-> result :final first :exception ex-data
+                             :hegel.trace/events)))))))
+
 (t/deftest embedded-hegel-property
   (ht/with {:test-cases 20
             :seed 20260727
@@ -1800,6 +1867,7 @@
   (scenario "stateful swarm and control flow"
             stateful-swarm-and-control-flow)
   (scenario "latest stateful ABI and owned handles" latest-stateful-abi)
+  (scenario "bounded semantic trace rules" semantic-trace-rules)
   (scenario "clojure.test integration" clojure-test-integration)
   (println "Ran jolt-hegel scenarios;" @failures "failures")
   (flush)

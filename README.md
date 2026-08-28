@@ -206,6 +206,35 @@ must reuse. A pool lets libhegel track and shrink that dependency:
 An empty-pool draw skips a stateful rule. Pools belong to one generated case;
 never retain one between cases.
 
+## Trace rules for aspect and event journals
+
+`hegel.trace` checks a complete, bounded semantic event trace after a generated
+action or state-machine checkpoint. The event producer is not coupled to
+Hegel: a compiler-aspect journal, protocol harness, or ordinary application log
+can supply the vector. When a rule fails, its stable origin and bounded events
+become part of Hegel's failure, so the input or command sequence which produced
+the trace is shrunk normally.
+
+```clojure
+(require '[hegel.trace :as ht])
+
+(ht/check!
+ (journal/snapshot observations)
+ [(ht/contiguous-sequence :journal-not-truncated)
+  (ht/closed-lifecycles :aspect-lifecycles-close)
+  (ht/synchronous-parentage :aspect-parentage)
+  (ht/every-eventually
+   :model-call-terminates
+   #(and (= :agent/model (:role %)) (= :enter (:phase %)))
+   #(contains? #{:return :throw} (:phase %)))])
+```
+
+Run these checks outside instrumentation advice. Jolt aspects deliberately fail
+open when advice throws, so an assertion inside advice can be swallowed while
+the application correctly proceeds. Also reject wrapped ring-journal snapshots:
+`contiguous-sequence` detects a missing prefix, while `:max-events` on `check!`
+keeps failure evidence bounded.
+
 ## Generators
 
 The built-in surface covers:

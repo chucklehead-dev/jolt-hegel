@@ -11,6 +11,7 @@
 - [Combinators and collections](#combinators-and-collections)
 - [Core controls](#core-controls)
 - [Stateful testing](#stateful-testing)
+- [Semantic trace rules](#semantic-trace-rules)
 - [Run options](#run-options)
 - [Concurrency](#concurrency)
 - [Verification commands](#verification-commands)
@@ -469,6 +470,49 @@ run immediately instead of becoming counterexamples to shrink.
 Draw from the two value generators with `h/draw!`. An empty-pool draw is an
 assumption failure: inside a stateful rule it skips the rule; at property scope
 it rejects the generated case. Never retain a pool across test cases.
+
+## Semantic trace rules
+
+`hegel.trace` validates a complete, bounded vector of semantic events inside a
+property. It does not own the event producer. Use it with compiler-aspect
+journals, protocol harnesses, or application event logs, and call it only after
+the generated action or state-machine checkpoint has completed.
+
+```clojure
+(require '[hegel.trace :as ht])
+
+(ht/check!
+ events
+ [(ht/contiguous-sequence :journal-not-truncated)
+  (ht/closed-lifecycles :operations-close)
+  (ht/synchronous-parentage :operations-nest)
+  (ht/every-eventually
+   :request-terminates
+   #(and (= :request (:role %)) (= :enter (:phase %)))
+   #(contains? #{:return :throw} (:phase %)))])
+```
+
+`check!` returns the original event vector when all rules pass. A false rule
+throws with a stable `:hegel/origin`, `:hegel.trace/rule`, event count, and the
+bounded events. Hegel therefore shrinks the generated values or stateful command
+sequence which produced the invalid trace. Its third argument accepts
+`{:max-events n}` and defaults to 256; exceeding the bound is itself a stable
+property failure.
+
+| Form | Contract |
+| --- | --- |
+| `(ht/rule name predicate)` | Create a stable named predicate over the complete event vector |
+| `(ht/check! events rules)` | Check rules with the default 256-event evidence bound |
+| `(ht/check! events rules {:max-events n})` | Check with an explicit positive bound |
+| `(ht/contiguous-sequence name start)` | Require contiguous integer `:seq` values, defaulting to start 1 |
+| `(ht/closed-lifecycles name)` | Require each `:operation-id` to have `:enter` then exactly one `:return` or `:throw` |
+| `(ht/synchronous-parentage name)` | Require each child lifecycle to be wholly nested in its declared parent |
+| `(ht/every-eventually name trigger? outcome? correlate)` | Require a later correlated outcome for every trigger; correlation defaults to `:operation-id` |
+
+Run checks outside compiler-aspect advice. Jolt's advice safety contract fails
+open on advice exceptions, so an assertion inside advice can be swallowed while
+the application operation correctly proceeds. A bounded ring journal must not
+silently wrap during a test; `contiguous-sequence` detects a discarded prefix.
 
 ## Run options
 

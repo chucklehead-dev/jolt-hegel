@@ -1,6 +1,6 @@
 ---
 name: jolt-hegel
-description: Add, configure, and use jolt-hegel on Jolt, Babashka, or JVM Clojure; write shrinking property tests, replay failures, and model stateful systems with swarm selection and pools.
+description: Add, configure, and use jolt-hegel on Jolt, Babashka, or JVM Clojure; write shrinking property, stateful, swarm, and bounded semantic trace tests.
 ---
 
 # jolt-hegel
@@ -114,6 +114,21 @@ nonempty swarm selection; do not add a competing rule-choice loop.
 Use `hs/pool` when one rule creates handles or identifiers consumed by later
 rules. Pools are scoped to one generated case. Draw with
 `hs/values-reusable` to retain an entry or `hs/values-consumed` to remove it.
+
+## Semantic trace testing
+
+Use `hegel.trace/check!` when generated inputs or stateful commands produce a
+bounded event trace, including a compiler-aspect journal. Snapshot only after
+the generated action or checkpoint has completed. Apply the built-in sequence,
+lifecycle, parentage, and eventual-outcome rules, or add a stable named
+predicate with `hegel.trace/rule`.
+
+Run trace assertions outside aspect advice. Jolt's aspect runtime fails open on
+advice errors, so an assertion thrown inside advice is intentionally not a
+reliable test verdict. Keep the snapshot within `:max-events` and use
+`contiguous-sequence` when a bounded ring journal can discard its prefix.
+Hegel will then shrink the inputs or stateful rule sequence that produced a
+failed trace and retain the bounded events in final exception data.
 
 ## External systems
 
