@@ -5,6 +5,7 @@
             [hegel.core :as h]
             [hegel.ffi :as hffi]
             [hegel.generator :as g]
+            [hegel.history :as hhistory]
             [hegel.host :as host]
             [hegel.install :as install]
             [hegel.malli :as hm]
@@ -1764,6 +1765,142 @@
                          (-> result :final first :exception ex-data
                              :hegel.trace/events)))))))
 
+(defn- register-step [state operation]
+  (case (:operation operation)
+    :write
+    (when (and (= :return (:outcome operation))
+               (= :ok (:value operation)))
+      {:state (:input operation)})
+
+    :read
+    (when (and (= :return (:outcome operation))
+               (= state (:value operation)))
+      {:state state})
+
+    :fail
+    (when (= :throw (:outcome operation))
+      {:state state})
+
+    nil))
+
+(defn bounded-linearizability []
+  ;; These classic single-register fixtures have the same shape used by
+  ;; Knossos and Porcupine examples, but this portable suite has no dependency
+  ;; on either implementation.
+  (let [overlap [{:seq 0 :operation-id :write :phase :invoke
+                  :operation :write :input 1}
+                 {:seq 1 :operation-id :read :phase :invoke
+                  :operation :read}
+                 {:seq 2 :operation-id :write :phase :return :value :ok}
+                 {:seq 3 :operation-id :read :phase :return :value 0}]
+        witness (hhistory/linearization 0 register-step overlap)]
+    (check "overlapping operations may linearize outside invocation order"
+           (and (= [:read :write] (:order witness))
+                (= 1 (:final-state witness))
+                (= 2 (:operation-count witness))
+                (= [:read :write]
+                   (mapv :operation (:operations witness))))))
+  (let [real-time-violation
+        [{:seq 0 :operation-id :write :phase :invoke
+          :operation :write :input 1}
+         {:seq 1 :operation-id :write :phase :return :value :ok}
+         {:seq 2 :operation-id :read :phase :invoke :operation :read}
+         {:seq 3 :operation-id :read :phase :return :value 0}]
+        failure (try
+                  (hhistory/check! 0 register-step real-time-violation
+                                   {:name :register-agrees})
+                  nil
+                  (catch Throwable error error))]
+    (check "completed-before-invoked precedence cannot be reordered"
+           (and (not (hhistory/linearizable?
+                      0 register-step real-time-violation))
+                (= ::hhistory/not-linearizable (:type (ex-data failure)))
+                (= "hegel.history/register-agrees"
+                   (:hegel/origin (ex-data failure)))
+                (= real-time-violation
+                   (:hegel.history/events (ex-data failure)))
+                (false?
+                 (:hegel.history/evidence-truncated? (ex-data failure))))))
+  (let [thrown [{:seq 9 :operation-id :failure :phase :invoke
+                 :operation :fail}
+                {:seq 10 :operation-id :failure :phase :throw
+                 :exception-class "expected"}]
+        witness (hhistory/check! :open register-step thrown)]
+    (check "throw terminals participate in the sequential model"
+           (and (= [:failure] (:order witness))
+                (= :throw (-> witness :operations first :outcome))
+                (= "expected"
+                   (-> witness :operations first :terminal
+                       :exception-class)))))
+  (let [partitioned
+        [{:seq 0 :operation-id :a-write :phase :invoke
+          :operation :write :input 1 :account :a}
+         {:seq 1 :operation-id :b-read :phase :invoke
+          :operation :read :account :b}
+         {:seq 2 :operation-id :a-write :phase :return
+          :value :ok :account :a}
+         {:seq 3 :operation-id :b-read :phase :return
+          :value 0 :account :b}]
+        witness
+        (hhistory/check!
+         0 register-step partitioned
+         {:partition-by #(-> % :invoke :account)})]
+    (check "partitioned histories use one model state per partition"
+           (and (= 2 (:operation-count witness))
+                (= [:a :b] (mapv :partition (:partitions witness)))
+                (= [[:a-write] [:b-read]]
+                   (mapv :order (:partitions witness)))
+                (= [1 0] (mapv :final-state (:partitions witness))))))
+  (let [malformed
+        [[{:seq 0 :operation-id :x :phase :invoke :operation :read}]
+         [{:seq 0 :operation-id :x :phase :invoke :operation :read}
+          {:seq 1 :operation-id :x :phase :invoke :operation :read}]
+         [{:seq 0 :operation-id :x :phase :invoke :operation :read}
+          {:seq 2 :operation-id :x :phase :return :value 0}]]
+        failures
+        (mapv (fn [events]
+                (try
+                  (hhistory/operations events)
+                  nil
+                  (catch Throwable error error)))
+              malformed)]
+    (check "incomplete, duplicate, and non-contiguous histories are rejected"
+           (every? #(= ::hhistory/malformed-history
+                       (:type (ex-data %)))
+                   failures)))
+  (let [events [{:seq 0 :operation-id :a :phase :invoke
+                 :operation :read}
+                {:seq 1 :operation-id :a :phase :return :value 0}
+                {:seq 2 :operation-id :b :phase :invoke
+                 :operation :read}
+                {:seq 3 :operation-id :b :phase :return :value 0}]
+        failure (try
+                  (hhistory/check! 0 register-step events
+                                   {:max-operations 1})
+                  nil
+                  (catch Throwable error error))]
+    (check "the operation bound fails before exponential search"
+           (and (= ::hhistory/operation-bound (:type (ex-data failure)))
+                (= 1 (:hegel.history/max-operations (ex-data failure)))
+                (= 2 (count (:hegel.history/events (ex-data failure))))
+                (:hegel.history/evidence-truncated? (ex-data failure)))))
+  (let [events [{:seq 1 :operation-id :read :phase :invoke
+                 :operation :read}
+                {:seq 2 :operation-id :read :phase :return :value 1}]
+        failure (try
+                  (htrace/check!
+                   events
+                   [(hhistory/rule
+                     :woven-register-linearizable
+                     {:initial 0 :step register-step :sequence-start 1})])
+                  nil
+                  (catch Throwable error error))]
+    (check "history rules compose with hegel.trace bounded evidence"
+           (and (= "hegel.trace/woven-register-linearizable"
+                   (:hegel/origin (ex-data failure)))
+                (= 2 (:hegel.trace/event-count (ex-data failure)))
+                (= events (:hegel.trace/events (ex-data failure)))))))
+
 (t/deftest embedded-hegel-property
   (ht/with {:test-cases 20
             :seed 20260727
@@ -1927,6 +2064,7 @@
             stateful-swarm-and-control-flow)
   (scenario "latest stateful ABI and owned handles" latest-stateful-abi)
   (scenario "bounded semantic trace rules" semantic-trace-rules)
+  (scenario "bounded linearizability" bounded-linearizability)
   (scenario "clojure.test integration" clojure-test-integration)
   (println "Ran jolt-hegel scenarios;" @failures "failures")
   (flush)

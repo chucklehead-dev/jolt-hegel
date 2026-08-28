@@ -12,6 +12,7 @@
 - [Core controls](#core-controls)
 - [Stateful testing](#stateful-testing)
 - [Semantic trace rules](#semantic-trace-rules)
+- [Bounded linearizability](#bounded-linearizability)
 - [Run options](#run-options)
 - [Concurrency](#concurrency)
 - [Verification commands](#verification-commands)
@@ -526,6 +527,44 @@ steps.
 interleaved events while preserving their order within each group. Keep the
 model pure so generation, shrinking, and final replay begin from the same
 `:initial` value.
+
+## Bounded linearizability
+
+`hegel.history` validates complete operation histories and searches for a
+legal sequential-model witness while preserving real-time precedence. Each
+event is a map with contiguous integer `:seq`, non-nil `:operation-id`, and a
+`:phase` of `:invoke`, `:return`, or `:throw`. Invocations also require
+`:operation`. Each operation must have exactly one invocation followed by one
+terminal event.
+
+The model step is `(fn [state operation] transition)`. A legal transition is
+`{:state next-state}`; nil means the completed operation and observed outcome
+are illegal in that state. The normalized operation contains
+`:operation-id`, `:operation`, `:input`, `:outcome`, `:value`, `:invoke-seq`,
+`:terminal-seq`, and the original `:invoke` and `:terminal` events.
+
+| Form | Contract |
+| --- | --- |
+| `(history/operations events opts?)` | Validate and normalize the complete history |
+| `(history/linearization initial step events opts?)` | Return a witness or nil |
+| `(history/linearizable? initial step events opts?)` | Return a boolean |
+| `(history/check! initial step events opts?)` | Return a witness or throw with stable bounded Hegel evidence |
+| `(history/rule name opts)` | Create a rule accepted by `hegel.trace/check!`; opts require `:step` and may contain `:initial` plus checker options |
+
+Checker options are `:max-operations` (default 10 total operations), optional
+callable `:partition-by`, optional integer `:sequence-start`, and `:name` for a
+stable `hegel.history` failure origin. The witness contains the selected
+`:order`, normalized `:operations`, and `:final-state`. A partitioned witness
+instead contains ordered `:partitions`; each partition starts from the same
+supplied initial state and has its own order and final state.
+
+Search is exhaustive and exponential, so keep the bound small. Evidence is
+limited to twice the operation bound even when an oversized malformed history
+is supplied. The checker rejects incomplete histories rather than completing
+or dropping pending operations. Snapshot the journal only after every worker
+has terminated. Record sequence assignment atomically with publication; on a
+weakly ordered host, timestamps or non-atomic counters are not a sound
+substitute for observation order.
 
 ## Run options
 

@@ -250,6 +250,51 @@ descriptors, buffer loans, requests, spans, DB handles, or queue partitions.
 This covers linear resource lifecycles without coupling the journal producer to
 Hegel.
 
+## Bounded linearizability
+
+`hegel.history` checks complete concurrent operation histories against a pure
+sequential model. Unlike `hegel.trace/event-model`, it preserves real-time
+precedence but explores alternate orders for overlapping operations. This is
+useful for atoms, promises, channels, connection lifecycles, pollers, and other
+APIs whose legal observation order is not necessarily invocation order.
+
+```clojure
+(require '[hegel.history :as history])
+
+(defn register-step [state operation]
+  (case (:operation operation)
+    :write (when (= :ok (:value operation))
+             {:state (:input operation)})
+    :read  (when (= state (:value operation))
+             {:state state})
+    nil))
+
+(history/check!
+ 0
+ register-step
+ [{:seq 0 :operation-id :write :phase :invoke
+   :operation :write :input 1}
+  {:seq 1 :operation-id :read :phase :invoke :operation :read}
+  {:seq 2 :operation-id :write :phase :return :value :ok}
+  {:seq 3 :operation-id :read :phase :return :value 0}])
+;; => {:order [:read :write], :final-state 1, ...}
+```
+
+Each operation has exactly one `:invoke` and one `:return` or `:throw` terminal.
+Sequence numbers must be integer, unique, contiguous, and in vector order.
+`check!` returns a witness or throws with a stable `:hegel/origin` and bounded
+history evidence. `linearization` returns the witness or nil, while
+`linearizable?` returns a boolean. The sequential step returns nil for an
+illegal observation or `{:state next-state}` for a legal one.
+
+The checker defaults to at most ten total operations because its exhaustive
+search is exponential. `:partition-by` can split independent keys into their
+own model instances, and `:sequence-start` can require a particular first
+sequence number. `hegel.history/rule` creates a rule accepted by
+`hegel.trace/check!`, so linearizability can be checked beside lifecycle and
+parentage rules. Incomplete histories are rejected; callers must snapshot only
+after all generated operations have terminated.
+
 ## Generators
 
 The built-in surface covers:
