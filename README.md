@@ -226,6 +226,7 @@ the trace is shrunk normally.
   (ht/contiguous-sequence :journal-not-truncated)
   (ht/closed-lifecycles :aspect-lifecycles-close)
   (ht/causal-parentage :aspect-parent-invoked-first)
+  (ht/causal-links :aspect-causal-fan-in)
   (ht/context-coherence :aspect-context-coherent)
   (ht/every-eventually
    :model-call-terminates
@@ -245,11 +246,18 @@ requires increments of exactly one. `:scope` checks independent cursors or
 partitions without imposing a global order on their interleaving.
 
 For canonical async histories emitted by jolt-aspect-packs, compose
-`contiguous-sequence`, `closed-lifecycles`, `causal-parentage`, and
-`context-coherence`. Causal parentage requires the parent's invocation to
+`contiguous-sequence`, `closed-lifecycles`, `causal-parentage`, `causal-links`,
+and `context-coherence`. Causal parentage requires the parent's invocation to
 precede the child's invocation, but permits the parent to terminate before the
-child. Context coherence compares invocation carrier metadata; terminal events
-do not repeat `:context-id`. Use `synchronous-parentage` only when child
+child. `causal-links` validates additional fan-in dependencies as a sorted,
+unique vector of operation ids which each name exactly one earlier invocation;
+use an empty vector when there is no fan-in. Canonical linked operation ids are
+portable scalars—integers, strings, keywords, or symbols—not composite EDN or
+opaque host values. Every invocation id in a history checked by this rule uses
+that same portable domain, including invocations with no links. Context
+coherence compares
+invocation carrier metadata; terminal events do not repeat `:context-id` or
+`:causal-links`. Use `synchronous-parentage` only when child
 lifecycles must be wholly nested in the parent's dynamic extent. For filtered
 views whose omitted events legitimately create sequence gaps, use
 `ordered-sequence` with `:order :strictly-increasing` instead of continuity.

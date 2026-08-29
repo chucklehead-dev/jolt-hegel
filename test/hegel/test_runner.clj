@@ -1714,6 +1714,66 @@
            (= ["hegel.trace/async-parent-invoked-first"
                "hegel.trace/async-context-coherent"]
               (mapv #(-> % ex-data :hegel/origin) failures))))
+  (let [events [{:seq 1 :operation-id :fetch-a :phase :invoke
+                 :causal-links []}
+                {:seq 2 :operation-id :fetch-b :phase :invoke
+                 :causal-links []}
+                {:seq 3 :operation-id :join :phase :invoke
+                 :causal-links [:fetch-a :fetch-b]}]]
+    (check "causal links accept canonical fan-in from earlier invocations"
+           (= events
+              (htrace/check! events
+                             [(htrace/causal-links :fan-in-links-valid)]))))
+  (let [events [{:seq 1 :operation-id :legacy-parent :phase :enter
+                 :causal-links []}
+                {:seq 2 :operation-id :legacy-child :phase :enter
+                 :causal-links [:legacy-parent]}]]
+    (check "causal links accept legacy enter-phase journal invocations"
+           (= events (htrace/check! events [(htrace/causal-links)]))))
+  (let [events [{:seq 1 :operation-id 2 :phase :invoke :causal-links []}
+                {:seq 2 :operation-id "a" :phase :invoke :causal-links []}
+                {:seq 3 :operation-id :b :phase :invoke :causal-links []}
+                {:seq 4 :operation-id 'c :phase :invoke :causal-links []}
+                {:seq 5 :operation-id :join :phase :invoke
+                 :causal-links [2 "a" :b 'c]}]]
+    (check "causal links have one tagged order across portable scalar id types"
+           (= events (htrace/check! events [(htrace/causal-links)]))))
+  (let [fixtures
+        [[{:seq 1 :operation-id :missing :phase :invoke}]
+         [{:seq 1 :operation-id :child :phase :invoke
+           :causal-links [:later]}
+          {:seq 2 :operation-id :later :phase :invoke :causal-links []}]
+         [{:seq 1 :operation-id :parent :phase :invoke :causal-links []}
+          {:seq 2 :operation-id :child :phase :invoke
+           :causal-links [:parent :parent]}]
+         [{:seq 1 :operation-id :a :phase :invoke :causal-links []}
+          {:seq 2 :operation-id :b :phase :invoke :causal-links []}
+          {:seq 3 :operation-id :child :phase :invoke
+           :causal-links [:b :a]}]
+         [{:seq 1 :operation-id :child :phase :invoke
+           :causal-links [:absent]}]
+         [{:seq 1 :operation-id :same :phase :invoke :causal-links []}
+          {:seq 2 :operation-id :same :phase :invoke :causal-links []}
+          {:seq 3 :operation-id :child :phase :invoke
+           :causal-links [:same]}]
+         [{:seq 1 :operation-id {:host :composite} :phase :invoke
+           :causal-links []}]
+         [{:seq 1 :operation-id 2 :phase :invoke :causal-links []}
+          {:seq 2 :operation-id "a" :phase :invoke :causal-links []}
+          {:seq 3 :operation-id :child :phase :invoke
+           :causal-links ["a" 2]}]]
+        failures
+        (mapv (fn [events]
+                (try
+                  (htrace/check! events
+                                 [(htrace/causal-links :canonical-fan-in)])
+                  nil
+                  (catch Throwable error error)))
+              fixtures)]
+    (check "causal links reject malformed, dangling, ambiguous, and noncanonical links"
+           (and (every? some? failures)
+                (= (repeat 8 "hegel.trace/canonical-fan-in")
+                   (map #(-> % ex-data :hegel/origin) failures)))))
   (let [failure
         (try
           (htrace/check!

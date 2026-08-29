@@ -261,6 +261,56 @@
                        (< (:seq parent) (:seq event))))))))
          invocations))))))
 
+(defn- portable-operation-id-key [operation-id]
+  ;; A tagged scalar key is total and byte-stable across the supported hosts.
+  ;; Composite EDN and host objects have no portable printed iteration/identity
+  ;; contract and therefore cannot participate in canonical fan-in ordering.
+  (cond
+    (integer? operation-id) (str "0:" operation-id)
+    (string? operation-id) (str "1:" (pr-str operation-id))
+    (keyword? operation-id) (str "2:" (pr-str operation-id))
+    (symbol? operation-id) (str "3:" (pr-str operation-id))
+    :else nil))
+
+(defn causal-links
+  "Require every invocation to carry canonical causal fan-in links.
+
+  `:causal-links` is a vector of portable scalar operation ids (integer,
+  string, keyword, or symbol), sorted by a tagged scalar key and unique. Each id
+  must name exactly one invocation whose integer `:seq` is earlier than the
+  linking invocation. An empty vector is the canonical no-fan-in value.
+  Terminal events need not repeat the links. This complements the single
+  structural `:parent-operation-id` checked by `causal-parentage`."
+  ([] (causal-links :causal-links))
+  ([name]
+   (rule
+    name
+    (fn [events]
+      (let [invocations (filterv #(contains? #{:invoke :enter} (:phase %))
+                                 events)
+            by-operation (group-by :operation-id invocations)]
+        (every?
+         (fn [event]
+           (let [links (:causal-links event)
+                 link-keys (when (vector? links)
+                             (mapv portable-operation-id-key links))]
+             (and (contains? event :causal-links)
+                  (some? (portable-operation-id-key (:operation-id event)))
+                  (vector? links)
+                  (every? some? link-keys)
+                  (= (count links) (count (distinct links)))
+                  (= link-keys (vec (sort link-keys)))
+                  (integer? (:seq event))
+                  (every?
+                   (fn [operation-id]
+                     (let [linked (get by-operation operation-id)
+                           invocation (first linked)]
+                       (and (= 1 (count linked))
+                            (integer? (:seq invocation))
+                            (< (:seq invocation) (:seq event)))))
+                   links))))
+         invocations))))))
+
 (defn context-coherence
   "Require each invocation to declare a context coherent with its parent.
 
