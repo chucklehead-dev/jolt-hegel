@@ -569,12 +569,34 @@
                     {:operation operation :value value}))
   value)
 
+(def ^:private leaf-budget-retry ::leaf-budget-retry)
+(def ^:private finish-retry ::finish-retry)
+
+(defn- recursion-retry-control? [error]
+  (contains? #{leaf-budget-retry finish-retry}
+             (:type (ex-data error))))
+
 (defn- in-span [test-case label body]
   (hffi/start-span! (:context test-case) (:handle test-case) label)
-  (try
-    (body)
-    (finally
-      (hffi/stop-span! (:context test-case) (:handle test-case)))))
+  (let [closed? (atom false)]
+    (try
+      (let [value (body)]
+        ;; Mark first: if stop-span itself fails, the catch path must not call
+        ;; it a second time against an already-consumed or invalid span.
+        (reset! closed? true)
+        (hffi/stop-span! (:context test-case) (:handle test-case))
+        value)
+      (catch #?(:cljr System.Exception
+                :jank cpp/jank.runtime.object_ref
+                :default Throwable) error
+        ;; The engine, not the unwinding frontend, discards every still-open
+        ;; span in an abandoned recursive attempt. Stopping one here would pop
+        ;; the innermost recursive span instead of this combinator's span.
+        (when (and (not @closed?)
+                   (not (recursion-retry-control? error)))
+          (reset! closed? true)
+          (hffi/stop-span! (:context test-case) (:handle test-case)))
+        (throw error)))))
 
 (defn fmap
   "Transform values from generator with f while preserving shrink structure."
@@ -601,6 +623,119 @@
          (require-generator! "bind result" next-generator)
          (next-generator test-case))))))
 
+(defn recursive
+  "Generate recursively defined values.
+
+  leaf generates base values. branch-fn is called afresh for every branch
+  with a reusable generator for child values and must return a generator.
+  Options are :max-depth (default 32) and :max-leaves (default 100)."
+  ([leaf branch-fn]
+   (recursive {} leaf branch-fn))
+  ([opts leaf branch-fn]
+   (when-not (map? opts)
+     (invalid-option "recursive options must be a map" {:options opts}))
+   (let [unknown (seq (remove #{:max-depth :max-leaves} (keys opts)))
+         max-depth (if (contains? opts :max-depth) (:max-depth opts) 32)
+         max-leaves (if (contains? opts :max-leaves) (:max-leaves opts) 100)]
+     (when unknown
+       (invalid-option "recursive received unknown options"
+                       {:options (vec unknown)}))
+     (doseq [[option value] [[:max-depth max-depth]
+                             [:max-leaves max-leaves]]]
+       (when-not (and (integer? value) (<= 0 value hffi/no-max-size))
+         (invalid-option
+          (str "recursive " (name option) " must fit uint64")
+          {option value})))
+     (require-generator! "recursive leaf" leaf)
+     (when-not (fn? branch-fn)
+       (invalid-option "recursive requires a branch function"
+                       {:value branch-fn}))
+     (composite-fn
+      (fn [test-case]
+        (let [context (:context test-case)
+              handle (:handle test-case)
+              recursion
+              (hffi/new-recursion!
+               context handle max-depth max-leaves)]
+          (try
+            (letfn [(draw-subtree! [current-test-case depth]
+                      (let [current-context (:context current-test-case)
+                            current-handle (:handle current-test-case)
+                            closed? (atom false)]
+                        (hffi/start-span!
+                         current-context current-handle hffi/label-recursive)
+                        (try
+                          (let [branch?
+                                (hffi/recursion-branch!
+                                 current-context current-handle recursion depth)
+                                value
+                                (if branch?
+                                  (let [subtree
+                                        (composite-fn
+                                         (fn [child-test-case]
+                                           (draw-subtree!
+                                            child-test-case (inc depth))))
+                                        branch-generator (branch-fn subtree)]
+                                    (require-generator!
+                                     "recursive branch result" branch-generator)
+                                    (branch-generator current-test-case))
+                                  (do
+                                    (when (= :retry
+                                             (hffi/recursion-leaf!
+                                              current-context current-handle
+                                              recursion))
+                                      (throw
+                                       (ex-info
+                                        "recursive leaf budget exceeded"
+                                        {:type leaf-budget-retry})))
+                                    (leaf current-test-case)))]
+                            ;; Finish while the root recursive span is open. On
+                            ;; retry, libhegel has already discarded that span.
+                            (when (and (zero? depth)
+                                       (= :retry
+                                          (hffi/recursion-finish!
+                                           current-context current-handle
+                                           recursion)))
+                              (throw
+                               (ex-info "recursive attempt was mispriced"
+                                        {:type finish-retry})))
+                            (reset! closed? true)
+                            (hffi/stop-span!
+                             current-context current-handle)
+                            value)
+                          (catch #?(:cljr System.Exception
+                                    :jank cpp/jank.runtime.object_ref
+                                    :default Throwable) error
+                            (when (and (not @closed?)
+                                       (not (recursion-retry-control? error)))
+                              (reset! closed? true)
+                              (hffi/stop-span!
+                               current-context current-handle))
+                            (throw error)))))]
+              (loop []
+                (let [attempt
+                      (try
+                        {:status :accepted
+                         :value (draw-subtree! test-case 0)}
+                        (catch #?(:cljr System.Exception
+                                  :jank cpp/jank.runtime.object_ref
+                                  :default Throwable) error
+                          (case (:type (ex-data error))
+                            ::leaf-budget-retry
+                            {:status :leaf-budget-retry}
+                            ::finish-retry
+                            {:status :finish-retry}
+                            (throw error))))]
+                  (case (:status attempt)
+                    :accepted (:value attempt)
+                    :leaf-budget-retry
+                    (do
+                      (hffi/recursion-retry! context handle recursion)
+                      (recur))
+                    :finish-retry (recur)))))
+            (finally
+              (hffi/recursion-free! context recursion)))))))))
+
 (defn filter
   "Keep values satisfying pred. Three failed attempts reject the test case."
   [pred generator]
@@ -621,11 +756,15 @@
                    (hffi/stop-span! (:context test-case) (:handle test-case)
                                     (not accepted?))
                    [accepted? value])
-                 (finally
-                   (when-not @closed?
+                 (catch #?(:cljr System.Exception
+                           :jank cpp/jank.runtime.object_ref
+                           :default Throwable) error
+                   (when (and (not @closed?)
+                              (not (recursion-retry-control? error)))
                      (reset! closed? true)
                      (hffi/stop-span! (:context test-case)
-                                      (:handle test-case))))))]
+                                      (:handle test-case)))
+                   (throw error))))]
          (if accepted?
            value
            (if (< attempt 2)

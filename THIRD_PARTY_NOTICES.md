@@ -17,7 +17,7 @@ Public License 2.0.
 hegel-clj is not bundled as a runtime dependency; see its source repository for
 its license text and copyright notices.
 
-## libhegel 0.33.0
+## libhegel 0.33.3
 
 Source: <https://github.com/hegeldev/hegel-rust>
 

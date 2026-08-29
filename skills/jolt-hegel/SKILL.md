@@ -100,6 +100,11 @@ that requires a signed host byte. Use `(g/integer -128 127)` for a property
 defined over signed bytes and `g/bytes` for byte arrays. For streaming input,
 draw `(g/chunkings payload)` so both content and write boundaries shrink.
 
+Use `g/recursive` for trees, ASTs, nested workflows, and recursive documents.
+Pass a leaf generator plus a branch function that consumes the supplied
+subtree generator; let libhegel own depth, leaf-budget, retry, and subtree
+hoisting rather than generating a competing depth counter.
+
 ## Stateful testing
 
 Call `hegel.stateful/run!` inside a Hegel property. Each `hs/rule` receives the

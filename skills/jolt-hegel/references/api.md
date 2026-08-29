@@ -23,7 +23,7 @@ Use the runtime selected by the consuming project's toolchain contract: Jolt
 0.7.23 or later, a project-pinned Babashka build with the required
 `babashka.ffi`, or JVM Clojure on JDK 22 or later. Do not substitute a
 convenient global executable for a project-selected binary. Add the public
-release by full commit SHA. `v0.3.0` is the first portable release; resolve its
+release by full commit SHA. `v0.4.0` is the current portable release; resolve its
 annotated tag to the full peeled commit rather than using the tag-object SHA,
 tag name, or a moving branch. A test-only dependency normally belongs in the
 project's test alias:
@@ -309,6 +309,8 @@ strings.
 | `(g/tuple generators...)` | vector with one value per generator |
 | `(g/vector opts elements)` | vector; supports `:unique?` |
 | `(g/chunkings payload)` | vector chunks that concatenate to `payload` |
+| `(g/recursive leaf branch-fn)` | recursively defined values with engine-owned sizing and shrinking |
+| `(g/recursive opts leaf branch-fn)` | recursive values bounded by `:max-depth` and `:max-leaves` |
 | `(g/list opts elements)` | Clojure list |
 | `(g/set opts elements)` | set |
 | `(g/sorted-set opts elements)` | sorted set |
@@ -319,6 +321,26 @@ strings.
 Collection options are `:size`, `:min-size`, and `:max-size`. The forms without
 an options map use engine-managed unbounded sizing. Duplicate set elements, map
 keys, and unique-vector elements are rejected and redrawn.
+
+For recursive data, `leaf` generates base values and `branch-fn` receives a
+reusable generator for child values. The branch function must return a
+generator for one compound level:
+
+```clojure
+(g/recursive
+ {:max-depth 8 :max-leaves 64}
+ (g/fmap (fn [n] {:leaf n}) (g/integer))
+ (fn [subtree]
+   (g/fmap (fn [children] {:children children})
+           (g/vector {:max-size 4} subtree))))
+```
+
+`:max-depth` defaults to 32 and `:max-leaves` to 100. Both accept zero; depth
+zero forces a leaf, while a zero leaf budget succeeds only for a branch shape
+that can finish without a leaf. libhegel chooses leaf versus branch, retries
+oversized or mispriced attempts, and labels every subtree so shrinking can
+replace a tree with one of its descendants. Do not add a separate generated
+depth counter around `g/recursive`.
 
 `g/let` draws tagged generator right-hand sides and leaves ordinary expressions
 alone. It must execute inside an active `run-test!` or
@@ -632,10 +654,14 @@ Concurrent engine safety has not been verified by jolt-hegel's test suite, so
 concurrent native runs remain unsupported until that contract has a dedicated
 integration test.
 
-libhegel 0.33's concurrent state-machine protocol is not yet exposed. The
-current `hegel.stateful/run!` implementation drives the round protocol with
-fixed concurrency one so deterministic shrinking and final replay keep their
-existing contract.
+libhegel 0.33's concurrent state-machine protocol is not exposed. The current
+`hegel.stateful/run!` implementation drives the round protocol with fixed
+concurrency one so deterministic shrinking and final replay keep their
+existing contract. Upstream machines declared with maximum concurrency above
+one are intentionally nondeterministic and disable shrinking, replay,
+targeting, persistence, and flakiness checks. A future Clojure API therefore
+needs a separate shared-state, worker-context, and join-point contract; it
+must not be added as a worker option to `run!`.
 
 ## Verification commands
 

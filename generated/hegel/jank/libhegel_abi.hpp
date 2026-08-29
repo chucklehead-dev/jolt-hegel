@@ -24,6 +24,7 @@ struct hegel_jank_hegel_collection;
 struct hegel_jank_hegel_context;
 struct hegel_jank_hegel_failure;
 struct hegel_jank_hegel_pool;
+struct hegel_jank_hegel_recursion;
 struct hegel_jank_hegel_run;
 struct hegel_jank_hegel_run_result;
 struct hegel_jank_hegel_settings;
@@ -92,11 +93,17 @@ using hegel_jank_fn_generate_uuid = std::int32_t (*) (hegel_jank_hegel_context *
 using hegel_jank_fn_mark_complete = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, std::uint32_t, char const *); // hegel_mark_complete
 using hegel_jank_fn_new_collection = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, std::uint64_t, std::uint64_t, hegel_jank_hegel_collection * *); // hegel_new_collection
 using hegel_jank_fn_new_pool = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, hegel_jank_hegel_pool * *); // hegel_new_pool
+using hegel_jank_fn_new_recursion = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, std::uint64_t, std::uint64_t, hegel_jank_hegel_recursion * *); // hegel_new_recursion
 using hegel_jank_fn_new_state_machine = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, char const * *, std::int64_t *, std::size_t, char const * *, std::size_t, std::int64_t, std::int64_t, hegel_jank_hegel_state_machine * *, std::int64_t *); // hegel_new_state_machine
 using hegel_jank_fn_next_test_case = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_run *, hegel_jank_hegel_test_case * *); // hegel_next_test_case
 using hegel_jank_fn_pool_add = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, hegel_jank_hegel_pool *, std::int64_t *); // hegel_pool_add
 using hegel_jank_fn_pool_free = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_pool *); // hegel_pool_free
 using hegel_jank_fn_pool_generate = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, hegel_jank_hegel_pool *, std::uint8_t, std::int64_t *); // hegel_pool_generate
+using hegel_jank_fn_recursion_branch = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, hegel_jank_hegel_recursion *, std::uint64_t, std::uint8_t *); // hegel_recursion_branch
+using hegel_jank_fn_recursion_finish = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, hegel_jank_hegel_recursion *); // hegel_recursion_finish
+using hegel_jank_fn_recursion_free = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_recursion *); // hegel_recursion_free
+using hegel_jank_fn_recursion_leaf = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, hegel_jank_hegel_recursion *); // hegel_recursion_leaf
+using hegel_jank_fn_recursion_retry = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, hegel_jank_hegel_recursion *); // hegel_recursion_retry
 using hegel_jank_fn_run_free = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_run *); // hegel_run_free
 using hegel_jank_fn_run_result = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_run *, hegel_jank_hegel_run_result * *); // hegel_run_result
 using hegel_jank_fn_run_result_error = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_run_result *, char const * *); // hegel_run_result_error
@@ -168,11 +175,17 @@ struct hegel_jank_bindings
   hegel_jank_fn_mark_complete mark_complete{};
   hegel_jank_fn_new_collection new_collection{};
   hegel_jank_fn_new_pool new_pool{};
+  hegel_jank_fn_new_recursion new_recursion{};
   hegel_jank_fn_new_state_machine new_state_machine{};
   hegel_jank_fn_next_test_case next_test_case{};
   hegel_jank_fn_pool_add pool_add{};
   hegel_jank_fn_pool_free pool_free{};
   hegel_jank_fn_pool_generate pool_generate{};
+  hegel_jank_fn_recursion_branch recursion_branch{};
+  hegel_jank_fn_recursion_finish recursion_finish{};
+  hegel_jank_fn_recursion_free recursion_free{};
+  hegel_jank_fn_recursion_leaf recursion_leaf{};
+  hegel_jank_fn_recursion_retry recursion_retry{};
   hegel_jank_fn_run_free run_free{};
   hegel_jank_fn_run_result run_result{};
   hegel_jank_fn_run_result_error run_result_error{};
@@ -273,11 +286,17 @@ inline hegel_jank_bindings *hegel_jank_load_bindings(std::string const &path)
   bindings->mark_complete = reinterpret_cast<hegel_jank_fn_mark_complete>(hegel_jank_find_symbol(bindings->library, "hegel_mark_complete"));
   bindings->new_collection = reinterpret_cast<hegel_jank_fn_new_collection>(hegel_jank_find_symbol(bindings->library, "hegel_new_collection"));
   bindings->new_pool = reinterpret_cast<hegel_jank_fn_new_pool>(hegel_jank_find_symbol(bindings->library, "hegel_new_pool"));
+  bindings->new_recursion = reinterpret_cast<hegel_jank_fn_new_recursion>(hegel_jank_find_symbol(bindings->library, "hegel_new_recursion"));
   bindings->new_state_machine = reinterpret_cast<hegel_jank_fn_new_state_machine>(hegel_jank_find_symbol(bindings->library, "hegel_new_state_machine"));
   bindings->next_test_case = reinterpret_cast<hegel_jank_fn_next_test_case>(hegel_jank_find_symbol(bindings->library, "hegel_next_test_case"));
   bindings->pool_add = reinterpret_cast<hegel_jank_fn_pool_add>(hegel_jank_find_symbol(bindings->library, "hegel_pool_add"));
   bindings->pool_free = reinterpret_cast<hegel_jank_fn_pool_free>(hegel_jank_find_symbol(bindings->library, "hegel_pool_free"));
   bindings->pool_generate = reinterpret_cast<hegel_jank_fn_pool_generate>(hegel_jank_find_symbol(bindings->library, "hegel_pool_generate"));
+  bindings->recursion_branch = reinterpret_cast<hegel_jank_fn_recursion_branch>(hegel_jank_find_symbol(bindings->library, "hegel_recursion_branch"));
+  bindings->recursion_finish = reinterpret_cast<hegel_jank_fn_recursion_finish>(hegel_jank_find_symbol(bindings->library, "hegel_recursion_finish"));
+  bindings->recursion_free = reinterpret_cast<hegel_jank_fn_recursion_free>(hegel_jank_find_symbol(bindings->library, "hegel_recursion_free"));
+  bindings->recursion_leaf = reinterpret_cast<hegel_jank_fn_recursion_leaf>(hegel_jank_find_symbol(bindings->library, "hegel_recursion_leaf"));
+  bindings->recursion_retry = reinterpret_cast<hegel_jank_fn_recursion_retry>(hegel_jank_find_symbol(bindings->library, "hegel_recursion_retry"));
   bindings->run_free = reinterpret_cast<hegel_jank_fn_run_free>(hegel_jank_find_symbol(bindings->library, "hegel_run_free"));
   bindings->run_result = reinterpret_cast<hegel_jank_fn_run_result>(hegel_jank_find_symbol(bindings->library, "hegel_run_result"));
   bindings->run_result_error = reinterpret_cast<hegel_jank_fn_run_result_error>(hegel_jank_find_symbol(bindings->library, "hegel_run_result_error"));
@@ -458,6 +477,11 @@ inline std::int32_t hegel_jank_call_new_pool(hegel_jank_bindings *bindings, hege
   return bindings->new_pool(arg0, arg1, arg2);
 }
 
+inline std::int32_t hegel_jank_call_new_recursion(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, std::uint64_t arg2, std::uint64_t arg3, hegel_jank_hegel_recursion * * arg4)
+{
+  return bindings->new_recursion(arg0, arg1, arg2, arg3, arg4);
+}
+
 inline std::int32_t hegel_jank_call_new_state_machine(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, char const * * arg2, std::int64_t * arg3, std::size_t arg4, char const * * arg5, std::size_t arg6, std::int64_t arg7, std::int64_t arg8, hegel_jank_hegel_state_machine * * arg9, std::int64_t * arg10)
 {
   return bindings->new_state_machine(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10);
@@ -481,6 +505,31 @@ inline std::int32_t hegel_jank_call_pool_free(hegel_jank_bindings *bindings, heg
 inline std::int32_t hegel_jank_call_pool_generate(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, hegel_jank_hegel_pool * arg2, std::uint8_t arg3, std::int64_t * arg4)
 {
   return bindings->pool_generate(arg0, arg1, arg2, arg3, arg4);
+}
+
+inline std::int32_t hegel_jank_call_recursion_branch(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, hegel_jank_hegel_recursion * arg2, std::uint64_t arg3, std::uint8_t * arg4)
+{
+  return bindings->recursion_branch(arg0, arg1, arg2, arg3, arg4);
+}
+
+inline std::int32_t hegel_jank_call_recursion_finish(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, hegel_jank_hegel_recursion * arg2)
+{
+  return bindings->recursion_finish(arg0, arg1, arg2);
+}
+
+inline std::int32_t hegel_jank_call_recursion_free(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_recursion * arg1)
+{
+  return bindings->recursion_free(arg0, arg1);
+}
+
+inline std::int32_t hegel_jank_call_recursion_leaf(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, hegel_jank_hegel_recursion * arg2)
+{
+  return bindings->recursion_leaf(arg0, arg1, arg2);
+}
+
+inline std::int32_t hegel_jank_call_recursion_retry(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, hegel_jank_hegel_recursion * arg2)
+{
+  return bindings->recursion_retry(arg0, arg1, arg2);
 }
 
 inline std::int32_t hegel_jank_call_run_free(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_run * arg1)

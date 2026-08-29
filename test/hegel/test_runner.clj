@@ -609,6 +609,22 @@
     (check "combinator spans close exactly once when mapping throws"
            (and (= marker error)
                 (= [[:start hffi/label-mapped] [:stop false]] @events))))
+  (let [stop-calls (atom 0)
+        marker (ex-info "stopping mapped span failed" {:marker :stop})
+        generator (g/fmap identity (g/just :value))
+        error
+        (with-redefs [hffi/start-span! (fn [& _])
+                      hffi/stop-span!
+                      (fn [& _]
+                        (swap! stop-calls inc)
+                        (throw marker))]
+          (try
+            (generator {:context :context :handle :test-case})
+            nil
+            (catch Throwable error
+              error)))]
+    (check "combinator stop failures are not retried against the same span"
+           (and (= marker error) (= 1 @stop-calls))))
   (let [events (atom [])
         marker (ex-info "predicate failed" {:marker :predicate})
         generator (g/filter (fn [_] (throw marker)) (g/just :value))
@@ -628,6 +644,22 @@
     (check "filter spans close exactly once when predicates throw"
            (and (= marker error)
                 (= [[:start hffi/label-filter] [:stop false]] @events))))
+  (let [stop-calls (atom 0)
+        marker (ex-info "stopping filter span failed" {:marker :filter-stop})
+        generator (g/filter (constantly true) (g/just :value))
+        error
+        (with-redefs [hffi/start-span! (fn [& _])
+                      hffi/stop-span!
+                      (fn [& _]
+                        (swap! stop-calls inc)
+                        (throw marker))]
+          (try
+            (generator {:context :context :handle :test-case})
+            nil
+            (catch Throwable error
+              error)))]
+    (check "filter stop failures are not retried against the same span"
+           (and (= marker error) (= 1 @stop-calls))))
   (let [error
         (with-redefs [hffi/generate-integer!
                       (fn [& _]
@@ -910,6 +942,199 @@
                           (:reproduced? failure)
                           (false? (:flaky? result))))
                    [string-case vector-case bind-case set-case one-of-case]))))
+
+(defn- recursive-tree-generator
+  ([]
+   (recursive-tree-generator {}))
+  ([opts]
+   (g/recursive
+    opts
+    (g/fmap (fn [value] [:leaf value]) (g/integer 0 20))
+    (fn [subtree]
+      ;; Reusing the same subtree generator is the public contract: every
+      ;; draw advances the shared recursion scope at the appropriate depth.
+      (g/fmap (fn [[left right]] [:branch left right])
+              (g/tuple subtree subtree))))))
+
+(defn- tree-height [tree]
+  (if (= :leaf (first tree))
+    0
+    (inc (max (tree-height (second tree))
+              (tree-height (nth tree 2))))))
+
+(defn- tree-leaf-count [tree]
+  (if (= :leaf (first tree))
+    1
+    (+ (tree-leaf-count (second tree))
+       (tree-leaf-count (nth tree 2)))))
+
+(defn- tree-has-odd-leaf-pair? [tree]
+  (and (= :branch (first tree))
+       (let [left (second tree)
+             right (nth tree 2)]
+         (or (and (= :leaf (first left))
+                  (= :leaf (first right))
+                  (odd? (second left))
+                  (odd? (second right)))
+             (tree-has-odd-leaf-pair? left)
+             (tree-has-odd-leaf-pair? right)))))
+
+(defn recursive-generators []
+  (check "recursive construction rejects invalid options and declarations"
+         (and (throws? #(g/recursive [] (g/just :leaf) identity))
+              (throws? #(g/recursive {:max-depth -1}
+                                     (g/just :leaf) identity))
+              (throws? #(g/recursive {:max-leaves (inc hffi/no-max-size)}
+                                     (g/just :leaf) identity))
+              (throws? #(g/recursive {:unknown true}
+                                     (g/just :leaf) identity))
+              (throws? #(g/recursive :not-a-generator identity))
+              (throws? #(g/recursive (g/just :leaf) :not-a-function))))
+  (let [values (atom [])
+        recursion-counts (atom {:new 0 :free 0})
+        new-recursion! hffi/new-recursion!
+        recursion-free! hffi/recursion-free!
+        result
+        (with-redefs
+         [hffi/new-recursion!
+          (fn [& args]
+            (swap! recursion-counts update :new inc)
+            (apply new-recursion! args))
+          hffi/recursion-free!
+          (fn [& args]
+            (swap! recursion-counts update :free inc)
+            (apply recursion-free! args))]
+         (h/run-test!
+          {:test-cases 120
+           :seed 20260828
+           :database ""
+           :verbosity :quiet}
+          (fn [_]
+            (swap! values conj
+                   (h/draw!
+                    (recursive-tree-generator
+                     {:max-depth 3 :max-leaves 6}))))))]
+    (check "recursive generation respects depth and leaf bounds"
+           (and (:passed? result)
+                (seq @values)
+                (every? #(<= (tree-height %) 3) @values)
+                (every? #(<= (tree-leaf-count %) 6) @values)))
+    (check "recursive generation produces nested branches"
+           (some #(>= (tree-height %) 2) @values))
+    (check "real recursive scopes are freed exactly once"
+           (and (pos? (:new @recursion-counts))
+                (= (:new @recursion-counts)
+                   (:free @recursion-counts)))))
+  (let [{:keys [result value failure]}
+        (minimal-value
+         "hegel.test-runner:recursive-hoist"
+         (recursive-tree-generator {:max-depth 3 :max-leaves 8})
+         tree-has-odd-leaf-pair?)]
+    (check "recursive shrinking hoists a deep witness to the root"
+           (= [:branch [:leaf 1] [:leaf 1]] value))
+    (check "recursive shrinking reproduces without flakiness"
+           (and (not (:passed? result))
+                (:reproduced? failure)
+                (false? (:flaky? result))))))
+
+(defn recursive-retry-protocol []
+  (let [events (atom [])
+        branch-decisions (atom [true false false])
+        leaf-results (atom [:retry :ok])
+        generator
+        (g/recursive
+         {:max-depth 2 :max-leaves 1}
+         (g/just :leaf)
+         (fn [subtree]
+           (g/fmap (fn [child] [:branch child]) subtree)))
+        value
+        (with-redefs
+         [hffi/new-recursion!
+          (fn [_ _ max-depth max-leaves]
+            (swap! events conj [:new max-depth max-leaves])
+            :recursion)
+          hffi/start-span!
+          (fn [_ _ label] (swap! events conj [:start label]))
+          hffi/stop-span!
+          (fn [& _] (swap! events conj [:stop]))
+          hffi/recursion-branch!
+          (fn [_ _ _ depth]
+            (let [decision (first @branch-decisions)]
+              (swap! branch-decisions subvec 1)
+              (swap! events conj [:branch depth decision])
+              decision))
+          hffi/recursion-leaf!
+          (fn [& _]
+            (let [result (first @leaf-results)]
+              (swap! leaf-results subvec 1)
+              (swap! events conj [:leaf result])
+              result))
+          hffi/recursion-retry!
+          (fn [& _] (swap! events conj [:retry]))
+          hffi/recursion-finish!
+          (fn [& _]
+            (swap! events conj [:finish :ok])
+            :ok)
+          hffi/recursion-free!
+          (fn [& _] (swap! events conj [:free]))]
+         (generator {:context :context :handle :test-case}))
+        retry-index (.indexOf @events [:retry])
+        first-stop-index (.indexOf @events [:stop])]
+    (check "leaf-budget retry unwinds to the recursive root"
+           (and (= :leaf value)
+                (pos? retry-index)
+                (or (= -1 first-stop-index)
+                    (> first-stop-index retry-index))))
+    (check "leaf-budget retry preserves nested recursive span order"
+           (= [[:new 2 1]
+               [:start hffi/label-recursive]
+               [:branch 0 true]
+               [:start hffi/label-mapped]
+               [:start hffi/label-recursive]
+               [:branch 1 false]
+               [:leaf :retry]
+               [:retry]
+               [:start hffi/label-recursive]
+               [:branch 0 false]
+               [:leaf :ok]
+               [:finish :ok]
+               [:stop]
+               [:free]]
+              @events)))
+  (let [events (atom [])
+        finish-results (atom [:retry :ok])
+        generator (g/recursive (g/just :leaf) identity)
+        value
+        (with-redefs
+         [hffi/new-recursion! (fn [& _] :recursion)
+          hffi/start-span! (fn [& _] (swap! events conj :start))
+          hffi/stop-span! (fn [& _] (swap! events conj :stop))
+          hffi/recursion-branch! (fn [& _] false)
+          hffi/recursion-leaf! (fn [& _] :ok)
+          hffi/recursion-retry! (fn [& _] (swap! events conj :retry))
+          hffi/recursion-finish!
+          (fn [& _]
+            (let [result (first @finish-results)]
+              (swap! finish-results subvec 1)
+              (swap! events conj result)
+              result))
+          hffi/recursion-free! (fn [& _] (swap! events conj :free))]
+         (generator {:context :context :handle :test-case}))]
+    (check "finish retry restarts directly without recursion-retry"
+           (and (= :leaf value)
+                (= [:start :retry :start :ok :stop :free] @events))))
+  (let [events (atom [])
+        generator (g/recursive (g/just :leaf) (fn [_] :not-a-generator))]
+    (check "recursive user errors close their span and free their scope"
+           (and
+            (with-redefs
+             [hffi/new-recursion! (fn [& _] :recursion)
+              hffi/start-span! (fn [& _] (swap! events conj :start))
+              hffi/stop-span! (fn [& _] (swap! events conj :stop))
+              hffi/recursion-branch! (fn [& _] true)
+              hffi/recursion-free! (fn [& _] (swap! events conj :free))]
+             (throws? #(generator {:context :context :handle :test-case})))
+            (= [:start :stop :free] @events)))))
 
 (defn stateful-pools-and-models []
   (let [observations (atom [])
@@ -2168,6 +2393,8 @@
   (scenario "collection and composition generators" collection-combinators)
   (scenario "cross-binding combinator shrink quality"
             combinator-shrink-quality)
+  (scenario "recursive generator retry protocol" recursive-retry-protocol)
+  (scenario "recursive generator bounds and shrinking" recursive-generators)
   (scenario "Malli adapter construction" malli-adapter-construction)
   (scenario "Malli adapter generation and shrinking"
             malli-adapter-generation)

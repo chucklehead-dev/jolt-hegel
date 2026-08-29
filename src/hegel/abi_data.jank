@@ -175,6 +175,16 @@
    :ownership {:out {:kind :owned, :release :pool-free}},
    :return :c/int32,
    :symbol "hegel_new_pool"},
+  :new-recursion
+  {:args
+   [[:pointer :hegel/context]
+    [:pointer :hegel/test-case]
+    :c/uint64
+    :c/uint64
+    [:pointer [:pointer :hegel/recursion]]],
+   :ownership {:out {:kind :owned, :release :recursion-free}},
+   :return :c/int32,
+   :symbol "hegel_new_recursion"},
   :new-state-machine
   {:args
    [[:pointer :hegel/context]
@@ -217,6 +227,31 @@
     [:pointer :c/int64]],
    :return :c/int32,
    :symbol "hegel_pool_generate"},
+  :recursion-branch
+  {:args
+   [[:pointer :hegel/context]
+    [:pointer :hegel/test-case]
+    [:pointer :hegel/recursion]
+    :c/uint64
+    [:pointer :c/bool]],
+   :return :c/int32,
+   :symbol "hegel_recursion_branch"},
+  :recursion-finish
+  {:args [[:pointer :hegel/context] [:pointer :hegel/test-case] [:pointer :hegel/recursion]],
+   :return :c/int32,
+   :symbol "hegel_recursion_finish"},
+  :recursion-free
+  {:args [[:pointer :hegel/context] [:pointer :hegel/recursion]],
+   :return :c/int32,
+   :symbol "hegel_recursion_free"},
+  :recursion-leaf
+  {:args [[:pointer :hegel/context] [:pointer :hegel/test-case] [:pointer :hegel/recursion]],
+   :return :c/int32,
+   :symbol "hegel_recursion_leaf"},
+  :recursion-retry
+  {:args [[:pointer :hegel/context] [:pointer :hegel/test-case] [:pointer :hegel/recursion]],
+   :return :c/int32,
+   :symbol "hegel_recursion_retry"},
   :run-free
   {:args [[:pointer :hegel/context] [:pointer :hegel/run]],
    :blocking? true,
@@ -441,12 +476,12 @@
    :symbol "hegel_version"}},
  :library
  {:header
-  {:commit "e5fcdb10d422ceadb635991353b1c9b20ee4a697",
+  {:commit "94edce76aaac1e96e3d93916475d9b2fa3ee97f0",
    :path "hegel-c/include/hegel.h",
    :repository "hegeldev/hegel-rust",
-   :tag "v0.33.0"},
+   :tag "v0.33.3"},
   :name "libhegel",
-  :version "0.33.0"},
+  :version "0.33.3"},
  :schema-version 1,
  :types
  {:c/bool {:bits 8, :kind :boolean, :signed? false},
@@ -477,6 +512,7 @@
   :hegel/output-callback
   {:args [[:pointer :c/void] :c/string :c/size], :kind :function-pointer, :return :c/void},
   :hegel/pool {:kind :opaque},
+  :hegel/recursion {:kind :opaque},
   :hegel/run {:kind :opaque},
   :hegel/run-result {:kind :opaque},
   :hegel/settings {:kind :opaque},

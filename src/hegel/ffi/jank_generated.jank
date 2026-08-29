@@ -250,6 +250,18 @@
   :return :c/int32,
   :route :jank/generated,
   :symbol "hegel_new_pool"},
+ :new-recursion
+ {:args
+  [[:pointer :hegel/context]
+   [:pointer :hegel/test-case]
+   :c/uint64
+   :c/uint64
+   [:pointer [:pointer :hegel/recursion]]],
+  :cpp-function-type "hegel_jank_fn_new_recursion",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_new_recursion"},
  :new-state-machine
  {:args
   [[:pointer :hegel/context]
@@ -306,6 +318,46 @@
   :return :c/int32,
   :route :jank/generated,
   :symbol "hegel_pool_generate"},
+ :recursion-branch
+ {:args
+  [[:pointer :hegel/context]
+   [:pointer :hegel/test-case]
+   [:pointer :hegel/recursion]
+   :c/uint64
+   [:pointer :c/bool]],
+  :cpp-function-type "hegel_jank_fn_recursion_branch",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_recursion_branch"},
+ :recursion-finish
+ {:args [[:pointer :hegel/context] [:pointer :hegel/test-case] [:pointer :hegel/recursion]],
+  :cpp-function-type "hegel_jank_fn_recursion_finish",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_recursion_finish"},
+ :recursion-free
+ {:args [[:pointer :hegel/context] [:pointer :hegel/recursion]],
+  :cpp-function-type "hegel_jank_fn_recursion_free",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_recursion_free"},
+ :recursion-leaf
+ {:args [[:pointer :hegel/context] [:pointer :hegel/test-case] [:pointer :hegel/recursion]],
+  :cpp-function-type "hegel_jank_fn_recursion_leaf",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_recursion_leaf"},
+ :recursion-retry
+ {:args [[:pointer :hegel/context] [:pointer :hegel/test-case] [:pointer :hegel/recursion]],
+  :cpp-function-type "hegel_jank_fn_recursion_retry",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_recursion_retry"},
  :run-free
  {:args [[:pointer :hegel/context] [:pointer :hegel/run]],
   :blocking? true,
@@ -900,6 +952,15 @@
      (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_test_case) (cpp/unbox (:* cpp/void) (nth values 1)))
      (cpp/unsafe-cast (:* (:* cpp/hegel_jank_hegel_pool)) (cpp/unbox (:* cpp/void) (nth values 2))))))
 
+(defn invoke-new_recursion [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_new_recursion native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_test_case) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/hegel_jank_to_uint64 (nth values 2))
+     (cpp/hegel_jank_to_uint64 (nth values 3))
+     (cpp/unsafe-cast (:* (:* cpp/hegel_jank_hegel_recursion)) (cpp/unbox (:* cpp/void) (nth values 4))))))
+
 (defn invoke-new_state_machine [& values]
   (let [native-bindings (cpp/hegel_jank_current_bindings)]
     (cpp/hegel_jank_call_new_state_machine native-bindings
@@ -944,6 +1005,42 @@
      (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_pool) (cpp/unbox (:* cpp/void) (nth values 2)))
      (cpp/cast cpp/std.uint8_t (nth values 3))
      (cpp/unsafe-cast (:* cpp/std.int64_t) (cpp/unbox (:* cpp/void) (nth values 4))))))
+
+(defn invoke-recursion_branch [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_recursion_branch native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_test_case) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_recursion) (cpp/unbox (:* cpp/void) (nth values 2)))
+     (cpp/hegel_jank_to_uint64 (nth values 3))
+     (cpp/unsafe-cast (:* cpp/std.uint8_t) (cpp/unbox (:* cpp/void) (nth values 4))))))
+
+(defn invoke-recursion_finish [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_recursion_finish native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_test_case) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_recursion) (cpp/unbox (:* cpp/void) (nth values 2))))))
+
+(defn invoke-recursion_free [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_recursion_free native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_recursion) (cpp/unbox (:* cpp/void) (nth values 1))))))
+
+(defn invoke-recursion_leaf [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_recursion_leaf native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_test_case) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_recursion) (cpp/unbox (:* cpp/void) (nth values 2))))))
+
+(defn invoke-recursion_retry [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_recursion_retry native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_test_case) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_recursion) (cpp/unbox (:* cpp/void) (nth values 2))))))
 
 (defn invoke-run_free [& values]
   (let [native-bindings (cpp/hegel_jank_current_bindings)]
@@ -1268,11 +1365,17 @@
  :mark-complete invoke-mark_complete,
  :new-collection invoke-new_collection,
  :new-pool invoke-new_pool,
+ :new-recursion invoke-new_recursion,
  :new-state-machine invoke-new_state_machine,
  :next-test-case invoke-next_test_case,
  :pool-add invoke-pool_add,
  :pool-free invoke-pool_free,
  :pool-generate invoke-pool_generate,
+ :recursion-branch invoke-recursion_branch,
+ :recursion-finish invoke-recursion_finish,
+ :recursion-free invoke-recursion_free,
+ :recursion-leaf invoke-recursion_leaf,
+ :recursion-retry invoke-recursion_retry,
  :run-free invoke-run_free,
  :run-result invoke-run_result,
  :run-result-error invoke-run_result_error,

@@ -19,7 +19,7 @@ and no native C shim.
 
 ## What works
 
-- all 71 libhegel symbols are resolved from the exact selected library;
+- all 77 libhegel symbols are resolved from the exact selected library;
 - fixed-width signed and unsigned integers, `size_t`, floating point, pointers,
   strings, out parameters, bulk bytes, and wide mixed signatures;
 - `date`, `time`, and nested `datetime` structs passed by value;

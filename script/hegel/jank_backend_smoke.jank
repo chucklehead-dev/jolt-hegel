@@ -47,7 +47,7 @@
       (throw (ex-info "pass the absolute libhegel library path"
                       {:type ::missing-library-path})))
     (backend/load! library-path))
-  (println "jank backend smoke: library and 71 symbols loaded")
+  (println "jank backend smoke: library and 77 symbols loaded")
   (let [memory (backend/alloc 32)
         pointee (backend/alloc 8)]
     (try

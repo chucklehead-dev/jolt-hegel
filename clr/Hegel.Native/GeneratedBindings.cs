@@ -153,6 +153,10 @@ internal static partial class NativeMethods
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int NewPool(IntPtr arg0, IntPtr arg1, IntPtr arg2);
 
+    [LibraryImport(LibraryName, EntryPoint = "hegel_new_recursion")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int NewRecursion(IntPtr arg0, IntPtr arg1, ulong arg2, ulong arg3, IntPtr arg4);
+
     [LibraryImport(LibraryName, EntryPoint = "hegel_new_state_machine")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int NewStateMachine(IntPtr arg0, IntPtr arg1, IntPtr arg2, IntPtr arg3, nuint arg4, IntPtr arg5, nuint arg6, long arg7, long arg8, IntPtr arg9, IntPtr arg10);
@@ -172,6 +176,26 @@ internal static partial class NativeMethods
     [LibraryImport(LibraryName, EntryPoint = "hegel_pool_generate")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int PoolGenerate(IntPtr arg0, IntPtr arg1, IntPtr arg2, byte arg3, IntPtr arg4);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_recursion_branch")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int RecursionBranch(IntPtr arg0, IntPtr arg1, IntPtr arg2, ulong arg3, IntPtr arg4);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_recursion_finish")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int RecursionFinish(IntPtr arg0, IntPtr arg1, IntPtr arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_recursion_free")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int RecursionFree(IntPtr arg0, IntPtr arg1);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_recursion_leaf")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int RecursionLeaf(IntPtr arg0, IntPtr arg1, IntPtr arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_recursion_retry")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int RecursionRetry(IntPtr arg0, IntPtr arg1, IntPtr arg2);
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_run_free")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
@@ -364,11 +388,17 @@ public static partial class Bridge
         "hegel_mark_complete",
         "hegel_new_collection",
         "hegel_new_pool",
+        "hegel_new_recursion",
         "hegel_new_state_machine",
         "hegel_next_test_case",
         "hegel_pool_add",
         "hegel_pool_free",
         "hegel_pool_generate",
+        "hegel_recursion_branch",
+        "hegel_recursion_finish",
+        "hegel_recursion_free",
+        "hegel_recursion_leaf",
+        "hegel_recursion_retry",
         "hegel_run_free",
         "hegel_run_result",
         "hegel_run_result_error",
@@ -442,11 +472,17 @@ public static partial class Bridge
             "mark-complete" => InvokeMarkComplete(args),
             "new-collection" => InvokeNewCollection(args),
             "new-pool" => InvokeNewPool(args),
+            "new-recursion" => InvokeNewRecursion(args),
             "new-state-machine" => InvokeNewStateMachine(args),
             "next-test-case" => InvokeNextTestCase(args),
             "pool-add" => InvokePoolAdd(args),
             "pool-free" => InvokePoolFree(args),
             "pool-generate" => InvokePoolGenerate(args),
+            "recursion-branch" => InvokeRecursionBranch(args),
+            "recursion-finish" => InvokeRecursionFinish(args),
+            "recursion-free" => InvokeRecursionFree(args),
+            "recursion-leaf" => InvokeRecursionLeaf(args),
+            "recursion-retry" => InvokeRecursionRetry(args),
             "run-free" => InvokeRunFree(args),
             "run-result" => InvokeRunResult(args),
             "run-result-error" => InvokeRunResultError(args),
@@ -647,6 +683,12 @@ public static partial class Bridge
         return NativeMethods.NewPool(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]));
     }
 
+    private static object? InvokeNewRecursion(object?[] args)
+    {
+        RequireArity("new-recursion", args, 5);
+        return NativeMethods.NewRecursion(ToIntPtr(args[0]), ToIntPtr(args[1]), ToUInt64(args[2]), ToUInt64(args[3]), ToIntPtr(args[4]));
+    }
+
     private static object? InvokeNewStateMachine(object?[] args)
     {
         RequireArity("new-state-machine", args, 11);
@@ -675,6 +717,36 @@ public static partial class Bridge
     {
         RequireArity("pool-generate", args, 5);
         return NativeMethods.PoolGenerate(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]), ToByte(args[3]), ToIntPtr(args[4]));
+    }
+
+    private static object? InvokeRecursionBranch(object?[] args)
+    {
+        RequireArity("recursion-branch", args, 5);
+        return NativeMethods.RecursionBranch(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]), ToUInt64(args[3]), ToIntPtr(args[4]));
+    }
+
+    private static object? InvokeRecursionFinish(object?[] args)
+    {
+        RequireArity("recursion-finish", args, 3);
+        return NativeMethods.RecursionFinish(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]));
+    }
+
+    private static object? InvokeRecursionFree(object?[] args)
+    {
+        RequireArity("recursion-free", args, 2);
+        return NativeMethods.RecursionFree(ToIntPtr(args[0]), ToIntPtr(args[1]));
+    }
+
+    private static object? InvokeRecursionLeaf(object?[] args)
+    {
+        RequireArity("recursion-leaf", args, 3);
+        return NativeMethods.RecursionLeaf(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]));
+    }
+
+    private static object? InvokeRecursionRetry(object?[] args)
+    {
+        RequireArity("recursion-retry", args, 3);
+        return NativeMethods.RecursionRetry(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]));
     }
 
     private static object? InvokeRunFree(object?[] args)

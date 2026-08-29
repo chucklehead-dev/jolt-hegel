@@ -23,10 +23,10 @@
   (let [descriptor (abi/validate!)
         functions (abi/functions)
         descriptor-text (pr-str descriptor)]
-    (require! "descriptor identifies libhegel 0.33.0"
-              (= "0.33.0" (get-in descriptor [:library :version])))
-    (require! "descriptor covers all 71 header functions"
-              (= 71 (count functions)))
+    (require! "descriptor identifies libhegel 0.33.3"
+              (= "0.33.3" (get-in descriptor [:library :version])))
+    (require! "descriptor covers all 77 header functions"
+              (= 77 (count functions)))
     (require! "descriptor includes formerly unbound header calls"
               (every? (fn [function-id] (contains? functions function-id))
                       [:test-case-is-nondeterministic
@@ -63,7 +63,7 @@
     #?(:jolt
        (let [report (abi/check-backend selected-backend/backend descriptor)]
          (require! "Jolt backend supports every descriptor signature"
-                   (= {:supported 71 :unsupported 0 :total 71}
+                   (= {:supported 77 :unsupported 0 :total 77}
                       (:summary report)))
          (require! "Jolt backend selects direct FFI for every signature"
                    (every? (fn [entry] (= :jolt/direct (:route entry)))
@@ -72,7 +72,7 @@
        (let [report (abi/check-backend selected-backend/backend descriptor)
              routes (map :route (vals (:functions report)))]
          (require! "Babashka backend supports every descriptor signature"
-                   (= {:supported 71 :unsupported 0 :total 71}
+                   (= {:supported 77 :unsupported 0 :total 77}
                       (:summary report)))
          (require! "Babashka uses a direct route plus libffi fallback"
                    (and (some #{:bb/trampoline :bb/ffm} routes)
@@ -85,7 +85,7 @@
        :jank
        (let [report (abi/check-backend selected-backend/backend descriptor)]
          (require! "jank generator covers every descriptor signature"
-                   (= {:supported 71 :unsupported 0 :total 71}
+                   (= {:supported 77 :unsupported 0 :total 77}
                       (:summary report)))
          (require! "jank reports generated C++ downcalls as native-ready"
                    (every? (fn [entry]
@@ -100,7 +100,7 @@
        :clj
        (let [report (abi/check-backend selected-backend/backend descriptor)]
          (require! "JVM backend supports every descriptor signature"
-                   (= {:supported 71 :unsupported 0 :total 71}
+                   (= {:supported 77 :unsupported 0 :total 77}
                       (:summary report)))
          (require! "JVM backend selects direct FFM for every signature"
                    (every? (fn [entry] (= :jvm/ffm (:route entry)))

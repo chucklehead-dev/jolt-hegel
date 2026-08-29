@@ -10,7 +10,7 @@ before the result is reported. The seed in every result makes the run
 repeatable.
 
 jolt-hegel exposes one Clojure API on all three hosts. It calls the same
-libhegel 0.33 C ABI directly through `jolt.ffi`, `babashka.ffi`, or the final
+libhegel 0.33.3 C ABI directly through `jolt.ffi`, `babashka.ffi`, or the final
 JDK Foreign Function & Memory API. There is no service to start and no
 subprocess protocol.
 
@@ -28,8 +28,10 @@ supported release contract.
 | jank | Experimental focused suite | Linux x86_64 and macOS arm64 |
 | ClojureCLR 1.12.2 on .NET 8 | Experimental focused suite | Linux x86_64, Windows x86_64, macOS arm64 |
 
-The current release is `v0.3.0`, the first release of the portable
-implementation. Consumer Git dependencies should pin the tag's full peeled
+The current release is `v0.4.0`. It adds engine-native recursive generators,
+the current libhegel distribution and shrinking improvements, and the bounded
+history and trace rules developed for compiler-aspect testing. Consumer Git
+dependencies should pin the tag's full peeled
 commit SHA, not the tag-object SHA or a moving branch reference.
 
 ## What should be a property?
@@ -188,6 +190,13 @@ might exercise only create/read operations, another create/update/delete, and
 another the full rule set. This explores feature interactions without requiring
 you to hand-author each subset or a second rule-choice loop.
 
+libhegel also defines nondeterministic concurrent state machines. They are not
+exposed by `hs/run!`: declaring concurrency above one disables shrinking,
+replay, targeting, persistence, and flakiness checks upstream, while the
+current Clojure API deliberately models each rule as a deterministic
+`state -> state` transition. A future concurrent API will use a distinct
+shared-state and join-point contract rather than silently weakening this one.
+
 ### Reusing generated resources with pools
 
 State machines often create identifiers, handles, or files that later rules
@@ -324,11 +333,33 @@ The built-in surface covers:
 - constants, sampled values, mapping, dependent generation, filtering,
   alternatives, and optional values; and
 - tuples, vectors, chunkings, lists, sets, sorted sets, maps, sorted maps, and
-  fixed-key heterogeneous maps.
+  fixed-key heterogeneous maps; and
+- recursive trees and documents with engine-owned depth, leaf-budget, retry,
+  and subtree-hoisting shrink semantics.
 
 Generators are ordinary values drawn with `h/draw!`. Prefer a generator that
 constructs valid data directly. Use `h/assume!` only for uncommon exclusions;
 rejecting most cases wastes the run and weakens shrinking.
+
+Recursive generators keep the recursion policy in libhegel, so generated
+trees use the same depth and leaf budgets on every host and can shrink by
+replacing a tree with one of its own subtrees:
+
+```clojure
+(def tree
+  (g/recursive
+   {:max-depth 8 :max-leaves 64}
+   (g/fmap (fn [value] {:leaf value}) (g/integer))
+   (fn [subtree]
+     (g/fmap (fn [children] {:children children})
+             (g/vector {:max-size 4} subtree)))))
+```
+
+The branch function receives a reusable subtree generator and returns a
+generator for one branch level. `:max-depth` defaults to 32 and `:max-leaves`
+to 100. A depth of zero forces leaves. libhegel owns branch decisions, retry
+policy, size steering, and subtree-hoisting shrink structure; application code
+does not write its own recursive depth draw.
 
 The exact constructors and options are documented in the bundled
 [API reference](skills/jolt-hegel/references/api.md).
@@ -357,7 +388,7 @@ The supported schema contract is listed in the
 
 ## Installation
 
-jolt-hegel uses libhegel 0.33.0. Prebuilt upstream libraries are available for
+jolt-hegel uses libhegel 0.33.3. Prebuilt upstream libraries are available for
 Linux x86_64, Windows x86_64, and macOS arm64. The installer chooses the asset,
 verifies its pinned SHA-256, and caches it. The same SHA-pinned Git dependency
 can be used by each host:
