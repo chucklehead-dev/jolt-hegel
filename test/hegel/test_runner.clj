@@ -1673,6 +1673,47 @@
                              [(htrace/contiguous-sequence)
                               (htrace/closed-lifecycles)
                               (htrace/synchronous-parentage)]))))
+  (let [events [{:seq 1 :operation-id :parent :parent-operation-id nil
+                 :context-id :request-9 :phase :invoke
+                 :operation :agent/run}
+                ;; An explicit carrier can outlive the parent's dynamic extent.
+                {:seq 2 :operation-id :parent :phase :return}
+                {:seq 3 :operation-id :child :parent-operation-id :parent
+                 :context-id :request-9 :phase :invoke
+                 :operation :agent/model}
+                {:seq 4 :operation-id :child :phase :return}]
+        rules [(htrace/contiguous-sequence :async-journal-contiguous)
+               (htrace/closed-lifecycles :async-lifecycles-close)
+               (htrace/causal-parentage :async-parent-invoked-first)
+               (htrace/context-coherence :async-context-coherent)]]
+    (check "canonical async histories allow a parent to return before its child"
+           (= events (htrace/check! events rules))))
+  (let [fixtures
+        [{:rule (htrace/causal-parentage :async-parent-invoked-first)
+          :events [{:seq 1 :operation-id :child
+                    :parent-operation-id :parent
+                    :context-id :request-9 :phase :invoke}
+                   {:seq 2 :operation-id :parent
+                    :parent-operation-id nil
+                    :context-id :request-9 :phase :invoke}]}
+         {:rule (htrace/context-coherence :async-context-coherent)
+          :events [{:seq 1 :operation-id :parent
+                    :parent-operation-id nil
+                    :context-id :request-9 :phase :invoke}
+                   {:seq 2 :operation-id :child
+                    :parent-operation-id :parent
+                    :context-id :request-10 :phase :invoke}]}]
+        failures
+        (mapv (fn [{:keys [rule events]}]
+                (try
+                  (htrace/check! events [rule])
+                  nil
+                  (catch Throwable error error)))
+              fixtures)]
+    (check "async causal and context failures retain their stable rule origins"
+           (= ["hegel.trace/async-parent-invoked-first"
+               "hegel.trace/async-context-coherent"]
+              (mapv #(-> % ex-data :hegel/origin) failures))))
   (let [failure
         (try
           (htrace/check!

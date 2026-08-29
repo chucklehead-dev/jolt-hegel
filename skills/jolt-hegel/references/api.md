@@ -486,7 +486,8 @@ the generated action or state-machine checkpoint has completed.
  events
  [(ht/contiguous-sequence :journal-not-truncated)
   (ht/closed-lifecycles :operations-close)
-  (ht/synchronous-parentage :operations-nest)
+  (ht/causal-parentage :parent-invoked-first)
+  (ht/context-coherence :carrier-context-coherent)
   (ht/every-eventually
    :request-terminates
    #(and (= :request (:role %)) (= :enter (:phase %)))
@@ -508,8 +509,10 @@ property failure.
 | `(ht/ordered-sequence name opts)` | Check integer values as `:nondecreasing`, `:strictly-increasing`, or `:contiguous`, optionally per `:scope` and from `:start` |
 | `(ht/event-model name opts)` | Fold events through `:initial` and required `:step`, checking optional `:invariant`, `:final`, and independent `:scope` models |
 | `(ht/contiguous-sequence name start)` | Require contiguous integer `:seq` values, defaulting to start 1 |
-| `(ht/closed-lifecycles name)` | Require each `:operation-id` to have `:enter` then exactly one `:return` or `:throw` |
+| `(ht/closed-lifecycles name)` | Require each `:operation-id` to have `:invoke` (or legacy `:enter`) then exactly one `:return` or `:throw` |
 | `(ht/synchronous-parentage name)` | Require each child lifecycle to be wholly nested in its declared parent |
+| `(ht/causal-parentage name)` | Require each declared parent invocation to precede its child invocation, without constraining terminal order |
+| `(ht/context-coherence name)` | Require invocation `:context-id` metadata to match along every declared parent edge |
 | `(ht/every-eventually name trigger? outcome? correlate)` | Require a later correlated outcome for every trigger; correlation defaults to `:operation-id` |
 
 Run checks outside compiler-aspect advice. Jolt's advice safety contract fails
@@ -520,6 +523,14 @@ For `ordered-sequence`, `:value` defaults to `:seq`; `:scope` may select an
 independent cursor or partition. Nondecreasing permits duplicates and gaps,
 strictly increasing permits gaps only, and contiguous requires exact `+1`
 steps.
+
+Canonical async jolt-aspect-packs journals use `contiguous-sequence`,
+`closed-lifecycles`, `causal-parentage`, and `context-coherence` together. A
+parent may terminate before its asynchronous child, so
+`synchronous-parentage` is appropriate only for dynamically nested work.
+Terminal events omit carrier metadata; context coherence checks invocation
+events. When a filtered view legitimately omits global journal events, use a
+strictly increasing sequence rule instead of a contiguous one.
 
 `event-model` calls `:step` as `[state event]`, then calls `:invariant` as
 `[next-state event]`. After the complete trace or scoped subtrace, it calls

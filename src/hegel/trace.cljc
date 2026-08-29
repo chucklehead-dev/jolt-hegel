@@ -230,6 +230,66 @@
              true))
          (filter #(contains? #{:invoke :enter} (:phase %)) events)))))))
 
+(defn causal-parentage
+  "Require each declared parent to have been invoked before its child.
+
+  Root operations have nil `:parent-operation-id`. Unlike
+  `synchronous-parentage`, this rule deliberately does not constrain terminal
+  order: an async parent may return or throw before its child terminates. Both
+  canonical `:invoke` events and legacy semantic-journal `:enter` events are
+  treated as invocations."
+  ([] (causal-parentage :causal-parentage))
+  ([name]
+   (rule
+    name
+    (fn [events]
+      (let [invocations (filterv #(contains? #{:invoke :enter} (:phase %))
+                                 events)
+            by-operation (group-by :operation-id invocations)]
+        (every?
+         (fn [event]
+           (and
+            (contains? event :parent-operation-id)
+            (let [parent-id (:parent-operation-id event)]
+              (if (nil? parent-id)
+                true
+                (let [parents (get by-operation parent-id)
+                      parent (first parents)]
+                  (and (= 1 (count parents))
+                       (integer? (:seq parent))
+                       (integer? (:seq event))
+                       (< (:seq parent) (:seq event))))))))
+         invocations))))))
+
+(defn context-coherence
+  "Require each invocation to declare a context coherent with its parent.
+
+  Canonical jolt-aspect-packs invocation events always contain `:context-id`,
+  including nil for an unscoped root. A child must name an existing unique
+  parent invocation and carry the same context. Terminal events need not
+  repeat carrier metadata and are therefore ignored by this rule."
+  ([] (context-coherence :context-coherence))
+  ([name]
+   (rule
+    name
+    (fn [events]
+      (let [invocations (filterv #(contains? #{:invoke :enter} (:phase %))
+                                 events)
+            by-operation (group-by :operation-id invocations)]
+        (every?
+         (fn [event]
+           (and (contains? event :parent-operation-id)
+                (contains? event :context-id)
+                (let [parent-id (:parent-operation-id event)]
+                  (if (nil? parent-id)
+                    true
+                    (let [parents (get by-operation parent-id)
+                          parent (first parents)]
+                      (and (= 1 (count parents))
+                           (contains? parent :context-id)
+                           (= (:context-id parent) (:context-id event))))))))
+         invocations))))))
+
 (defn every-eventually
   "Require every event matching `trigger?` to have a later event matching
   `outcome?` with the same value from `correlate`."

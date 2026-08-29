@@ -225,7 +225,8 @@ the trace is shrunk normally.
                         :order :strictly-increasing})
   (ht/contiguous-sequence :journal-not-truncated)
   (ht/closed-lifecycles :aspect-lifecycles-close)
-  (ht/synchronous-parentage :aspect-parentage)
+  (ht/causal-parentage :aspect-parent-invoked-first)
+  (ht/context-coherence :aspect-context-coherent)
   (ht/every-eventually
    :model-call-terminates
    #(and (= :agent/model (:role %)) (= :enter (:phase %)))
@@ -242,6 +243,16 @@ Sequence order is explicit: `:nondecreasing` permits duplicates and gaps,
 `:strictly-increasing` permits gaps but not duplicates, and `:contiguous`
 requires increments of exactly one. `:scope` checks independent cursors or
 partitions without imposing a global order on their interleaving.
+
+For canonical async histories emitted by jolt-aspect-packs, compose
+`contiguous-sequence`, `closed-lifecycles`, `causal-parentage`, and
+`context-coherence`. Causal parentage requires the parent's invocation to
+precede the child's invocation, but permits the parent to terminate before the
+child. Context coherence compares invocation carrier metadata; terminal events
+do not repeat `:context-id`. Use `synchronous-parentage` only when child
+lifecycles must be wholly nested in the parent's dynamic extent. For filtered
+views whose omitted events legitimately create sequence gaps, use
+`ordered-sequence` with `:order :strictly-increasing` instead of continuity.
 
 For richer protocols, `event-model` folds each event through a tiny pure state
 machine and checks an invariant after every transition plus a final predicate.
