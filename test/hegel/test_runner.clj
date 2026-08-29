@@ -1661,6 +1661,18 @@
                    #(contains? #{:return :throw} (:phase %)))])]
     (check "semantic trace rules accept a complete nested aspect trace"
            (= events checked)))
+  (let [events [{:seq 1 :operation-id 1 :parent-operation-id nil
+                 :phase :invoke :operation :agent/run}
+                {:seq 2 :operation-id 2 :parent-operation-id 1
+                 :phase :invoke :operation :agent/model}
+                {:seq 3 :operation-id 2 :phase :return}
+                {:seq 4 :operation-id 1 :phase :return}]]
+    (check "trace rules accept the canonical history invocation phase"
+           (= events
+              (htrace/check! events
+                             [(htrace/contiguous-sequence)
+                              (htrace/closed-lifecycles)
+                              (htrace/synchronous-parentage)]))))
   (let [failure
         (try
           (htrace/check!

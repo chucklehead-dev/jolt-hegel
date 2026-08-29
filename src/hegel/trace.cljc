@@ -187,9 +187,11 @@
    (ordered-sequence name {:value :seq :order :contiguous :start start})))
 
 (defn closed-lifecycles
-  "Require every `:operation-id` to have exactly `:enter` followed by one
-  terminal `:return` or `:throw` event. Intended for snapshots taken after the
-  generated action or state-machine checkpoint has completed."
+  "Require every `:operation-id` to have exactly one invocation followed by
+  one terminal `:return` or `:throw` event. The canonical invocation phase is
+  `:invoke`; legacy semantic journals using `:enter` remain accepted. Intended
+  for snapshots taken after the generated action or state-machine checkpoint
+  has completed."
   ([] (closed-lifecycles :closed-lifecycles))
   ([name]
    (rule name
@@ -197,7 +199,8 @@
            (and (every? #(some? (:operation-id %)) events)
                 (every?
                  (fn [[_ operation-events]]
-                   (contains? #{[:enter :return] [:enter :throw]}
+                   (contains? #{[:invoke :return] [:invoke :throw]
+                                [:enter :return] [:enter :throw]}
                               (mapv :phase operation-events)))
                  (group-by :operation-id events)))))))
 
@@ -225,7 +228,7 @@
                     (< (:first parent) (:first child))
                     (> (:last parent) (:last child))))
              true))
-         (filter #(= :enter (:phase %)) events)))))))
+         (filter #(contains? #{:invoke :enter} (:phase %)) events)))))))
 
 (defn every-eventually
   "Require every event matching `trigger?` to have a later event matching
