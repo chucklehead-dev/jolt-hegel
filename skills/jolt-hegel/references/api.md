@@ -11,6 +11,8 @@
 - [Combinators and collections](#combinators-and-collections)
 - [Core controls](#core-controls)
 - [Stateful testing](#stateful-testing)
+- [Semantic trace rules](#semantic-trace-rules)
+- [Bounded linearizability](#bounded-linearizability)
 - [Run options](#run-options)
 - [Concurrency](#concurrency)
 - [Verification commands](#verification-commands)
@@ -21,7 +23,7 @@ Use the runtime selected by the consuming project's toolchain contract: Jolt
 0.7.23 or later, a project-pinned Babashka build with the required
 `babashka.ffi`, or JVM Clojure on JDK 22 or later. Do not substitute a
 convenient global executable for a project-selected binary. Add the public
-release by full commit SHA. `v0.3.0` is the first portable release; resolve its
+release by full commit SHA. `v0.4.0` is the current portable release; resolve its
 annotated tag to the full peeled commit rather than using the tag-object SHA,
 tag name, or a moving branch. A test-only dependency normally belongs in the
 project's test alias:
@@ -307,6 +309,8 @@ strings.
 | `(g/tuple generators...)` | vector with one value per generator |
 | `(g/vector opts elements)` | vector; supports `:unique?` |
 | `(g/chunkings payload)` | vector chunks that concatenate to `payload` |
+| `(g/recursive leaf branch-fn)` | recursively defined values with engine-owned sizing and shrinking |
+| `(g/recursive opts leaf branch-fn)` | recursive values bounded by `:max-depth` and `:max-leaves` |
 | `(g/list opts elements)` | Clojure list |
 | `(g/set opts elements)` | set |
 | `(g/sorted-set opts elements)` | sorted set |
@@ -317,6 +321,26 @@ strings.
 Collection options are `:size`, `:min-size`, and `:max-size`. The forms without
 an options map use engine-managed unbounded sizing. Duplicate set elements, map
 keys, and unique-vector elements are rejected and redrawn.
+
+For recursive data, `leaf` generates base values and `branch-fn` receives a
+reusable generator for child values. The branch function must return a
+generator for one compound level:
+
+```clojure
+(g/recursive
+ {:max-depth 8 :max-leaves 64}
+ (g/fmap (fn [n] {:leaf n}) (g/integer))
+ (fn [subtree]
+   (g/fmap (fn [children] {:children children})
+           (g/vector {:max-size 4} subtree))))
+```
+
+`:max-depth` defaults to 32 and `:max-leaves` to 100. Both accept zero; depth
+zero forces a leaf, while a zero leaf budget succeeds only for a branch shape
+that can finish without a leaf. libhegel chooses leaf versus branch, retries
+oversized or mispriced attempts, and labels every subtree so shrinking can
+replace a tree with one of its descendants. Do not add a separate generated
+depth counter around `g/recursive`.
 
 `g/let` draws tagged generator right-hand sides and leaves ordinary expressions
 alone. It must execute inside an active `run-test!` or
@@ -470,6 +494,111 @@ Draw from the two value generators with `h/draw!`. An empty-pool draw is an
 assumption failure: inside a stateful rule it skips the rule; at property scope
 it rejects the generated case. Never retain a pool across test cases.
 
+## Semantic trace rules
+
+`hegel.trace` validates a complete, bounded vector of semantic events inside a
+property. It does not own the event producer. Use it with compiler-aspect
+journals, protocol harnesses, or application event logs, and call it only after
+the generated action or state-machine checkpoint has completed.
+
+```clojure
+(require '[hegel.trace :as ht])
+
+(ht/check!
+ events
+ [(ht/contiguous-sequence :journal-not-truncated)
+  (ht/closed-lifecycles :operations-close)
+  (ht/causal-parentage :parent-invoked-first)
+  (ht/context-coherence :carrier-context-coherent)
+  (ht/every-eventually
+   :request-terminates
+   #(and (= :request (:role %)) (= :enter (:phase %)))
+   #(contains? #{:return :throw} (:phase %)))])
+```
+
+`check!` returns the original event vector when all rules pass. A false rule
+throws with a stable `:hegel/origin`, `:hegel.trace/rule`, event count, and the
+bounded events. Hegel therefore shrinks the generated values or stateful command
+sequence which produced the invalid trace. Its third argument accepts
+`{:max-events n}` and defaults to 256; exceeding the bound is itself a stable
+property failure.
+
+| Form | Contract |
+| --- | --- |
+| `(ht/rule name predicate)` | Create a stable named predicate over the complete event vector |
+| `(ht/check! events rules)` | Check rules with the default 256-event evidence bound |
+| `(ht/check! events rules {:max-events n})` | Check with an explicit positive bound |
+| `(ht/ordered-sequence name opts)` | Check integer values as `:nondecreasing`, `:strictly-increasing`, or `:contiguous`, optionally per `:scope` and from `:start` |
+| `(ht/event-model name opts)` | Fold events through `:initial` and required `:step`, checking optional `:invariant`, `:final`, and independent `:scope` models |
+| `(ht/contiguous-sequence name start)` | Require contiguous integer `:seq` values, defaulting to start 1 |
+| `(ht/closed-lifecycles name)` | Require each `:operation-id` to have `:invoke` (or legacy `:enter`) then exactly one `:return` or `:throw` |
+| `(ht/synchronous-parentage name)` | Require each child lifecycle to be wholly nested in its declared parent |
+| `(ht/causal-parentage name)` | Require each declared parent invocation to precede its child invocation, without constraining terminal order |
+| `(ht/context-coherence name)` | Require invocation `:context-id` metadata to match along every declared parent edge |
+| `(ht/every-eventually name trigger? outcome? correlate)` | Require a later correlated outcome for every trigger; correlation defaults to `:operation-id` |
+
+Run checks outside compiler-aspect advice. Jolt's advice safety contract fails
+open on advice exceptions, so an assertion inside advice can be swallowed while
+the application operation correctly proceeds. A bounded ring journal must not
+silently wrap during a test; `contiguous-sequence` detects a discarded prefix.
+For `ordered-sequence`, `:value` defaults to `:seq`; `:scope` may select an
+independent cursor or partition. Nondecreasing permits duplicates and gaps,
+strictly increasing permits gaps only, and contiguous requires exact `+1`
+steps.
+
+Canonical async jolt-aspect-packs journals use `contiguous-sequence`,
+`closed-lifecycles`, `causal-parentage`, and `context-coherence` together. A
+parent may terminate before its asynchronous child, so
+`synchronous-parentage` is appropriate only for dynamically nested work.
+Terminal events omit carrier metadata; context coherence checks invocation
+events. When a filtered view legitimately omits global journal events, use a
+strictly increasing sequence rule instead of a contiguous one.
+
+`event-model` calls `:step` as `[state event]`, then calls `:invariant` as
+`[next-state event]`. After the complete trace or scoped subtrace, it calls
+`:final` with the last state. Both checks default to true. `:scope` groups
+interleaved events while preserving their order within each group. Keep the
+model pure so generation, shrinking, and final replay begin from the same
+`:initial` value.
+
+## Bounded linearizability
+
+`hegel.history` validates complete operation histories and searches for a
+legal sequential-model witness while preserving real-time precedence. Each
+event is a map with contiguous integer `:seq`, non-nil `:operation-id`, and a
+`:phase` of `:invoke`, `:return`, or `:throw`. Invocations also require
+`:operation`. Each operation must have exactly one invocation followed by one
+terminal event.
+
+The model step is `(fn [state operation] transition)`. A legal transition is
+`{:state next-state}`; nil means the completed operation and observed outcome
+are illegal in that state. The normalized operation contains
+`:operation-id`, `:operation`, `:input`, `:outcome`, `:value`, `:invoke-seq`,
+`:terminal-seq`, and the original `:invoke` and `:terminal` events.
+
+| Form | Contract |
+| --- | --- |
+| `(history/operations events opts?)` | Validate and normalize the complete history |
+| `(history/linearization initial step events opts?)` | Return a witness or nil |
+| `(history/linearizable? initial step events opts?)` | Return a boolean |
+| `(history/check! initial step events opts?)` | Return a witness or throw with stable bounded Hegel evidence |
+| `(history/rule name opts)` | Create a rule accepted by `hegel.trace/check!`; opts require `:step` and may contain `:initial` plus checker options |
+
+Checker options are `:max-operations` (default 10 total operations), optional
+callable `:partition-by`, optional integer `:sequence-start`, and `:name` for a
+stable `hegel.history` failure origin. The witness contains the selected
+`:order`, normalized `:operations`, and `:final-state`. A partitioned witness
+instead contains ordered `:partitions`; each partition starts from the same
+supplied initial state and has its own order and final state.
+
+Search is exhaustive and exponential, so keep the bound small. Evidence is
+limited to twice the operation bound even when an oversized malformed history
+is supplied. The checker rejects incomplete histories rather than completing
+or dropping pending operations. Snapshot the journal only after every worker
+has terminated. Record sequence assignment atomically with publication; on a
+weakly ordered host, timestamps or non-atomic counters are not a sound
+substitute for observation order.
+
 ## Run options
 
 Common `run-test!` options:
@@ -525,10 +654,14 @@ Concurrent engine safety has not been verified by jolt-hegel's test suite, so
 concurrent native runs remain unsupported until that contract has a dedicated
 integration test.
 
-libhegel 0.33's concurrent state-machine protocol is not yet exposed. The
-current `hegel.stateful/run!` implementation drives the round protocol with
-fixed concurrency one so deterministic shrinking and final replay keep their
-existing contract.
+libhegel 0.33's concurrent state-machine protocol is not exposed. The current
+`hegel.stateful/run!` implementation drives the round protocol with fixed
+concurrency one so deterministic shrinking and final replay keep their
+existing contract. Upstream machines declared with maximum concurrency above
+one are intentionally nondeterministic and disable shrinking, replay,
+targeting, persistence, and flakiness checks. A future Clojure API therefore
+needs a separate shared-state, worker-context, and join-point contract; it
+must not be added as a worker option to `run!`.
 
 ## Verification commands
 

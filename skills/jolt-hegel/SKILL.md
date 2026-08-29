@@ -1,6 +1,6 @@
 ---
 name: jolt-hegel
-description: Add, configure, and use jolt-hegel on Jolt, Babashka, or JVM Clojure; write shrinking property tests, replay failures, and model stateful systems with swarm selection and pools.
+description: Add, configure, and use jolt-hegel on Jolt, Babashka, or JVM Clojure; write shrinking property, stateful, swarm, and bounded semantic trace tests.
 ---
 
 # jolt-hegel
@@ -100,6 +100,11 @@ that requires a signed host byte. Use `(g/integer -128 127)` for a property
 defined over signed bytes and `g/bytes` for byte arrays. For streaming input,
 draw `(g/chunkings payload)` so both content and write boundaries shrink.
 
+Use `g/recursive` for trees, ASTs, nested workflows, and recursive documents.
+Pass a leaf generator plus a branch function that consumes the supplied
+subtree generator; let libhegel own depth, leaf-budget, retry, and subtree
+hoisting rather than generating a competing depth counter.
+
 ## Stateful testing
 
 Call `hegel.stateful/run!` inside a Hegel property. Each `hs/rule` receives the
@@ -114,6 +119,30 @@ nonempty swarm selection; do not add a competing rule-choice loop.
 Use `hs/pool` when one rule creates handles or identifiers consumed by later
 rules. Pools are scoped to one generated case. Draw with
 `hs/values-reusable` to retain an entry or `hs/values-consumed` to remove it.
+
+## Semantic trace testing
+
+Use `hegel.trace/check!` when generated inputs or stateful commands produce a
+bounded event trace, including a compiler-aspect journal. Snapshot only after
+the generated action or checkpoint has completed. Apply the built-in sequence,
+lifecycle, parentage, and eventual-outcome rules, or add a stable named
+predicate with `hegel.trace/rule`.
+
+Choose sequence semantics explicitly: nondecreasing allows duplicates and
+gaps, strictly increasing allows gaps, and contiguous requires `+1`. Use a
+scope function for independently ordered partitions or cursors.
+
+Use `hegel.trace/event-model` for a pure per-event state fold. It is the
+preferred small abstraction for linear resources such as fds, callbacks,
+buffer loans, spans, and result handles: define `:step`, check `:invariant`
+after each event, and use `:final` for the completed-snapshot obligation.
+
+Run trace assertions outside aspect advice. Jolt's aspect runtime fails open on
+advice errors, so an assertion thrown inside advice is intentionally not a
+reliable test verdict. Keep the snapshot within `:max-events` and use
+`contiguous-sequence` when a bounded ring journal can discard its prefix.
+Hegel will then shrink the inputs or stateful rule sequence that produced a
+failed trace and retain the bounded events in final exception data.
 
 ## External systems
 

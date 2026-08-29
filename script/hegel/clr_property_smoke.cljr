@@ -195,9 +195,9 @@
 
 (defn -main [& _]
   (let [report (abi/backend-report)]
-    (require! "canonical ABI coverage is 71/71"
+    (require! "canonical ABI coverage is 77/77"
               (and (:supported? report)
-                   (= {:supported 71 :unsupported 0 :total 71}
+                   (= {:supported 77 :unsupported 0 :total 77}
                       (:summary report)))
               {:report report}))
   (check-primitive-and-composite-generators!)

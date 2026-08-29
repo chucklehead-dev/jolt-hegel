@@ -5,12 +5,14 @@
             [hegel.core :as h]
             [hegel.ffi :as hffi]
             [hegel.generator :as g]
+            [hegel.history :as hhistory]
             [hegel.host :as host]
             [hegel.install :as install]
             [hegel.malli :as hm]
             [hegel.native :as native]
             [hegel.report :as report]
             [hegel.stateful :as hs]
+            [hegel.trace :as htrace]
             [hegel.version :as version]
             [malli.core :as m]))
 
@@ -607,6 +609,22 @@
     (check "combinator spans close exactly once when mapping throws"
            (and (= marker error)
                 (= [[:start hffi/label-mapped] [:stop false]] @events))))
+  (let [stop-calls (atom 0)
+        marker (ex-info "stopping mapped span failed" {:marker :stop})
+        generator (g/fmap identity (g/just :value))
+        error
+        (with-redefs [hffi/start-span! (fn [& _])
+                      hffi/stop-span!
+                      (fn [& _]
+                        (swap! stop-calls inc)
+                        (throw marker))]
+          (try
+            (generator {:context :context :handle :test-case})
+            nil
+            (catch Throwable error
+              error)))]
+    (check "combinator stop failures are not retried against the same span"
+           (and (= marker error) (= 1 @stop-calls))))
   (let [events (atom [])
         marker (ex-info "predicate failed" {:marker :predicate})
         generator (g/filter (fn [_] (throw marker)) (g/just :value))
@@ -626,6 +644,22 @@
     (check "filter spans close exactly once when predicates throw"
            (and (= marker error)
                 (= [[:start hffi/label-filter] [:stop false]] @events))))
+  (let [stop-calls (atom 0)
+        marker (ex-info "stopping filter span failed" {:marker :filter-stop})
+        generator (g/filter (constantly true) (g/just :value))
+        error
+        (with-redefs [hffi/start-span! (fn [& _])
+                      hffi/stop-span!
+                      (fn [& _]
+                        (swap! stop-calls inc)
+                        (throw marker))]
+          (try
+            (generator {:context :context :handle :test-case})
+            nil
+            (catch Throwable error
+              error)))]
+    (check "filter stop failures are not retried against the same span"
+           (and (= marker error) (= 1 @stop-calls))))
   (let [error
         (with-redefs [hffi/generate-integer!
                       (fn [& _]
@@ -908,6 +942,199 @@
                           (:reproduced? failure)
                           (false? (:flaky? result))))
                    [string-case vector-case bind-case set-case one-of-case]))))
+
+(defn- recursive-tree-generator
+  ([]
+   (recursive-tree-generator {}))
+  ([opts]
+   (g/recursive
+    opts
+    (g/fmap (fn [value] [:leaf value]) (g/integer 0 20))
+    (fn [subtree]
+      ;; Reusing the same subtree generator is the public contract: every
+      ;; draw advances the shared recursion scope at the appropriate depth.
+      (g/fmap (fn [[left right]] [:branch left right])
+              (g/tuple subtree subtree))))))
+
+(defn- tree-height [tree]
+  (if (= :leaf (first tree))
+    0
+    (inc (max (tree-height (second tree))
+              (tree-height (nth tree 2))))))
+
+(defn- tree-leaf-count [tree]
+  (if (= :leaf (first tree))
+    1
+    (+ (tree-leaf-count (second tree))
+       (tree-leaf-count (nth tree 2)))))
+
+(defn- tree-has-odd-leaf-pair? [tree]
+  (and (= :branch (first tree))
+       (let [left (second tree)
+             right (nth tree 2)]
+         (or (and (= :leaf (first left))
+                  (= :leaf (first right))
+                  (odd? (second left))
+                  (odd? (second right)))
+             (tree-has-odd-leaf-pair? left)
+             (tree-has-odd-leaf-pair? right)))))
+
+(defn recursive-generators []
+  (check "recursive construction rejects invalid options and declarations"
+         (and (throws? #(g/recursive [] (g/just :leaf) identity))
+              (throws? #(g/recursive {:max-depth -1}
+                                     (g/just :leaf) identity))
+              (throws? #(g/recursive {:max-leaves (inc hffi/no-max-size)}
+                                     (g/just :leaf) identity))
+              (throws? #(g/recursive {:unknown true}
+                                     (g/just :leaf) identity))
+              (throws? #(g/recursive :not-a-generator identity))
+              (throws? #(g/recursive (g/just :leaf) :not-a-function))))
+  (let [values (atom [])
+        recursion-counts (atom {:new 0 :free 0})
+        new-recursion! hffi/new-recursion!
+        recursion-free! hffi/recursion-free!
+        result
+        (with-redefs
+         [hffi/new-recursion!
+          (fn [& args]
+            (swap! recursion-counts update :new inc)
+            (apply new-recursion! args))
+          hffi/recursion-free!
+          (fn [& args]
+            (swap! recursion-counts update :free inc)
+            (apply recursion-free! args))]
+         (h/run-test!
+          {:test-cases 120
+           :seed 20260828
+           :database ""
+           :verbosity :quiet}
+          (fn [_]
+            (swap! values conj
+                   (h/draw!
+                    (recursive-tree-generator
+                     {:max-depth 3 :max-leaves 6}))))))]
+    (check "recursive generation respects depth and leaf bounds"
+           (and (:passed? result)
+                (seq @values)
+                (every? #(<= (tree-height %) 3) @values)
+                (every? #(<= (tree-leaf-count %) 6) @values)))
+    (check "recursive generation produces nested branches"
+           (some #(>= (tree-height %) 2) @values))
+    (check "real recursive scopes are freed exactly once"
+           (and (pos? (:new @recursion-counts))
+                (= (:new @recursion-counts)
+                   (:free @recursion-counts)))))
+  (let [{:keys [result value failure]}
+        (minimal-value
+         "hegel.test-runner:recursive-hoist"
+         (recursive-tree-generator {:max-depth 3 :max-leaves 8})
+         tree-has-odd-leaf-pair?)]
+    (check "recursive shrinking hoists a deep witness to the root"
+           (= [:branch [:leaf 1] [:leaf 1]] value))
+    (check "recursive shrinking reproduces without flakiness"
+           (and (not (:passed? result))
+                (:reproduced? failure)
+                (false? (:flaky? result))))))
+
+(defn recursive-retry-protocol []
+  (let [events (atom [])
+        branch-decisions (atom [true false false])
+        leaf-results (atom [:retry :ok])
+        generator
+        (g/recursive
+         {:max-depth 2 :max-leaves 1}
+         (g/just :leaf)
+         (fn [subtree]
+           (g/fmap (fn [child] [:branch child]) subtree)))
+        value
+        (with-redefs
+         [hffi/new-recursion!
+          (fn [_ _ max-depth max-leaves]
+            (swap! events conj [:new max-depth max-leaves])
+            :recursion)
+          hffi/start-span!
+          (fn [_ _ label] (swap! events conj [:start label]))
+          hffi/stop-span!
+          (fn [& _] (swap! events conj [:stop]))
+          hffi/recursion-branch!
+          (fn [_ _ _ depth]
+            (let [decision (first @branch-decisions)]
+              (swap! branch-decisions subvec 1)
+              (swap! events conj [:branch depth decision])
+              decision))
+          hffi/recursion-leaf!
+          (fn [& _]
+            (let [result (first @leaf-results)]
+              (swap! leaf-results subvec 1)
+              (swap! events conj [:leaf result])
+              result))
+          hffi/recursion-retry!
+          (fn [& _] (swap! events conj [:retry]))
+          hffi/recursion-finish!
+          (fn [& _]
+            (swap! events conj [:finish :ok])
+            :ok)
+          hffi/recursion-free!
+          (fn [& _] (swap! events conj [:free]))]
+         (generator {:context :context :handle :test-case}))
+        retry-index (.indexOf @events [:retry])
+        first-stop-index (.indexOf @events [:stop])]
+    (check "leaf-budget retry unwinds to the recursive root"
+           (and (= :leaf value)
+                (pos? retry-index)
+                (or (= -1 first-stop-index)
+                    (> first-stop-index retry-index))))
+    (check "leaf-budget retry preserves nested recursive span order"
+           (= [[:new 2 1]
+               [:start hffi/label-recursive]
+               [:branch 0 true]
+               [:start hffi/label-mapped]
+               [:start hffi/label-recursive]
+               [:branch 1 false]
+               [:leaf :retry]
+               [:retry]
+               [:start hffi/label-recursive]
+               [:branch 0 false]
+               [:leaf :ok]
+               [:finish :ok]
+               [:stop]
+               [:free]]
+              @events)))
+  (let [events (atom [])
+        finish-results (atom [:retry :ok])
+        generator (g/recursive (g/just :leaf) identity)
+        value
+        (with-redefs
+         [hffi/new-recursion! (fn [& _] :recursion)
+          hffi/start-span! (fn [& _] (swap! events conj :start))
+          hffi/stop-span! (fn [& _] (swap! events conj :stop))
+          hffi/recursion-branch! (fn [& _] false)
+          hffi/recursion-leaf! (fn [& _] :ok)
+          hffi/recursion-retry! (fn [& _] (swap! events conj :retry))
+          hffi/recursion-finish!
+          (fn [& _]
+            (let [result (first @finish-results)]
+              (swap! finish-results subvec 1)
+              (swap! events conj result)
+              result))
+          hffi/recursion-free! (fn [& _] (swap! events conj :free))]
+         (generator {:context :context :handle :test-case}))]
+    (check "finish retry restarts directly without recursion-retry"
+           (and (= :leaf value)
+                (= [:start :retry :start :ok :stop :free] @events))))
+  (let [events (atom [])
+        generator (g/recursive (g/just :leaf) (fn [_] :not-a-generator))]
+    (check "recursive user errors close their span and free their scope"
+           (and
+            (with-redefs
+             [hffi/new-recursion! (fn [& _] :recursion)
+              hffi/start-span! (fn [& _] (swap! events conj :start))
+              hffi/stop-span! (fn [& _] (swap! events conj :stop))
+              hffi/recursion-branch! (fn [& _] true)
+              hffi/recursion-free! (fn [& _] (swap! events conj :free))]
+             (throws? #(generator {:context :context :handle :test-case})))
+            (= [:start :stop :free] @events)))))
 
 (defn stateful-pools-and-models []
   (let [observations (atom [])
@@ -1638,6 +1865,380 @@
            (and (not (:passed? result))
                 (= [10] @final-values)
                 (= 10 (-> result :final first :exception ex-data :value))))))
+(defn semantic-trace-rules []
+  (let [events [{:seq 1 :operation-id 1 :parent-operation-id nil
+                 :phase :enter :role :agent/run}
+                {:seq 2 :operation-id 2 :parent-operation-id 1
+                 :phase :enter :role :agent/model}
+                {:seq 3 :operation-id 2 :parent-operation-id 1
+                 :phase :return :role :agent/model}
+                {:seq 4 :operation-id 1 :parent-operation-id nil
+                 :phase :return :role :agent/run}]
+        checked (htrace/check!
+                 events
+                 [(htrace/contiguous-sequence)
+                  (htrace/closed-lifecycles)
+                  (htrace/synchronous-parentage)
+                  (htrace/every-eventually
+                   :model-terminates
+                   #(and (= :agent/model (:role %))
+                         (= :enter (:phase %)))
+                   #(contains? #{:return :throw} (:phase %)))])]
+    (check "semantic trace rules accept a complete nested aspect trace"
+           (= events checked)))
+  (let [events [{:seq 1 :operation-id 1 :parent-operation-id nil
+                 :phase :invoke :operation :agent/run}
+                {:seq 2 :operation-id 2 :parent-operation-id 1
+                 :phase :invoke :operation :agent/model}
+                {:seq 3 :operation-id 2 :phase :return}
+                {:seq 4 :operation-id 1 :phase :return}]]
+    (check "trace rules accept the canonical history invocation phase"
+           (= events
+              (htrace/check! events
+                             [(htrace/contiguous-sequence)
+                              (htrace/closed-lifecycles)
+                              (htrace/synchronous-parentage)]))))
+  (let [events [{:seq 1 :operation-id :parent :parent-operation-id nil
+                 :context-id :request-9 :phase :invoke
+                 :operation :agent/run}
+                ;; An explicit carrier can outlive the parent's dynamic extent.
+                {:seq 2 :operation-id :parent :phase :return}
+                {:seq 3 :operation-id :child :parent-operation-id :parent
+                 :context-id :request-9 :phase :invoke
+                 :operation :agent/model}
+                {:seq 4 :operation-id :child :phase :return}]
+        rules [(htrace/contiguous-sequence :async-journal-contiguous)
+               (htrace/closed-lifecycles :async-lifecycles-close)
+               (htrace/causal-parentage :async-parent-invoked-first)
+               (htrace/context-coherence :async-context-coherent)]]
+    (check "canonical async histories allow a parent to return before its child"
+           (= events (htrace/check! events rules))))
+  (let [fixtures
+        [{:rule (htrace/causal-parentage :async-parent-invoked-first)
+          :events [{:seq 1 :operation-id :child
+                    :parent-operation-id :parent
+                    :context-id :request-9 :phase :invoke}
+                   {:seq 2 :operation-id :parent
+                    :parent-operation-id nil
+                    :context-id :request-9 :phase :invoke}]}
+         {:rule (htrace/context-coherence :async-context-coherent)
+          :events [{:seq 1 :operation-id :parent
+                    :parent-operation-id nil
+                    :context-id :request-9 :phase :invoke}
+                   {:seq 2 :operation-id :child
+                    :parent-operation-id :parent
+                    :context-id :request-10 :phase :invoke}]}]
+        failures
+        (mapv (fn [{:keys [rule events]}]
+                (try
+                  (htrace/check! events [rule])
+                  nil
+                  (catch Throwable error error)))
+              fixtures)]
+    (check "async causal and context failures retain their stable rule origins"
+           (= ["hegel.trace/async-parent-invoked-first"
+               "hegel.trace/async-context-coherent"]
+              (mapv #(-> % ex-data :hegel/origin) failures))))
+  (let [events [{:seq 1 :operation-id :fetch-a :phase :invoke
+                 :causal-links []}
+                {:seq 2 :operation-id :fetch-b :phase :invoke
+                 :causal-links []}
+                {:seq 3 :operation-id :join :phase :invoke
+                 :causal-links [:fetch-a :fetch-b]}]]
+    (check "causal links accept canonical fan-in from earlier invocations"
+           (= events
+              (htrace/check! events
+                             [(htrace/causal-links :fan-in-links-valid)]))))
+  (let [events [{:seq 1 :operation-id :legacy-parent :phase :enter
+                 :causal-links []}
+                {:seq 2 :operation-id :legacy-child :phase :enter
+                 :causal-links [:legacy-parent]}]]
+    (check "causal links accept legacy enter-phase journal invocations"
+           (= events (htrace/check! events [(htrace/causal-links)]))))
+  (let [events [{:seq 1 :operation-id 2 :phase :invoke :causal-links []}
+                {:seq 2 :operation-id "a" :phase :invoke :causal-links []}
+                {:seq 3 :operation-id :b :phase :invoke :causal-links []}
+                {:seq 4 :operation-id 'c :phase :invoke :causal-links []}
+                {:seq 5 :operation-id :join :phase :invoke
+                 :causal-links [2 "a" :b 'c]}]]
+    (check "causal links have one tagged order across portable scalar id types"
+           (= events (htrace/check! events [(htrace/causal-links)]))))
+  (let [fixtures
+        [[{:seq 1 :operation-id :missing :phase :invoke}]
+         [{:seq 1 :operation-id :child :phase :invoke
+           :causal-links [:later]}
+          {:seq 2 :operation-id :later :phase :invoke :causal-links []}]
+         [{:seq 1 :operation-id :parent :phase :invoke :causal-links []}
+          {:seq 2 :operation-id :child :phase :invoke
+           :causal-links [:parent :parent]}]
+         [{:seq 1 :operation-id :a :phase :invoke :causal-links []}
+          {:seq 2 :operation-id :b :phase :invoke :causal-links []}
+          {:seq 3 :operation-id :child :phase :invoke
+           :causal-links [:b :a]}]
+         [{:seq 1 :operation-id :child :phase :invoke
+           :causal-links [:absent]}]
+         [{:seq 1 :operation-id :same :phase :invoke :causal-links []}
+          {:seq 2 :operation-id :same :phase :invoke :causal-links []}
+          {:seq 3 :operation-id :child :phase :invoke
+           :causal-links [:same]}]
+         [{:seq 1 :operation-id {:host :composite} :phase :invoke
+           :causal-links []}]
+         [{:seq 1 :operation-id 2 :phase :invoke :causal-links []}
+          {:seq 2 :operation-id "a" :phase :invoke :causal-links []}
+          {:seq 3 :operation-id :child :phase :invoke
+           :causal-links ["a" 2]}]]
+        failures
+        (mapv (fn [events]
+                (try
+                  (htrace/check! events
+                                 [(htrace/causal-links :canonical-fan-in)])
+                  nil
+                  (catch Throwable error error)))
+              fixtures)]
+    (check "causal links reject malformed, dangling, ambiguous, and noncanonical links"
+           (and (every? some? failures)
+                (= (repeat 8 "hegel.trace/canonical-fan-in")
+                   (map #(-> % ex-data :hegel/origin) failures)))))
+  (let [failure
+        (try
+          (htrace/check!
+           [{:seq 2 :operation-id 1 :phase :enter}
+            {:seq 3 :operation-id 1 :phase :return}]
+           [(htrace/contiguous-sequence :journal-not-truncated)])
+          nil
+          (catch Throwable error error))]
+    (check "trace-rule failures expose a stable Hegel origin and bounded evidence"
+           (and (= "hegel.trace/journal-not-truncated"
+                   (:hegel/origin (ex-data failure)))
+                (= 2 (:hegel.trace/event-count (ex-data failure)))
+                (= [2 3]
+                   (mapv :seq (:hegel.trace/events (ex-data failure)))))))
+  (let [events [{:partition :a :cursor 1}
+                {:partition :b :cursor 1}
+                {:partition :a :cursor 3}
+                {:partition :b :cursor 2}]
+        checked (htrace/check!
+                 events
+                 [(htrace/ordered-sequence
+                   :partition-cursors-increase
+                   {:value :cursor :scope :partition
+                    :order :strictly-increasing :start 1})])
+        gap-failure
+        (try
+          (htrace/check!
+           events
+           [(htrace/ordered-sequence
+             :partition-cursors-contiguous
+             {:value :cursor :scope :partition
+              :order :contiguous :start 1})])
+          nil
+          (catch Throwable error error))]
+    (check "sequence rules distinguish scoped strict increase from continuity"
+           (and (= events checked)
+                (= "hegel.trace/partition-cursors-contiguous"
+                   (:hegel/origin (ex-data gap-failure))))))
+  (let [events [{:seq 1} {:seq 1} {:seq 4}]
+        checked (htrace/check!
+                 events
+                 [(htrace/ordered-sequence
+                   :delivery-watermark-does-not-decrease
+                   {:order :nondecreasing})])]
+    (check "nondecreasing sequence rules permit duplicates and gaps"
+           (= events checked)))
+  (let [transition (fn [state event]
+                     (case [state (:event event)]
+                       [nil :open] :open
+                       [:open :use] :open
+                       [:open :close] :closed
+                       :invalid))
+        fd-rule (htrace/event-model
+                 :fd-linear-lifecycle
+                 {:scope :fd
+                  :initial nil
+                  :step transition
+                  :invariant (fn [state _event] (not= :invalid state))
+                  :final #(= :closed %)})
+        valid [{:fd 3 :event :open}
+               {:fd 4 :event :open}
+               {:fd 3 :event :use}
+               {:fd 4 :event :close}
+               {:fd 3 :event :close}]
+        invalid (conj valid {:fd 3 :event :use})
+        failure (try
+                  (htrace/check! invalid [fd-rule])
+                  nil
+                  (catch Throwable error error))]
+    (check "scoped event models express linear resource lifecycles"
+           (and (= valid (htrace/check! valid [fd-rule]))
+                (= "hegel.trace/fd-linear-lifecycle"
+                   (:hegel/origin (ex-data failure))))))
+  (let [final-values (atom [])
+        result
+        (h/run-test!
+         {:test-cases 100
+          :seed 20260828
+          :database ""
+          :verbosity :quiet
+          :report-multiple-failures? false}
+         (fn [_]
+           (let [duplicate-at (h/draw! (g/integer 0 20))
+                 events (cond->
+                         [{:seq 1 :operation-id 1 :phase :enter}
+                          {:seq 2 :operation-id 1 :phase :return}]
+                          (>= duplicate-at 5)
+                          (conj {:seq 3 :operation-id 1 :phase :return}))]
+             (when (h/final?)
+               (swap! final-values conj duplicate-at))
+             (htrace/check! events
+                            [(htrace/closed-lifecycles
+                              :operation-has-one-terminal)]))))
+        failure (first (:failures result))]
+    (check "Hegel shrinks the input which produced an invalid semantic trace"
+           (and (not (:passed? result))
+                (:reproduced? failure)
+                (= "hegel.trace/operation-has-one-terminal" (:origin failure))
+                (= [5] @final-values)
+                (= [:enter :return :return]
+                   (mapv :phase
+                         (-> result :final first :exception ex-data
+                             :hegel.trace/events)))))))
+
+(defn- register-step [state operation]
+  (case (:operation operation)
+    :write
+    (when (and (= :return (:outcome operation))
+               (= :ok (:value operation)))
+      {:state (:input operation)})
+
+    :read
+    (when (and (= :return (:outcome operation))
+               (= state (:value operation)))
+      {:state state})
+
+    :fail
+    (when (= :throw (:outcome operation))
+      {:state state})
+
+    nil))
+
+(defn bounded-linearizability []
+  ;; These classic single-register fixtures have the same shape used by
+  ;; Knossos and Porcupine examples, but this portable suite has no dependency
+  ;; on either implementation.
+  (let [overlap [{:seq 0 :operation-id :write :phase :invoke
+                  :operation :write :input 1}
+                 {:seq 1 :operation-id :read :phase :invoke
+                  :operation :read}
+                 {:seq 2 :operation-id :write :phase :return :value :ok}
+                 {:seq 3 :operation-id :read :phase :return :value 0}]
+        witness (hhistory/linearization 0 register-step overlap)]
+    (check "overlapping operations may linearize outside invocation order"
+           (and (= [:read :write] (:order witness))
+                (= 1 (:final-state witness))
+                (= 2 (:operation-count witness))
+                (= [:read :write]
+                   (mapv :operation (:operations witness))))))
+  (let [real-time-violation
+        [{:seq 0 :operation-id :write :phase :invoke
+          :operation :write :input 1}
+         {:seq 1 :operation-id :write :phase :return :value :ok}
+         {:seq 2 :operation-id :read :phase :invoke :operation :read}
+         {:seq 3 :operation-id :read :phase :return :value 0}]
+        failure (try
+                  (hhistory/check! 0 register-step real-time-violation
+                                   {:name :register-agrees})
+                  nil
+                  (catch Throwable error error))]
+    (check "completed-before-invoked precedence cannot be reordered"
+           (and (not (hhistory/linearizable?
+                      0 register-step real-time-violation))
+                (= ::hhistory/not-linearizable (:type (ex-data failure)))
+                (= "hegel.history/register-agrees"
+                   (:hegel/origin (ex-data failure)))
+                (= real-time-violation
+                   (:hegel.history/events (ex-data failure)))
+                (false?
+                 (:hegel.history/evidence-truncated? (ex-data failure))))))
+  (let [thrown [{:seq 9 :operation-id :failure :phase :invoke
+                 :operation :fail}
+                {:seq 10 :operation-id :failure :phase :throw
+                 :exception-class "expected"}]
+        witness (hhistory/check! :open register-step thrown)]
+    (check "throw terminals participate in the sequential model"
+           (and (= [:failure] (:order witness))
+                (= :throw (-> witness :operations first :outcome))
+                (= "expected"
+                   (-> witness :operations first :terminal
+                       :exception-class)))))
+  (let [partitioned
+        [{:seq 0 :operation-id :a-write :phase :invoke
+          :operation :write :input 1 :account :a}
+         {:seq 1 :operation-id :b-read :phase :invoke
+          :operation :read :account :b}
+         {:seq 2 :operation-id :a-write :phase :return
+          :value :ok :account :a}
+         {:seq 3 :operation-id :b-read :phase :return
+          :value 0 :account :b}]
+        witness
+        (hhistory/check!
+         0 register-step partitioned
+         {:partition-by #(-> % :invoke :account)})]
+    (check "partitioned histories use one model state per partition"
+           (and (= 2 (:operation-count witness))
+                (= [:a :b] (mapv :partition (:partitions witness)))
+                (= [[:a-write] [:b-read]]
+                   (mapv :order (:partitions witness)))
+                (= [1 0] (mapv :final-state (:partitions witness))))))
+  (let [malformed
+        [[{:seq 0 :operation-id :x :phase :invoke :operation :read}]
+         [{:seq 0 :operation-id :x :phase :invoke :operation :read}
+          {:seq 1 :operation-id :x :phase :invoke :operation :read}]
+         [{:seq 0 :operation-id :x :phase :invoke :operation :read}
+          {:seq 2 :operation-id :x :phase :return :value 0}]]
+        failures
+        (mapv (fn [events]
+                (try
+                  (hhistory/operations events)
+                  nil
+                  (catch Throwable error error)))
+              malformed)]
+    (check "incomplete, duplicate, and non-contiguous histories are rejected"
+           (every? #(= ::hhistory/malformed-history
+                       (:type (ex-data %)))
+                   failures)))
+  (let [events [{:seq 0 :operation-id :a :phase :invoke
+                 :operation :read}
+                {:seq 1 :operation-id :a :phase :return :value 0}
+                {:seq 2 :operation-id :b :phase :invoke
+                 :operation :read}
+                {:seq 3 :operation-id :b :phase :return :value 0}]
+        failure (try
+                  (hhistory/check! 0 register-step events
+                                   {:max-operations 1})
+                  nil
+                  (catch Throwable error error))]
+    (check "the operation bound fails before exponential search"
+           (and (= ::hhistory/operation-bound (:type (ex-data failure)))
+                (= 1 (:hegel.history/max-operations (ex-data failure)))
+                (= 2 (count (:hegel.history/events (ex-data failure))))
+                (:hegel.history/evidence-truncated? (ex-data failure)))))
+  (let [events [{:seq 1 :operation-id :read :phase :invoke
+                 :operation :read}
+                {:seq 2 :operation-id :read :phase :return :value 1}]
+        failure (try
+                  (htrace/check!
+                   events
+                   [(hhistory/rule
+                     :woven-register-linearizable
+                     {:initial 0 :step register-step :sequence-start 1})])
+                  nil
+                  (catch Throwable error error))]
+    (check "history rules compose with hegel.trace bounded evidence"
+           (and (= "hegel.trace/woven-register-linearizable"
+                   (:hegel/origin (ex-data failure)))
+                (= 2 (:hegel.trace/event-count (ex-data failure)))
+                (= events (:hegel.trace/events (ex-data failure)))))))
+
 (t/deftest embedded-hegel-property
   (ht/with {:test-cases 20
             :seed 20260727
@@ -1792,6 +2393,8 @@
   (scenario "collection and composition generators" collection-combinators)
   (scenario "cross-binding combinator shrink quality"
             combinator-shrink-quality)
+  (scenario "recursive generator retry protocol" recursive-retry-protocol)
+  (scenario "recursive generator bounds and shrinking" recursive-generators)
   (scenario "Malli adapter construction" malli-adapter-construction)
   (scenario "Malli adapter generation and shrinking"
             malli-adapter-generation)
@@ -1800,6 +2403,8 @@
   (scenario "stateful swarm and control flow"
             stateful-swarm-and-control-flow)
   (scenario "latest stateful ABI and owned handles" latest-stateful-abi)
+  (scenario "bounded semantic trace rules" semantic-trace-rules)
+  (scenario "bounded linearizability" bounded-linearizability)
   (scenario "clojure.test integration" clojure-test-integration)
   (println "Ran jolt-hegel scenarios;" @failures "failures")
   (flush)

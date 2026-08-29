@@ -14,7 +14,7 @@ internal static class Program
         }
 
         Bridge.Load(args[0]);
-        Require("all descriptor symbols loaded", Bridge.ExpectedSymbols.Count == 71);
+        Require("all descriptor symbols loaded", Bridge.ExpectedSymbols.Count == 77);
         CheckLayouts();
         CheckMemory();
         CheckNativeCalls();
@@ -69,7 +69,7 @@ internal static class Program
             {
                 Ok("version", context, versionOut);
                 var versionPointer = (IntPtr)Bridge.ReadValue("pointer", versionOut);
-                Require("libhegel version", Bridge.NativeToString(versionPointer) == "0.33.0");
+                Require("libhegel version", Bridge.NativeToString(versionPointer) == "0.33.3");
             }
             finally
             {

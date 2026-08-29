@@ -78,6 +78,12 @@
 (def c-collection-more (backend/function :collection-more))
 (def c-collection-reject (backend/function :collection-reject))
 (def c-collection-free (backend/function :collection-free))
+(def c-new-recursion (backend/function :new-recursion))
+(def c-recursion-branch (backend/function :recursion-branch))
+(def c-recursion-leaf (backend/function :recursion-leaf))
+(def c-recursion-retry (backend/function :recursion-retry))
+(def c-recursion-finish (backend/function :recursion-finish))
+(def c-recursion-free (backend/function :recursion-free))
 (def c-new-pool (backend/function :new-pool))
 (def c-pool-add (backend/function :pool-add))
 (def c-pool-generate (backend/function :pool-generate))
@@ -116,6 +122,7 @@
 (def label-flat-map 11)
 (def label-filter 12)
 (def label-mapped 13)
+(def label-recursive 35)
 
 (def state-machine-done
   "Sentinel returned at a state-machine round or machine boundary."
@@ -157,6 +164,15 @@
                        {:type ::assumption-rejected
                         :operation operation}))
     (check! ctx operation rc)))
+
+(defn- check-recursion-control!
+  "Return :retry for HEGEL_E_RETRY and translate all other draw results."
+  [ctx operation rc]
+  (if (= -10 rc)
+    :retry
+    (do
+      (check-draw! ctx operation rc)
+      :ok)))
 
 (defn stop-test? [error]
   (= ::stop-test (:type (ex-data error))))
@@ -565,6 +581,36 @@
 
 (defn collection-free! [ctx collection]
   (c-collection-free ctx collection)
+  nil)
+
+(defn new-recursion! [ctx test-case max-depth max-leaves]
+  (call-draw-out! ctx :new-recursion :pointer
+                  #(c-new-recursion
+                    ctx test-case max-depth max-leaves %)))
+
+(defn recursion-branch! [ctx test-case recursion depth]
+  (not
+   (zero?
+    (call-draw-out! ctx :recursion-branch :uint8
+                    #(c-recursion-branch
+                      ctx test-case recursion depth %)))))
+
+(defn recursion-leaf! [ctx test-case recursion]
+  (check-recursion-control!
+   ctx :recursion-leaf
+   (c-recursion-leaf ctx test-case recursion)))
+
+(defn recursion-retry! [ctx test-case recursion]
+  (check-draw! ctx :recursion-retry
+               (c-recursion-retry ctx test-case recursion)))
+
+(defn recursion-finish! [ctx test-case recursion]
+  (check-recursion-control!
+   ctx :recursion-finish
+   (c-recursion-finish ctx test-case recursion)))
+
+(defn recursion-free! [ctx recursion]
+  (c-recursion-free ctx recursion)
   nil)
 
 (defn new-pool! [ctx test-case]

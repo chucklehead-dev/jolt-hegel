@@ -6,10 +6,10 @@ not publishable until its public pull request and public `main` workflows pass.
 
 ## Current release
 
-`v0.3.0` is the first portable jolt-hegel release. It supports Jolt,
+`v0.4.0` is the current portable jolt-hegel release. It supports Jolt,
 Babashka, and JVM Clojure and includes the experimental jank and ClojureCLR
 ports. The source declaration in `hegel.version/jolt-hegel-version`, annotated
-tag, and GitHub release must all identify `0.3.0`.
+tag, and GitHub release must all identify `0.4.0`.
 
 ## Private proving ground
 
@@ -39,18 +39,23 @@ For every release:
 3. Confirm `hegel.version/jolt-hegel-version` matches the intended tag without
    the `v` prefix. Use a fresh `JOLT_CACHE_DIR`; the installer rejects a loaded
    release version that differs from the resolved source.
-4. Create and push an annotated tag on the public merge commit, for example
-   `v0.3.0`.
-5. Wait for the Release workflow. It:
+4. For a libhegel ABI upgrade, compare the canonical descriptor to the exact
+   upstream tag and commit, verify every published asset digest, regenerate
+   jank and CLR bindings, and run real native ownership/retry tests on all
+   supported hosts. Concurrency above one remains a separate nondeterministic
+   API decision and must not enter sequential `hegel.stateful/run!` implicitly.
+5. Create and push an annotated tag on the public merge commit, for example
+   `v0.4.0`.
+6. Wait for the Release workflow. It:
    - installs the checksum-pinned libhegel release in each matrix cell;
    - runs the shared integration suite under the selected host; and
    - runs the independent consumer fixture again.
-6. Verify that GitHub created the source release only after all reusable
+7. Verify that GitHub created the source release only after all reusable
    portable-CI and release-verification jobs passed.
-7. Resolve the tag's full commit SHA and use it in consumer `deps.edn` files:
+8. Resolve the tag's full commit SHA and use it in consumer `deps.edn` files:
 
    ```bash
-   git rev-list -n 1 v0.3.0
+   git rev-list -n 1 v0.4.0
    ```
 
 jolt-hegel no longer publishes native assets. Do not move or replace an
@@ -68,7 +73,7 @@ Review these together for each release:
 - `README.md` and `THIRD_PARTY_NOTICES.md`: documented versions and notices
 
 Jolt 0.7.23 and Babashka fork commit
-`26367edf91905eb85c68e6fd77f3e108a60dc651` are pinned in CI. libhegel 0.33.0
+`26367edf91905eb85c68e6fd77f3e108a60dc651` are pinned in CI. libhegel 0.33.3
 release hashes are pinned in `hegel.install`. The JVM lane uses JDK 25 and
 retains a JDK 22 minimum-version compatibility gate. Experimental CLR CI pins
 ClojureCLR 1.12.2 and .NET 8. The release workflow also rejects a tag that does

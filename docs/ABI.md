@@ -10,9 +10,9 @@ authoritative header, named types, and named functions:
 ```clojure
 {:schema-version 1
  :library {:name "libhegel"
-           :version "0.33.0"
+           :version "0.33.3"
            :header {:repository "hegeldev/hegel-rust"
-                    :tag "v0.33.0"
+                    :tag "v0.33.3"
                     :commit "..."
                     :path "hegel-c/include/hegel.h"}}
  :types {...}
@@ -85,6 +85,15 @@ lifetime:
 Ownership metadata is documentation and validation data for the shared wrapper;
 it does not replace the lexical release paths in `hegel.ffi`.
 
+libhegel 0.33.3 adds one opaque recursion scope and six scalar/pointer calls:
+`new-recursion`, `recursion-branch`, `recursion-leaf`, `recursion-retry`,
+`recursion-finish`, and `recursion-free`. `new-recursion` owns exactly one
+scope released by `recursion-free`. The leaf-budget retry result requires the
+frontend to unwind and acknowledge it with `recursion-retry`; a finish-time
+mispricing retry has already discarded the attempt and restarts directly.
+Every recursive subvalue uses native label 35 so the shrinker can hoist a
+descendant subtree.
+
 ## Inspection and coverage
 
 ```clojure
@@ -108,7 +117,7 @@ unsupported call to fail during a property:
 (abi/check-backend backend (abi/descriptor))
 ;; => {:backend :jvm
 ;;     :supported? true
-;;     :summary {:supported 71 :unsupported 0 :total 71}
+;;     :summary {:supported 77 :unsupported 0 :total 77}
 ;;     :functions {:generate-date
 ;;                 {:status :supported :route :jvm/ffm}
 ;;                 ...}}
@@ -129,8 +138,8 @@ registered by the selected runtime. Current route names are:
 The report is intended for CI, diagnostics, and ABI upgrades. Application code
 should not branch on the route.
 
-The supported Jolt, Babashka, and JVM backends cover all 71 functions in the
-current libhegel 0.33 descriptor. The jank and ClojureCLR generators also cover
+The supported Jolt, Babashka, and JVM backends cover all 77 functions in the
+current libhegel 0.33.3 descriptor. The jank and ClojureCLR generators also cover
 the complete descriptor at code-generation time, but those hosts currently run
 focused experimental semantic suites rather than the full supported-host parity
 matrix. Descriptor coverage therefore answers "can this backend express every

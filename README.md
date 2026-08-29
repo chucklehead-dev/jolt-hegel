@@ -10,7 +10,7 @@ before the result is reported. The seed in every result makes the run
 repeatable.
 
 jolt-hegel exposes one Clojure API on all three hosts. It calls the same
-libhegel 0.33 C ABI directly through `jolt.ffi`, `babashka.ffi`, or the final
+libhegel 0.33.3 C ABI directly through `jolt.ffi`, `babashka.ffi`, or the final
 JDK Foreign Function & Memory API. There is no service to start and no
 subprocess protocol.
 
@@ -28,8 +28,10 @@ supported release contract.
 | jank | Experimental focused suite | Linux x86_64 and macOS arm64 |
 | ClojureCLR 1.12.2 on .NET 8 | Experimental focused suite | Linux x86_64, Windows x86_64, macOS arm64 |
 
-The current release is `v0.3.0`, the first release of the portable
-implementation. Consumer Git dependencies should pin the tag's full peeled
+The current release is `v0.4.0`. It adds engine-native recursive generators,
+the current libhegel distribution and shrinking improvements, and the bounded
+history and trace rules developed for compiler-aspect testing. Consumer Git
+dependencies should pin the tag's full peeled
 commit SHA, not the tag-object SHA or a moving branch reference.
 
 ## What should be a property?
@@ -188,6 +190,13 @@ might exercise only create/read operations, another create/update/delete, and
 another the full rule set. This explores feature interactions without requiring
 you to hand-author each subset or a second rule-choice loop.
 
+libhegel also defines nondeterministic concurrent state machines. They are not
+exposed by `hs/run!`: declaring concurrency above one disables shrinking,
+replay, targeting, persistence, and flakiness checks upstream, while the
+current Clojure API deliberately models each rule as a deterministic
+`state -> state` transition. A future concurrent API will use a distinct
+shared-state and join-point contract rather than silently weakening this one.
+
 ### Reusing generated resources with pools
 
 State machines often create identifiers, handles, or files that later rules
@@ -206,6 +215,114 @@ must reuse. A pool lets libhegel track and shrink that dependency:
 An empty-pool draw skips a stateful rule. Pools belong to one generated case;
 never retain one between cases.
 
+## Trace rules for aspect and event journals
+
+`hegel.trace` checks a complete, bounded semantic event trace after a generated
+action or state-machine checkpoint. The event producer is not coupled to
+Hegel: a compiler-aspect journal, protocol harness, or ordinary application log
+can supply the vector. When a rule fails, its stable origin and bounded events
+become part of Hegel's failure, so the input or command sequence which produced
+the trace is shrunk normally.
+
+```clojure
+(require '[hegel.trace :as ht])
+
+(ht/check!
+ (journal/snapshot observations)
+ [(ht/ordered-sequence :partition-cursors-increase
+                       {:value :cursor :scope :partition
+                        :order :strictly-increasing})
+  (ht/contiguous-sequence :journal-not-truncated)
+  (ht/closed-lifecycles :aspect-lifecycles-close)
+  (ht/causal-parentage :aspect-parent-invoked-first)
+  (ht/causal-links :aspect-causal-fan-in)
+  (ht/context-coherence :aspect-context-coherent)
+  (ht/every-eventually
+   :model-call-terminates
+   #(and (= :agent/model (:role %)) (= :enter (:phase %)))
+   #(contains? #{:return :throw} (:phase %)))])
+```
+
+Run these checks outside instrumentation advice. Jolt aspects deliberately fail
+open when advice throws, so an assertion inside advice can be swallowed while
+the application correctly proceeds. Also reject wrapped ring-journal snapshots:
+`contiguous-sequence` detects a missing prefix, while `:max-events` on `check!`
+keeps failure evidence bounded.
+
+Sequence order is explicit: `:nondecreasing` permits duplicates and gaps,
+`:strictly-increasing` permits gaps but not duplicates, and `:contiguous`
+requires increments of exactly one. `:scope` checks independent cursors or
+partitions without imposing a global order on their interleaving.
+
+For canonical async histories emitted by jolt-aspect-packs, compose
+`contiguous-sequence`, `closed-lifecycles`, `causal-parentage`, `causal-links`,
+and `context-coherence`. Causal parentage requires the parent's invocation to
+precede the child's invocation, but permits the parent to terminate before the
+child. `causal-links` validates additional fan-in dependencies as a sorted,
+unique vector of operation ids which each name exactly one earlier invocation;
+use an empty vector when there is no fan-in. Canonical linked operation ids are
+portable scalars—integers, strings, keywords, or symbols—not composite EDN or
+opaque host values. Every invocation id in a history checked by this rule uses
+that same portable domain, including invocations with no links. Context
+coherence compares
+invocation carrier metadata; terminal events do not repeat `:context-id` or
+`:causal-links`. Use `synchronous-parentage` only when child
+lifecycles must be wholly nested in the parent's dynamic extent. For filtered
+views whose omitted events legitimately create sequence gaps, use
+`ordered-sequence` with `:order :strictly-increasing` instead of continuity.
+
+For richer protocols, `event-model` folds each event through a tiny pure state
+machine and checks an invariant after every transition plus a final predicate.
+Its optional `:scope` makes the same model independently check file
+descriptors, buffer loans, requests, spans, DB handles, or queue partitions.
+This covers linear resource lifecycles without coupling the journal producer to
+Hegel.
+
+## Bounded linearizability
+
+`hegel.history` checks complete concurrent operation histories against a pure
+sequential model. Unlike `hegel.trace/event-model`, it preserves real-time
+precedence but explores alternate orders for overlapping operations. This is
+useful for atoms, promises, channels, connection lifecycles, pollers, and other
+APIs whose legal observation order is not necessarily invocation order.
+
+```clojure
+(require '[hegel.history :as history])
+
+(defn register-step [state operation]
+  (case (:operation operation)
+    :write (when (= :ok (:value operation))
+             {:state (:input operation)})
+    :read  (when (= state (:value operation))
+             {:state state})
+    nil))
+
+(history/check!
+ 0
+ register-step
+ [{:seq 0 :operation-id :write :phase :invoke
+   :operation :write :input 1}
+  {:seq 1 :operation-id :read :phase :invoke :operation :read}
+  {:seq 2 :operation-id :write :phase :return :value :ok}
+  {:seq 3 :operation-id :read :phase :return :value 0}])
+;; => {:order [:read :write], :final-state 1, ...}
+```
+
+Each operation has exactly one `:invoke` and one `:return` or `:throw` terminal.
+Sequence numbers must be integer, unique, contiguous, and in vector order.
+`check!` returns a witness or throws with a stable `:hegel/origin` and bounded
+history evidence. `linearization` returns the witness or nil, while
+`linearizable?` returns a boolean. The sequential step returns nil for an
+illegal observation or `{:state next-state}` for a legal one.
+
+The checker defaults to at most ten total operations because its exhaustive
+search is exponential. `:partition-by` can split independent keys into their
+own model instances, and `:sequence-start` can require a particular first
+sequence number. `hegel.history/rule` creates a rule accepted by
+`hegel.trace/check!`, so linearizability can be checked beside lifecycle and
+parentage rules. Incomplete histories are rejected; callers must snapshot only
+after all generated operations have terminated.
+
 ## Generators
 
 The built-in surface covers:
@@ -216,11 +333,33 @@ The built-in surface covers:
 - constants, sampled values, mapping, dependent generation, filtering,
   alternatives, and optional values; and
 - tuples, vectors, chunkings, lists, sets, sorted sets, maps, sorted maps, and
-  fixed-key heterogeneous maps.
+  fixed-key heterogeneous maps; and
+- recursive trees and documents with engine-owned depth, leaf-budget, retry,
+  and subtree-hoisting shrink semantics.
 
 Generators are ordinary values drawn with `h/draw!`. Prefer a generator that
 constructs valid data directly. Use `h/assume!` only for uncommon exclusions;
 rejecting most cases wastes the run and weakens shrinking.
+
+Recursive generators keep the recursion policy in libhegel, so generated
+trees use the same depth and leaf budgets on every host and can shrink by
+replacing a tree with one of its own subtrees:
+
+```clojure
+(def tree
+  (g/recursive
+   {:max-depth 8 :max-leaves 64}
+   (g/fmap (fn [value] {:leaf value}) (g/integer))
+   (fn [subtree]
+     (g/fmap (fn [children] {:children children})
+             (g/vector {:max-size 4} subtree)))))
+```
+
+The branch function receives a reusable subtree generator and returns a
+generator for one branch level. `:max-depth` defaults to 32 and `:max-leaves`
+to 100. A depth of zero forces leaves. libhegel owns branch decisions, retry
+policy, size steering, and subtree-hoisting shrink structure; application code
+does not write its own recursive depth draw.
 
 The exact constructors and options are documented in the bundled
 [API reference](skills/jolt-hegel/references/api.md).
@@ -249,7 +388,7 @@ The supported schema contract is listed in the
 
 ## Installation
 
-jolt-hegel uses libhegel 0.33.0. Prebuilt upstream libraries are available for
+jolt-hegel uses libhegel 0.33.3. Prebuilt upstream libraries are available for
 Linux x86_64, Windows x86_64, and macOS arm64. The installer chooses the asset,
 verifies its pinned SHA-256, and caches it. The same SHA-pinned Git dependency
 can be used by each host:
