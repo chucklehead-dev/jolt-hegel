@@ -10,9 +10,9 @@ before the result is reported. The seed in every result makes the run
 repeatable.
 
 jolt-hegel exposes one Clojure API on all three hosts. It calls the same
-libhegel 0.33.3 C ABI directly through `jolt.ffi`, `babashka.ffi`, or the final
-JDK Foreign Function & Memory API. There is no service to start and no
-subprocess protocol.
+libhegel 0.33.3 C ABI directly through `jolt.ffi` or the upstream
+`babashka.ffi` library (which uses the final JDK Foreign Function & Memory API
+on the JVM). There is no service to start and no subprocess protocol.
 
 Experimental ports reuse that same implementation and boundary on jank and
 ClojureCLR. They have focused cross-platform CI but are not yet part of the
@@ -23,7 +23,7 @@ supported release contract.
 | Host | Contract | Continuously tested targets |
 | --- | --- | --- |
 | Jolt 0.7.23+ | Supported | Linux x86_64, Windows x86_64, macOS arm64 |
-| Babashka fork `26367edf` | Supported while the required FFI work is unreleased upstream | Linux x86_64, Windows x86_64, macOS arm64 native images |
+| Babashka development build `7d58fcdd` | Temporary floor while the new upstream FFI library is unreleased in a stable binary | Linux x86_64, Windows x86_64, macOS arm64 native images |
 | JVM Clojure, JDK 22+ | Supported; JDK 25 is primary | Linux x86_64, Windows x86_64, macOS arm64, plus a Linux JDK 22 minimum gate |
 | jank | Experimental focused suite | Linux x86_64 and macOS arm64 |
 | ClojureCLR 1.12.2 on .NET 8 | Experimental focused suite | Linux x86_64, Windows x86_64, macOS arm64 |
@@ -425,7 +425,7 @@ contains jolt-hegel:
 # Jolt 0.7.23+
 jolt -A:test -m hegel.install
 
-# Babashka built from casselc/babashka commit 26367edf...
+# Babashka built from upstream commit 7d58fcdd...
 bb -m hegel.install
 
 # JVM Clojure on JDK 22+ (JDK 25 is the primary target)
@@ -437,11 +437,32 @@ jolt-hegel is in top-level `:deps`, no dependency alias is needed; otherwise
 make sure the consuming project's alias is active so the installer namespace is
 on the classpath.
 
-While the required Babashka FFI work is unreleased, use a binary built from
-`casselc/babashka` commit
-`26367edf91905eb85c68e6fd77f3e108a60dc651`, the exact revision built and
-tested by this repository's CI. JVM Clojure uses `java.lang.foreign` directly
-and therefore requires JDK 22 or later.
+Until a stable Babashka binary includes the standalone FFI library used here,
+use an upstream development binary built from `babashka/babashka` commit
+`7d58fcdd1742afb500e030d40853352494ceea12`, the exact temporary floor built
+by this repository's CI. The library source is pinned independently at
+`babashka/ffi` commit `e7ac217bf8c9619574a4420501ac2d00388d6e43` for JVM
+Clojure; Babashka embeds the matching source. JVM Clojure requires JDK 22 or
+later and `--enable-native-access=ALL-UNNAMED`.
+
+For a local Linux development gate while that binary floor is temporary:
+
+```bash
+git clone --recurse-submodules https://github.com/babashka/babashka.git
+cd babashka
+git checkout 7d58fcdd1742afb500e030d40853352494ceea12
+git submodule update --init --recursive
+BABASHKA_BINARY=bb-hegel BABASHKA_XMX=-J-Xmx6500m script/uberjar
+BABASHKA_BINARY=bb-hegel BABASHKA_XMX=-J-Xmx6500m script/compile -Ob
+
+# Back in the jolt-hegel checkout:
+HEGEL_LIBHEGEL_LIBRARY=/absolute/path/to/libhegel_c.so \
+  /absolute/path/to/babashka/bb-hegel test
+```
+
+The three-platform CI performs the authoritative development-build gate. A
+normal release should replace this source-build floor with an official
+Babashka binary rather than asking consumers to build Babashka indefinitely.
 
 Environment overrides:
 
@@ -469,7 +490,7 @@ The native ABI is data, so it can be inspected without loading libhegel:
 
 After the selected backend initializes, `(abi/backend-report)` returns
 structured per-function coverage and routing. Routes identify Jolt direct FFI,
-Babashka's compiled trampoline or libffi fallback, JVM FFM, generated jank
+Babashka's compiled trampoline or libffi fallback, upstream-library JVM FFM, generated jank
 interop, or generated CLR P/Invoke. Ordinary property code does not need to
 select a backend.
 

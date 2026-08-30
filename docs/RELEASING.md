@@ -15,7 +15,7 @@ tag, and GitHub release must all identify `0.4.0`.
 
 1. Push normal development branches to the private repository.
 2. Require the supported host-by-platform CI matrix to pass. The core matrix is
-   Jolt, the pinned Babashka fork, and JVM Clojure across Linux x86_64, Windows
+   Jolt, the pinned upstream Babashka development build, and JVM Clojure across Linux x86_64, Windows
    x86_64, and macOS arm64. Keep the pinned Babashka native-image build lanes
    separate in reporting so they do not obscure which host/backend failed.
 3. Do not create consumer tags in the private repository. Release publication
@@ -72,8 +72,10 @@ Review these together for each release:
 - `.github/workflows/release.yml`: release verification target matrix
 - `README.md` and `THIRD_PARTY_NOTICES.md`: documented versions and notices
 
-Jolt 0.7.23 and Babashka fork commit
-`26367edf91905eb85c68e6fd77f3e108a60dc651` are pinned in CI. libhegel 0.33.3
+Jolt 0.7.23 and upstream Babashka commit
+`7d58fcdd1742afb500e030d40853352494ceea12` are pinned in CI. The standalone
+`babashka/ffi` JVM dependency is pinned at
+`e7ac217bf8c9619574a4420501ac2d00388d6e43`. libhegel 0.33.3
 release hashes are pinned in `hegel.install`. The JVM lane uses JDK 25 and
 retains a JDK 22 minimum-version compatibility gate. Experimental CLR CI pins
 ClojureCLR 1.12.2 and .NET 8. The release workflow also rejects a tag that does

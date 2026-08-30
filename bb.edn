@@ -1,5 +1,10 @@
 {:paths ["src" "resources"]
 
+ :deps
+ {io.github.babashka/ffi
+  {:git/url "https://github.com/babashka/ffi.git"
+   :git/sha "e7ac217bf8c9619574a4420501ac2d00388d6e43"}}
+
  :tasks
  {setup-native {:task ((requiring-resolve 'hegel.install/-main) "setup")}
   jank-codegen {:extra-paths ["script"]

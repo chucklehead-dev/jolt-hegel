@@ -2,9 +2,9 @@
   (:require [clojure.string :as str]
             [hegel.abi :as abi]
             #?(:jolt [hegel.ffi.jolt :as selected-backend]
-               :bb [hegel.ffi.bb :as selected-backend]
+               :bb [hegel.ffi.babashka :as selected-backend]
                :jank [hegel.ffi.jank-backend :as selected-backend]
-               :clj [hegel.ffi.jvm :as selected-backend])))
+               :clj [hegel.ffi.babashka :as selected-backend])))
 
 (defn- require! [description condition]
   (when-not condition
@@ -74,9 +74,8 @@
          (require! "Babashka backend supports every descriptor signature"
                    (= {:supported 77 :unsupported 0 :total 77}
                       (:summary report)))
-         (require! "Babashka uses a direct route plus libffi fallback"
-                   (and (some #{:bb/trampoline :bb/ffm} routes)
-                        (some #{:bb/libffi} routes)))
+         (require! "Babashka defers exact call routes until bindings exist"
+                   (every? #{:bb/runtime-selected} routes))
          (require! "Babashka layouts preserve C aggregate size and nesting"
                    (= [8 8 16]
                       (mapv (comp selected-backend/layout-size

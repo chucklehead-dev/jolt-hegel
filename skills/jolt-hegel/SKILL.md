@@ -13,7 +13,7 @@ jank and ClojureCLR implementations are merged but experimental. Do not select
 one for a consumer merely because its source branch exists: first read
 `docs/JANK.md` or `docs/CLR.md` and confirm the project accepts the focused
 suite, packaging, and platform limitations. The supported release contract is
-Jolt, the pinned Babashka fork, and JVM Clojure.
+Jolt, the pinned upstream Babashka development build, and JVM Clojure.
 
 Read [references/api.md](references/api.md) before writing tests. It lists the
 exact supported generators, options, result keys, Malli subset, and stateful
@@ -44,7 +44,7 @@ dependency when running the installer.
 # Jolt 0.7.23+
 jolt -A:test -m hegel.install
 
-# Babashka; build casselc/babashka at the exact project pin while FFI is unreleased
+# Babashka; build upstream babashka at the exact temporary project pin
 bb -m hegel.install
 
 # JVM Clojure, JDK 22+
@@ -53,10 +53,10 @@ clojure -J--enable-native-access=ALL-UNNAMED -M:test -m hegel.install
 
 The direct Babashka command assumes the pin is in top-level `:deps` in
 `bb.edn`, or otherwise on Babashka's classpath. Activate the consuming
-project's alias when it is alias-scoped. This repository currently pins
-`casselc/babashka` at
-`26367edf91905eb85c68e6fd77f3e108a60dc651`; do not substitute upstream
-Babashka until the required FFI contract is released there.
+project's alias when it is alias-scoped. Until a stable binary includes the
+new upstream FFI library, this repository pins `babashka/babashka` at
+`7d58fcdd1742afb500e030d40853352494ceea12` and the standalone JVM dependency
+at `babashka/ffi` commit `e7ac217bf8c9619574a4420501ac2d00388d6e43`.
 
 Use the project's selected executable, not a convenient global binary. For
 Jolt, keep `JOLT_CACHE_DIR` writable and key it by the dependency SHA when a

@@ -188,33 +188,39 @@
 
 (defn- call-out!
   [ctx operation type call]
-  (let [out (backend/alloc (backend/sizeof type))]
-    (try
-    (let [rc (call out)]
-      (check! ctx operation rc)
-        (backend/read-value out type))
-      (finally
-        (backend/free out)))))
+  (backend/with-native-scope
+   (fn []
+     (let [out (backend/alloc (backend/sizeof type))]
+       (try
+         (let [rc (call out)]
+           (check! ctx operation rc)
+           (backend/read-value out type))
+         (finally
+           (backend/free out)))))))
 
 (defn- call-draw-out!
   [ctx operation type call]
-  (let [out (backend/alloc (backend/sizeof type))]
-    (try
-    (let [rc (call out)]
-      (check-draw! ctx operation rc)
-        (backend/read-value out type))
-      (finally
-        (backend/free out)))))
+  (backend/with-native-scope
+   (fn []
+     (let [out (backend/alloc (backend/sizeof type))]
+       (try
+         (let [rc (call out)]
+           (check-draw! ctx operation rc)
+           (backend/read-value out type))
+         (finally
+           (backend/free out)))))))
 
 (defn- with-c-string
   [value call]
   (if (nil? value)
     (call backend/null)
-    (let [ptr (backend/string->native (str value))]
-      (try
-        (call ptr)
-        (finally
-          (backend/free ptr))))))
+    (backend/with-native-scope
+     (fn []
+       (let [ptr (backend/string->native (str value))]
+         (try
+           (call ptr)
+           (finally
+             (backend/free ptr))))))))
 
 (defn- allocate-c-strings [values]
   (let [pointers (atom [])]
@@ -234,31 +240,35 @@
   [values call]
   (if (nil? values)
     (call backend/null 0)
-    (let [pointers (allocate-c-strings values)]
-      (try
-        (let [pointer-size (backend/sizeof :pointer)
-              ;; A non-NULL pointer distinguishes [] from an unspecified list.
-              array (backend/alloc (max 1 (* pointer-size (count pointers))))]
-          (try
-            (doseq [[index ptr] (map-indexed vector pointers)]
-              (backend/write-value array :pointer (* index pointer-size) ptr))
-            (call array (count pointers))
-            (finally
-              (backend/free array))))
-        (finally
-          (doseq [ptr pointers]
-            (backend/free ptr)))))))
+    (backend/with-native-scope
+     (fn []
+       (let [pointers (allocate-c-strings values)]
+         (try
+           (let [pointer-size (backend/sizeof :pointer)
+                 ;; A non-NULL pointer distinguishes [] from an unspecified list.
+                 array (backend/alloc (max 1 (* pointer-size (count pointers))))]
+             (try
+               (doseq [[index ptr] (map-indexed vector pointers)]
+                 (backend/write-value array :pointer (* index pointer-size) ptr))
+               (call array (count pointers))
+               (finally
+                 (backend/free array))))
+           (finally
+             (doseq [ptr pointers]
+               (backend/free ptr)))))))))
 
 (defn- with-utf8-buffer
   "Pass a length-delimited UTF-8 buffer, preserving empty strings and U+0000."
   [value call]
   (if (nil? value)
     (call backend/null 0)
-    (let [ptr (backend/string->native value)]
-      (try
-        (call ptr (backend/write-utf8 ptr value))
-        (finally
-          (backend/free ptr))))))
+    (backend/with-native-scope
+     (fn []
+       (let [ptr (backend/string->native value)]
+         (try
+           (call ptr (backend/write-utf8 ptr value))
+           (finally
+             (backend/free ptr))))))))
 
 (defn context-new! []
   (let [ctx (c-context-new)]
@@ -369,42 +379,48 @@
   nil)
 
 (defn generate-integer! [ctx test-case min-value max-value]
-  (let [out (backend/alloc (backend/sizeof :int64))]
-    (try
-      (let [rc (c-generate-integer
-                ctx test-case min-value max-value out)]
-        (check-draw! ctx :generate-integer rc)
-        (backend/read-value out :int64))
-      (finally
-        (backend/free out)))))
+  (backend/with-native-scope
+   (fn []
+     (let [out (backend/alloc (backend/sizeof :int64))]
+       (try
+         (let [rc (c-generate-integer
+                   ctx test-case min-value max-value out)]
+           (check-draw! ctx :generate-integer rc)
+           (backend/read-value out :int64))
+         (finally
+           (backend/free out)))))))
 
 (defn generate-boolean! [ctx test-case probability forced forced?]
-  (let [out (backend/alloc (backend/sizeof :uint8))]
-    (try
-      (let [rc (c-generate-boolean
-                ctx test-case probability
-                (if forced 1 0) (if forced? 1 0) out)]
-        (check-draw! ctx :generate-boolean rc)
-        (not (zero? (backend/read-value out :uint8))))
-      (finally
-        (backend/free out)))))
+  (backend/with-native-scope
+   (fn []
+     (let [out (backend/alloc (backend/sizeof :uint8))]
+       (try
+         (let [rc (c-generate-boolean
+                   ctx test-case probability
+                   (if forced 1 0) (if forced? 1 0) out)]
+           (check-draw! ctx :generate-boolean rc)
+           (not (zero? (backend/read-value out :uint8))))
+         (finally
+           (backend/free out)))))))
 
 (defn generate-float!
   [ctx test-case width min-value max-value allow-nan? allow-infinity?
    exclude-min? exclude-max? smallest-nonzero-magnitude]
-  (let [out (backend/alloc (backend/sizeof :double))]
-    (try
-      (let [rc (c-generate-float
-                ctx test-case width
-                (double min-value) (double max-value)
-                (if allow-nan? 1 0) (if allow-infinity? 1 0)
-                (if exclude-min? 1 0) (if exclude-max? 1 0)
-                (double smallest-nonzero-magnitude)
-                out)]
-        (check-draw! ctx :generate-float rc)
-        (backend/read-value out :double))
-      (finally
-        (backend/free out)))))
+  (backend/with-native-scope
+   (fn []
+     (let [out (backend/alloc (backend/sizeof :double))]
+       (try
+         (let [rc (c-generate-float
+                   ctx test-case width
+                   (double min-value) (double max-value)
+                   (if allow-nan? 1 0) (if allow-infinity? 1 0)
+                   (if exclude-min? 1 0) (if exclude-max? 1 0)
+                   (double smallest-nonzero-magnitude)
+                   out)]
+           (check-draw! ctx :generate-float rc)
+           (backend/read-value out :double))
+         (finally
+           (backend/free out)))))))
 
 (defn- zero-memory! [ptr size]
   (dotimes [offset size]
@@ -448,39 +464,43 @@
    :time (read-time ptr datetime-layout [:time])})
 
 (defn- with-aggregate-buffers [layout call]
-  (let [size (backend/layout-size layout)
-        min-value (backend/alloc size)
-        max-value (backend/alloc size)
-        out-value (backend/alloc size)]
-    (try
+  (backend/with-native-scope
+   (fn []
+     (let [size (backend/layout-size layout)
+           min-value (backend/alloc size)
+           max-value (backend/alloc size)
+           out-value (backend/alloc size)]
+       (try
         (zero-memory! min-value (backend/layout-size layout))
         (zero-memory! max-value (backend/layout-size layout))
         (zero-memory! out-value (backend/layout-size layout))
-      (call min-value max-value out-value)
-      (finally
-        (backend/free out-value)
-        (backend/free max-value)
-        (backend/free min-value)))))
+        (call min-value max-value out-value)
+        (finally
+          (backend/free out-value)
+          (backend/free max-value)
+          (backend/free min-value)))))))
 
 (defn generate-bytes! [ctx test-case min-size max-size]
   ;; hegel_generate_bytes_result_t is {uint8_t*, size_t}. Both released
   ;; libhegel targets are 64-bit, and deriving the offsets from jolt.ffi keeps
   ;; this correct for any same-width pointer/size_t target as well.
-  (let [pointer-size (backend/sizeof :pointer)
-        size-size (backend/sizeof :size_t)
-        result-size (+ pointer-size size-size)
-        result (backend/alloc result-size)]
-    (zero-memory! result result-size)
-    (try
-      (let [rc (c-generate-bytes ctx test-case min-size max-size result)]
-        (check-draw! ctx :generate-bytes rc)
-        (let [data (backend/read-value result :pointer 0)
-              length (backend/read-value result :size_t pointer-size)]
-          (backend/read-array data length)))
-      (finally
-        ;; Safe for a zeroed or partially populated result, per hegel.h.
-        (c-generate-bytes-result-free ctx result)
-        (backend/free result)))))
+  (backend/with-native-scope
+   (fn []
+     (let [pointer-size (backend/sizeof :pointer)
+           size-size (backend/sizeof :size_t)
+           result-size (+ pointer-size size-size)
+           result (backend/alloc result-size)]
+       (zero-memory! result result-size)
+       (try
+         (let [rc (c-generate-bytes ctx test-case min-size max-size result)]
+           (check-draw! ctx :generate-bytes rc)
+           (let [data (backend/read-value result :pointer 0)
+                 length (backend/read-value result :size_t pointer-size)]
+             (backend/read-array data length)))
+         (finally
+           ;; Safe for a zeroed or partially populated result, per hegel.h.
+           (c-generate-bytes-result-free ctx result)
+           (backend/free result)))))))
 
 (defn string-generator-text!
   [ctx {:keys [min-size max-size codec min-codepoint max-codepoint
@@ -538,20 +558,22 @@
 (defn generate-string! [ctx test-case generator]
   ;; hegel_generate_string_result_t has the same pointer/size_t layout as the
   ;; bytes result, but its data is length-delimited UTF-8 rather than binary.
-  (let [pointer-size (backend/sizeof :pointer)
-        size-size (backend/sizeof :size_t)
-        result-size (+ pointer-size size-size)
-        result (backend/alloc result-size)]
-    (zero-memory! result result-size)
-    (try
-      (let [rc (c-generate-string ctx test-case generator result)]
-        (check-draw! ctx :generate-string rc)
-        (let [data (backend/read-value result :pointer 0)
-              length (backend/read-value result :size_t pointer-size)]
-          (backend/read-utf8 data length)))
-      (finally
-        (c-generate-string-result-free ctx result)
-        (backend/free result)))))
+  (backend/with-native-scope
+   (fn []
+     (let [pointer-size (backend/sizeof :pointer)
+           size-size (backend/sizeof :size_t)
+           result-size (+ pointer-size size-size)
+           result (backend/alloc result-size)]
+       (zero-memory! result result-size)
+       (try
+         (let [rc (c-generate-string ctx test-case generator result)]
+           (check-draw! ctx :generate-string rc)
+           (let [data (backend/read-value result :pointer 0)
+                 length (backend/read-value result :size_t pointer-size)]
+             (backend/read-utf8 data length)))
+         (finally
+           (c-generate-string-result-free ctx result)
+           (backend/free result)))))))
 
 (defn start-span! [ctx test-case label]
   (check-draw! ctx :start-span (c-start-span ctx test-case label)))
@@ -631,15 +653,17 @@
   nil)
 
 (defn- with-int64-array [values call]
-  (let [values (vec values)
-        pointer (backend/alloc
-                 (max 1 (* (count values) (backend/sizeof :int64))))]
-    (try
-      (doseq [[index value] (map-indexed vector values)]
-        (backend/write-value pointer :int64 (* index (backend/sizeof :int64)) value))
-      (call pointer)
-      (finally
-        (backend/free pointer)))))
+  (backend/with-native-scope
+   (fn []
+     (let [values (vec values)
+           pointer (backend/alloc
+                    (max 1 (* (count values) (backend/sizeof :int64))))]
+       (try
+         (doseq [[index value] (map-indexed vector values)]
+           (backend/write-value pointer :int64 (* index (backend/sizeof :int64)) value))
+         (call pointer)
+         (finally
+           (backend/free pointer)))))))
 
 (defn new-state-machine!
   [ctx test-case rule-names invariant-names]
@@ -652,27 +676,29 @@
           (with-c-string-array
             invariant-names
             (fn [invariants invariant-count]
-              (let [machine-out (backend/alloc (backend/sizeof :pointer))
-                    concurrency-out (backend/alloc (backend/sizeof :int64))]
-                (try
-                  (check-draw!
-                   ctx :new-state-machine
-                   (c-new-state-machine
-                    ctx test-case rules rule-groups rule-count
-                    invariants invariant-count 1 1
-                    machine-out concurrency-out))
-                  (let [concurrency (backend/read-value concurrency-out :int64)]
-                    (when-not (= 1 concurrency)
-                      (throw
-                       (ex-info
-                        (str "libhegel returned unexpected sequential "
-                             "state-machine concurrency " concurrency)
-                        {:type ::invalid-state-machine-concurrency
-                         :concurrency concurrency})))
-                    (backend/read-value machine-out :pointer))
-                  (finally
-                    (backend/free concurrency-out)
-                    (backend/free machine-out)))))))))))
+              (backend/with-native-scope
+               (fn []
+                 (let [machine-out (backend/alloc (backend/sizeof :pointer))
+                       concurrency-out (backend/alloc (backend/sizeof :int64))]
+                   (try
+                     (check-draw!
+                      ctx :new-state-machine
+                      (c-new-state-machine
+                       ctx test-case rules rule-groups rule-count
+                       invariants invariant-count 1 1
+                       machine-out concurrency-out))
+                     (let [concurrency (backend/read-value concurrency-out :int64)]
+                       (when-not (= 1 concurrency)
+                         (throw
+                          (ex-info
+                           (str "libhegel returned unexpected sequential "
+                                "state-machine concurrency " concurrency)
+                           {:type ::invalid-state-machine-concurrency
+                            :concurrency concurrency})))
+                       (backend/read-value machine-out :pointer))
+                     (finally
+                       (backend/free concurrency-out)
+                       (backend/free machine-out)))))))))))))
 
 (defn state-machine-next-group! [ctx test-case state-machine]
   (let [group
@@ -699,13 +725,15 @@
   nil)
 
 (defn- generate-fixed-bytes! [ctx operation size draw]
-  (let [out (backend/alloc size)]
-    (try
-      (let [rc (draw out)]
-        (check-draw! ctx operation rc)
-        (backend/read-array out size))
-      (finally
-        (backend/free out)))))
+  (backend/with-native-scope
+   (fn []
+     (let [out (backend/alloc size)]
+       (try
+         (let [rc (draw out)]
+           (check-draw! ctx operation rc)
+           (backend/read-array out size))
+         (finally
+           (backend/free out)))))))
 
 (defn generate-uuid! [ctx test-case version]
   (generate-fixed-bytes!
@@ -729,7 +757,11 @@
       (write-date! min-ptr date-layout [] min-value)
       (write-date! max-ptr date-layout [] max-value)
       (check-draw! ctx :generate-date
-                   (c-generate-date ctx test-case min-ptr max-ptr out-ptr))
+                   (c-generate-date
+                    ctx test-case
+                    (backend/by-value min-ptr date-layout)
+                    (backend/by-value max-ptr date-layout)
+                    out-ptr))
       (read-date out-ptr date-layout []))))
 
 (defn generate-time! [ctx test-case min-value max-value]
@@ -739,7 +771,11 @@
       (write-time! min-ptr time-layout [] min-value)
       (write-time! max-ptr time-layout [] max-value)
       (check-draw! ctx :generate-time
-                   (c-generate-time ctx test-case min-ptr max-ptr out-ptr))
+                   (c-generate-time
+                    ctx test-case
+                    (backend/by-value min-ptr time-layout)
+                    (backend/by-value max-ptr time-layout)
+                    out-ptr))
       (read-time out-ptr time-layout []))))
 
 (defn generate-datetime! [ctx test-case min-value max-value]
@@ -750,7 +786,10 @@
       (write-datetime! max-ptr max-value)
       (check-draw! ctx :generate-datetime
                    (c-generate-datetime
-                    ctx test-case min-ptr max-ptr out-ptr))
+                    ctx test-case
+                    (backend/by-value min-ptr datetime-layout)
+                    (backend/by-value max-ptr datetime-layout)
+                    out-ptr))
       (read-datetime out-ptr))))
 
 (defn target! [ctx test-case value label]

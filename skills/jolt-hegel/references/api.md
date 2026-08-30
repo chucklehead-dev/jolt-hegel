@@ -86,7 +86,7 @@ loaded libhegel ABI version before a run.
 | Host | Status and current evidence |
 | --- | --- |
 | Jolt 0.7.23+ | Supported on Linux x86_64, Windows x86_64, and macOS arm64 |
-| `casselc/babashka` at `26367edf91905eb85c68e6fd77f3e108a60dc651` | Supported on the same three-OS native-image matrix while its required FFI work is unreleased upstream |
+| `babashka/babashka` at `7d58fcdd1742afb500e030d40853352494ceea12` | Temporary development-build floor on the same three-OS native-image matrix until the upstream standalone FFI work reaches a stable binary |
 | JVM Clojure on JDK 22+ | Supported on the same matrix with JDK 25 primary and a Linux JDK 22 minimum gate |
 | jank | Experimental focused Linux and macOS suites; see `docs/JANK.md` |
 | ClojureCLR 1.12.2 on .NET 8 | Experimental focused three-OS suite; see `docs/CLR.md` |

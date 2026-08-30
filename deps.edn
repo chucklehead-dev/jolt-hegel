@@ -1,5 +1,10 @@
 {:paths ["src" "resources"]
 
+ :deps
+ {io.github.babashka/ffi
+  {:git/url "https://github.com/babashka/ffi.git"
+   :git/sha "e7ac217bf8c9619574a4420501ac2d00388d6e43"}}
+
  :aliases
   {:setup-native {:main-opts ["-m" "hegel.install"]}
    :abi-test {:extra-paths ["script"]

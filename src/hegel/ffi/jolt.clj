@@ -116,6 +116,7 @@
 ;; needs. Allocation remains explicitly paired with free.
 (def null ffi/null)
 (defn null? [pointer] (ffi/null? pointer))
+(defn with-native-scope [call] (call))
 (defn alloc [size] (ffi/alloc size))
 (defn free [pointer] (ffi/free pointer))
 (defn sizeof [type] (ffi/sizeof type))
@@ -134,3 +135,4 @@
 (defn read-field [pointer layout path] (ffi/read-field pointer layout path))
 (defn write-field [pointer layout path value]
   (ffi/write-field pointer layout path value))
+(defn by-value [pointer _layout] pointer)

@@ -58,6 +58,8 @@
 (defn alloc [size]
   (cpp/box (cpp/hegel_jank_alloc (cpp/cast cpp/size_t size))))
 
+(defn with-native-scope [call] (call))
+
 (defn free [pointer]
   (when-not (null? pointer)
     (cpp/hegel_jank_free (cpp/unbox (:* cpp/void) pointer)))
@@ -166,3 +168,5 @@
     (write-value pointer (:type field) (:offset field) value)
     (throw (ex-info "unknown struct field path"
                     {:path path :layout (:type layout-info)}))))
+
+(defn by-value [pointer _layout] pointer)

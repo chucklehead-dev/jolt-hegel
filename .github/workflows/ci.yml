@@ -15,8 +15,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  BB_FORK_REPOSITORY: casselc/babashka
-  BB_FORK_REF: 26367edf91905eb85c68e6fd77f3e108a60dc651
+  BB_REPOSITORY: babashka/babashka
+  BB_REF: 7d58fcdd1742afb500e030d40853352494ceea12
 
 jobs:
   static-checks:
@@ -61,17 +61,17 @@ jobs:
         include:
           - name: Linux x86_64
             runner: ubuntu-24.04
-            artifact: bb-fork-linux-amd64
+            artifact: bb-upstream-linux-amd64
             binary: bb-portable
             shell: bash
           - name: Windows x86_64
             runner: windows-2022
-            artifact: bb-fork-windows-amd64
+            artifact: bb-upstream-windows-amd64
             binary: bb.exe
             shell: pwsh
           - name: macOS arm64
             runner: macos-14
-            artifact: bb-fork-macos-arm64
+            artifact: bb-upstream-macos-arm64
             binary: bb-portable
             shell: bash
 
@@ -80,11 +80,11 @@ jobs:
         shell: ${{ matrix.shell }}
 
     steps:
-      - name: Check out the pinned Babashka fork
+      - name: Check out the pinned upstream Babashka development build
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          repository: ${{ env.BB_FORK_REPOSITORY }}
-          ref: ${{ env.BB_FORK_REF }}
+          repository: ${{ env.BB_REPOSITORY }}
+          ref: ${{ env.BB_REF }}
           submodules: recursive
           persist-credentials: false
 
@@ -93,7 +93,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ matrix.binary }}
-          key: bb-native-${{ runner.os }}-${{ runner.arch }}-${{ env.BB_FORK_REF }}
+          key: bb-native-${{ runner.os }}-${{ runner.arch }}-${{ env.BB_REF }}
 
       - uses: DeLaGuardo/setup-clojure@13.4
         with:
@@ -195,21 +195,21 @@ jobs:
             name: Linux x86_64
             runner: ubuntu-24.04
             shell: bash
-            bb-artifact: bb-fork-linux-amd64
+            bb-artifact: bb-upstream-linux-amd64
             bb-binary: bb-portable
           - runtime: Babashka
             host: bb
             name: Windows x86_64
             runner: windows-2022
             shell: pwsh
-            bb-artifact: bb-fork-windows-amd64
+            bb-artifact: bb-upstream-windows-amd64
             bb-binary: bb.exe
           - runtime: Babashka
             host: bb
             name: macOS arm64
             runner: macos-14
             shell: bash
-            bb-artifact: bb-fork-macos-arm64
+            bb-artifact: bb-upstream-macos-arm64
             bb-binary: bb-portable
           - runtime: JVM
             host: jvm
@@ -257,20 +257,20 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: ${{ matrix.bb-artifact }}
-          path: ${{ runner.temp }}/bb-fork
+          path: ${{ runner.temp }}/bb-upstream
 
       - name: Put Babashka on PATH (POSIX)
         if: matrix.host == 'bb' && runner.os != 'Windows'
         run: |
-          chmod +x "$RUNNER_TEMP/bb-fork/${{ matrix.bb-binary }}"
-          ln -s "$RUNNER_TEMP/bb-fork/${{ matrix.bb-binary }}" "$RUNNER_TEMP/bb-fork/bb"
-          echo "$RUNNER_TEMP/bb-fork" >> "$GITHUB_PATH"
+          chmod +x "$RUNNER_TEMP/bb-upstream/${{ matrix.bb-binary }}"
+          ln -s "$RUNNER_TEMP/bb-upstream/${{ matrix.bb-binary }}" "$RUNNER_TEMP/bb-upstream/bb"
+          echo "$RUNNER_TEMP/bb-upstream" >> "$GITHUB_PATH"
 
       - name: Put Babashka and libffi on PATH (Windows)
         if: matrix.host == 'bb' && runner.os == 'Windows'
         shell: pwsh
         run: |
-          $bbDir = Join-Path $env:RUNNER_TEMP 'bb-fork'
+          $bbDir = Join-Path $env:RUNNER_TEMP 'bb-upstream'
           $mingw = Join-Path $env:ProgramFiles 'Git\mingw64\bin'
           if (-not (Test-Path -LiteralPath (Join-Path $mingw 'libffi-8.dll'))) {
             throw 'Git for Windows libffi-8.dll is required by the pinned Babashka runtime'
