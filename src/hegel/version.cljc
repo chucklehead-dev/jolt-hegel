@@ -3,7 +3,7 @@
 
 (def jolt-hegel-version
   "The jolt-hegel source release."
-  "0.4.0")
+  "0.5.0")
 
 (def libhegel-version
   "The libhegel release whose C header and ABI this project targets."

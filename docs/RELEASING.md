@@ -6,10 +6,11 @@ not publishable until its public pull request and public `main` workflows pass.
 
 ## Current release
 
-`v0.4.0` is the current portable jolt-hegel release. It supports Jolt,
-Babashka, and JVM Clojure and includes the experimental jank and ClojureCLR
-ports. The source declaration in `hegel.version/jolt-hegel-version`, annotated
-tag, and GitHub release must all identify `0.4.0`.
+`v0.5.0` is the current portable jolt-hegel release. It supports Jolt,
+FFI-capable Babashka, and JVM Clojure through the upstream `babashka.ffi`
+implementation and includes the experimental jank and ClojureCLR ports. The
+source declaration in `hegel.version/jolt-hegel-version`, annotated tag, and
+GitHub release must all identify `0.5.0`.
 
 ## Private proving ground
 
@@ -45,7 +46,7 @@ For every release:
    supported hosts. Concurrency above one remains a separate nondeterministic
    API decision and must not enter sequential `hegel.stateful/run!` implicitly.
 5. Create and push an annotated tag on the public merge commit, for example
-   `v0.4.0`.
+   `v0.5.0`.
 6. Wait for the Release workflow. It:
    - installs the checksum-pinned libhegel release in each matrix cell;
    - runs the shared integration suite under the selected host; and
@@ -55,7 +56,7 @@ For every release:
 8. Resolve the tag's full commit SHA and use it in consumer `deps.edn` files:
 
    ```bash
-   git rev-list -n 1 v0.4.0
+   git rev-list -n 1 v0.5.0
    ```
 
 jolt-hegel no longer publishes native assets. Do not move or replace an

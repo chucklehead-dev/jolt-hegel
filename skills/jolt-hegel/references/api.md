@@ -25,7 +25,7 @@ official `babashka.ffi`, or JVM Clojure on JDK 22 or later. On Linux, use the
 ordinary release asset rather than the `-static` asset and confirm `bb describe`
 reports a non-nil `:libffi/version`. Do not substitute a
 convenient global executable for a project-selected binary. Add the public
-release by full commit SHA. `v0.4.0` is the current portable release; resolve its
+release by full commit SHA. `v0.5.0` is the current portable release; resolve its
 annotated tag to the full peeled commit rather than using the tag-object SHA,
 tag name, or a moving branch. A test-only dependency normally belongs in the
 project's test alias:
