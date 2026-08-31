@@ -1,0 +1,11 @@
+{:schema 1
+ :library {:id chucklehead-dev/jolt-hegel :version "86a70acf7880184707a77069b60b2e8fd4acbbbb"}
+ :aspects
+ [{:id :hegel.core/run-test
+   :match {:arity 2 :entry hegel.core/run-test!}
+   :advice-role :test/property-run
+   :expect {:matches 1}}
+  {:id :hegel.stateful/run
+   :match {:arity 1 :entry hegel.stateful/run!}
+   :advice-role :test/state-machine-run
+   :expect {:matches 1}}]}

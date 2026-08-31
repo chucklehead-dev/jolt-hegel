@@ -414,7 +414,9 @@
   (mapv #(select-keys % [:status :value :origin :replay-origin :exception])
         replayed))
 
-(defn run-test!
+(defn ^{:jolt.aspects/id :hegel.core/run-test
+        :jolt.aspects/role :test/property-run}
+  run-test!
   "Run `case-fn` under libhegel and return an aggregate result map.
 
   The function receives a TestCase and also runs with `*test-case*` bound, so
