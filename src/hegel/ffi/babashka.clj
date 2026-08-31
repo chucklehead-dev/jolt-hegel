@@ -103,6 +103,32 @@
 (defonce ^:private library* (atom nil))
 (defonce ^:private functions* (atom nil))
 
+(defn- ensure-runtime-capable! []
+  (when (= :bb (host/runtime))
+    (try
+      ;; Native-image struct calls require libffi. Force that route before
+      ;; touching the configured libhegel path so a Linux static Babashka build
+      ;; cannot be misdiagnosed as a missing or corrupt libhegel installation.
+      ;; Eleven scalar arguments are outside the compiled trampoline set and
+      ;; exercise the same linked-libffi capability without making a C call.
+      (let [probe (ffi/cfn "abs" (vec (repeat 11 :int)) :int)]
+        (when-not (= :libffi (:babashka.ffi/backend (meta probe)))
+          (throw (ex-info "Babashka did not select its libffi backend"
+                          {:selected (:babashka.ffi/backend (meta probe))}))))
+      (catch Throwable cause
+        (throw
+         (ex-info
+          (str "this Babashka build cannot provide libhegel's required FFI "
+               "ABI; use an FFI-capable Babashka 1.13.220+ build. On Linux, "
+               "install babashka-<version>-linux-<arch>.tar.gz, not the "
+               "-static asset, and verify that `bb describe` reports a "
+               "non-nil :libffi/version")
+          {:type :hegel.ffi/unsupported-runtime-build
+           :runtime :bb
+           :babashka-version (System/getProperty "babashka.version")
+           :required-capability :libffi}
+          cause))))))
+
 (defn- coerce-call-argument [type value]
   ;; Clojure represents UINT64_MAX as a BigInt. The C carrier is still one
   ;; machine word, so preserve its low 64 bits instead of asking clojure.core/
@@ -118,43 +144,60 @@
     (if (some #(contains? #{:c/uint64 :c/size} %) (:args function))
       (with-meta
         (fn [& values]
-          (apply raw (mapv coerce-call-argument (:args function) values)))
+          (let [arg-types (:args function)
+                expected (count arg-types)
+                actual (count values)]
+            ;; mapv over two collections stops at the shorter input. Check
+            ;; exact arity first so unsigned coercion cannot silently discard
+            ;; surplus arguments before the upstream binding sees them.
+            (when-not (= expected actual)
+              (throw
+               (ex-info
+                (str "libhegel function " (:symbol function) " expects "
+                     expected " args, got " actual)
+                {:type ::wrong-arity
+                 :symbol (:symbol function)
+                 :expected expected
+                 :actual actual})))
+            (apply raw (mapv coerce-call-argument arg-types values))))
         (meta raw))
       raw)))
 
 (defn load! [library-path]
   (or @functions*
-      (locking functions*
-        (or @functions*
-            (let [descriptor (abi/validate!)
+      (do
+        (ensure-runtime-capable!)
+        (locking functions*
+          (or @functions*
+              (let [descriptor (abi/validate!)
                   coverage (abi/check-backend backend descriptor)]
-              (when-not (:supported? coverage)
-                (throw (ex-info
-                        "babashka.ffi cannot express the canonical libhegel ABI"
-                        coverage)))
-              (let [library (ffi/load-library library-path)
-                    bindings
-                    (into {}
-                          (map (fn [[function-id function]]
-                                 [function-id
-                                  (make-binding library function descriptor)]))
-                          (:functions descriptor))
-                    actual
-                    (update coverage :functions
-                            (fn [functions]
-                              (into {}
-                                    (map (fn [[function-id entry]]
-                                           (let [selected
-                                                 (:babashka.ffi/backend
-                                                  (meta (get bindings function-id)))]
-                                             [function-id
-                                              (assoc entry :route
-                                                     (runtime-route selected))])))
-                                    functions)))]
-                (reset! library* library)
-                (reset! functions* bindings)
-                (abi/register-backend-report! actual)
-                bindings))))))
+                (when-not (:supported? coverage)
+                  (throw (ex-info
+                          "babashka.ffi cannot express the canonical libhegel ABI"
+                          coverage)))
+                (let [library (ffi/load-library library-path)
+                      bindings
+                      (into {}
+                            (map (fn [[function-id function]]
+                                   [function-id
+                                    (make-binding library function descriptor)]))
+                            (:functions descriptor))
+                      actual
+                      (update coverage :functions
+                              (fn [functions]
+                                (into {}
+                                      (map (fn [[function-id entry]]
+                                             (let [selected
+                                                   (:babashka.ffi/backend
+                                                    (meta (get bindings function-id)))]
+                                               [function-id
+                                                (assoc entry :route
+                                                       (runtime-route selected))])))
+                                      functions)))]
+                  (reset! library* library)
+                  (reset! functions* bindings)
+                  (abi/register-backend-report! actual)
+                  bindings)))))))
 
 (defn function [function-id]
   (or (get @functions* function-id)

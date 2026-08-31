@@ -20,8 +20,10 @@
 ## Install
 
 Use the runtime selected by the consuming project's toolchain contract: Jolt
-0.7.23 or later, Babashka 1.13.220 or later with the official
-`babashka.ffi`, or JVM Clojure on JDK 22 or later. Do not substitute a
+0.7.23 or later, an FFI-capable Babashka 1.13.220 or later build with the
+official `babashka.ffi`, or JVM Clojure on JDK 22 or later. On Linux, use the
+ordinary release asset rather than the `-static` asset and confirm `bb describe`
+reports a non-nil `:libffi/version`. Do not substitute a
 convenient global executable for a project-selected binary. Add the public
 release by full commit SHA. `v0.4.0` is the current portable release; resolve its
 annotated tag to the full peeled commit rather than using the tag-object SHA,
@@ -66,7 +68,10 @@ is in top-level `:deps`, no dependency alias is needed.
 
 Babashka 1.13.220 embeds `babashka.ffi`; do not add the standalone FFI Git
 dependency to `bb.edn`. JVM consumers add the exact FFI pin shown above because
-jolt-hegel's development-only `:jvm` alias does not propagate transitively.
+jolt-hegel's development-only `:jvm` alias does not propagate transitively. The
+Linux `-static` Babashka asset cannot load libhegel or provide the libffi-backed
+aggregate calls its ABI requires. jolt-hegel detects that unsupported runtime
+build before checking whether the configured libhegel file exists.
 
 Replace `<jolt-hegel-commit-sha>` with the full peeled commit behind the
 intended release tag; never copy the placeholder into a project. Without a
@@ -94,7 +99,7 @@ loaded libhegel ABI version before a run.
 | Host | Status and current evidence |
 | --- | --- |
 | Jolt 0.7.23+ | Supported on Linux x86_64, Windows x86_64, and macOS arm64 |
-| Babashka 1.13.220+ | Supported on the same three-OS native-image matrix |
+| FFI-capable Babashka 1.13.220+ | Supported on the same three-OS native-image matrix; Linux `-static` assets are excluded |
 | JVM Clojure on JDK 22+ | Supported on the same matrix with JDK 25 primary and a Linux JDK 22 minimum gate |
 | jank | Experimental focused Linux and macOS suites; see `docs/JANK.md` |
 | ClojureCLR 1.12.2 on .NET 8 | Experimental focused three-OS suite; see `docs/CLR.md` |

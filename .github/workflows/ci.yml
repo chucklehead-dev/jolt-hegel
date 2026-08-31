@@ -83,16 +83,22 @@ jobs:
             name: Linux x86_64
             runner: ubuntu-24.04
             shell: bash
+            bb-asset: babashka-1.13.220-linux-amd64.tar.gz
+            bb-sha256: 5211ebf6267be2dbbf4857611cb01331b865bf6b0a8c9bc500c83a816df1a769
           - runtime: Babashka
             host: bb
             name: Windows x86_64
             runner: windows-2022
             shell: pwsh
+            bb-asset: babashka-1.13.220-windows-amd64.zip
+            bb-sha256: baf87302db04377d44f10dd1cb5c29924fc418d5765dc149213e793be5de0e9e
           - runtime: Babashka
             host: bb
             name: macOS arm64
             runner: macos-14
             shell: bash
+            bb-asset: babashka-1.13.220-macos-aarch64.tar.gz
+            bb-sha256: f7d18c3ab11bb4ad0e32a45c1ae40ae25911d5fa06ba4ded07cb90b8af158077
           - runtime: JVM
             host: jvm
             name: Linux x86_64
@@ -152,11 +158,18 @@ jobs:
           java-version: '25'
 
       - name: Set up Clojure CLI and official Babashka
-        if: matrix.host == 'jvm' || matrix.host == 'bb'
+        if: matrix.host == 'jvm'
         uses: DeLaGuardo/setup-clojure@13.4
         with:
           cli: latest
-          bb: 1.13.220
+
+      - name: Set up official FFI-capable Babashka
+        if: matrix.host == 'bb'
+        uses: ./.github/actions/setup-babashka
+        with:
+          version: 1.13.220
+          asset: ${{ matrix.bb-asset }}
+          sha256: ${{ matrix.bb-sha256 }}
 
       - name: Install libhegel (Jolt)
         if: matrix.host == 'jolt'

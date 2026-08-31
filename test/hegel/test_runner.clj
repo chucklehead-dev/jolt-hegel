@@ -321,7 +321,51 @@
              (try
                (ffi-backend/read-value @escaped :uint8)
                false
-               (catch Throwable _ true))))))
+               (catch Throwable _ true)))))
+  (when (contains? #{:bb :jvm} (host/runtime))
+    (let [cfn-var (ns-resolve 'babashka.ffi 'cfn)
+          make-binding-var (ns-resolve 'hegel.ffi.babashka 'make-binding)
+          raw-calls (atom [])
+          raw (fn [& values]
+                (swap! raw-calls conj values)
+                :called)
+          function {:symbol "hegel_arity_probe"
+                    :args [:c/uint64]
+                    :return :c/int32}
+          binding (with-redefs-fn
+                    {cfn-var (fn [& _] raw)}
+                    #(make-binding-var :library function {:types {}}))
+          extra-error (try
+                        (binding 1 2)
+                        nil
+                        (catch Throwable error error))]
+      (check "unsigned coercion preserves exact native binding arity"
+             (and extra-error
+                  (= :hegel.ffi.babashka/wrong-arity
+                     (:type (ex-data extra-error)))
+                  (= {:symbol "hegel_arity_probe" :expected 1 :actual 2}
+                     (select-keys (ex-data extra-error)
+                                  [:symbol :expected :actual]))
+                  (empty? @raw-calls)))
+      (check "unsigned coercion forwards an exact-arity call"
+             (and (= :called (binding 1))
+                  (= [[1]] @raw-calls)))))
+  (when (= :bb (host/runtime))
+    (let [cfn-var (ns-resolve 'babashka.ffi 'cfn)
+          preflight-var (ns-resolve 'hegel.ffi.babashka
+                                    'ensure-runtime-capable!)
+          error (with-redefs-fn
+                  {cfn-var (fn [& _]
+                             (throw (ex-info "this build has no libffi" {})))}
+                  #(try
+                     (preflight-var)
+                     nil
+                     (catch Throwable error error)))]
+      (check "Babashka capability failure precedes libhegel path lookup"
+             (and (= :hegel.ffi/unsupported-runtime-build
+                     (:type (ex-data error)))
+                  (= :libffi (:required-capability (ex-data error)))
+                  (str/includes? (ex-message error) "not the -static asset"))))))
 
 (defn installer-source-identity []
   (check "installer recognizes POSIX and Windows absolute paths"

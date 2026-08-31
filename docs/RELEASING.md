@@ -15,8 +15,9 @@ tag, and GitHub release must all identify `0.4.0`.
 
 1. Push normal development branches to the private repository.
 2. Require the supported host-by-platform CI matrix to pass. The core matrix is
-   Jolt, the pinned official Babashka release, and JVM Clojure across Linux
-   x86_64, Windows x86_64, and macOS arm64.
+   Jolt, checksum-pinned FFI-capable assets from the official Babashka release,
+   and JVM Clojure across Linux x86_64, Windows x86_64, and macOS arm64. The
+   Linux Babashka cell must use the non-static release asset.
 3. Do not create consumer tags in the private repository. Release publication
    is explicitly gated to `chucklehead-dev/jolt-hegel`.
 4. Keep downloaded native libraries, Jolt caches, release output, and local
@@ -71,7 +72,10 @@ Review these together for each release:
 - `.github/workflows/release.yml`: release verification target matrix
 - `README.md` and `THIRD_PARTY_NOTICES.md`: documented versions and notices
 
-Jolt 0.7.23 and Babashka 1.13.220 are pinned in CI. The standalone
+Jolt 0.7.23 and FFI-capable Babashka 1.13.220 assets are checksum-pinned in CI.
+The ordinary Linux asset is required; the static Linux asset has neither
+dynamic-library loading nor the libffi route required by libhegel aggregates.
+The standalone
 `babashka/ffi` JVM dependency matches the source embedded by that Babashka
 release at `aacb153618bc39ca1e4c397b8f30fb81c76d0c4c`. libhegel 0.33.3
 release hashes are pinned in `hegel.install`. The JVM lane uses JDK 25 and

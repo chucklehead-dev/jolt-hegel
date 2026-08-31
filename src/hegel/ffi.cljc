@@ -17,14 +17,16 @@
   (catch #?(:cljr System.Exception
             :jank cpp/jank.runtime.object_ref
             :default Throwable) cause
-    (throw
-     (ex-info
-      (str "could not load libhegel from " (pr-str library-path)
-           "; place libhegel v" libhegel-version
-           " there or set HEGEL_LIBHEGEL_LIBRARY")
-      {:type ::library-load-failed
-       :library library-path
-       :cause cause}))))
+    (if (= ::unsupported-runtime-build (:type (ex-data cause)))
+      (throw cause)
+      (throw
+       (ex-info
+        (str "could not load libhegel from " (pr-str library-path)
+             "; place libhegel v" libhegel-version
+             " there or set HEGEL_LIBHEGEL_LIBRARY")
+        {:type ::library-load-failed
+         :library library-path
+         :cause cause})))))
 
 ;; Public wrapper names stay stable, but every signature is constructed from
 ;; the canonical EDN descriptor by hegel.ffi.jolt.

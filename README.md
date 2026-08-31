@@ -23,7 +23,7 @@ supported release contract.
 | Host | Contract | Continuously tested targets |
 | --- | --- | --- |
 | Jolt 0.7.23+ | Supported | Linux x86_64, Windows x86_64, macOS arm64 |
-| Babashka 1.13.220+ | Supported | Linux x86_64, Windows x86_64, macOS arm64 native images |
+| FFI-capable Babashka 1.13.220+ | Supported | Linux x86_64, Windows x86_64, macOS arm64 native images |
 | JVM Clojure, JDK 22+ | Supported; JDK 25 is primary | Linux x86_64, Windows x86_64, macOS arm64, plus a Linux JDK 22 minimum gate |
 | jank | Experimental focused suite | Linux x86_64 and macOS arm64 |
 | ClojureCLR 1.12.2 on .NET 8 | Experimental focused suite | Linux x86_64, Windows x86_64, macOS arm64 |
@@ -441,7 +441,14 @@ jolt-hegel is in top-level `:deps`, no dependency alias is needed; otherwise
 make sure the consuming project's alias is active so the installer namespace is
 on the classpath.
 
-Babashka 1.13.220 is the minimum supported binary release. It embeds
+Babashka 1.13.220 is the minimum supported release, but the runtime build must
+include libffi and dynamic-library loading. On Linux, install the ordinary
+`babashka-<version>-linux-<arch>.tar.gz` asset, not the `-static` asset. Confirm
+that `bb describe` reports a non-nil `:libffi/version`; jolt-hegel performs the
+same capability check before looking for libhegel and reports an unsupported
+runtime build separately from a missing native library.
+
+The 1.13.220 release embeds
 `babashka.ffi` commit `aacb153618bc39ca1e4c397b8f30fb81c76d0c4c`.
 JVM Clojure pins the same source commit through this repository's `:jvm`
 development alias and requires JDK 22 or later with
