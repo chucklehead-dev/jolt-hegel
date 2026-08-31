@@ -135,7 +135,10 @@ including when the library path was supplied by the user.
 Requiring `hegel.malli` opts into a consumer-supplied Malli dependency. The
 adapter compiles a schema and validator once, rejects unsupported AST constructs
 synchronously, and composes shared Hegel generators so structural spans remain
-available to shrinking. The core library never loads Malli.
+available to shrinking. A supported single self-recursive registry is lowered
+to the shared `g/recursive` constructor, so libhegel still owns depth, leaf
+budget, retry, and subtree-hoisting semantics. The core library never loads
+Malli.
 
 ## Experimental hosts
 
