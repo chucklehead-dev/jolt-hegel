@@ -15,9 +15,8 @@ tag, and GitHub release must all identify `0.4.0`.
 
 1. Push normal development branches to the private repository.
 2. Require the supported host-by-platform CI matrix to pass. The core matrix is
-   Jolt, the pinned upstream Babashka development build, and JVM Clojure across Linux x86_64, Windows
-   x86_64, and macOS arm64. Keep the pinned Babashka native-image build lanes
-   separate in reporting so they do not obscure which host/backend failed.
+   Jolt, the pinned official Babashka release, and JVM Clojure across Linux
+   x86_64, Windows x86_64, and macOS arm64.
 3. Do not create consumer tags in the private repository. Release publication
    is explicitly gated to `chucklehead-dev/jolt-hegel`.
 4. Keep downloaded native libraries, Jolt caches, release output, and local
@@ -32,7 +31,7 @@ For every release:
    a pull request to public `main`. Do not merge unrelated private history into
    the public repository.
 2. Confirm the public pull request and resulting `main` push pass the complete
-   supported matrix: Jolt, pinned Babashka native image, JVM Clojure, ABI data,
+   supported matrix: Jolt, pinned official Babashka release, JVM Clojure, ABI data,
    static checks, and consumer smoke tests. Experimental jank and ClojureCLR
    workflows should also be green on `main`, but they are not supported-release
    targets until their remaining gates close.
@@ -66,16 +65,15 @@ existing release tag; publish a new version instead.
 Review these together for each release:
 
 - `src/hegel/version.cljc`: jolt-hegel release and libhegel ABI pins
-- `.github/workflows/ci.yml`: host and OS matrix, pinned Jolt and Babashka builds
+- `.github/workflows/ci.yml`: host and OS matrix, pinned Jolt and Babashka releases
 - `.github/workflows/clr.yml`: experimental ClojureCLR/.NET pins and matrix
 - `.github/workflows/jank.yml`: experimental jank packages/actions and matrix
 - `.github/workflows/release.yml`: release verification target matrix
 - `README.md` and `THIRD_PARTY_NOTICES.md`: documented versions and notices
 
-Jolt 0.7.23 and upstream Babashka commit
-`7d58fcdd1742afb500e030d40853352494ceea12` are pinned in CI. The standalone
-`babashka/ffi` JVM dependency is pinned at
-`e7ac217bf8c9619574a4420501ac2d00388d6e43`. libhegel 0.33.3
+Jolt 0.7.23 and Babashka 1.13.220 are pinned in CI. The standalone
+`babashka/ffi` JVM dependency matches the source embedded by that Babashka
+release at `aacb153618bc39ca1e4c397b8f30fb81c76d0c4c`. libhegel 0.33.3
 release hashes are pinned in `hegel.install`. The JVM lane uses JDK 25 and
 retains a JDK 22 minimum-version compatibility gate. Experimental CLR CI pins
 ClojureCLR 1.12.2 and .NET 8. The release workflow also rejects a tag that does

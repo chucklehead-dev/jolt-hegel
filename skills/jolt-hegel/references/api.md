@@ -20,7 +20,7 @@
 ## Install
 
 Use the runtime selected by the consuming project's toolchain contract: Jolt
-0.7.23 or later, a project-pinned Babashka build with the required
+0.7.23 or later, Babashka 1.13.220 or later with the official
 `babashka.ffi`, or JVM Clojure on JDK 22 or later. Do not substitute a
 convenient global executable for a project-selected binary. Add the public
 release by full commit SHA. `v0.4.0` is the current portable release; resolve its
@@ -34,7 +34,11 @@ project's test alias:
   {:extra-deps
    {io.github.chucklehead-dev/jolt-hegel
     {:git/url "https://github.com/chucklehead-dev/jolt-hegel.git"
-     :git/sha "<jolt-hegel-commit-sha>"}}}}}
+     :git/sha "<jolt-hegel-commit-sha>"}
+    ;; JVM Clojure only; omit for Jolt and Babashka.
+    io.github.babashka/ffi
+    {:git/url "https://github.com/babashka/ffi.git"
+     :git/sha "aacb153618bc39ca1e4c397b8f30fb81c76d0c4c"}}}}}
 ```
 
 From the consuming project, install the verified libhegel release with the host
@@ -59,6 +63,10 @@ project alias when it is alias-scoped.
 Git dependencies do not contribute aliases to a consuming project. Activate
 the alias that contains jolt-hegel where the host requires it. If the dependency
 is in top-level `:deps`, no dependency alias is needed.
+
+Babashka 1.13.220 embeds `babashka.ffi`; do not add the standalone FFI Git
+dependency to `bb.edn`. JVM consumers add the exact FFI pin shown above because
+jolt-hegel's development-only `:jvm` alias does not propagate transitively.
 
 Replace `<jolt-hegel-commit-sha>` with the full peeled commit behind the
 intended release tag; never copy the placeholder into a project. Without a
@@ -86,7 +94,7 @@ loaded libhegel ABI version before a run.
 | Host | Status and current evidence |
 | --- | --- |
 | Jolt 0.7.23+ | Supported on Linux x86_64, Windows x86_64, and macOS arm64 |
-| `babashka/babashka` at `7d58fcdd1742afb500e030d40853352494ceea12` | Temporary development-build floor on the same three-OS native-image matrix until the upstream standalone FFI work reaches a stable binary |
+| Babashka 1.13.220+ | Supported on the same three-OS native-image matrix |
 | JVM Clojure on JDK 22+ | Supported on the same matrix with JDK 25 primary and a Linux JDK 22 minimum gate |
 | jank | Experimental focused Linux and macOS suites; see `docs/JANK.md` |
 | ClojureCLR 1.12.2 on .NET 8 | Experimental focused three-OS suite; see `docs/CLR.md` |
@@ -677,8 +685,8 @@ bb setup-native
 bb test
 
 # JVM Clojure
-clojure -J--enable-native-access=ALL-UNNAMED -M:test -m hegel.install
-clojure -J--enable-native-access=ALL-UNNAMED -M:test
+clojure -J--enable-native-access=ALL-UNNAMED -M:jvm:test -m hegel.install
+clojure -J--enable-native-access=ALL-UNNAMED -M:jvm:test
 ```
 
 Use the consuming project's established test command and selected executable

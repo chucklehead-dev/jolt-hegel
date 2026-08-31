@@ -2,4 +2,7 @@
  :aliases
  {:test
   {:extra-deps
-   {io.github.chucklehead-dev/jolt-hegel {:local/root "../.."}}}}}
+   {io.github.chucklehead-dev/jolt-hegel {:local/root "../.."}
+    io.github.babashka/ffi
+    {:git/url "https://github.com/babashka/ffi.git"
+     :git/sha "aacb153618bc39ca1e4c397b8f30fb81c76d0c4c"}}}}}

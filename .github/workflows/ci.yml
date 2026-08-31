@@ -14,10 +14,6 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  BB_REPOSITORY: babashka/babashka
-  BB_REF: 7d58fcdd1742afb500e030d40853352494ceea12
-
 jobs:
   static-checks:
     name: Static checks
@@ -49,119 +45,11 @@ jobs:
         with:
           cli: latest
       - name: Validate descriptor and JVM coverage without loading libhegel
-        run: clojure -J--enable-native-access=ALL-UNNAMED -M:abi-test
-
-  bb-native-image:
-    name: Native image / ${{ matrix.name }}
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 90
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: Linux x86_64
-            runner: ubuntu-24.04
-            artifact: bb-upstream-linux-amd64
-            binary: bb-portable
-            shell: bash
-          - name: Windows x86_64
-            runner: windows-2022
-            artifact: bb-upstream-windows-amd64
-            binary: bb.exe
-            shell: pwsh
-          - name: macOS arm64
-            runner: macos-14
-            artifact: bb-upstream-macos-arm64
-            binary: bb-portable
-            shell: bash
-
-    defaults:
-      run:
-        shell: ${{ matrix.shell }}
-
-    steps:
-      - name: Check out the pinned upstream Babashka development build
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          repository: ${{ env.BB_REPOSITORY }}
-          ref: ${{ env.BB_REF }}
-          submodules: recursive
-          persist-credentials: false
-
-      - name: Cache pinned native image
-        id: bb-cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ matrix.binary }}
-          key: bb-native-${{ runner.os }}-${{ runner.arch }}-${{ env.BB_REF }}
-
-      - uses: DeLaGuardo/setup-clojure@13.4
-        with:
-          cli: latest
-          bb: latest
-          lein: 2.9.8
-
-      - name: Set up GraalVM
-        uses: graalvm/setup-graalvm@v1.3.4
-        with:
-          java-version: '25.0.4'
-          distribution: graalvm
-          components: native-image
-          github-token: ${{ github.token }}
-
-      - name: Build Babashka native image (POSIX)
-        if: steps.bb-cache.outputs.cache-hit != 'true' && runner.os != 'Windows'
-        env:
-          BABASHKA_BINARY: bb-portable
-          BABASHKA_XMX: -J-Xmx6500m
-          GRAALVM_HOME: ${{ env.JAVA_HOME }}
-        run: |
-          script/uberjar
-          script/compile -Ob
-
-      - name: Build Babashka native image (Windows)
-        if: steps.bb-cache.outputs.cache-hit != 'true' && runner.os == 'Windows'
-        shell: cmd
-        run: |
-          set GRAALVM_HOME=%JAVA_HOME%
-          call bb script\gen_ffi_metadata.clj windows
-          call script\uberjar.bat
-          call script\compile.bat -Ob
-
-      - name: Put POSIX binary at Babashka's test path
-        if: runner.os != 'Windows'
-        run: ln -sf bb-portable bb
-
-      - name: Make Git for Windows libffi discoverable
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $mingw = Join-Path $env:ProgramFiles 'Git\mingw64\bin'
-          $ffi = Join-Path $mingw 'libffi-8.dll'
-          if (-not (Test-Path -LiteralPath $ffi)) {
-            throw "Pinned Babashka libffi fallback requires $ffi"
-          }
-          $mingw | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-
-      - name: Run independent Babashka FFI tests
-        env:
-          BABASHKA_TEST_ENV: native
-        run: clojure -M:test -n babashka.ffi-test
-
-      - name: Upload pinned Babashka runtime
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact }}
-          path: ${{ matrix.binary }}
-          if-no-files-found: error
-          retention-days: 7
+        run: clojure -J--enable-native-access=ALL-UNNAMED -M:jvm:abi-test
 
   runtime-test:
     name: ${{ matrix.runtime }} / ${{ matrix.name }}
-    needs: [abi-data, bb-native-image]
-    # A failure in one native-image cell must not hide unrelated Jolt/JVM
-    # evidence. The matching Babashka cell will still fail when its artifact is
-    # unavailable.
+    needs: abi-data
     if: always() && needs.abi-data.result == 'success'
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
@@ -195,22 +83,16 @@ jobs:
             name: Linux x86_64
             runner: ubuntu-24.04
             shell: bash
-            bb-artifact: bb-upstream-linux-amd64
-            bb-binary: bb-portable
           - runtime: Babashka
             host: bb
             name: Windows x86_64
             runner: windows-2022
             shell: pwsh
-            bb-artifact: bb-upstream-windows-amd64
-            bb-binary: bb.exe
           - runtime: Babashka
             host: bb
             name: macOS arm64
             runner: macos-14
             shell: bash
-            bb-artifact: bb-upstream-macos-arm64
-            bb-binary: bb-portable
           - runtime: JVM
             host: jvm
             name: Linux x86_64
@@ -252,30 +134,14 @@ jobs:
           asset: ${{ matrix.jolt-asset }}
           sha256: ${{ matrix.jolt-sha256 }}
 
-      - name: Download pinned Babashka runtime
-        if: matrix.host == 'bb'
-        uses: actions/download-artifact@v4
-        with:
-          name: ${{ matrix.bb-artifact }}
-          path: ${{ runner.temp }}/bb-upstream
-
-      - name: Put Babashka on PATH (POSIX)
-        if: matrix.host == 'bb' && runner.os != 'Windows'
-        run: |
-          chmod +x "$RUNNER_TEMP/bb-upstream/${{ matrix.bb-binary }}"
-          ln -s "$RUNNER_TEMP/bb-upstream/${{ matrix.bb-binary }}" "$RUNNER_TEMP/bb-upstream/bb"
-          echo "$RUNNER_TEMP/bb-upstream" >> "$GITHUB_PATH"
-
-      - name: Put Babashka and libffi on PATH (Windows)
+      - name: Make Git for Windows libffi discoverable
         if: matrix.host == 'bb' && runner.os == 'Windows'
         shell: pwsh
         run: |
-          $bbDir = Join-Path $env:RUNNER_TEMP 'bb-upstream'
           $mingw = Join-Path $env:ProgramFiles 'Git\mingw64\bin'
           if (-not (Test-Path -LiteralPath (Join-Path $mingw 'libffi-8.dll'))) {
-            throw 'Git for Windows libffi-8.dll is required by the pinned Babashka runtime'
+            throw 'Git for Windows libffi-8.dll is required by Babashka FFI'
           }
-          $bbDir | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           $mingw | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Set up JDK 25
@@ -285,11 +151,12 @@ jobs:
           distribution: temurin
           java-version: '25'
 
-      - name: Set up Clojure CLI
+      - name: Set up Clojure CLI and official Babashka
         if: matrix.host == 'jvm' || matrix.host == 'bb'
         uses: DeLaGuardo/setup-clojure@13.4
         with:
           cli: latest
+          bb: 1.13.220
 
       - name: Install libhegel (Jolt)
         if: matrix.host == 'jolt'
@@ -301,7 +168,7 @@ jobs:
 
       - name: Install libhegel (JVM)
         if: matrix.host == 'jvm'
-        run: clojure -J--enable-native-access=ALL-UNNAMED -M:setup-native
+        run: clojure -J--enable-native-access=ALL-UNNAMED -M:jvm:setup-native
 
       - name: Check ABI coverage (Jolt)
         if: matrix.host == 'jolt'
@@ -313,7 +180,7 @@ jobs:
 
       - name: Check ABI coverage (JVM)
         if: matrix.host == 'jvm'
-        run: clojure -J--enable-native-access=ALL-UNNAMED -M:abi-test
+        run: clojure -J--enable-native-access=ALL-UNNAMED -M:jvm:abi-test
 
       - name: Run semantic suite (Jolt)
         if: matrix.host == 'jolt'
@@ -325,7 +192,7 @@ jobs:
 
       - name: Run semantic suite (JVM)
         if: matrix.host == 'jvm'
-        run: clojure -J--enable-native-access=ALL-UNNAMED -M:test
+        run: clojure -J--enable-native-access=ALL-UNNAMED -M:jvm:test
 
       - name: Run Git dependency consumer smoke test (Jolt)
         if: matrix.host == 'jolt'
@@ -361,8 +228,8 @@ jobs:
         with:
           cli: latest
       - name: Install libhegel
-        run: clojure -J--enable-native-access=ALL-UNNAMED -M:setup-native
+        run: clojure -J--enable-native-access=ALL-UNNAMED -M:jvm:setup-native
       - name: Run ABI and semantic suites
         run: |
-          clojure -J--enable-native-access=ALL-UNNAMED -M:abi-test
-          clojure -J--enable-native-access=ALL-UNNAMED -M:test
+          clojure -J--enable-native-access=ALL-UNNAMED -M:jvm:abi-test
+          clojure -J--enable-native-access=ALL-UNNAMED -M:jvm:test

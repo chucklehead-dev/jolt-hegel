@@ -23,7 +23,7 @@ supported release contract.
 | Host | Contract | Continuously tested targets |
 | --- | --- | --- |
 | Jolt 0.7.23+ | Supported | Linux x86_64, Windows x86_64, macOS arm64 |
-| Babashka development build `7d58fcdd` | Temporary floor while the new upstream FFI library is unreleased in a stable binary | Linux x86_64, Windows x86_64, macOS arm64 native images |
+| Babashka 1.13.220+ | Supported | Linux x86_64, Windows x86_64, macOS arm64 native images |
 | JVM Clojure, JDK 22+ | Supported; JDK 25 is primary | Linux x86_64, Windows x86_64, macOS arm64, plus a Linux JDK 22 minimum gate |
 | jank | Experimental focused suite | Linux x86_64 and macOS arm64 |
 | ClojureCLR 1.12.2 on .NET 8 | Experimental focused suite | Linux x86_64, Windows x86_64, macOS arm64 |
@@ -400,6 +400,10 @@ can be used by each host:
    {io.github.chucklehead-dev/jolt-hegel
     {:git/url "https://github.com/chucklehead-dev/jolt-hegel.git"
      :git/sha "<jolt-hegel-commit-sha>"}
+    ;; JVM Clojure only; omit for Jolt and Babashka.
+    io.github.babashka/ffi
+    {:git/url "https://github.com/babashka/ffi.git"
+     :git/sha "aacb153618bc39ca1e4c397b8f30fb81c76d0c4c"}
     ;; Only needed when requiring hegel.malli:
     metosin/malli {:mvn/version "0.20.1"}}}}}
 ```
@@ -425,7 +429,7 @@ contains jolt-hegel:
 # Jolt 0.7.23+
 jolt -A:test -m hegel.install
 
-# Babashka built from upstream commit 7d58fcdd...
+# Babashka 1.13.220+
 bb -m hegel.install
 
 # JVM Clojure on JDK 22+ (JDK 25 is the primary target)
@@ -437,32 +441,14 @@ jolt-hegel is in top-level `:deps`, no dependency alias is needed; otherwise
 make sure the consuming project's alias is active so the installer namespace is
 on the classpath.
 
-Until a stable Babashka binary includes the standalone FFI library used here,
-use an upstream development binary built from `babashka/babashka` commit
-`7d58fcdd1742afb500e030d40853352494ceea12`, the exact temporary floor built
-by this repository's CI. The library source is pinned independently at
-`babashka/ffi` commit `e7ac217bf8c9619574a4420501ac2d00388d6e43` for JVM
-Clojure; Babashka embeds the matching source. JVM Clojure requires JDK 22 or
-later and `--enable-native-access=ALL-UNNAMED`.
-
-For a local Linux development gate while that binary floor is temporary:
-
-```bash
-git clone --recurse-submodules https://github.com/babashka/babashka.git
-cd babashka
-git checkout 7d58fcdd1742afb500e030d40853352494ceea12
-git submodule update --init --recursive
-BABASHKA_BINARY=bb-hegel BABASHKA_XMX=-J-Xmx6500m script/uberjar
-BABASHKA_BINARY=bb-hegel BABASHKA_XMX=-J-Xmx6500m script/compile -Ob
-
-# Back in the jolt-hegel checkout:
-HEGEL_LIBHEGEL_LIBRARY=/absolute/path/to/libhegel_c.so \
-  /absolute/path/to/babashka/bb-hegel test
-```
-
-The three-platform CI performs the authoritative development-build gate. A
-normal release should replace this source-build floor with an official
-Babashka binary rather than asking consumers to build Babashka indefinitely.
+Babashka 1.13.220 is the minimum supported binary release. It embeds
+`babashka.ffi` commit `aacb153618bc39ca1e4c397b8f30fb81c76d0c4c`.
+JVM Clojure pins the same source commit through this repository's `:jvm`
+development alias and requires JDK 22 or later with
+`--enable-native-access=ALL-UNNAMED`. Because dependency aliases do not
+propagate, JVM consumers must add that `io.github.babashka/ffi` Git dependency
+beside jolt-hegel; Babashka consumers must not add it because the namespace is
+built into the runtime.
 
 Environment overrides:
 

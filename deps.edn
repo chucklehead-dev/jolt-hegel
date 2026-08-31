@@ -1,12 +1,11 @@
 {:paths ["src" "resources"]
 
- :deps
- {io.github.babashka/ffi
-  {:git/url "https://github.com/babashka/ffi.git"
-   :git/sha "e7ac217bf8c9619574a4420501ac2d00388d6e43"}}
-
  :aliases
-  {:setup-native {:main-opts ["-m" "hegel.install"]}
+  {:jvm {:extra-deps
+         {io.github.babashka/ffi
+          {:git/url "https://github.com/babashka/ffi.git"
+           :git/sha "aacb153618bc39ca1e4c397b8f30fb81c76d0c4c"}}}
+   :setup-native {:main-opts ["-m" "hegel.install"]}
    :abi-test {:extra-paths ["script"]
               :main-opts ["-m" "hegel.abi-check"]}
    :jank-codegen {:extra-paths ["script"]
