@@ -14,7 +14,7 @@ confined to resource/process discovery and a narrow native boundary.
                                    |
                          hegel.ffi.backend
                      /       /       |       \       \
-             jolt.ffi  babashka.ffi  JDK FFM  jank C++  CLR P/Invoke
+             jolt.ffi   babashka.ffi (BB/JVM)   jank C++  CLR P/Invoke
                      \       \       |       /       /
                                 libhegel 0.33
 ```
@@ -33,7 +33,7 @@ confined to resource/process discovery and a narrow native boundary.
 | `hegel.malli` | Optional Malli AST adapter built from shared generators |
 | `hegel.ffi` | Backend-neutral checked libhegel operations and explicit ownership |
 | `hegel.ffi.backend` | Selected-backend contract |
-| `hegel.ffi.jolt`, `.bb`, `.jvm`, `.clr` and generated jank artifacts | Signature construction, native memory, calls, and layouts |
+| `hegel.ffi.jolt`, `.babashka`, `.clr` and generated jank artifacts | Signature construction, native memory, calls, and layouts; `.babashka` is shared by Babashka and JVM Clojure |
 | `hegel.host` | Host identity and resource loading |
 | `hegel.native` | Platform, cache, and library path selection |
 | `hegel.install` | Version-pinned, checksum-verified native acquisition |
@@ -51,12 +51,11 @@ and access fields in descriptor-derived layouts.
 
 - Jolt translates descriptor types to `jolt.ffi` aggregate and function
   descriptors. Calls marked blocking in the ABI use Jolt's blocking call path.
-- Babashka translates the same data to `babashka.ffi`. Common fixed signatures
-  use its compiled trampoline; signatures outside that fast family use its
-  general libffi path. The backend report records the selected route.
-- JVM Clojure constructs `MemoryLayout`, `FunctionDescriptor`, and downcall
-  `MethodHandle` values once per binding with `Linker/nativeLinker`. Symbols are
-  resolved through a lookup tied to the selected library.
+- Babashka and JVM Clojure share one adapter over the upstream standalone
+  `babashka.ffi` API. Native Babashka uses its compiled trampoline or libffi
+  route; the JVM uses its FFM linker route. Symbols, arena-scoped memory,
+  aggregate maps, bulk byte copies, and resolved field places therefore have
+  one implementation while the backend report retains exact host routes.
 - ClojureCLR loads an AnyCPU managed bridge whose P/Invoke declarations and
   typed invokers are generated from the descriptor. The bridge loads the exact
   selected library, validates all exports eagerly, and exposes the same memory
@@ -97,9 +96,10 @@ Ownership remains explicit across all hosts:
   created them; and
 - pools register cleanup against their current test case and cannot escape it.
 
-JVM arenas implement the backend's explicit allocation lifetime; garbage
-collection is not the primary ownership mechanism. A backend must preserve the
-same common ownership contract even if its host FFI offers automatic cleanup.
+Upstream `babashka.ffi` arenas implement explicit lexical allocation lifetime
+on both Babashka and the JVM; garbage collection is not the primary ownership
+mechanism. A backend must preserve the same common ownership contract even if
+its host FFI offers automatic cleanup.
 
 ## Stateful boundary
 

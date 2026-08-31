@@ -10,9 +10,9 @@ before the result is reported. The seed in every result makes the run
 repeatable.
 
 jolt-hegel exposes one Clojure API on all three hosts. It calls the same
-libhegel 0.33.3 C ABI directly through `jolt.ffi`, `babashka.ffi`, or the final
-JDK Foreign Function & Memory API. There is no service to start and no
-subprocess protocol.
+libhegel 0.33.3 C ABI directly through `jolt.ffi` or the upstream
+`babashka.ffi` library (which uses the final JDK Foreign Function & Memory API
+on the JVM). There is no service to start and no subprocess protocol.
 
 Experimental ports reuse that same implementation and boundary on jank and
 ClojureCLR. They have focused cross-platform CI but are not yet part of the
@@ -23,16 +23,17 @@ supported release contract.
 | Host | Contract | Continuously tested targets |
 | --- | --- | --- |
 | Jolt 0.7.23+ | Supported | Linux x86_64, Windows x86_64, macOS arm64 |
-| Babashka fork `26367edf` | Supported while the required FFI work is unreleased upstream | Linux x86_64, Windows x86_64, macOS arm64 native images |
+| FFI-capable Babashka 1.13.220+ | Supported | Linux x86_64, Windows x86_64, macOS arm64 native images |
 | JVM Clojure, JDK 22+ | Supported; JDK 25 is primary | Linux x86_64, Windows x86_64, macOS arm64, plus a Linux JDK 22 minimum gate |
 | jank | Experimental focused suite | Linux x86_64 and macOS arm64 |
 | ClojureCLR 1.12.2 on .NET 8 | Experimental focused suite | Linux x86_64, Windows x86_64, macOS arm64 |
 
-The current release is `v0.4.0`. It adds engine-native recursive generators,
-the current libhegel distribution and shrinking improvements, and the bounded
-history and trace rules developed for compiler-aspect testing. Consumer Git
-dependencies should pin the tag's full peeled
-commit SHA, not the tag-object SHA or a moving branch reference.
+The current release is `v0.5.0`. It replaces the development Babashka fork and
+the private JVM FFM adapter with the upstream `babashka.ffi` implementation,
+while preserving one canonical ABI and the same property API across Jolt,
+FFI-capable Babashka, and JVM Clojure. Consumer Git dependencies should pin the
+tag's full peeled commit SHA, not the tag-object SHA or a moving branch
+reference.
 
 ## What should be a property?
 
@@ -400,6 +401,10 @@ can be used by each host:
    {io.github.chucklehead-dev/jolt-hegel
     {:git/url "https://github.com/chucklehead-dev/jolt-hegel.git"
      :git/sha "<jolt-hegel-commit-sha>"}
+    ;; JVM Clojure only; omit for Jolt and Babashka.
+    io.github.babashka/ffi
+    {:git/url "https://github.com/babashka/ffi.git"
+     :git/sha "aacb153618bc39ca1e4c397b8f30fb81c76d0c4c"}
     ;; Only needed when requiring hegel.malli:
     metosin/malli {:mvn/version "0.20.1"}}}}}
 ```
@@ -425,7 +430,7 @@ contains jolt-hegel:
 # Jolt 0.7.23+
 jolt -A:test -m hegel.install
 
-# Babashka built from casselc/babashka commit 26367edf...
+# Babashka 1.13.220+
 bb -m hegel.install
 
 # JVM Clojure on JDK 22+ (JDK 25 is the primary target)
@@ -437,11 +442,21 @@ jolt-hegel is in top-level `:deps`, no dependency alias is needed; otherwise
 make sure the consuming project's alias is active so the installer namespace is
 on the classpath.
 
-While the required Babashka FFI work is unreleased, use a binary built from
-`casselc/babashka` commit
-`26367edf91905eb85c68e6fd77f3e108a60dc651`, the exact revision built and
-tested by this repository's CI. JVM Clojure uses `java.lang.foreign` directly
-and therefore requires JDK 22 or later.
+Babashka 1.13.220 is the minimum supported release, but the runtime build must
+include libffi and dynamic-library loading. On Linux, install the ordinary
+`babashka-<version>-linux-<arch>.tar.gz` asset, not the `-static` asset. Confirm
+that `bb describe` reports a non-nil `:libffi/version`; jolt-hegel performs the
+same capability check before looking for libhegel and reports an unsupported
+runtime build separately from a missing native library.
+
+The 1.13.220 release embeds
+`babashka.ffi` commit `aacb153618bc39ca1e4c397b8f30fb81c76d0c4c`.
+JVM Clojure pins the same source commit through this repository's `:jvm`
+development alias and requires JDK 22 or later with
+`--enable-native-access=ALL-UNNAMED`. Because dependency aliases do not
+propagate, JVM consumers must add that `io.github.babashka/ffi` Git dependency
+beside jolt-hegel; Babashka consumers must not add it because the namespace is
+built into the runtime.
 
 Environment overrides:
 
@@ -469,7 +484,7 @@ The native ABI is data, so it can be inspected without loading libhegel:
 
 After the selected backend initializes, `(abi/backend-report)` returns
 structured per-function coverage and routing. Routes identify Jolt direct FFI,
-Babashka's compiled trampoline or libffi fallback, JVM FFM, generated jank
+Babashka's compiled trampoline or libffi fallback, upstream-library JVM FFM, generated jank
 interop, or generated CLR P/Invoke. Ordinary property code does not need to
 select a backend.
 

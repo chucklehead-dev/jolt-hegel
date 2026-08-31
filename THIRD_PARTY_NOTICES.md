@@ -5,6 +5,16 @@ distribution. The Clojure-family host is user-provided. The native installer
 downloads libhegel directly from Hegel's official GitHub release and stores it
 in a local cache.
 
+## babashka.ffi
+
+Source: <https://github.com/babashka/ffi>
+
+MIT License, Copyright (c) 2026 Michiel Borkent.
+
+JVM Clojure resolves this library as a source dependency. Babashka embeds the
+same namespace in its runtime. See the upstream repository for the complete
+license text.
+
 ## hegel-clj
 
 Source: <https://github.com/aphyr/hegel-clj>

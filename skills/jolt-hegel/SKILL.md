@@ -13,7 +13,7 @@ jank and ClojureCLR implementations are merged but experimental. Do not select
 one for a consumer merely because its source branch exists: first read
 `docs/JANK.md` or `docs/CLR.md` and confirm the project accepts the focused
 suite, packaging, and platform limitations. The supported release contract is
-Jolt, the pinned Babashka fork, and JVM Clojure.
+Jolt, an FFI-capable Babashka 1.13.220 or later build, and JVM Clojure.
 
 Read [references/api.md](references/api.md) before writing tests. It lists the
 exact supported generators, options, result keys, Malli subset, and stateful
@@ -44,7 +44,7 @@ dependency when running the installer.
 # Jolt 0.7.23+
 jolt -A:test -m hegel.install
 
-# Babashka; build casselc/babashka at the exact project pin while FFI is unreleased
+# Babashka 1.13.220+ with libffi (on Linux, do not use the -static asset)
 bb -m hegel.install
 
 # JVM Clojure, JDK 22+
@@ -53,10 +53,14 @@ clojure -J--enable-native-access=ALL-UNNAMED -M:test -m hegel.install
 
 The direct Babashka command assumes the pin is in top-level `:deps` in
 `bb.edn`, or otherwise on Babashka's classpath. Activate the consuming
-project's alias when it is alias-scoped. This repository currently pins
-`casselc/babashka` at
-`26367edf91905eb85c68e6fd77f3e108a60dc651`; do not substitute upstream
-Babashka until the required FFI contract is released there.
+project's alias when it is alias-scoped. Babashka 1.13.220 embeds the upstream
+FFI library. The standalone JVM dependency is pinned to the same embedded
+`babashka/ffi` commit, `aacb153618bc39ca1e4c397b8f30fb81c76d0c4c`.
+It lives in this repository's `:jvm` alias so Babashka consumers do not fetch a
+duplicate copy. Dependency aliases do not propagate, so JVM consumers must add
+that FFI dependency beside jolt-hegel. Babashka consumers must use a build whose
+`bb describe` output has a non-nil `:libffi/version`; the Linux `-static`
+release asset cannot load libhegel or pass its by-value aggregate signatures.
 
 Use the project's selected executable, not a convenient global binary. For
 Jolt, keep `JOLT_CACHE_DIR` writable and key it by the dependency SHA when a
@@ -67,7 +71,9 @@ checksum or runtime ABI-version checks.
 If native loading fails, inspect `(hegel.abi/backend-report)` after backend
 initialization. It reports coverage and routes such as `:jolt/direct`,
 `:bb/trampoline`, `:bb/libffi`, `:jvm/ffm`, `:jank/generated`, and
-`:clr/generated-pinvoke`. Property code must not branch on those routes.
+`:clr/generated-pinvoke`. Property code must not branch on those routes. An
+unsupported Babashka build is diagnosed before the configured libhegel path is
+checked, so do not treat that error as a missing native dependency.
 
 ## Write reliable properties
 

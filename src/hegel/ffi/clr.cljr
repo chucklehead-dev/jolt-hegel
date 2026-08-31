@@ -179,6 +179,7 @@
       (throw (ex-info "CLR libhegel bindings are not loaded"
                       {:function function-id}))))
 
+(defn with-native-scope [call] (call))
 (defn alloc [size] (bridge-call "Alloc" (ulong size)))
 (defn free [pointer] (bridge-call "Free" pointer) nil)
 
@@ -252,3 +253,5 @@
     (write-value pointer type offset value)
     (throw (ex-info "unknown struct field path"
                     {:path path :layout (:type layout-info)}))))
+
+(defn by-value [pointer _layout] pointer)

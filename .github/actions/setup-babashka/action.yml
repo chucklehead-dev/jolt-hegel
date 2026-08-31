@@ -1,0 +1,86 @@
+name: Setup FFI-capable Babashka
+description: Install a checksum-pinned official Babashka build and verify libffi
+
+inputs:
+  version:
+    description: Babashka release version without the v prefix
+    required: true
+  asset:
+    description: Babashka release asset filename
+    required: true
+  sha256:
+    description: Expected SHA-256 for the release asset
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Install Babashka (POSIX)
+      if: runner.os != 'Windows'
+      shell: bash
+      env:
+        BB_SETUP_VERSION: ${{ inputs.version }}
+        BB_SETUP_ASSET: ${{ inputs.asset }}
+        BB_SETUP_SHA256: ${{ inputs.sha256 }}
+      run: |
+        set -euo pipefail
+        archive="$RUNNER_TEMP/$BB_SETUP_ASSET"
+        install_dir="$RUNNER_TEMP/babashka"
+        curl --retry 3 --retry-delay 2 --retry-all-errors -fsSL \
+          "https://github.com/babashka/babashka/releases/download/v$BB_SETUP_VERSION/$BB_SETUP_ASSET" \
+          -o "$archive"
+        if [[ "$RUNNER_OS" == "macOS" ]]; then
+          actual="$(shasum -a 256 "$archive" | awk '{print $1}')"
+        else
+          actual="$(sha256sum "$archive" | awk '{print $1}')"
+        fi
+        if [[ "$actual" != "$BB_SETUP_SHA256" ]]; then
+          echo "Babashka SHA-256 mismatch: expected $BB_SETUP_SHA256, got $actual" >&2
+          exit 1
+        fi
+        mkdir -p "$install_dir"
+        tar -xzf "$archive" -C "$install_dir"
+        chmod +x "$install_dir/bb"
+        echo "$install_dir" >> "$GITHUB_PATH"
+
+    - name: Install Babashka (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      env:
+        BB_SETUP_VERSION: ${{ inputs.version }}
+        BB_SETUP_ASSET: ${{ inputs.asset }}
+        BB_SETUP_SHA256: ${{ inputs.sha256 }}
+      run: |
+        $ErrorActionPreference = 'Stop'
+        $archive = Join-Path $env:RUNNER_TEMP $env:BB_SETUP_ASSET
+        $installDir = Join-Path $env:RUNNER_TEMP 'babashka'
+        $url = "https://github.com/babashka/babashka/releases/download/v$env:BB_SETUP_VERSION/$env:BB_SETUP_ASSET"
+        for ($attempt = 1; $attempt -le 3; $attempt++) {
+          try {
+            Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $archive
+            break
+          } catch {
+            Remove-Item -Force -ErrorAction SilentlyContinue $archive
+            if ($attempt -eq 3) { throw }
+            Start-Sleep -Seconds (2 * $attempt)
+          }
+        }
+        $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $archive).Hash.ToLowerInvariant()
+        if ($actual -ne $env:BB_SETUP_SHA256) {
+          throw "Babashka SHA-256 mismatch: expected $env:BB_SETUP_SHA256, got $actual"
+        }
+        Expand-Archive -LiteralPath $archive -DestinationPath $installDir
+        $installDir | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+    - name: Verify Babashka and required libffi route
+      shell: bash
+      env:
+        BB_SETUP_VERSION: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+        test "$(bb --version)" = "babashka v$BB_SETUP_VERSION"
+        bb -e '(require (quote [babashka.ffi :as ffi]))
+               (let [binding (ffi/cfn "abs" (vec (repeat 11 :int)) :int)]
+                 (when-not (= :libffi (:babashka.ffi/backend (meta binding)))
+                   (throw (ex-info "Babashka did not select libffi"
+                                   {:backend (:babashka.ffi/backend (meta binding))}))))'

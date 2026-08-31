@@ -49,8 +49,9 @@ backend selection.
   diagnostics.
 - JVM native memory uses explicit arena-backed ownership matching the common
   lifecycle; garbage collection is not the release protocol.
-- Babashka FFI gaps are fixed generally in the Babashka fork with independent
-  tests and documentation, never with libhegel symbol special cases.
+- Babashka FFI gaps are fixed generally in upstream `babashka/ffi` with
+  independent tests and documentation, never with libhegel symbol special
+  cases. Babashka and JVM Clojure share that public adapter.
 - CI must cover host and operating-system combinations independently so a pass
   on one ABI does not imply another.
 - Malli remains an optional consumer dependency and may be limited only where

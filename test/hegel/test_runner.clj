@@ -1,9 +1,11 @@
 (ns hegel.test-runner
   (:require [clojure.string :as str]
             [clojure.test :as t]
+            [hegel.abi :as abi]
             [hegel.clojure-test :as ht]
             [hegel.core :as h]
             [hegel.ffi :as hffi]
+            [hegel.ffi.backend :as ffi-backend]
             [hegel.generator :as g]
             [hegel.history :as hhistory]
             [hegel.host :as host]
@@ -271,6 +273,99 @@
     (check "a new run succeeds after failed-run cleanup" (:passed? result))
     (check "loaded libhegel matches the bound ABI"
            (= hffi/libhegel-version (hffi/version)))))
+
+(defn upstream-babashka-ffi-adapter []
+  (let [report (abi/backend-report)
+        expected-route (case (host/runtime)
+                         :bb #{:bb/trampoline :bb/libffi :bb/ffm}
+                         :jvm #{:jvm/ffm}
+                         nil)]
+    (check "selected backend covers every canonical ABI function"
+           (= {:supported 77 :unsupported 0 :total 77}
+              (:summary report)))
+    (when expected-route
+      (check "babashka.ffi bindings report exact host call routes"
+             (every? expected-route
+                     (map :route (vals (:functions report)))))))
+  (when (contains? #{:bb :jvm} (host/runtime))
+    (let [layout (ffi-backend/layout :hegel/datetime)
+          value {:date {:year 2024 :month 2 :day 29}
+                 :time {:hour 1 :minute 2 :second 3 :microsecond 4}}
+          escaped (atom nil)]
+      (check "upstream babashka.ffi uses canonical nested struct maps"
+             (= value
+                (ffi-backend/with-native-scope
+                 (fn []
+                   (let [pointer (ffi-backend/alloc
+                                  (ffi-backend/layout-size layout))]
+                     (reset! escaped pointer)
+                     (doseq [[path field-value]
+                             [[[:date :year] 2024]
+                              [[:date :month] 2]
+                              [[:date :day] 29]
+                              [[:time :hour] 1]
+                              [[:time :minute] 2]
+                              [[:time :second] 3]
+                              [[:time :microsecond] 4]]]
+                       (ffi-backend/write-field pointer layout path field-value))
+                     (ffi-backend/by-value pointer layout))))))
+      (check "length-delimited UTF-8 preserves embedded NUL bytes"
+             (ffi-backend/with-native-scope
+              (fn []
+                (let [value "a\u0000😀z"
+                      pointer (ffi-backend/string->native value)
+                      length (ffi-backend/write-utf8 pointer value)]
+                  (and (= 7 length)
+                       (= value (ffi-backend/read-utf8 pointer length)))))))
+      (check "arena-scoped pointers cannot be read after lexical release"
+             (try
+               (ffi-backend/read-value @escaped :uint8)
+               false
+               (catch Throwable _ true)))))
+  (when (contains? #{:bb :jvm} (host/runtime))
+    (let [cfn-var (ns-resolve 'babashka.ffi 'cfn)
+          make-binding-var (ns-resolve 'hegel.ffi.babashka 'make-binding)
+          raw-calls (atom [])
+          raw (fn [& values]
+                (swap! raw-calls conj values)
+                :called)
+          function {:symbol "hegel_arity_probe"
+                    :args [:c/uint64]
+                    :return :c/int32}
+          binding (with-redefs-fn
+                    {cfn-var (fn [& _] raw)}
+                    #(make-binding-var :library function {:types {}}))
+          extra-error (try
+                        (binding 1 2)
+                        nil
+                        (catch Throwable error error))]
+      (check "unsigned coercion preserves exact native binding arity"
+             (and extra-error
+                  (= :hegel.ffi.babashka/wrong-arity
+                     (:type (ex-data extra-error)))
+                  (= {:symbol "hegel_arity_probe" :expected 1 :actual 2}
+                     (select-keys (ex-data extra-error)
+                                  [:symbol :expected :actual]))
+                  (empty? @raw-calls)))
+      (check "unsigned coercion forwards an exact-arity call"
+             (and (= :called (binding 1))
+                  (= [[1]] @raw-calls)))))
+  (when (= :bb (host/runtime))
+    (let [cfn-var (ns-resolve 'babashka.ffi 'cfn)
+          preflight-var (ns-resolve 'hegel.ffi.babashka
+                                    'ensure-runtime-capable!)
+          error (with-redefs-fn
+                  {cfn-var (fn [& _]
+                             (throw (ex-info "this build has no libffi" {})))}
+                  #(try
+                     (preflight-var)
+                     nil
+                     (catch Throwable error error)))]
+      (check "Babashka capability failure precedes libhegel path lookup"
+             (and (= :hegel.ffi/unsupported-runtime-build
+                     (:type (ex-data error)))
+                  (= :libffi (:required-capability (ex-data error)))
+                  (str/includes? (ex-message error) "not the -static asset"))))))
 
 (defn installer-source-identity []
   (check "installer recognizes POSIX and Windows absolute paths"
@@ -2382,6 +2477,7 @@
   (scenario "engine nondeterminism" engine-nondeterminism)
   (scenario "framework-less counting reporting" counting-reporting)
   (scenario "cleanup and ABI version" cleanup-and-version)
+  (scenario "upstream babashka.ffi adapter" upstream-babashka-ffi-adapter)
   (scenario "installer source identity" installer-source-identity)
   (scenario "generated seed" generated-seed)
   (scenario "controls and sample" controls-and-sample)

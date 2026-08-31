@@ -2,13 +2,14 @@
   "Selected runtime implementation of the small native boundary."
   (:require #?(:cljr [hegel.ffi.clr :as impl]
                :jolt [hegel.ffi.jolt :as impl]
-               :bb [hegel.ffi.bb :as impl]
+               :bb [hegel.ffi.babashka :as impl]
                :jank [hegel.ffi.jank-backend :as impl]
-               :clj [hegel.ffi.jvm :as impl])))
+               :clj [hegel.ffi.babashka :as impl])))
 
 (defn load! [library-path] (impl/load! library-path))
 (defn function [function-id] (impl/function function-id))
 (defn layout [type-id] (impl/layout type-id))
+(defn with-native-scope [call] (impl/with-native-scope call))
 
 (def null impl/null)
 (defn null? [pointer] (impl/null? pointer))
@@ -30,3 +31,4 @@
 (defn read-field [pointer layout path] (impl/read-field pointer layout path))
 (defn write-field [pointer layout path value]
   (impl/write-field pointer layout path value))
+(defn by-value [pointer layout] (impl/by-value pointer layout))

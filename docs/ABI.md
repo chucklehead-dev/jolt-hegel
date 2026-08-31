@@ -131,7 +131,7 @@ registered by the selected runtime. Current route names are:
 | `:jolt/direct` | direct `jolt.ffi` binding |
 | `:bb/trampoline` | Babashka's compiled fixed-signature fast path |
 | `:bb/libffi` | Babashka's general fixed-signature libffi path |
-| `:jvm/ffm` | cached JDK FFM downcall handle |
+| `:jvm/ffm` | upstream `babashka.ffi` JDK FFM downcall handle |
 | `:jank/generated` | generated jank C++ interop downcall |
 | `:clr/generated-pinvoke` | generated C# P/Invoke downcall |
 
@@ -152,14 +152,16 @@ All backends consume the function map; there are no hand-maintained per-host
 symbol lists.
 
 The Jolt backend translates type forms to `jolt.ffi` descriptions and builds a
-foreign function once. The Babashka backend translates to `babashka.ffi`, which
-selects its trampoline or libffi path per signature. The JVM backend builds a
-`FunctionDescriptor`, resolves the symbol through the selected library's
-`SymbolLookup`, and caches its downcall `MethodHandle`.
+foreign function once. One shared Babashka/JVM adapter translates to upstream
+`babashka.ffi`, which selects a compiled trampoline, libffi, or JVM FFM path per
+signature. Aggregate layouts become the field maps required for by-value calls;
+field places and bulk byte operations use the upstream public API.
 
 Native memory operations deliberately live outside the EDN. They implement the
 small boundary needed by the common wrapper: allocation and release, scalar
-and field access, byte ranges, and UTF-8 conversion.
+and field access, byte ranges, and UTF-8 conversion. Babashka and JVM calls use
+lexical arenas; length-delimited UTF-8 is copied with its explicit byte count,
+so embedded NUL bytes are not interpreted as terminators.
 
 Experimental generated hosts also consume this model. `bb jank-codegen-check`
 and `bb clr-codegen-check` fail when their checked-in build artifacts differ
