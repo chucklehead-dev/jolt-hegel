@@ -1794,10 +1794,75 @@
           :form 'string?
           :type :hegel.malli/unsupported-schema
           :path []}
-         {:description "rejects references"
+         {:description "rejects nonrecursive references"
           :form [:ref {:registry {::node :int}} ::node]
           :type :hegel.malli/unsupported-schema
-          :path []}
+          :path [:registry ::node]}
+         {:description "rejects properties on a direct recursive reference"
+          :form [:ref
+                 {:registry {::node [:or :nil [:vector [:ref ::node]]]}
+                  :title "node"}
+                 ::node]
+          :type :hegel.malli/unsupported-property
+          :path [:properties :title]}
+         {:description "rejects properties on an outer recursive schema"
+          :form [:schema
+                 {:registry {::node [:or :nil [:vector [:ref ::node]]]}
+                  :title "node"}
+                 [:ref ::node]]
+          :type :hegel.malli/unsupported-property
+          :path [:properties :title]}
+         {:description "rejects properties on a recursive schema's root reference"
+          :form [:schema
+                 {:registry {::node [:or :nil [:vector [:ref ::node]]]}}
+                 [:ref {:title "node"} ::node]]
+          :type :hegel.malli/unsupported-property
+          :path [:child :properties :title]}
+         {:description "rejects properties on a recursive definition root"
+          :form [:schema
+                 {:registry
+                  {::node
+                   [:or {:title "node"} :nil [:vector [:ref ::node]]]}}
+                 [:ref ::node]]
+          :type :hegel.malli/unsupported-property
+          :path [:registry ::node :properties :title]}
+         {:description "rejects mutually recursive registries"
+          :form [:schema
+                 {:registry
+                  {::left [:or :nil [:ref ::right]]
+                   ::right [:or :nil [:ref ::left]]}}
+                 [:ref ::left]]
+          :type :hegel.malli/unsupported-schema
+          :path [:registry]}
+         {:description "rejects recursive definitions without a base branch"
+          :form [:schema
+                 {:registry {::node [:or [:vector [:ref ::node]]]}}
+                 [:ref ::node]]
+          :type :hegel.malli/unsupported-schema
+          :path [:registry ::node]}
+         {:description "rejects recursive declarations without a recursive branch"
+          :form [:schema
+                 {:registry {::node [:or :nil :int]}}
+                 [:ref ::node]]
+          :type :hegel.malli/unsupported-schema
+          :path [:registry ::node]}
+         {:description "rejects recursive definitions whose root is not :or"
+          :form [:schema
+                 {:registry {::node [:vector [:ref ::node]]}}
+                 [:ref ::node]]
+          :type :hegel.malli/unsupported-schema
+          :path [:registry ::node]}
+         {:description "rejects references outside the active recursive definition"
+          :form [:schema
+                 {:registry
+                  {::node
+                   [:or
+                    :nil
+                    [:ref {:registry {::foreign :int}} ::foreign]
+                    [:vector [:ref ::node]]]}}
+                 [:ref ::node]]
+          :type :hegel.malli/unsupported-schema
+          :path [:registry ::node :children 1]}
          {:description "rejects custom generator properties"
           :form [:vector [:string {:gen/elements ["x"]}]]
           :type :hegel.malli/unsupported-property
@@ -1865,6 +1930,15 @@
     (check "rejects adapter fallback outside Hegel's uint64 domain"
            (= {:type :hegel.malli/invalid-config
                :path [:config :default-max-size]
+               :form form}
+              (select-keys (ex-data error) [:type :path :form]))))
+  (let [form [:schema
+              {:registry {::node [:or :nil [:vector [:ref ::node]]]}}
+              [:ref ::node]]
+        error (caught-error #(hm/generator form {:max-depth -1}))]
+    (check "rejects recursive bounds outside Hegel's uint64 domain"
+           (= {:type :hegel.malli/invalid-config
+               :path [:config :max-depth]
                :form form}
               (select-keys (ex-data error) [:type :path :form])))))
 
@@ -1959,7 +2033,55 @@
     (check "retains native Hegel shrinking through the Malli adapter"
            (and (not (:passed? result))
                 (= [10] @final-values)
-                (= 10 (-> result :final first :exception ex-data :value))))))
+                (= 10 (-> result :final first :exception ex-data :value)))))
+  (let [schema
+        [:schema
+         {:registry
+          {::tree
+           [:or
+            [:= :leaf]
+            [:tuple [:= :node] [:ref ::tree] [:ref ::tree]]]}}
+         [:ref ::tree]]
+        valid? (m/validator schema)
+        leaf-only (hm/generator schema {:max-depth 0 :max-leaves 1})
+        leaf-budgeted (hm/generator schema {:max-depth 5 :max-leaves 1})
+        recursive (hm/generator schema {:max-depth 5 :max-leaves 64})
+        nested? (atom false)
+        leaf-result
+        (h/run-test!
+         {:test-cases 25 :seed 20260831 :database "" :verbosity :quiet}
+         (fn [_]
+           (let [value (h/draw! leaf-only)]
+             (when-not (= :leaf value)
+               (throw (ex-info "zero-depth recursive Malli value was not a leaf"
+                               {:hegel/origin
+                                "hegel.test-runner:malli-recursive-depth"}))))))
+        leaf-budget-result
+        (h/run-test!
+         {:test-cases 100 :seed 20260833 :database "" :verbosity :quiet}
+         (fn [_]
+           (let [value (h/draw! leaf-budgeted)]
+             (when-not (= :leaf value)
+               (throw (ex-info "recursive Malli leaf budget was exceeded"
+                               {:hegel/origin
+                                "hegel.test-runner:malli-recursive-leaves"}))))))
+        recursive-result
+        (h/run-test!
+         {:test-cases 200 :seed 20260832 :database "" :verbosity :quiet}
+         (fn [_]
+           (let [value (h/draw! recursive)]
+             (when (vector? value)
+               (reset! nested? true))
+             (when-not (valid? value)
+               (throw (ex-info "recursive Malli value was invalid"
+                               {:hegel/origin
+                                "hegel.test-runner:malli-recursive-validity"}))))))]
+    (check "maps a recursive Malli registry to native recursive generation"
+           (and (:passed? leaf-result)
+                (:passed? recursive-result)
+                @nested?))
+    (check "passes Malli :max-leaves through to native recursive generation"
+           (:passed? leaf-budget-result))))
 (defn semantic-trace-rules []
   (let [events [{:seq 1 :operation-id 1 :parent-operation-id nil
                  :phase :enter :role :agent/run}
