@@ -35,6 +35,15 @@ FFI-capable Babashka, and JVM Clojure. Consumer Git dependencies should pin the
 tag's full peeled commit SHA, not the tag-object SHA or a moving branch
 reference.
 
+## Acknowledgments
+
+The original jolt-hegel design and implementation were based in part on Kyle
+Kingsbury (Aphyr)'s [hegel-clj](https://github.com/aphyr/hegel-clj), including its
+imperative generator style, `run-test!` and `clojure.test` integration, and
+final-replay diagnostics. The project also builds on upstream Hegel and its
+libhegel engine. jolt-hegel remains an independent Clojure-family library with
+one public behavior across its supported hosts.
+
 ## What should be a property?
 
 Property tests are most useful when many inputs should obey one durable rule:
@@ -216,114 +225,6 @@ must reuse. A pool lets libhegel track and shrink that dependency:
 An empty-pool draw skips a stateful rule. Pools belong to one generated case;
 never retain one between cases.
 
-## Trace rules for aspect and event journals
-
-`hegel.trace` checks a complete, bounded semantic event trace after a generated
-action or state-machine checkpoint. The event producer is not coupled to
-Hegel: a compiler-aspect journal, protocol harness, or ordinary application log
-can supply the vector. When a rule fails, its stable origin and bounded events
-become part of Hegel's failure, so the input or command sequence which produced
-the trace is shrunk normally.
-
-```clojure
-(require '[hegel.trace :as ht])
-
-(ht/check!
- (journal/snapshot observations)
- [(ht/ordered-sequence :partition-cursors-increase
-                       {:value :cursor :scope :partition
-                        :order :strictly-increasing})
-  (ht/contiguous-sequence :journal-not-truncated)
-  (ht/closed-lifecycles :aspect-lifecycles-close)
-  (ht/causal-parentage :aspect-parent-invoked-first)
-  (ht/causal-links :aspect-causal-fan-in)
-  (ht/context-coherence :aspect-context-coherent)
-  (ht/every-eventually
-   :model-call-terminates
-   #(and (= :agent/model (:role %)) (= :enter (:phase %)))
-   #(contains? #{:return :throw} (:phase %)))])
-```
-
-Run these checks outside instrumentation advice. Jolt aspects deliberately fail
-open when advice throws, so an assertion inside advice can be swallowed while
-the application correctly proceeds. Also reject wrapped ring-journal snapshots:
-`contiguous-sequence` detects a missing prefix, while `:max-events` on `check!`
-keeps failure evidence bounded.
-
-Sequence order is explicit: `:nondecreasing` permits duplicates and gaps,
-`:strictly-increasing` permits gaps but not duplicates, and `:contiguous`
-requires increments of exactly one. `:scope` checks independent cursors or
-partitions without imposing a global order on their interleaving.
-
-For canonical async histories emitted by jolt-aspect-packs, compose
-`contiguous-sequence`, `closed-lifecycles`, `causal-parentage`, `causal-links`,
-and `context-coherence`. Causal parentage requires the parent's invocation to
-precede the child's invocation, but permits the parent to terminate before the
-child. `causal-links` validates additional fan-in dependencies as a sorted,
-unique vector of operation ids which each name exactly one earlier invocation;
-use an empty vector when there is no fan-in. Canonical linked operation ids are
-portable scalars—integers, strings, keywords, or symbols—not composite EDN or
-opaque host values. Every invocation id in a history checked by this rule uses
-that same portable domain, including invocations with no links. Context
-coherence compares
-invocation carrier metadata; terminal events do not repeat `:context-id` or
-`:causal-links`. Use `synchronous-parentage` only when child
-lifecycles must be wholly nested in the parent's dynamic extent. For filtered
-views whose omitted events legitimately create sequence gaps, use
-`ordered-sequence` with `:order :strictly-increasing` instead of continuity.
-
-For richer protocols, `event-model` folds each event through a tiny pure state
-machine and checks an invariant after every transition plus a final predicate.
-Its optional `:scope` makes the same model independently check file
-descriptors, buffer loans, requests, spans, DB handles, or queue partitions.
-This covers linear resource lifecycles without coupling the journal producer to
-Hegel.
-
-## Bounded linearizability
-
-`hegel.history` checks complete concurrent operation histories against a pure
-sequential model. Unlike `hegel.trace/event-model`, it preserves real-time
-precedence but explores alternate orders for overlapping operations. This is
-useful for atoms, promises, channels, connection lifecycles, pollers, and other
-APIs whose legal observation order is not necessarily invocation order.
-
-```clojure
-(require '[hegel.history :as history])
-
-(defn register-step [state operation]
-  (case (:operation operation)
-    :write (when (= :ok (:value operation))
-             {:state (:input operation)})
-    :read  (when (= state (:value operation))
-             {:state state})
-    nil))
-
-(history/check!
- 0
- register-step
- [{:seq 0 :operation-id :write :phase :invoke
-   :operation :write :input 1}
-  {:seq 1 :operation-id :read :phase :invoke :operation :read}
-  {:seq 2 :operation-id :write :phase :return :value :ok}
-  {:seq 3 :operation-id :read :phase :return :value 0}])
-;; => {:order [:read :write], :final-state 1, ...}
-```
-
-Each operation has exactly one `:invoke` and one `:return` or `:throw` terminal.
-Sequence numbers must be integer, unique, contiguous, and in vector order.
-`check!` returns a witness or throws with a stable `:hegel/origin` and bounded
-history evidence. `linearization` returns the witness or nil, while
-`linearizable?` returns a boolean. The sequential step returns nil for an
-illegal observation or `{:state next-state}` for a legal one.
-
-The checker defaults to at most ten total operations because its exhaustive
-search is exponential. `:partition-by` can split independent keys into their
-own model instances, and `:sequence-start` can require a particular first
-sequence number. `hegel.history/rule` creates a rule accepted by
-`hegel.trace/check!`, so linearizability can be checked beside lifecycle and
-parentage rules. Incomplete histories are rejected; callers must snapshot only
-after all generated operations have terminated.
-
 ## Generators
 
 The built-in surface covers:
@@ -369,7 +270,7 @@ The exact constructors and options are documented in the bundled
 
 Malli is not a runtime dependency. If the consuming project already uses
 Malli, `hegel.malli/generator` can derive a native Hegel generator for the
-adapter's bounded, nonrecursive schema subset:
+adapter's bounded schema subset, including a single self-recursive registry:
 
 ```clojure
 (require '[hegel.malli :as hm])
@@ -381,6 +282,26 @@ adapter's bounded, nonrecursive schema subset:
     [:query [:string {:min 1 :max 120}]]
     [:limit {:optional true} [:int {:min 1 :max 100}]]]))
 ```
+
+A recursive definition must be one registry entry whose root is `:or`, with
+at least one nonrecursive base branch and one self-referencing branch:
+
+```clojure
+(def tree-generator
+  (hm/generator
+   [:schema
+    {:registry
+     {::tree
+      [:or
+       [:= :leaf]
+       [:tuple [:= :node] [:ref ::tree] [:ref ::tree]]]}}
+    [:ref ::tree]]
+   {:max-depth 8 :max-leaves 64}))
+```
+
+This delegates depth, leaf-budget, retry, and subtree-hoisting shrink behavior
+to `g/recursive`. Mutual recursion, multiple registry entries, and references
+outside the active recursive definition remain unsupported.
 
 Add Malli to the test alias yourself. Unsupported schemas fail when the
 generator is built rather than silently falling back to a different generator.
@@ -488,6 +409,123 @@ Babashka's compiled trampoline or libffi fallback, upstream-library JVM FFM, gen
 interop, or generated CLR P/Invoke. Ordinary property code does not need to
 select a backend.
 
+## Experimental additional features
+
+The trace and history APIs below are portable library code and run on supported
+Jolt, Babashka, and JVM Clojure releases. Neither API requires a forked Jolt
+compiler or runtime. Only the optional producer which captures events from
+Jolt compiler aspects currently requires an aspect-enabled Jolt fork;
+protocol harnesses, explicit journals, application logs, and other producers
+can supply the same event vectors on an unmodified runtime.
+
+These APIs are experimental because their event and model contracts are still
+being exercised across the wider Jolt ecosystem. Their checks and failure
+evidence are covered by the shared jolt-hegel semantic suite.
+
+### Trace rules for aspect and event journals
+
+`hegel.trace` checks a complete, bounded semantic event trace after a generated
+action or state-machine checkpoint. The event producer is not coupled to
+Hegel. When a rule fails, its stable origin and bounded events become part of
+Hegel's failure, so the input or command sequence which produced the trace is
+shrunk normally.
+
+```clojure
+(require '[hegel.trace :as ht])
+
+(ht/check!
+ (journal/snapshot observations)
+ [(ht/ordered-sequence :partition-cursors-increase
+                       {:value :cursor :scope :partition
+                        :order :strictly-increasing})
+  (ht/contiguous-sequence :journal-not-truncated)
+  (ht/closed-lifecycles :aspect-lifecycles-close)
+  (ht/causal-parentage :aspect-parent-invoked-first)
+  (ht/causal-links :aspect-causal-fan-in)
+  (ht/context-coherence :aspect-context-coherent)
+  (ht/every-eventually
+   :model-call-terminates
+   #(and (= :agent/model (:role %)) (= :enter (:phase %)))
+   #(contains? #{:return :throw} (:phase %)))])
+```
+
+Run these checks outside instrumentation advice. Jolt aspects deliberately fail
+open when advice throws, so an assertion inside advice can be swallowed while
+the application correctly proceeds. Also reject wrapped ring-journal snapshots:
+`contiguous-sequence` detects a missing prefix, while `:max-events` on `check!`
+keeps failure evidence bounded.
+
+Sequence order is explicit: `:nondecreasing` permits duplicates and gaps,
+`:strictly-increasing` permits gaps but not duplicates, and `:contiguous`
+requires increments of exactly one. `:scope` checks independent cursors or
+partitions without imposing a global order on their interleaving.
+
+For canonical async histories emitted by jolt-aspect-packs, compose
+`contiguous-sequence`, `closed-lifecycles`, `causal-parentage`, `causal-links`,
+and `context-coherence`. Causal parentage requires the parent's invocation to
+precede the child's invocation, but permits the parent to terminate before the
+child. `causal-links` validates additional fan-in dependencies as a sorted,
+unique vector of operation ids which each name exactly one earlier invocation;
+use an empty vector when there is no fan-in. Canonical linked operation ids are
+portable scalars—integers, strings, keywords, or symbols—not composite EDN or
+opaque host values. Every invocation id in a history checked by this rule uses
+that same portable domain, including invocations with no links. Context
+coherence compares invocation carrier metadata; terminal events do not repeat
+`:context-id` or `:causal-links`. Use `synchronous-parentage` only when child
+lifecycles must be wholly nested in the parent's dynamic extent. For filtered
+views whose omitted events legitimately create sequence gaps, use
+`ordered-sequence` with `:order :strictly-increasing` instead of continuity.
+
+For richer protocols, `event-model` folds each event through a tiny pure state
+machine and checks an invariant after every transition plus a final predicate.
+Its optional `:scope` makes the same model independently check file
+descriptors, buffer loans, requests, spans, DB handles, or queue partitions.
+
+### Bounded linearizability
+
+`hegel.history` checks complete concurrent operation histories against a pure
+sequential model. Unlike `hegel.trace/event-model`, it preserves real-time
+precedence but explores alternate orders for overlapping operations. This is
+useful for atoms, promises, channels, connection lifecycles, pollers, and other
+APIs whose legal observation order is not necessarily invocation order.
+
+```clojure
+(require '[hegel.history :as history])
+
+(defn register-step [state operation]
+  (case (:operation operation)
+    :write (when (= :ok (:value operation))
+             {:state (:input operation)})
+    :read  (when (= state (:value operation))
+             {:state state})
+    nil))
+
+(history/check!
+ 0
+ register-step
+ [{:seq 0 :operation-id :write :phase :invoke
+   :operation :write :input 1}
+  {:seq 1 :operation-id :read :phase :invoke :operation :read}
+  {:seq 2 :operation-id :write :phase :return :value :ok}
+  {:seq 3 :operation-id :read :phase :return :value 0}])
+;; => {:order [:read :write], :final-state 1, ...}
+```
+
+Each operation has exactly one `:invoke` and one `:return` or `:throw` terminal.
+Sequence numbers must be integer, unique, contiguous, and in vector order.
+`check!` returns a witness or throws with a stable `:hegel/origin` and bounded
+history evidence. `linearization` returns the witness or nil, while
+`linearizable?` returns a boolean. The sequential step returns nil for an
+illegal observation or `{:state next-state}` for a legal one.
+
+The checker defaults to at most ten total operations because its exhaustive
+search is exponential. `:partition-by` can split independent keys into their
+own model instances, and `:sequence-start` can require a particular first
+sequence number. `hegel.history/rule` creates a rule accepted by
+`hegel.trace/check!`, so linearizability can be checked beside lifecycle and
+parentage rules. Incomplete histories are rejected; callers must snapshot only
+after all generated operations have terminated.
+
 ## Development and design
 
 The repository gates the same semantic suite under all supported hosts. Start
@@ -504,15 +542,6 @@ live in:
 
 The repository also ships an [Agent Skill](skills/jolt-hegel/SKILL.md) for
 adding evidence-backed property and stateful tests to another project.
-
-## Acknowledgments
-
-The original jolt-hegel design and implementation were based in part on Kyle
-Kingsbury (Aphyr)'s [hegel-clj](https://github.com/aphyr/hegel-clj), including its
-imperative generator style, `run-test!` and `clojure.test` integration, and
-final-replay diagnostics. The project also builds on upstream Hegel and its
-libhegel engine. jolt-hegel remains an independent Clojure-family library with
-one public behavior across its supported hosts.
 
 ## License
 
