@@ -299,7 +299,9 @@
        :trace trace
        :step-number step-number})))
 
-(defn run!
+(defn ^{:jolt.aspects/id :hegel.stateful/run
+        :jolt.aspects/role :test/state-machine-run}
+  run!
   "Run an engine-managed state machine and return its final state.
 
   config requires :initial-state and a non-empty :rules collection created by
