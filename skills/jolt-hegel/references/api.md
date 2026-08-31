@@ -248,18 +248,40 @@ consumer alias. The adapter test suite uses Malli 0.20.1.
 Construct the generator once when practical, then draw from it only inside an
 active `run-test!` or `hegel.clojure-test/with` property.
 
-The nonrecursive v1 subset supports `:nil`, `:boolean`, `:int`, `:double`,
-`:string`, `:=`, `:enum`, `:maybe`, `:or`, `:tuple`, `:vector`, `:sequential`,
-`:set`, `:map-of`, and closed maps with explicit keys. Scalar and collection
+The bounded subset supports `:nil`, `:boolean`, `:int`, `:double`, `:string`,
+`:=`, `:enum`, `:maybe`, `:or`, `:tuple`, `:vector`, `:sequential`, `:set`,
+`:map-of`, and closed maps with explicit keys. Scalar and collection
 `:min`/`:max` properties become native Hegel bounds. An absent string or
 collection `:max` uses 100 as its fallback, raised to an explicit larger `:min`
 when necessary; pass `{:default-max-size n}` as the second argument to change
 that fallback.
 
-The adapter rejects unknown properties and config, references and recursion,
-regex schemas, intersections, predicates, functions, classes, transforms,
-custom generator properties, open maps, and default map entries at construction
-time. Exceptions carry stable `:type`, `:path`, and `:form` data. Every value is
+One directly self-recursive registry is also supported. Its root definition
+must be `:or` with at least one branch containing no self-reference and at
+least one branch containing `[:ref id]`:
+
+```clojure
+(hm/generator
+ [:schema
+  {:registry
+   {::tree
+    [:or
+     [:= :leaf]
+     [:tuple [:= :node] [:ref ::tree] [:ref ::tree]]]}}
+  [:ref ::tree]]
+ {:max-depth 8 :max-leaves 64})
+```
+
+The adapter maps that shape to `g/recursive`, preserving libhegel's native
+depth, leaf-budget, retry, and subtree-hoisting shrink semantics. `:max-depth`
+defaults to 32 and `:max-leaves` to 100; both are uint64 values and zero has the
+same meaning as for `g/recursive`.
+
+The adapter rejects unknown properties and config, other references, mutual
+recursion, multiple registry entries, recursive roots other than `:or`, regex
+schemas, intersections, predicates, functions, classes, transforms, custom
+generator properties, open maps, and default map entries at construction time.
+Exceptions carry stable `:type`, `:path`, and `:form` data. Every value is
 checked by a precompiled Malli validator through `g/fmap`; an invalid value is
 reported with `:hegel/origin "hegel.malli/generated-value"` and is an adapter
 bug, not an input rejection.
@@ -513,6 +535,12 @@ it rejects the generated case. Never retain a pool across test cases.
 property. It does not own the event producer. Use it with compiler-aspect
 journals, protocol harnesses, or application event logs, and call it only after
 the generated action or state-machine checkpoint has completed.
+
+The checker itself is portable and does not require a forked compiler or
+runtime. Capturing events from Jolt compiler aspects currently requires an
+aspect-enabled Jolt fork; explicit journals and other event producers work on
+an unmodified supported runtime. `hegel.trace` and `hegel.history` remain
+experimental while their contracts are exercised across more libraries.
 
 ```clojure
 (require '[hegel.trace :as ht])
