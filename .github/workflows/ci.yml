@@ -47,6 +47,51 @@ jobs:
       - name: Validate descriptor and JVM coverage without loading libhegel
         run: clojure -J--enable-native-access=ALL-UNNAMED -M:jvm:abi-test
 
+  bb-native-image:
+    # Preserve the historical required-check names while verifying the
+    # released Babashka runtime that replaced our temporary native-image fork.
+    name: Native image / ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux x86_64
+            runner: ubuntu-24.04
+            asset: babashka-1.13.220-linux-amd64.tar.gz
+            sha256: 5211ebf6267be2dbbf4857611cb01331b865bf6b0a8c9bc500c83a816df1a769
+          - name: Windows x86_64
+            runner: windows-2022
+            asset: babashka-1.13.220-windows-amd64.zip
+            sha256: baf87302db04377d44f10dd1cb5c29924fc418d5765dc149213e793be5de0e9e
+          - name: macOS arm64
+            runner: macos-14
+            asset: babashka-1.13.220-macos-aarch64.tar.gz
+            sha256: f7d18c3ab11bb4ad0e32a45c1ae40ae25911d5fa06ba4ded07cb90b8af158077
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Make Git for Windows libffi discoverable
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $mingw = Join-Path $env:ProgramFiles 'Git\mingw64\bin'
+          if (-not (Test-Path -LiteralPath (Join-Path $mingw 'libffi-8.dll'))) {
+            throw 'Git for Windows libffi-8.dll is required by Babashka FFI'
+          }
+          $mingw | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Verify official FFI-capable Babashka
+        uses: ./.github/actions/setup-babashka
+        with:
+          version: 1.13.220
+          asset: ${{ matrix.asset }}
+          sha256: ${{ matrix.sha256 }}
+
   runtime-test:
     name: ${{ matrix.runtime }} / ${{ matrix.name }}
     needs: abi-data
