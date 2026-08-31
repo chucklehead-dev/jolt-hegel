@@ -23,7 +23,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: DeLaGuardo/setup-clojure@13.4
+      - uses: DeLaGuardo/setup-clojure@13.5
         with:
           clj-kondo: latest
       - name: Lint portable source, scripts, and tests
@@ -41,7 +41,7 @@ jobs:
         with:
           distribution: temurin
           java-version: '25'
-      - uses: DeLaGuardo/setup-clojure@13.4
+      - uses: DeLaGuardo/setup-clojure@13.5
         with:
           cli: latest
       - name: Validate descriptor and JVM coverage without loading libhegel
@@ -204,7 +204,7 @@ jobs:
 
       - name: Set up Clojure CLI and official Babashka
         if: matrix.host == 'jvm'
-        uses: DeLaGuardo/setup-clojure@13.4
+        uses: DeLaGuardo/setup-clojure@13.5
         with:
           cli: latest
 
@@ -282,7 +282,7 @@ jobs:
         with:
           distribution: temurin
           java-version: '22'
-      - uses: DeLaGuardo/setup-clojure@13.4
+      - uses: DeLaGuardo/setup-clojure@13.5
         with:
           cli: latest
       - name: Install libhegel
