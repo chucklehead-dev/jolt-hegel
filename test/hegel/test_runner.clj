@@ -274,6 +274,20 @@
     (check "loaded libhegel matches the bound ABI"
            (= hffi/libhegel-version (hffi/version)))))
 
+(defn native-memory-roundtrip []
+  (check "native scalar writes preserve value-before-offset order"
+         (= [91 0]
+            (ffi-backend/with-native-scope
+             (fn []
+               (let [pointer (ffi-backend/alloc 128)]
+                 ;; Clear both observed offsets through the unchanged bulk API.
+                 ;; With the old Jolt call order, the scalar write stores 3 at
+                 ;; offset 91 instead of storing 91 at offset 3.
+                 (ffi-backend/write-array pointer (byte-array 128))
+                 (ffi-backend/write-value pointer :uint8 3 91)
+                 [(ffi-backend/read-value pointer :uint8 3)
+                  (ffi-backend/read-value pointer :uint8 91)]))))))
+
 (defn upstream-babashka-ffi-adapter []
   (let [report (abi/backend-report)
         expected-route (case (host/runtime)
@@ -2599,6 +2613,7 @@
   (scenario "engine nondeterminism" engine-nondeterminism)
   (scenario "framework-less counting reporting" counting-reporting)
   (scenario "cleanup and ABI version" cleanup-and-version)
+  (scenario "native memory roundtrip" native-memory-roundtrip)
   (scenario "upstream babashka.ffi adapter" upstream-babashka-ffi-adapter)
   (scenario "installer source identity" installer-source-identity)
   (scenario "generated seed" generated-seed)
