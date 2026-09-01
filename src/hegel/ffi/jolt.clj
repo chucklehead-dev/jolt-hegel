@@ -123,8 +123,27 @@
 (defn read-value
   ([pointer type] (ffi/read pointer type))
   ([pointer type offset] (ffi/read pointer type offset)))
+(def ^:private value-before-offset?
+  (delay
+    (let [pointer (ffi/alloc 3)]
+      (try
+        (ffi/write-array pointer (byte-array 3))
+        ;; Jolt 0.7 accepted (pointer type offset value), while 0.8 aligns
+        ;; with babashka.ffi's (pointer type value offset). Both arguments are
+        ;; valid as either an offset or a value, so this probe is bounds-safe.
+        (ffi/write pointer :uint8 1 2)
+        (case [(ffi/read pointer :uint8 1)
+               (ffi/read pointer :uint8 2)]
+          [2 0] false
+          [0 1] true
+          (throw (ex-info "unsupported jolt.ffi/write argument order"
+                          {:runtime-version (System/getProperty "jolt.version")})))
+        (finally
+          (ffi/free pointer))))))
 (defn write-value [pointer type offset value]
-  (ffi/write pointer type value offset))
+  (if @value-before-offset?
+    (ffi/write pointer type value offset)
+    (ffi/write pointer type offset value)))
 (defn read-array [pointer length] (ffi/read-array pointer length))
 (defn write-array [pointer value] (ffi/write-array pointer value))
 (defn read-utf8 [pointer length] (ffi/read-bytes pointer length))

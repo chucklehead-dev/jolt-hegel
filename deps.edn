@@ -1,7 +1,5 @@
 {:paths ["src" "resources"]
 
- :jolt/min-version "0.8.0"
-
  :jolt/aspects
  {:library {:id chucklehead-dev/jolt-hegel
             :version "86a70acf7880184707a77069b60b2e8fd4acbbbb"}
