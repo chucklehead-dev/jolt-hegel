@@ -100,7 +100,8 @@ claim.
   dependency instead of requiring a repository checkout;
 - move from the focused CLR semantic smoke to the complete shared suite;
 - validate optional Malli only after a supported ClojureCLR dependency path is
-  available; and
-- define supported ClojureCLR/.NET version policy and release artifacts.
+  available;
+- define the supported ClojureCLR and .NET version policy; and
+- define and verify release artifacts and a clean consumer installation.
 
 Until those gates exist, do not present ClojureCLR as a supported release host.

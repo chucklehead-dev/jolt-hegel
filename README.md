@@ -35,6 +35,15 @@ FFI-capable Babashka, and JVM Clojure. Consumer Git dependencies should pin the
 tag's full peeled commit SHA, not the tag-object SHA or a moving branch
 reference.
 
+Releases follow Semantic Versioning. While the project is pre-1.0, SemVer
+itself places no compatibility requirement on `0.y.z` releases; jolt-hegel
+additionally commits to confining incompatible changes to the supported API to
+minor releases. Namespaces and hosts marked experimental are outside the
+supported compatibility contract: they may change incompatibly in a minor
+release, with the change called out in the [changelog](CHANGELOG.md). Promotion
+into the supported contract will be explicit in release notes and the status
+table above.
+
 ## Acknowledgments
 
 The original jolt-hegel design and implementation were based in part on Kyle
@@ -421,6 +430,10 @@ can supply the same event vectors on an unmodified runtime.
 These APIs are experimental because their event and model contracts are still
 being exercised across the wider Jolt ecosystem. Their checks and failure
 evidence are covered by the shared jolt-hegel semantic suite.
+
+The optional compiler-aspect manifest, join-point identifiers, and advice-role
+metadata are experimental as well. Instrumentation may rely on them only with
+an exact jolt-hegel source pin until that producer contract is stabilized.
 
 ### Trace rules for aspect and event journals
 

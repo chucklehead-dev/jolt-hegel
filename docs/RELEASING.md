@@ -37,23 +37,26 @@ For every release:
    static checks, and consumer smoke tests. Experimental jank and ClojureCLR
    workflows should also be green on `main`, but they are not supported-release
    targets until their remaining gates close.
-3. Confirm `hegel.version/jolt-hegel-version` matches the intended tag without
+3. Move the `## Unreleased` entries into a new dated `## [x.y.z]` section in
+   `CHANGELOG.md`, add its `compare/vPREV...vNEXT` link, and confirm every
+   incompatible change to an experimental namespace or host is listed.
+4. Confirm `hegel.version/jolt-hegel-version` matches the intended tag without
    the `v` prefix. Use a fresh `JOLT_CACHE_DIR`; the installer rejects a loaded
    release version that differs from the resolved source.
-4. For a libhegel ABI upgrade, compare the canonical descriptor to the exact
+5. For a libhegel ABI upgrade, compare the canonical descriptor to the exact
    upstream tag and commit, verify every published asset digest, regenerate
    jank and CLR bindings, and run real native ownership/retry tests on all
    supported hosts. Concurrency above one remains a separate nondeterministic
    API decision and must not enter sequential `hegel.stateful/run!` implicitly.
-5. Create and push an annotated tag on the public merge commit, for example
+6. Create and push an annotated tag on the public merge commit, for example
    `v0.5.0`.
-6. Wait for the Release workflow. It:
+7. Wait for the Release workflow. It:
    - installs the checksum-pinned libhegel release in each matrix cell;
    - runs the shared integration suite under the selected host; and
    - runs the independent consumer fixture again.
-7. Verify that GitHub created the source release only after all reusable
+8. Verify that GitHub created the source release only after all reusable
    portable-CI and release-verification jobs passed.
-8. Resolve the tag's full commit SHA and use it in consumer `deps.edn` files:
+9. Resolve the tag's full commit SHA and use it in consumer `deps.edn` files:
 
    ```bash
    git rev-list -n 1 v0.5.0
