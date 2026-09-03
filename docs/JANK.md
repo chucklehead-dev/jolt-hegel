@@ -81,9 +81,11 @@ jank -I generated --module-path src:resources:script \
   checksum-verified libhegel through Babashka before starting jank;
 - run the complete shared semantic suite rather than the focused jank gate;
 - determine whether `clojure.test` integration is implementable on the current
-  jank standard library; and
+  jank standard library;
 - evaluate the optional Malli adapter only after Malli itself is usable on
-  jank.
+  jank; and
+- produce consumer packaging and installation evidence, since the current gate
+  runs from a repository checkout with generated include and source paths.
 
 Until those gates exist, do not present jank as a supported release host. The
 generated backend is deliberately kept behind the same narrow boundary so the
