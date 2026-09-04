@@ -851,6 +851,23 @@
        {:min-size min-size :max-size max-size}))
     [min-size max-size]))
 
+(defn- draw-collection
+  [test-case label min-size max-size initial-value step]
+  (in-span
+   test-case label
+   (fn []
+     (let [context (:context test-case)
+           handle (:handle test-case)
+           collection (hffi/new-collection!
+                       context handle min-size max-size)]
+       (try
+         (loop [result initial-value]
+           (if (hffi/collection-more! context handle collection)
+             (recur (step collection result))
+             result))
+         (finally
+           (hffi/collection-free! context collection)))))))
+
 (defn vector
   "Generate a vector. Options: :size, :min-size, :max-size, :unique?."
   ([elements]
@@ -861,28 +878,17 @@
          unique? (clojure.core/boolean (:unique? opts))]
      (composite-fn
       (fn [test-case]
-        (in-span
-         test-case hffi/label-list
-         (fn []
-           (let [collection
-                 (hffi/new-collection!
-                  (:context test-case) (:handle test-case) min-size max-size)]
-             (try
-               (loop [result []]
-                 (if (hffi/collection-more!
-                      (:context test-case) (:handle test-case) collection)
-                   (let [value (elements test-case)]
-                     (if (and unique? (some #(= value %) result))
-                       (do
-                         (hffi/collection-reject!
-                          (:context test-case) (:handle test-case)
-                          collection "duplicate element")
-                         (recur result))
-                       (recur (conj result value))))
-                   result))
-               (finally
-                 (hffi/collection-free!
-                  (:context test-case) collection)))))))))))
+        (draw-collection
+         test-case hffi/label-list min-size max-size []
+         (fn [collection result]
+           (let [value (elements test-case)]
+             (if (and unique? (some #(= value %) result))
+               (do
+                 (hffi/collection-reject!
+                  (:context test-case) (:handle test-case)
+                  collection "duplicate element")
+                 result)
+               (conj result value))))))))))
 
 (defn- split-by-sizes [payload sizes]
   (loop [remaining (vec payload)
@@ -928,28 +934,17 @@
    (let [[min-size max-size] (collection-bounds "set" opts)]
      (composite-fn
       (fn [test-case]
-        (in-span
-         test-case hffi/label-set
-         (fn []
-           (let [collection
-                 (hffi/new-collection!
-                  (:context test-case) (:handle test-case) min-size max-size)]
-             (try
-               (loop [result #{}]
-                 (if (hffi/collection-more!
-                      (:context test-case) (:handle test-case) collection)
-                   (let [value (elements test-case)]
-                     (if (contains? result value)
-                       (do
-                         (hffi/collection-reject!
-                          (:context test-case) (:handle test-case)
-                          collection "duplicate element")
-                         (recur result))
-                       (recur (conj result value))))
-                   result))
-               (finally
-                 (hffi/collection-free!
-                  (:context test-case) collection)))))))))))
+        (draw-collection
+         test-case hffi/label-set min-size max-size #{}
+         (fn [collection result]
+           (let [value (elements test-case)]
+             (if (contains? result value)
+               (do
+                 (hffi/collection-reject!
+                  (:context test-case) (:handle test-case)
+                  collection "duplicate element")
+                 result)
+               (conj result value))))))))))
 
 (defn sorted-set
   "Generate a sorted set. Accepts the same options as set."
@@ -969,28 +964,17 @@
    (let [[min-size max-size] (collection-bounds "map" opts)]
      (composite-fn
       (fn [test-case]
-        (in-span
-         test-case hffi/label-map
-         (fn []
-           (let [collection
-                 (hffi/new-collection!
-                  (:context test-case) (:handle test-case) min-size max-size)]
-             (try
-               (loop [result {}]
-                 (if (hffi/collection-more!
-                      (:context test-case) (:handle test-case) collection)
-                   (let [key (keys test-case)]
-                     (if (contains? result key)
-                       (do
-                         (hffi/collection-reject!
-                          (:context test-case) (:handle test-case)
-                          collection "duplicate key")
-                         (recur result))
-                       (recur (assoc result key (values test-case)))))
-                   result))
-               (finally
-                 (hffi/collection-free!
-                  (:context test-case) collection)))))))))))
+        (draw-collection
+         test-case hffi/label-map min-size max-size {}
+         (fn [collection result]
+           (let [key (keys test-case)]
+             (if (contains? result key)
+               (do
+                 (hffi/collection-reject!
+                  (:context test-case) (:handle test-case)
+                  collection "duplicate key")
+                 result)
+               (assoc result key (values test-case)))))))))))
 
 (defn sorted-map
   "Generate a sorted map. Accepts the same options as map."
