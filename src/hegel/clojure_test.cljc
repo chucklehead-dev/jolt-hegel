@@ -5,7 +5,8 @@
             [clojure.test :as ct]
             [hegel.core :as h]
             [hegel.ffi :as hffi]
-            [hegel.generator :as g]))
+            [hegel.generator :as g]
+            [hegel.host :as host]))
 
 (defn pass?
   "True when every captured clojure.test event is a passing assertion."
@@ -36,12 +37,10 @@
       text)))
 
 (defn- throwable-details [error]
-  (let [throwable (try
+  (let [throwable (host/try-catch-all
                     (Throwable->map error)
-                    (catch #?(:cljr System.Exception
-                              :jank cpp/jank.runtime.object_ref
-                              :default Throwable) _
-                      nil))
+                    _
+                    nil)
         error-data (ex-data error)
         wrapped-body-error? (and (= ::body-error (:type error-data))
                                  (contains? error-data ::cause-type))
@@ -68,15 +67,13 @@
 (defn- evaluate-case [base final-reports body]
   (let [reports (atom [])
         outcome
-        (try
-          {:value
-           (binding [ct/report (fn [event]
-                                 (swap! reports conj event))]
-             (body))}
-          (catch #?(:cljr System.Exception
-                    :jank cpp/jank.runtime.object_ref
-                    :default Throwable) error
-            {:error error}))]
+        (host/try-catch-all
+         {:value
+          (binding [ct/report (fn [event]
+                                (swap! reports conj event))]
+            (body))}
+         error
+         {:error error})]
     (when (h/final?)
       (swap! final-reports into @reports))
     (if-let [error (:error outcome)]

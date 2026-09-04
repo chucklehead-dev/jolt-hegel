@@ -165,19 +165,18 @@
 (defn- download! [url path]
   (println "native: downloading" url)
   (delete-if-present! path)
-  (try
-    (install-backend/download! (:os (native/platform)) url path)
-    (require-file! "download" path)
-    (catch #?(:cljr System.Exception
-              :jank cpp/jank.runtime.object_ref
-              :default Throwable) cause
-      (delete-if-present! path)
-      (throw
-       (ex-info (str "failed to download " url)
-                {:type ::download-failed
-                 :url url
-                 :path path
-                 :cause cause})))))
+  (host/try-catch-all
+   (do
+     (install-backend/download! (:os (native/platform)) url path)
+     (require-file! "download" path))
+   cause
+   (delete-if-present! path)
+   (throw
+    (ex-info (str "failed to download " url)
+             {:type ::download-failed
+              :url url
+              :path path
+              :cause cause}))))
 
 (defn- checksum-matches? [path expected]
   (and (regular-file? path)
@@ -196,14 +195,13 @@
 (defn- download-verified! [url target expected]
   (let [staged (str target ".download")]
     (download! url staged)
-    (try
-      (verify-file! staged expected)
-      (replace-file! staged target)
-      (catch #?(:cljr System.Exception
-                :jank cpp/jank.runtime.object_ref
-                :default Throwable) cause
-        (delete-if-present! staged)
-        (throw cause)))
+    (host/try-catch-all
+     (do
+       (verify-file! staged expected)
+       (replace-file! staged target))
+     cause
+     (delete-if-present! staged)
+     (throw cause))
     (println "native: verified" target "(sha256" expected ")")
     target))
 

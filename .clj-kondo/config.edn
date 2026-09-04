@@ -8,4 +8,5 @@
   {:exclude [hegel.host/join-path]}}
  :hooks
  {:analyze-call
-  {hegel.clojure-test/with hooks.hegel/clojure-test-with}}}
+  {hegel.clojure-test/with hooks.hegel/clojure-test-with
+   hegel.host/try-catch-all hooks.hegel/try-catch-all}}}

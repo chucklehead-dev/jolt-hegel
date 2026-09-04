@@ -4,7 +4,8 @@
   (:require [clojure.string :as str]
             [hegel.core :as h]
             [hegel.ffi :as hffi]
-            [hegel.generator :as g]))
+            [hegel.generator :as g]
+            [hegel.host :as host]))
 
 (defn- invalid-argument [message data]
   (throw
@@ -200,14 +201,12 @@
 
 (defn- check-invariant! [item state trace]
   (let [valid?
-        (try
-          ((::predicate item) state)
-          (catch #?(:cljr System.Exception
-                    :jank cpp/jank.runtime.object_ref
-                    :default Throwable) error
-            (if (control-flow? error)
-              (throw error)
-              (throw (stateful-error :invariant item trace error)))))]
+        (host/try-catch-all
+         ((::predicate item) state)
+         error
+         (if (control-flow? error)
+           (throw error)
+           (throw (stateful-error :invariant item trace error))))]
     (when-not valid?
       (throw
        (ex-info
@@ -226,28 +225,26 @@
   nil)
 
 (defn- apply-rule [item state trace]
-  (try
-    (if ((::precondition item) state)
-      {:state ((::step item) state)
-       :applied? true}
-      {:state state
-       :applied? false})
-    (catch #?(:cljr System.Exception
-              :jank cpp/jank.runtime.object_ref
-              :default Throwable) error
-      (cond
-        (hffi/assumption-rejected? error)
-        {:state state
-         :applied? false}
+  (host/try-catch-all
+   (if ((::precondition item) state)
+     {:state ((::step item) state)
+      :applied? true}
+     {:state state
+      :applied? false})
+   error
+   (cond
+     (hffi/assumption-rejected? error)
+     {:state state
+      :applied? false}
 
-        (= :hegel.core/assumption-rejected (:type (ex-data error)))
-        {:state state
-         :applied? false}
+     (= :hegel.core/assumption-rejected (:type (ex-data error)))
+     {:state state
+      :applied? false}
 
-        :else
-        (if (hffi/stop-test? error)
-          (throw error)
-          (throw (stateful-error :rule item trace error)))))))
+     :else
+     (if (hffi/stop-test? error)
+       (throw error)
+       (throw (stateful-error :rule item trace error))))))
 
 (defn- validate-items! [kind pred items]
   (doseq [item items]

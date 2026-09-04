@@ -4,7 +4,8 @@
                             sorted-map sorted-set string time uuid vector])
   (:require [clojure.string :as str]
             [hegel.core :as h]
-            [hegel.ffi :as hffi]))
+            [hegel.ffi :as hffi]
+            [hegel.host :as host]))
 
 (def ^:private min-int64 -9223372036854775808N)
 (def ^:private max-int64 9223372036854775807)
@@ -579,24 +580,22 @@
 (defn- in-span [test-case label body]
   (hffi/start-span! (:context test-case) (:handle test-case) label)
   (let [closed? (atom false)]
-    (try
-      (let [value (body)]
-        ;; Mark first: if stop-span itself fails, the catch path must not call
-        ;; it a second time against an already-consumed or invalid span.
-        (reset! closed? true)
-        (hffi/stop-span! (:context test-case) (:handle test-case))
-        value)
-      (catch #?(:cljr System.Exception
-                :jank cpp/jank.runtime.object_ref
-                :default Throwable) error
-        ;; The engine, not the unwinding frontend, discards every still-open
-        ;; span in an abandoned recursive attempt. Stopping one here would pop
-        ;; the innermost recursive span instead of this combinator's span.
-        (when (and (not @closed?)
-                   (not (recursion-retry-control? error)))
-          (reset! closed? true)
-          (hffi/stop-span! (:context test-case) (:handle test-case)))
-        (throw error)))))
+    (host/try-catch-all
+     (let [value (body)]
+       ;; Mark first: if stop-span itself fails, the catch path must not call
+       ;; it a second time against an already-consumed or invalid span.
+       (reset! closed? true)
+       (hffi/stop-span! (:context test-case) (:handle test-case))
+       value)
+     error
+     ;; The engine, not the unwinding frontend, discards every still-open span
+     ;; in an abandoned recursive attempt. Stopping one here would pop the
+     ;; innermost recursive span instead of this combinator's span.
+     (when (and (not @closed?)
+                (not (recursion-retry-control? error)))
+       (reset! closed? true)
+       (hffi/stop-span! (:context test-case) (:handle test-case)))
+     (throw error))))
 
 (defn fmap
   "Transform values from generator with f while preserving shrink structure."
@@ -664,7 +663,7 @@
                             closed? (atom false)]
                         (hffi/start-span!
                          current-context current-handle hffi/label-recursive)
-                        (try
+                        (host/try-catch-all
                           (let [branch?
                                 (hffi/recursion-branch!
                                  current-context current-handle recursion depth)
@@ -703,29 +702,25 @@
                             (hffi/stop-span!
                              current-context current-handle)
                             value)
-                          (catch #?(:cljr System.Exception
-                                    :jank cpp/jank.runtime.object_ref
-                                    :default Throwable) error
-                            (when (and (not @closed?)
-                                       (not (recursion-retry-control? error)))
-                              (reset! closed? true)
-                              (hffi/stop-span!
-                               current-context current-handle))
-                            (throw error)))))]
+                          error
+                          (when (and (not @closed?)
+                                     (not (recursion-retry-control? error)))
+                            (reset! closed? true)
+                            (hffi/stop-span!
+                             current-context current-handle))
+                          (throw error))))]
               (loop []
                 (let [attempt
-                      (try
+                      (host/try-catch-all
                         {:status :accepted
                          :value (draw-subtree! test-case 0)}
-                        (catch #?(:cljr System.Exception
-                                  :jank cpp/jank.runtime.object_ref
-                                  :default Throwable) error
-                          (case (:type (ex-data error))
-                            ::leaf-budget-retry
-                            {:status :leaf-budget-retry}
-                            ::finish-retry
-                            {:status :finish-retry}
-                            (throw error))))]
+                        error
+                        (case (:type (ex-data error))
+                          ::leaf-budget-retry
+                          {:status :leaf-budget-retry}
+                          ::finish-retry
+                          {:status :finish-retry}
+                          (throw error)))]
                   (case (:status attempt)
                     :accepted (:value attempt)
                     :leaf-budget-retry
@@ -749,22 +744,20 @@
                          hffi/label-filter)
        (let [[accepted? value]
              (let [closed? (atom false)]
-               (try
+               (host/try-catch-all
                  (let [value (generator test-case)
                        accepted? (clojure.core/boolean (pred value))]
                    (reset! closed? true)
                    (hffi/stop-span! (:context test-case) (:handle test-case)
                                     (not accepted?))
                    [accepted? value])
-                 (catch #?(:cljr System.Exception
-                           :jank cpp/jank.runtime.object_ref
-                           :default Throwable) error
-                   (when (and (not @closed?)
-                              (not (recursion-retry-control? error)))
-                     (reset! closed? true)
-                     (hffi/stop-span! (:context test-case)
-                                      (:handle test-case)))
-                   (throw error))))]
+                 error
+                 (when (and (not @closed?)
+                            (not (recursion-retry-control? error)))
+                   (reset! closed? true)
+                   (hffi/stop-span! (:context test-case)
+                                    (:handle test-case)))
+                 (throw error)))]
          (if accepted?
            value
            (if (< attempt 2)

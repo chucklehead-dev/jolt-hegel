@@ -4,6 +4,7 @@
   Malli is intentionally not a runtime dependency of jolt-hegel. Consumers
   that require this namespace must supply `metosin/malli`."
   (:require [hegel.generator :as g]
+            [hegel.host :as host]
             [malli.core :as m]))
 
 (def ^:private default-max-size 100)
@@ -344,13 +345,11 @@
    (generator schema {}))
   ([schema config]
    (let [compiled-schema
-         (try
-           (m/schema schema)
-           (catch #?(:cljr System.Exception
-                     :jank cpp/jank.runtime.object_ref
-                     :default Throwable) error
-             (adapter-error ::invalid-schema "invalid Malli schema"
-                            schema [] {:cause error})))
+         (host/try-catch-all
+          (m/schema schema)
+          error
+          (adapter-error ::invalid-schema "invalid Malli schema"
+                         schema [] {:cause error}))
          form (m/form compiled-schema)
          config (normalize-config form config)
          ast (m/ast compiled-schema)
