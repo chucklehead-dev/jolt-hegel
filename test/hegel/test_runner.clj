@@ -297,6 +297,40 @@
     (check "loaded libhegel matches the bound ABI"
            (= hffi/libhegel-version (hffi/version)))))
 
+(defn ffi-nullable-string-results []
+  (let [native-result (atom ::native-result)
+        calls (atom [])
+        frees (atom [])]
+    (with-redefs [ffi-backend/with-native-scope (fn [call] (call))
+                  ffi-backend/sizeof (constantly 8)
+                  ffi-backend/alloc (fn [size]
+                                      (swap! calls conj [:alloc size])
+                                      ::out)
+                  ffi-backend/read-value (fn [pointer type]
+                                           (swap! calls conj
+                                                  [:read pointer type])
+                                           @native-result)
+                  ffi-backend/free #(swap! frees conj %)
+                  ffi-backend/null? #(= ::null %)
+                  ffi-backend/native->string (fn [pointer]
+                                               (swap! calls conj
+                                                      [:decode pointer])
+                                               "decoded")
+                  hffi/c-run-result-error (fn [ctx result out]
+                                            (swap! calls conj
+                                                   [:call ctx result out])
+                                            0)]
+      (check "nullable FFI strings decode a non-NULL pointer"
+             (= "decoded" (hffi/run-result-error! ::ctx ::result)))
+      (reset! native-result ::null)
+      (check "nullable FFI strings preserve a NULL result as nil"
+             (nil? (hffi/run-result-error! ::ctx ::result)))
+      (check "nullable FFI string calls retain checked pointer-out cleanup"
+             (and (= [::out ::out] @frees)
+                  (= 2 (count (filter #(= :call (first %)) @calls)))
+                  (= 2 (count (filter #(= :read (first %)) @calls)))
+                  (= 1 (count (filter #(= :decode (first %)) @calls))))))))
+
 (defn upstream-babashka-ffi-adapter []
   (let [report (abi/backend-report)
         expected-route (case (host/runtime)
@@ -2680,6 +2714,7 @@
   (scenario "engine nondeterminism" engine-nondeterminism)
   (scenario "framework-less counting reporting" counting-reporting)
   (scenario "cleanup and ABI version" cleanup-and-version)
+  (scenario "nullable FFI string results" ffi-nullable-string-results)
   (scenario "upstream babashka.ffi adapter" upstream-babashka-ffi-adapter)
   (scenario "installer source identity" installer-source-identity)
   (scenario "installer checksum contract" installer-checksum-contract)

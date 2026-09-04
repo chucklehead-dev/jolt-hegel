@@ -211,6 +211,12 @@
          (finally
            (backend/free out)))))))
 
+(defn- call-nullable-string-out!
+  [ctx operation call]
+  (let [ptr (call-out! ctx operation :pointer call)]
+    (when-not (backend/null? ptr)
+      (backend/native->string ptr))))
+
 (defn- with-c-string
   [value call]
   (if (nil? value)
@@ -812,10 +818,8 @@
              #(c-run-result-status ctx result %)))
 
 (defn run-result-error! [ctx result]
-  (let [ptr (call-out! ctx :run-result-error :pointer
-                       #(c-run-result-error ctx result %))]
-    (when-not (backend/null? ptr)
-      (backend/native->string ptr))))
+  (call-nullable-string-out!
+   ctx :run-result-error #(c-run-result-error ctx result %)))
 
 (defn run-result-failure-count! [ctx result]
   (call-out! ctx :run-result-failure-count :size_t
@@ -830,26 +834,20 @@
   nil)
 
 (defn failure-origin! [ctx failure]
-  (let [ptr (call-out! ctx :failure-origin :pointer
-                       #(c-failure-origin ctx failure %))]
-    (when-not (backend/null? ptr)
-      (backend/native->string ptr))))
+  (call-nullable-string-out!
+   ctx :failure-origin #(c-failure-origin ctx failure %)))
 
 (defn failure-reproduction-blob! [ctx failure]
-  (let [ptr (call-out! ctx :failure-reproduction-blob :pointer
-                       #(c-failure-reproduction-blob ctx failure %))]
-    (when-not (backend/null? ptr)
-      (backend/native->string ptr))))
+  (call-nullable-string-out!
+   ctx :failure-reproduction-blob
+   #(c-failure-reproduction-blob ctx failure %)))
 
 (defn version
   "Return the loaded libhegel version string."
   []
   (let [ctx (context-new!)]
     (try
-      (let [ptr (call-out! ctx :version :pointer
-                           #(c-version ctx %))]
-        (when-not (backend/null? ptr)
-          (backend/native->string ptr)))
+      (call-nullable-string-out! ctx :version #(c-version ctx %))
       (finally
         (context-free! ctx)))))
 
