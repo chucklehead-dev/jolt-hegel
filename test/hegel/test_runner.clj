@@ -1082,6 +1082,26 @@
   (check "empty sampled-from and one-of inputs are rejected"
          (and (throws? #(g/sampled-from []))
               (throws? #(g/one-of []))))
+  (let [capture (fn [call]
+                  (try
+                    (call)
+                    nil
+                    (catch Throwable error error)))
+        one-of-error (capture #(g/one-of [(g/just :ok) :invalid :later]))
+        tuple-error (capture #(g/tuple (g/just :ok) :invalid :later))]
+    (check "collection combinators validate generators eagerly in order"
+           (and (= {:type ::g/invalid-option
+                    :operation "one-of"
+                    :value :invalid}
+                   (select-keys (ex-data one-of-error)
+                                [:type :operation :value]))
+                (= {:type ::g/invalid-option
+                    :operation "tuple"
+                    :value :invalid}
+                   (select-keys (ex-data tuple-error)
+                                [:type :operation :value]))
+                (= "one-of requires a generator" (ex-message one-of-error))
+                (= "tuple requires a generator" (ex-message tuple-error)))))
   (check "inverted collection bounds are rejected"
          (throws? #(g/vector {:min-size 3 :max-size 2} (g/boolean)))))
 

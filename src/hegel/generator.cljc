@@ -570,6 +570,10 @@
                     {:operation operation :value value}))
   value)
 
+(defn- require-generators! [operation values]
+  (doseq [value values]
+    (require-generator! operation value)))
+
 (def ^:private leaf-budget-retry ::leaf-budget-retry)
 (def ^:private finish-retry ::finish-retry)
 
@@ -788,8 +792,7 @@
   (let [generators (vec generators)]
     (when (empty? generators)
       (invalid-option "one-of requires at least one generator" {}))
-    (doseq [generator generators]
-      (require-generator! "one-of" generator))
+    (require-generators! "one-of" generators)
     (composite-fn
      (fn [test-case]
        (in-span
@@ -815,8 +818,7 @@
   "Generate a vector containing one draw from each generator in generators."
   [generators]
   (let [generators (vec generators)]
-    (doseq [generator generators]
-      (require-generator! "tuple" generator))
+    (require-generators! "tuple" generators)
     (if (empty? generators)
       (just [])
       (composite-fn
