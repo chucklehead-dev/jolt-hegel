@@ -70,7 +70,7 @@
     (windows-download! url path)
     (url-download! url path)))
 
-(defn sha256 [path]
+(defn sha256 [_os path]
   (let [digest (MessageDigest/getInstance "SHA-256")]
     (with-open [input (FileInputStream. path)]
       (let [buffer (byte-array 65536)]
@@ -80,6 +80,3 @@
               (.update digest buffer 0 n)
               (recur))))))
     (apply str (map #(format "%02x" (bit-and % 0xff)) (.digest digest)))))
-
-(defn checksum-matches? [_os path expected]
-  (= expected (sha256 path)))

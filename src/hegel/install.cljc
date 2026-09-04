@@ -178,19 +178,24 @@
               :path path
               :cause cause}))))
 
+(defn- file-sha256 [path]
+  (when (regular-file? path)
+    (install-backend/sha256 (:os (native/platform)) path)))
+
 (defn- checksum-matches? [path expected]
-  (and (regular-file? path)
-       (install-backend/checksum-matches?
-        (:os (native/platform)) path expected)))
+  (let [actual (file-sha256 path)]
+    (and (some? actual) (= expected actual))))
 
 (defn- verify-file! [path expected]
-  (when-not (checksum-matches? path expected)
-    (throw
-     (ex-info (str "SHA-256 mismatch for " path)
-              {:type ::checksum-mismatch
-               :expected expected
-               :path path})))
-  path)
+  (let [actual (file-sha256 path)]
+    (when-not (and (some? actual) (= expected actual))
+      (throw
+       (ex-info (str "SHA-256 mismatch for " path)
+                {:type ::checksum-mismatch
+                 :expected expected
+                 :actual actual
+                 :path path})))
+    path))
 
 (defn- download-verified! [url target expected]
   (let [staged (str target ".download")]

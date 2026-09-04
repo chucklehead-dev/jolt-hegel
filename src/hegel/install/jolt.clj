@@ -101,43 +101,74 @@
      (ex-info "could not load OpenSSL libcrypto to verify native downloads"
               {:type ::crypto-unavailable}))))
 
-(defn- posix-sha256 [os path]
-  (ensure-crypto! os)
-  (with-open [input (java.io.FileInputStream. path)]
-    (let [data (.readAllBytes input)
-          length (alength data)
-          source (ffi/alloc (max 1 length))
-          digest (ffi/alloc 32)]
-      (try
-        (ffi/write-array source data)
-        (when (ffi/null? (c-sha256 source length digest))
-          (throw
-           (ex-info (str "SHA256 failed for " path)
-                    {:type ::checksum-failed
-                     :path path})))
-        (apply str
-               (map #(format "%02x" (bit-and % 0xff))
-                    (seq (ffi/read-array digest 32))))
-        (finally
-          (ffi/free digest)
-          (ffi/free source))))))
+(defn- digest-hex [bytes]
+  (apply str
+         (map #(format "%02x" (bit-and % 0xff))
+              (seq bytes))))
 
-(defn- windows-checksum-matches? [path expected]
-  (let [script (str "$ErrorActionPreference='Stop';"
+(defn- read-all-bytes [path]
+  (with-open [input (java.io.FileInputStream. path)]
+    (.readAllBytes input)))
+
+(defn- with-digest-buffers [data f]
+  (let [length (alength data)
+        source (ffi/alloc (max 1 length))
+        digest (ffi/alloc 32)]
+    (try
+      (ffi/write-array source data)
+      (f source length digest)
+      (digest-hex (ffi/read-array digest 32))
+      (finally
+        (ffi/free digest)
+        (ffi/free source)))))
+
+(defn- posix-sha256 [os path data]
+  (ensure-crypto! os)
+  (with-digest-buffers
+    data
+    (fn [source length digest]
+      (when (ffi/null? (c-sha256 source length digest))
+        (throw
+         (ex-info (str "SHA256 failed for " path)
+                  {:type ::checksum-failed
+                   :path path}))))))
+
+(defn- windows-child-path [parent child]
+  (str parent
+       (when-not (or (str/ends-with? parent "\\")
+                     (str/ends-with? parent "/"))
+         "\\")
+       child))
+
+(defn- windows-sha256 [path]
+  ;; Jolt 0.7.x resolves drive-rooted FileInputStream paths as if they were
+  ;; relative. PowerShell already provides the Windows download boundary, so
+  ;; retain its managed SHA-256 provider and return the digest through a unique
+  ;; harness-owned file under user.dir. Jolt's slurp and java.io.File methods
+  ;; resolve relative paths against that same user.dir base, avoiding a
+  ;; drive-rooted path at both read and cleanup boundaries.
+  (let [output-name (str ".hegel-sha256-" (random-uuid) ".txt")
+        output-path (windows-child-path (System/getProperty "user.dir")
+                                        output-name)
+        script (str "$ErrorActionPreference='Stop';"
                     "$bytes=[System.IO.File]::ReadAllBytes("
                     (powershell-literal path) ");"
                     "$hash=[System.Security.Cryptography.SHA256]::Create()"
                     ".ComputeHash($bytes);"
                     "$actual=[System.BitConverter]::ToString($hash)"
                     ".Replace('-','').ToLowerInvariant();"
-                    "if ($actual -ne " (powershell-literal expected)
-                    ") { exit 9 }")]
-    (zero? (c-system
-            (windows-command
-             ["powershell.exe" "-NoLogo" "-NoProfile" "-NonInteractive"
-              "-Command" script])))))
+                    "[System.IO.File]::WriteAllText("
+                    (powershell-literal output-path) ",$actual,"
+                    "[System.Text.Encoding]::ASCII)")]
+    (try
+      (run-windows! "PowerShell SHA-256"
+                    ["powershell.exe" "-NoLogo" "-NoProfile"
+                     "-NonInteractive" "-Command" script])
+      (str/trim (slurp output-name))
+      (finally
+        (.delete (java.io.File. output-name))))))
 
-(defn checksum-matches? [os path expected]
+(defn sha256 [os path]
   (if (= :windows os)
-    (windows-checksum-matches? path expected)
-    (= expected (posix-sha256 os path))))
+    (windows-sha256 path)
+    (posix-sha256 os path (read-all-bytes path))))

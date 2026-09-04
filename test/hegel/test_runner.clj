@@ -10,6 +10,7 @@
             [hegel.history :as hhistory]
             [hegel.host :as host]
             [hegel.install :as install]
+            [hegel.install.backend :as install-backend]
             [hegel.malli :as hm]
             [hegel.native :as native]
             [hegel.report :as report]
@@ -416,6 +417,63 @@
            (= "0.0.0-stale"
               (with-redefs [version/jolt-hegel-version "0.0.0-stale"]
                 (install/verify-source-version!))))))
+
+(defn installer-checksum-contract []
+  (let [path "hegel-checksum-contract.bin"
+        expected (apply str (repeat 64 "a"))
+        actual (apply str (repeat 64 "b"))
+        hashes (atom 0)
+        checksum-matches? @#'install/checksum-matches?
+        verify-file! @#'install/verify-file!]
+    (with-redefs [install-backend/path-exists? (fn [candidate]
+                                                 (= path candidate))
+                  install-backend/directory? (constantly false)
+                  install-backend/sha256 (fn [_os candidate]
+                                           (swap! hashes inc)
+                                           (when (= path candidate) actual))]
+      (check "shared checksum policy accepts the backend's exact digest"
+             (true? (checksum-matches? path actual)))
+      (check "shared checksum policy rejects a different digest"
+             (false? (checksum-matches? path expected)))
+      (let [error (try
+                    (verify-file! path expected)
+                    nil
+                    (catch Throwable error error))]
+        (check "checksum mismatch retains expected, actual, and path"
+               (= {:type ::install/checksum-mismatch
+                   :expected expected
+                   :actual actual
+                   :path path}
+                  (ex-data error)))))
+    (let [missing "hegel-checksum-contract-missing.bin"]
+      (with-redefs [install-backend/path-exists? (constantly false)
+                    install-backend/sha256 (fn [& _]
+                                             (swap! hashes inc)
+                                             nil)]
+        (let [before @hashes
+              error (try
+                      (verify-file! missing expected)
+                      nil
+                      (catch Throwable error error))]
+          (check "a missing file fails closed without invoking a digest provider"
+                 (and (= before @hashes)
+                      (false? (checksum-matches? missing nil))
+                      (= before @hashes)
+                      (= {:type ::install/checksum-mismatch
+                          :expected expected
+                          :actual nil
+                          :path missing}
+                         (ex-data error))))))))
+  (let [path (str progress-file ".checksum")
+        abc-sha256
+        "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"]
+    (try
+      (spit path "abc")
+      (check "selected host digest provider matches the SHA-256 abc vector"
+             (= abc-sha256
+                (install-backend/sha256 (:os (native/platform)) path)))
+      (finally
+        (install-backend/delete-file! path)))))
 
 (defn generated-seed []
   (let [first-values (atom [])
@@ -2624,6 +2682,7 @@
   (scenario "cleanup and ABI version" cleanup-and-version)
   (scenario "upstream babashka.ffi adapter" upstream-babashka-ffi-adapter)
   (scenario "installer source identity" installer-source-identity)
+  (scenario "installer checksum contract" installer-checksum-contract)
   (scenario "generated seed" generated-seed)
   (scenario "controls and sample" controls-and-sample)
   (scenario "primitive generators" primitive-generators)

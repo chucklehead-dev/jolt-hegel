@@ -47,11 +47,8 @@
       (finally
         (.Dispose client)))))
 
-(defn sha256 [path]
+(defn sha256 [_os path]
   (-> (System.IO.File/ReadAllBytes path)
       System.Security.Cryptography.SHA256/HashData
       System.Convert/ToHexString
       str/lower-case))
-
-(defn checksum-matches? [_os path expected]
-  (= expected (sha256 path)))

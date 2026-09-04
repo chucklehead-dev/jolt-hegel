@@ -14,5 +14,4 @@
 (defn rename-file! [source target] (impl/rename-file! source target))
 (defn read-text [path] (impl/read-text path))
 (defn download! [os url path] (impl/download! os url path))
-(defn checksum-matches? [os path expected]
-  (impl/checksum-matches? os path expected))
+(defn sha256 [os path] (impl/sha256 os path))
