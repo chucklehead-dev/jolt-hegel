@@ -11,42 +11,14 @@
     (when-not (str/blank? value)
       value)))
 
-#?(:jank nil
-   :default
-   (defn- last-separator-index [path]
-     (max (or (str/last-index-of path "/") -1)
-          (or (str/last-index-of path "\\") -1))))
-
 (defn parent-path [path]
-  #?(:jank (host/parent-path path)
-     :default
-     (let [index (last-separator-index path)]
-       (when (pos? index)
-         (subs path 0 index)))))
+  (host/parent-path path))
 
 (defn join-path [parent child]
-  #?(:jank (host/join-native-path parent child)
-     :default
-     (str parent
-          (when-not (or (str/ends-with? parent "/")
-                        (str/ends-with? parent "\\"))
-            (if (str/includes? parent "\\") "\\" "/"))
-          child)))
+  (host/join-path parent child))
 
 (defn absolute-path? [path]
-  #?(:jank (host/absolute-path? path)
-     :default
-     (or (str/starts-with? path "/")
-         (str/starts-with? path "\\")
-         (and (<= 3 (count path))
-              (= \: (nth path 1))
-              (let [drive (nth path 0)
-                    separator (nth path 2)]
-                (and (str/includes?
-                      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-                      (str drive))
-                     (or (= \/ separator)
-                         (= \\ separator))))))))
+  (host/absolute-path? path))
 
 (defn- resolve-from-launch-directory [path]
   (let [launch-dir #?(:jolt (nonblank-env "JOLT_PWD")

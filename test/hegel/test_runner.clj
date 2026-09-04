@@ -452,6 +452,47 @@
               (with-redefs [version/jolt-hegel-version "0.0.0-stale"]
                 (install/verify-source-version!))))))
 
+(defn portable-path-contracts []
+  (check "absolute path classification is portable across host syntaxes"
+         (and (every? native/absolute-path?
+                      ["/tmp/jolt-hegel"
+                       "C:\\src\\jolt-hegel"
+                       "D:/src/jolt-hegel"
+                       "\\\\server\\share\\jolt-hegel"
+                       "\\rooted"])
+              (not-any? native/absolute-path?
+                        ["" "." "src/jolt-hegel" "C:relative"])))
+  (check "parent paths preserve POSIX, drive, UNC, and relative syntax"
+         (= ["/tmp/jolt-hegel"
+             "C:\\src\\jolt-hegel"
+             "\\\\server\\share\\jolt-hegel"
+             "src"
+             nil
+             nil]
+            (mapv native/parent-path
+                  ["/tmp/jolt-hegel/libhegel_c.so"
+                   "C:\\src\\jolt-hegel\\libhegel_c.dll"
+                   "\\\\server\\share\\jolt-hegel\\libhegel_c.dll"
+                   "src/libhegel_c.so"
+                   "libhegel_c.so"
+                   ""])))
+  (check "path joining preserves syntax and treats empty components as identity"
+         (= ["/tmp/jolt-hegel/libhegel_c.so"
+             "/tmp/jolt-hegel/libhegel_c.so"
+             "C:\\src\\jolt-hegel\\libhegel_c.dll"
+             "\\\\server\\share\\jolt-hegel\\libhegel_c.dll"
+             "src/jolt-hegel/libhegel_c.so"
+             "libhegel_c.so"
+             "/tmp/jolt-hegel"]
+            [(native/join-path "/tmp/jolt-hegel" "libhegel_c.so")
+             (native/join-path "/tmp/jolt-hegel/" "libhegel_c.so")
+             (native/join-path "C:\\src\\jolt-hegel" "libhegel_c.dll")
+             (native/join-path "\\\\server\\share\\jolt-hegel"
+                               "libhegel_c.dll")
+             (native/join-path "src/jolt-hegel" "libhegel_c.so")
+             (native/join-path "" "libhegel_c.so")
+             (native/join-path "/tmp/jolt-hegel" "")])))
+
 (defn installer-checksum-contract []
   (let [path "hegel-checksum-contract.bin"
         expected (apply str (repeat 64 "a"))
@@ -2737,6 +2778,7 @@
   (scenario "nullable FFI string results" ffi-nullable-string-results)
   (scenario "upstream babashka.ffi adapter" upstream-babashka-ffi-adapter)
   (scenario "installer source identity" installer-source-identity)
+  (scenario "portable path contracts" portable-path-contracts)
   (scenario "installer checksum contract" installer-checksum-contract)
   (scenario "generated seed" generated-seed)
   (scenario "controls and sample" controls-and-sample)

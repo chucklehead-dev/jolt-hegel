@@ -1,9 +1,30 @@
 (ns hegel.jank-property-smoke
   (:require [hegel.core :as h]
             [hegel.generator :as g]
+            [hegel.native :as native]
             [hegel.stateful :as hs]))
 
 (defn -main [& _]
+  (when-not (and (native/absolute-path? "/tmp/jolt-hegel")
+                 (native/absolute-path? "C:\\src\\jolt-hegel")
+                 (native/absolute-path? "\\\\server\\share\\jolt-hegel")
+                 (native/absolute-path? "\\rooted")
+                 (not (native/absolute-path? "src/jolt-hegel"))
+                 (= "C:\\src\\jolt-hegel"
+                    (native/parent-path
+                     "C:\\src\\jolt-hegel\\libhegel_c.dll"))
+                 (= "\\\\server\\share\\jolt-hegel"
+                    (native/parent-path
+                     "\\\\server\\share\\jolt-hegel\\libhegel_c.dll"))
+                 (= "C:\\src\\jolt-hegel\\libhegel_c.dll"
+                    (native/join-path "C:\\src\\jolt-hegel"
+                                      "libhegel_c.dll"))
+                 (= "libhegel_c.so"
+                    (native/join-path "" "libhegel_c.so"))
+                 (= "/tmp/jolt-hegel"
+                    (native/join-path "/tmp/jolt-hegel" "")))
+    (throw (ex-info "jank portable path contract failed" {})))
+  (println "PASS shared portable path contract")
   (let [seen (atom [])
         result (h/run-test!
                 {:test-cases 10
