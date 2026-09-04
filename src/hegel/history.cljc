@@ -5,7 +5,8 @@
   integer `:seq`, an `:operation-id`, and a `:phase` of `:invoke`, `:return`,
   or `:throw`. An invocation also has `:operation`. Every operation must have
   exactly one invocation followed by exactly one terminal event."
-  (:require [hegel.trace :as trace]))
+  (:require [hegel.host :as host]
+            [hegel.trace :as trace]))
 
 (def ^:private default-max-operations 10)
 
@@ -172,15 +173,13 @@
 
 (defn- model-step [step state operation events opts]
   (let [transition
-        (try
-          (step state operation)
-          (catch #?(:cljr System.Exception
-                    :jank cpp/jank.runtime.object_ref
-                    :default Throwable) error
-            (fail! "history model transition threw"
-                   ::model-error events opts
-                   {:hegel.history/operation operation}
-                   error)))]
+        (host/try-catch-all
+         (step state operation)
+         error
+         (fail! "history model transition threw"
+                ::model-error events opts
+                {:hegel.history/operation operation}
+                error))]
     (cond
       (nil? transition) nil
       (and (map? transition) (contains? transition :state)) transition
@@ -230,15 +229,13 @@
       (visit initial ops #{} []))))
 
 (defn- partition-of [partition-by operation events opts]
-  (try
-    (partition-by operation)
-    (catch #?(:cljr System.Exception
-              :jank cpp/jank.runtime.object_ref
-              :default Throwable) error
-      (fail! "history partition function threw"
-             ::partition-error events opts
-             {:hegel.history/operation operation}
-             error))))
+  (host/try-catch-all
+   (partition-by operation)
+   error
+   (fail! "history partition function threw"
+          ::partition-error events opts
+          {:hegel.history/operation operation}
+          error)))
 
 (defn- ordered-groups [ops partition-by events opts]
   (if-not partition-by

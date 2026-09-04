@@ -13,6 +13,23 @@
      :jank :jank
      :clj :jvm))
 
+(defmacro try-catch-all
+  "Evaluate `try-form`, catching the broad throwable type for the active host.
+
+  Catch types are compiler syntax and cannot be selected through a runtime
+  value. This macro keeps that target distinction in the host seam while
+  expanding to an ordinary zero-overhead `try`/`catch`. `try-form` is exactly
+  one protected form; use `do` or `let` when it contains multiple steps."
+  [try-form binding & catch-forms]
+  (list 'try
+        try-form
+        (list* 'catch
+               #?(:cljr 'System.Exception
+                  :jank 'cpp/jank.runtime.object_ref
+                  :default 'Throwable)
+               binding
+               catch-forms)))
+
 (defn getenv [name]
   #?(:cljr (System.Environment/GetEnvironmentVariable name)
      :jank (jank-host/getenv name)

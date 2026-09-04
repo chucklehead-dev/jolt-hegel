@@ -1,6 +1,7 @@
 (ns hegel.report
   "Reporting helpers for framework-less Jolt property suites."
-  (:refer-clojure :exclude [run!]))
+  (:refer-clojure :exclude [run!])
+  (:require [hegel.host :as host]))
 
 #?(:jank
    ;; CountingRunner is an associative value; jank can preserve that contract
@@ -73,12 +74,10 @@
                :description description
                :run run})))
   (swap! (:runs runner) inc)
-  (let [outcome (try
-                  {:result (run)}
-                  (catch #?(:cljr System.Exception
-                            :jank cpp/jank.runtime.object_ref
-                            :default Throwable) error
-                    {:exception error}))]
+  (let [outcome (host/try-catch-all
+                 {:result (run)}
+                 error
+                 {:exception error})]
     (if-let [error (:exception outcome)]
       (do
         (swap! (:failures runner) inc)

@@ -80,6 +80,28 @@
         (println "FAIL" description (ex-message (:error result)))))
     (progress! (str "END " description))))
 
+(defn host-exception-seam []
+  (let [handler-calls (atom 0)
+        value (host/try-catch-all
+               :completed
+               error
+               (swap! handler-calls inc)
+               error)]
+    (check "host catch seam preserves successful values without handling"
+           (and (= :completed value)
+                (zero? @handler-calls))))
+  (let [handler-calls (atom 0)
+        thrown (ex-info "expected host exception" {:phase :host-seam})
+        caught (host/try-catch-all
+                (throw thrown)
+                error
+                (swap! handler-calls inc)
+                error)]
+    (check "host catch seam catches broadly and preserves the throwable"
+           (and (= 1 @handler-calls)
+                (identical? thrown caught)
+                (= {:phase :host-seam} (ex-data caught))))))
+
 (defn passing-run []
   (let [calls (atom 0)
         result (h/run-test!
@@ -2594,6 +2616,7 @@
 
 (defn -main [& _]
   (reset-progress!)
+  (scenario "cross-host exception seam" host-exception-seam)
   (scenario "passing run" passing-run)
   (scenario "shrinking and final replay" shrinking-run)
   (scenario "engine nondeterminism" engine-nondeterminism)

@@ -37,13 +37,11 @@
 (defn- release-test-case! [test-case]
   (let [first-error (atom nil)]
     (doseq [cleanup (reverse @(:native-cleanups test-case))]
-      (try
-        (cleanup)
-        (catch #?(:cljr System.Exception
-                  :jank cpp/jank.runtime.object_ref
-                  :default Throwable) error
-          (when-not @first-error
-            (reset! first-error error)))))
+      (host/try-catch-all
+       (cleanup)
+       error
+       (when-not @first-error
+         (reset! first-error error))))
     (hffi/test-case-free! (:context test-case) (:handle test-case))
     (when-let [error @first-error]
       (throw error))))
@@ -215,29 +213,27 @@
   (true? (:hegel/usage-error? (ex-data error))))
 
 (defn- run-body [test-case case-fn]
-  (try
-    {:status :valid
-     :value (binding [*test-case* test-case]
-              (case-fn test-case))}
-    (catch #?(:cljr System.Exception
-              :jank cpp/jank.runtime.object_ref
-              :default Throwable) error
-      (cond
-        (hffi/stop-test? error)
-        {:status :overrun}
+  (host/try-catch-all
+   {:status :valid
+    :value (binding [*test-case* test-case]
+             (case-fn test-case))}
+   error
+   (cond
+     (hffi/stop-test? error)
+     {:status :overrun}
 
-        (or (hffi/assumption-rejected? error)
-            (= ::assumption-rejected (:type (ex-data error))))
-        {:status :invalid}
+     (or (hffi/assumption-rejected? error)
+         (= ::assumption-rejected (:type (ex-data error))))
+     {:status :invalid}
 
-        (or (usage-error? error)
-            (hffi/error? error))
-        (throw error)
+     (or (usage-error? error)
+         (hffi/error? error))
+     (throw error)
 
-        :else
-        {:status :interesting
-         :origin (exception-origin error)
-         :exception error}))))
+     :else
+     {:status :interesting
+      :origin (exception-origin error)
+      :exception error})))
 
 (defn- native-status [status]
   (case status

@@ -4,7 +4,8 @@
   The producer is deliberately abstract: compiler-aspect journals, protocol
   harnesses, and ordinary application event logs can all supply a vector of
   maps.  Rules run outside instrumentation advice so an aspect's fail-open
-  safety contract cannot swallow a test failure.")
+  safety contract cannot swallow a test failure."
+  (:require [hegel.host :as host]))
 
 (def default-max-events 256)
 
@@ -62,18 +63,16 @@
                          {:type ::invalid-rule :rule r})))
        (let [name (::name r)
              passed?
-             (try
-               (boolean ((::check r) events))
-               (catch #?(:cljr System.Exception
-                         :jank cpp/jank.runtime.object_ref
-                         :default Throwable) error
-                 (throw (ex-info "trace rule evaluation threw"
-                                 {:hegel/origin (origin name)
-                                  :type ::rule-error
-                                  :hegel.trace/rule name
-                                  :hegel.trace/event-count (count events)
-                                  :hegel.trace/events events}
-                                 error))))]
+             (host/try-catch-all
+              (boolean ((::check r) events))
+              error
+              (throw (ex-info "trace rule evaluation threw"
+                              {:hegel/origin (origin name)
+                               :type ::rule-error
+                               :hegel.trace/rule name
+                               :hegel.trace/event-count (count events)
+                               :hegel.trace/events events}
+                              error)))]
          (when-not passed?
            (throw (ex-info "trace rule failed"
                            {:hegel/origin (origin name)
