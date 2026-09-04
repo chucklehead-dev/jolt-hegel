@@ -15,16 +15,6 @@
   inline std::string hegel_jank_current_directory()
   { return std::filesystem::current_path().string(); }
 
-  inline std::string hegel_jank_parent_path(std::string const &path)
-  { return std::filesystem::path{path}.parent_path().string(); }
-
-  inline std::string hegel_jank_join_path(std::string const &parent,
-                                          std::string const &child)
-  { return (std::filesystem::path{parent} / child).string(); }
-
-  inline bool hegel_jank_absolute_path_p(std::string const &path)
-  { return std::filesystem::path{path}.is_absolute(); }
-
   inline std::string hegel_jank_os_name()
   {
   #if defined(_WIN32)
@@ -56,16 +46,6 @@
 
 (defn current-directory []
   (cpp/hegel_jank_current_directory))
-
-(defn parent-path [path]
-  (let [parent (cpp/hegel_jank_parent_path path)]
-    (when-not (empty? parent) parent)))
-
-(defn join-path [parent child]
-  (cpp/hegel_jank_join_path parent child))
-
-(defn absolute-path? [path]
-  (cpp/hegel_jank_absolute_path_p path))
 
 (defn os-name []
   (cpp/hegel_jank_os_name))

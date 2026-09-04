@@ -41,29 +41,42 @@
      :default (System/getProperty "user.dir")))
 
 (defn absolute-path?
-  #?(:cljr ([path] (System.IO.Path/IsPathFullyQualified path))
-     :jank ([path] (jank-host/absolute-path? path))
-     :default ([_] nil)))
+  "Recognize POSIX-rooted, Windows-rooted/UNC, and drive-rooted paths
+  independently of the current host operating system."
+  [path]
+  (or (str/starts-with? path "/")
+      (str/starts-with? path "\\")
+      (and (<= 3 (count path))
+           (= \: (nth path 1))
+           (let [drive (nth path 0)
+                 separator (nth path 2)]
+             (and (str/includes?
+                   "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+                   (str drive))
+                  (or (= \/ separator)
+                      (= \\ separator)))))))
 
 (defn parent-path
-  #?(:cljr ([path] (System.IO.Path/GetDirectoryName path))
-     :jank ([path] (jank-host/parent-path path))
-     :default ([_] nil)))
+  "Return the lexical parent before the final slash or backslash, or nil."
+  [path]
+  (let [index (max (or (str/last-index-of path "/") -1)
+                   (or (str/last-index-of path "\\") -1))]
+    (when (pos? index)
+      (subs path 0 index))))
 
-(defn join-path [parent child]
-  #?(:cljr
-     (System.IO.Path/Combine parent child)
-     :jank
-     (jank-host/join-path parent child)
-     :default
-     (str parent
-          (when-not (or (str/ends-with? parent "/")
-                        (str/ends-with? parent "\\"))
-            (if (str/includes? parent "\\") "\\" "/"))
-          child)))
-
-(defn join-native-path [parent child]
-  (join-path parent child))
+(defn join-path
+  "Join a parent and relative child while preserving the parent's separator
+  style. An empty component is an identity."
+  [parent child]
+  (cond
+    (empty? parent) child
+    (empty? child) parent
+    :else
+    (str parent
+         (when-not (or (str/ends-with? parent "/")
+                       (str/ends-with? parent "\\"))
+           (if (str/includes? parent "\\") \\ \/))
+         child)))
 
 (defn os-name []
   #?(:cljr (cond
