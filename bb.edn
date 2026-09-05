@@ -14,6 +14,8 @@
   clr-codegen-check {:extra-paths ["script"]
                      :task ((requiring-resolve 'hegel.generate-clr-bindings/-main)
                             "--check")}
+  header-audit {:extra-paths ["script"]
+                :task (exec 'hegel.header-audit/-main)}
   abi-test {:extra-paths ["script"]
             :task (exec 'hegel.abi-check/-main)}
   test {:extra-paths ["test"]

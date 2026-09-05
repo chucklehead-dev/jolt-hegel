@@ -61,7 +61,8 @@
    :fields [{:name :hour :type :c/uint8}
             {:name :minute :type :c/uint8}
             {:name :second :type :c/uint8}
-            {:name :microsecond :type :c/uint32}]}
+            {:name :microsecond :type :c/uint32
+             :unit :microsecond :range [0 999999]}]}
 
   :hegel/datetime
   {:kind :struct

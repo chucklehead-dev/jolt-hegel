@@ -25,7 +25,9 @@
         descriptor-text (pr-str descriptor)]
     (require! "descriptor identifies libhegel 0.33.3"
               (= "0.33.3" (get-in descriptor [:library :version])))
-    (require! "descriptor covers all 77 header functions"
+    ;; Complete equality with the pinned header belongs to header-audit; this
+    ;; portable backend gate deliberately retains its native coverage checks.
+    (require! "descriptor retains 77 supported binding entries"
               (= 77 (count functions)))
     (require! "descriptor includes formerly unbound header calls"
               (every? (fn [function-id] (contains? functions function-id))
