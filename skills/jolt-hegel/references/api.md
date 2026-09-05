@@ -15,6 +15,7 @@
 - [Bounded linearizability](#bounded-linearizability)
 - [Run options](#run-options)
 - [Replay bundles](#replay-bundles)
+- [Materialized corpora](#materialized-corpora)
 - [Concurrency](#concurrency)
 - [Verification commands](#verification-commands)
 
@@ -783,6 +784,41 @@ bounded EDN and matching versions do not bound native decompression or
 arbitrary property code. Consult `docs/REPLAY_BUNDLES.md` in the source checkout
 for the exact limits and transport boundary; this envelope does not settle
 the experimental trace/history semantic contract.
+
+## Materialized corpora
+
+Available at merged source `88cc32cc3c39cb445fa16f725ff5f9c1db115858`, not
+the historical v0.5.0 API. `(hegel.materialize/materialize! opts generator check!)`
+returns a complete schema-v1 envelope or fails; omit `check!` only when no model
+assertion is intended. Checks must throw on failure: returning false passes.
+Options require canonical uint64 decimal-string `:seed`, `:count` in 1..256,
+and provenance including Hegel/native/runtime/property/generator/model/seam
+identities. Each position uses seed `(seed+i) mod 2^64` in a separate sequential
+one-valid-case generation-only native run. Equal successful values are retained;
+rejected, failed, flaky or incomplete runs never become successful partial output.
+
+For baked consumption, require only `hegel.corpus`, decode the envelope, then
+call `(corpus/consume! expected envelope)`. The independent trusted `expected`
+map contains `:sha256`, `:provenance`, `:count` and
+`:valid-case-policy :exact-valid-count`. Verification hashes exact stored UTF-8
+payload bytes before parsing that payload and checking provenance/count; only then
+may a consumer model inspect the returned payload's `:values`. Do not reprint
+before hashing, trust a self-hash, auto-regenerate a bad fixture, or require the
+native engine/installer/generator from the baked path. Provision dependencies
+before going offline. Runtime provenance identifies the producer, not consumer.
+
+Bounds and integrity do not establish privacy, model correctness, non-vacuity or
+producer authenticity. Add a domain-specific closed fixture profile and explicit
+witness controls when needed. Jolt digesting uses OpenSSL on Linux/macOS and
+Windows CNG; provision crypto dependencies before isolation, not libhegel.
+jank/CLR corpus support is not established by their focused compatibility CI.
+Repeated prefix sealing and per-position native-context costs are unmeasured.
+
+The db example is aspect-packs merge `71a123cbeaf1bb7994f6524e27abb861c7ddd2c2`,
+with distinct live/offline aliases and independently pinned fixtures. Its
+BB/JVM/Jolt three-platform matrix exercised actual restricted model execution,
+not just successful loading. Consult `docs/MATERIALIZED_CORPORA.md` for exact
+transport limits and the linked integration evidence.
 
 ## Concurrency
 

@@ -35,7 +35,8 @@ contracts. Do not borrow names from another Hegel binding.
 2. Identify a general invariant: round-trip, idempotence, bounds, agreement
    with a model, invariant preservation, or no-crash behavior over valid input.
 3. Confirm the selected host and dependency alias. Install libhegel with that
-   host before running the suite.
+   host for native generation/replay; baked corpus consumption deliberately
+   requires no native installation.
 4. Add the property beside examples for the same behavior. Prefer
    `hegel.clojure-test/with` in a `clojure.test` suite; use `run-test!` for a
    custom runner.
@@ -144,6 +145,21 @@ Use `g/recursive` for trees, ASTs, nested workflows, and recursive documents.
 Pass a leaf generator plus a branch function that consumes the supplied
 subtree generator; let libhegel own depth, leaf-budget, retry, and subtree
 hoisting rather than generating a competing depth counter.
+
+## Materialized corpora
+
+Use `hegel.materialize/materialize!` for an exact count of successful plain-data
+examples; use replay bundles for native failed-case reproduction instead.
+Read the materialized-corpora section of [references/api.md](references/api.md)
+for the source pin, generation policy and independent consumer-pin boundary.
+`hegel.corpus/decode` alone is not verification. Never derive trusted expected
+provenance or digest from the artifact being consumed, and never load the native
+generator in a baked-only consumer. Run model checks outside fail-open advice.
+
+Selective typing remains a separate development-tooling pilot (#73). Annotation
+loading, actual static checking, compiler hints and runtime validation are
+different capabilities; require a version-pinned checker with a failing type
+control before claiming checker support on any host.
 
 ## Stateful testing
 
