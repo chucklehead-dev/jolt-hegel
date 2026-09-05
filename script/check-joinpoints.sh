@@ -24,12 +24,29 @@ mkdir -p "$fixture/plain" "$fixture/stale"
 cp -R "$root/test/fixtures/joinpoints/src" "$fixture/"
 cp "$root/test/fixtures/joinpoints/deps.edn" "$fixture/deps.edn"
 cp "$root/test/fixtures/joinpoints/check_report.clj" "$fixture/check_report.clj"
+cp "$root/test/fixtures/joinpoints/check_report_test.clj" "$fixture/check_report_test.clj"
 cp "$root/test/fixtures/joinpoints/plain/deps.edn" "$fixture/plain/deps.edn"
 cp "$root/test/fixtures/joinpoints/stale/deps.edn" "$fixture/stale/deps.edn"
 timeout 30 "$JOLT_BIN" --version
+(cd "$fixture" && timeout 30 bb -cp . check_report_test.clj)
+(cd "$fixture" && timeout 30 bb -e '(binding [*assert* false]
+  (let [value (eval (quote (assert false)))]
+    (when-not (nil? value)
+      (throw (ex-info "assertion was not elided during evaluation" {:actual value})))) )')
 (cd "$stage" && JOLT_CACHE_DIR="$stage/cache-manifest" timeout 180 "$JOLT_BIN" aspects manifest --check)
+# Exercise the actual fixture with assertions disabled during source loading.
+# This is separate from the ordinary AOT gates, not an AOT compiler flag.
+(cd "$fixture/plain" && JOLT_CACHE_DIR="$stage/cache-no-assert" timeout 180 "$JOLT_BIN" -e '
+  (alter-var-root (var *assert*) (constantly false))
+  (binding [*assert* false]
+    (eval (quote (assert false)))
+    (load-file "../src/fixture/app.clj")
+    ((resolve (quote fixture.app/assert-elision-probe!)))
+    ((resolve (quote fixture.app/-main)) "plain"))')
 (cd "$fixture" && JOLT_CACHE_DIR="$stage/cache-woven" timeout 300 "$JOLT_BIN" build -m fixture.app -o target/app)
-(cd "$fixture" && timeout 30 bb check_report.clj target/aspects.edn)
+(cd "$fixture" && timeout 30 bb -cp . -e '(binding [*assert* false]
+  (require (quote check-report))
+  ((resolve (quote check-report/check-file!)) (first *command-line-args*)))' target/aspects.edn)
 (cd "$fixture" && timeout 60 ./target/app)
 
 set +e
@@ -45,4 +62,5 @@ rg -q 'provider-version deliberately-stale' "$stage/stale.log"
 test ! -e "$fixture/stale/target/app"
 (cd "$fixture/plain" && JOLT_CACHE_DIR="$stage/cache-plain" timeout 300 "$JOLT_BIN" build -m fixture.app -o target/app)
 (cd "$fixture/plain" && timeout 60 ./target/app plain)
-echo 'Join-point manifest, woven report/runtime, stale pin, and plain controls passed'
+
+echo 'Join-point manifest, woven report/runtime, stale pin, plain, and source-evaluation disabled-assertion controls passed'

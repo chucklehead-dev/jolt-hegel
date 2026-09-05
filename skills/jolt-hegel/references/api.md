@@ -661,6 +661,10 @@ contracts on BB/JVM/Jolt; their intentionally different acceptance domains are
 recorded in ADR0007. Optional compiler-aspect declarations follow
 `docs/JOINPOINTS.md`: independently pin the source and provider's manifest
 revision, and do not treat artifact-specific site IDs as stable Hegel IDs.
+The manifest revision is an opaque provider compatibility token, not a SHA
+identifying declaration source: its SHA-shaped value names the parent of the
+commit that introduced the declarations. Do not use it as a dependency pin or
+silently replace it with the current source SHA.
 The actual compiler execution gate is Linux-specific and uses an explicit
 aspect-capable fork; ordinary BB/JVM/Jolt properties require neither aspects
 nor a provider. Event-profile validation does not validate compiler metadata.
