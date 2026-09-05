@@ -138,6 +138,25 @@
     (is (nil? (get-in result [:coverage :checks 0 :fraction])))
     (is (= 0 (get-in result [:coverage :checks 0 :hits])))))
 
+(deftest native-rejected-cases-are-counted-but-do-not-satisfy-coverage
+  (let [result
+        (h/run-test!
+         (assoc run-opts :test-cases 10
+                :coverage {:scope :generation-only
+                           :requirements {"rejected-only" {}}})
+         (fn [_]
+           (let [n (h/draw! (g/integer 0 1))]
+             (when (zero? n) (h/event! "rejected-only"))
+             (h/assume! (pos? n))
+             (h/event! "accepted"))))]
+    (is (pos? (:invalid-test-cases result)))
+    (is (= (:invalid-test-cases result)
+           (get-in result [:observations :exploration :events "rejected-only" :invalid])))
+    (is (= (:valid-test-cases result)
+           (get-in result [:observations :exploration :events "accepted" :valid])))
+    (is (= :coverage-failed (:status result)))
+    (is (= 0 (get-in result [:coverage :checks 0 :hits])))))
+
 (deftest rounded-display-fractions-cannot-satisfy-exact-coverage
   (let [opts {:coverage {:scope :exploration
                          :requirements {"all" {:min-fraction 1.0}}}}
