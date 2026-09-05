@@ -12,6 +12,15 @@ implementation and includes the experimental jank and ClojureCLR ports. The
 source declaration in `hegel.version/jolt-hegel-version`, annotated tag, and
 GitHub release must all identify `0.5.0`.
 
+## Current main and next release
+
+Current `main` raises the Jolt source and CI floor to 0.8.1, as declared by
+`:jolt/min-version` in `deps.edn` and the pinned Jolt assets in the CI and
+release workflows. This is current-main and next-release support; it does not
+change the published `v0.5.0` contract or its historical Jolt 0.7.23 floor.
+The source declaration remains `0.5.0` until a new release is explicitly
+prepared and tagged.
+
 ## Private proving ground
 
 1. Push normal development branches to the private repository.
@@ -76,7 +85,9 @@ Review these together for each release:
 - `.github/workflows/release.yml`: release verification target matrix
 - `README.md` and `THIRD_PARTY_NOTICES.md`: documented versions and notices
 
-Jolt 0.7.23 and FFI-capable Babashka 1.13.220 assets are checksum-pinned in CI.
+Current-main CI and release workflows pin Jolt 0.8.1. The published v0.5.0
+release used Jolt 0.7.23. FFI-capable Babashka 1.13.220 assets are
+checksum-pinned in CI.
 The ordinary Linux asset is required; the static Linux asset has neither
 dynamic-library loading nor the libffi route required by libhegel aggregates.
 The standalone

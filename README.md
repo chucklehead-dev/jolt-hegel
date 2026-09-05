@@ -18,11 +18,16 @@ Experimental ports reuse that same implementation and boundary on jank and
 ClojureCLR. They have focused cross-platform CI but are not yet part of the
 supported release contract.
 
-## Current status
+## Current main status
+
+This table describes the support floor exercised by the current `main` source
+and its next-release work. It is not a release announcement; the published
+`v0.5.0` contract remains the one recorded by that tag, including Jolt
+0.7.23+.
 
 | Host | Contract | Continuously tested targets |
 | --- | --- | --- |
-| Jolt 0.7.23+ | Supported | Linux x86_64, Windows x86_64, macOS arm64 |
+| Jolt 0.8.1+ | Supported on current `main` | Linux x86_64, Windows x86_64, macOS arm64 |
 | FFI-capable Babashka 1.13.220+ | Supported | Linux x86_64, Windows x86_64, macOS arm64 native images |
 | JVM Clojure, JDK 22+ | Supported; JDK 25 is primary | Linux x86_64, Windows x86_64, macOS arm64, plus a Linux JDK 22 minimum gate |
 | jank | Experimental focused suite | Linux x86_64 and macOS arm64 |
@@ -357,7 +362,7 @@ Run the installer with the host that will run the tests and the alias that
 contains jolt-hegel:
 
 ```bash
-# Jolt 0.7.23+
+# Current `main` / next release candidate: Jolt 0.8.1+
 jolt -A:test -m hegel.install
 
 # Babashka 1.13.220+

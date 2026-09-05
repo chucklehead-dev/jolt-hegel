@@ -22,3 +22,10 @@ the same backend-derived layouts for allocation and field access. Jolt requires
   classification for its supported ABI.
 - The minimum supported Jolt version is 0.7.23.
 - Linux x86_64, Windows x86_64, and macOS arm64 remain required test targets.
+
+## 2026-09-04 current-main note
+
+The Jolt 0.7.23 floor above describes the published `v0.5.0` contract. Current
+`main` raises the source and CI floor to Jolt 0.8.1, as recorded in `deps.edn`
+and the workflow pins, for the next release. This does not retroactively alter
+the support contract of `v0.5.0`.
