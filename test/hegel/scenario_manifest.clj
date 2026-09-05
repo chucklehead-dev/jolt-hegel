@@ -27,6 +27,9 @@
    {:id :primitive-generators :suite :generators :description "primitive generators" :entrypoint 'hegel.suites.generators/primitive-generators}
    {:id :temporal-generators :suite :generators :description "temporal generators through direct aggregate bindings" :entrypoint 'hegel.suites.generators/temporal-generators}
    {:id :harness-integrity :suite :runner :description "harness and replay integrity" :entrypoint 'hegel.suites.runner/harness-integrity}
+   {:id :replay-bundle-schema :suite :replay :description "replay bundle schema" :entrypoint 'hegel.suites.replay/schema-contract}
+   {:id :replay-bundle-codec :suite :replay :description "replay bundle codec" :entrypoint 'hegel.suites.replay/codec-contract}
+   {:id :replay-bundle-native :suite :replay :description "replay bundle native integration" :entrypoint 'hegel.suites.replay/native-contract}
    {:id :string-generators :suite :generators :description "string and format generators" :entrypoint 'hegel.suites.generators/string-generators}
    {:id :collection-generators :suite :generators :description "collection and composition generators" :entrypoint 'hegel.suites.generators/collection-combinators}
    {:id :combinator-shrinking :suite :generators :description "cross-binding combinator shrink quality" :entrypoint 'hegel.suites.generators/combinator-shrink-quality}

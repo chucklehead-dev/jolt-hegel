@@ -3,7 +3,9 @@
   (:require [clojure.string :as str]
             [hegel.ffi :as hffi]
             [hegel.host :as host]
-            [hegel.validation :as validation]))
+            [hegel.replay-bundle :as replay-bundle]
+            [hegel.validation :as validation]
+            [hegel.version :as version]))
 
 (def ^:dynamic *test-case*
   "The test case currently being executed by run-test!."
@@ -463,6 +465,78 @@
   (mapv #(select-keys % [:status :value :origin :replay-origin :exception])
         replayed))
 
+(defn- capture-replay-options [opts]
+  ;; These are already validated run options. Capture without applying export
+  ;; bounds: a valid ordinary run must not fail merely because its eventual
+  ;; artifact would exceed the deliberately smaller transport limits.
+  (let [options (select-keys opts
+                             [:backend :test-cases :stateful-step-count
+                              :verbosity :derandomize? :report-multiple-failures?
+                              :phases :suppress-health-checks])]
+    (cond-> options
+      (contains? options :phases) (update :phases vec)
+      (contains? options :suppress-health-checks)
+      (update :suppress-health-checks vec))))
+
+(defn replay-bundle!
+  "Directly replay the failure blobs in a trusted, validated bundle.
+
+  `expected-provenance` must come from the current deployment/property
+  manifest, independently of the input bundle. Supply the actual Hegel SHA,
+  runtime identity and generator/model revisions; these assertions cannot be
+  inferred from a function object. Every provenance field must match exactly.
+  The current host and pinned native version are checked as well, followed by
+  the ordinary loaded-library version gate before replay allocation.
+
+  Returns :status :incompatible with :mismatches without executing a property,
+  or :reproduced/:not-reproduced with per-failure results. No run is started,
+  no seed-based generation is substituted, and persistence is disabled.
+  Usage, native and inconclusive errors propagate after resource cleanup.
+
+  IMPORTANT: use only trusted artifacts. EDN bounds and matching provenance
+  do not authenticate blobs or bound native decompression/property execution.
+  Reproduction blobs may contain sensitive generated data."
+  [expected-provenance bundle case-fn]
+  (let [{:keys [mismatches]} (replay-bundle/compatibility expected-provenance bundle)
+        mismatches
+        (cond-> mismatches
+          (not= (host/runtime) (get-in expected-provenance [:runtime :host]))
+          (conj {:path [:runtime :host]
+                 :expected (host/runtime)
+                 :actual (get-in expected-provenance [:runtime :host])})
+          (not= version/libhegel-version (:libhegel-version expected-provenance))
+          (conj {:path [:libhegel-version]
+                 :expected version/libhegel-version
+                 :actual (:libhegel-version expected-provenance)}))
+        opts (assoc (:options bundle) :seed (bigint (:seed bundle)) :database "")]
+    (validate-run-options! opts case-fn)
+    (if (seq mismatches)
+      {:status :incompatible :reproduced? false :mismatches mismatches}
+      (do
+        (hffi/ensure-compatible-version!)
+        (let [ctx (hffi/context-new!)]
+          (try
+            (let [settings (hffi/settings-new! ctx)]
+              (try
+                (configure-settings! ctx settings opts)
+                (let [failures (mapv #(replay-failure!
+                                      ctx settings (or (:verbosity opts) :normal)
+                                      case-fn %)
+                                    (:failures bundle))
+                      reproduced? (every? :reproduced? failures)]
+                  {:status (if reproduced? :reproduced :not-reproduced)
+                   :reproduced? reproduced?
+                   :flaky? (not reproduced?)
+                   :seed (:seed bundle)
+                   :replay-options (capture-replay-options opts)
+                   :n-failures (count failures)
+                   :failures failures
+                   :final (public-final failures)})
+                (finally
+                  (hffi/settings-free! ctx settings))))
+            (finally
+              (hffi/context-free! ctx))))))))
+
 (defn ^{:jolt.aspects/id :hegel.core/run-test
         :jolt.aspects/role :test/property-run}
   run-test!
@@ -485,7 +559,8 @@
   errors throw."
   [opts case-fn]
   (let [opts (validate-run-options! opts case-fn)
-        opts (assoc opts :seed (resolve-seed opts))]
+        opts (assoc opts :seed (resolve-seed opts))
+        replay-options (capture-replay-options opts)]
     (hffi/ensure-compatible-version!)
     (let [ctx (hffi/context-new!)]
       (try
@@ -520,6 +595,7 @@
                        {:passed? false
                         :status :error
                         :seed (str (:seed opts))
+                        :replay-options replay-options
                         :flaky? true
                         :health-check-failure? nil
                         :error run-error
@@ -546,6 +622,7 @@
                            {:passed? (= :passed status)
                             :status status
                             :seed (str (:seed opts))
+                            :replay-options replay-options
                             :flaky?
                             (boolean
                              (some (comp not :reproduced?) replayed))

@@ -106,7 +106,7 @@ code must not branch on it.
 - Keep expensive diagnostics behind `h/final?`, `h/when-final`, `h/fprn`, or
   `h/note!`.
 - Preserve the result's string `:seed`; replay it as a number with
-  `(parse-long (:seed result))`.
+  `(bigint (:seed result))`; uint64 seeds can exceed `parse-long`'s range.
 - Treat every `:flaky? true` result as a failed, untrusted counterexample until
   shared state, timing, or generation nondeterminism is fixed.
 
