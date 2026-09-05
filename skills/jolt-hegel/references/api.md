@@ -14,6 +14,7 @@
 - [Semantic trace rules](#semantic-trace-rules)
 - [Bounded linearizability](#bounded-linearizability)
 - [Run options](#run-options)
+- [Replay bundles](#replay-bundles)
 - [Concurrency](#concurrency)
 - [Verification commands](#verification-commands)
 
@@ -541,7 +542,7 @@ sequence shares it, but never reuse that connection across cases. Cleanup must
 run for passing, rejected, failing, and final-replay cases. If the server cannot
 reset or isolate state per case, do not share it: the shrink result would depend
 on earlier candidates. For manual replay, start an equivalent server and call
-the same wrapper with `(assoc opts :seed (parse-long (:seed result)))`.
+the same wrapper with `(assoc opts :seed (bigint (:seed result)))`.
 Use protocol completion signals rather than sleeps: for request streams, a
 write-side half-close followed by bounded reads through response EOF gives each
 case a deterministic end. Bound both elapsed time and response bytes, and fail
@@ -726,7 +727,8 @@ The result includes `:passed?`, `:status`, `:seed`, `:test-cases`,
 `:valid-test-cases`, `:invalid-test-cases`, `:overrun-test-cases`,
 `:interesting-test-cases`, `:n-failures`,
 `:failures`, `:final`, `:observed-failures`, `:flaky?`, and `:error`. The seed
-is a string; use `(parse-long (:seed result))` when replaying.
+is a string; use `(bigint (:seed result))` when rerunning by seed so the full
+uint64 domain is preserved. Keep engine, property and settings unchanged.
 
 `:observed-failures` contains up to 16 stable origins seen during exploration.
 Each entry has `:origin`, `:count`, and structured `:first` and `:last` throwable
@@ -750,6 +752,37 @@ outcomes or different generation for the same choice prefix, the result has
 `:status :error`, `:passed? false`, `:flaky? true`, and the explanation in
 `:error`; it has no counterexample to replay. Other run-level errors, including
 health-check failures, still throw `:hegel.core/run-error`.
+
+## Replay bundles
+
+Current source adds `hegel.replay-bundle/from-result` for stable, reproduced
+failed results and `hegel.replay-bundle.codec/encode` / `decode` for bounded
+schema-v1 EDN. These pure namespaces need no native library or type checker.
+Export requires the new result's captured `:replay-options`; do not invent
+settings for older results. Keep uint64 seeds as decimal strings.
+
+`(h/replay-bundle! expected-provenance bundle case-fn)` compares every
+provenance field and replays native blobs directly with captured settings and
+persistence disabled. Obtain expected provenance independently from the
+current deployment/property manifest, never by copying the supplied bundle.
+It requires the Hegel SHA, native version, runtime host/version/OS/architecture,
+property ID, generator revision, and an explicit nil or versioned model
+revision. These are caller assertions, not authenticated identities; the
+adapter additionally checks the selected host and native version gate.
+
+Results distinguish `:incompatible`, `:reproduced`, and `:not-reproduced`;
+reproducing a failure is not a passing property. A seed rerun is not direct
+blob replay. Usage, native and inconclusive errors propagate with cleanup.
+
+Trace is omitted by default. An optional `:trace` envelope identifies its own
+event contract/revision; `:redact-trace` runs before validation and its failure
+must not fall back to raw data. Export omits exceptions, values, observations,
+database paths/keys and display names. Blobs themselves may contain secrets
+and cannot be redacted without changing replay. Execute only trusted blobs:
+bounded EDN and matching versions do not bound native decompression or
+arbitrary property code. Consult `docs/REPLAY_BUNDLES.md` in the source checkout
+for the exact limits and transport boundary; this envelope does not settle
+the experimental trace/history semantic contract.
 
 ## Concurrency
 

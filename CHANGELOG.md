@@ -6,6 +6,10 @@ for v0.1.0 through v0.4.0, see the tag and release history in that repository.
 
 ## Unreleased
 
+- Add bounded, versioned EDN counterexample bundles and direct native replay
+  with explicit provenance compatibility checks. Results capture present
+  replay settings; exports omit host exceptions and opt out of traces by
+  default. Replay is for trusted artifacts, not a sandbox for hostile blobs.
 - Add `g/permutations`, `g/subsequences`, and `g/samples`. They realize finite
   inputs once and return vectors while retaining duplicate source positions;
   replacement samples keep an unbounded default maximum size for nonempty

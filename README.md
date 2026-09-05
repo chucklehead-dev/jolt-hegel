@@ -129,8 +129,8 @@ libhegel minimize the choices that produced it, and executes the minimized case
 one final time. Put expensive diagnostics behind `h/final?`, `h/when-final`, or
 `h/fprn` so hundreds of exploratory cases stay quiet.
 
-Every result includes its selected seed as a decimal string. A direct runner
-can replay it exactly:
+Every result includes its selected seed as a decimal string. Rerun it with
+the same engine, property contract and settings:
 
 ```clojure
 (defn packet-property [_]
@@ -145,7 +145,7 @@ can replay it exactly:
 
 (def replay
   (h/run-test! {:test-cases 500
-                :seed (parse-long (:seed result))
+                :seed (bigint (:seed result))
                 :database ""
                 :verbosity :quiet}
                packet-property))
@@ -161,6 +161,16 @@ The result map also records case counts, minimal failures, final replay data,
 observed failure summaries, and flakiness. A result with `:flaky? true` means
 the same generated choices did not reproduce the same outcome; fix shared
 state, timing, or other nondeterminism before trusting its counterexample.
+
+### Portable counterexample bundles
+
+Use `hegel.replay-bundle/from-result` and `hegel.replay-bundle.codec` to export
+a bounded EDN artifact from a stable failure. `hegel.core/replay-bundle!`
+compares an independent deployment/property manifest and directly replays the
+native blobs; it does not substitute a seed rerun. See
+[replay bundles](docs/REPLAY_BUNDLES.md) for provenance, redaction, result
+variants and the trusted-artifact boundary. Matching provenance and bounded
+EDN do not make untrusted native blobs safe to execute.
 
 ## Stateful and swarm testing
 
