@@ -9,6 +9,11 @@ Use jolt-hegel to write property-based and model-based tests on Jolt,
 Babashka, or JVM Clojure. The public API and behavioral contract are shared;
 runtime choice affects installation and native diagnostics, not property code.
 
+The guidance below was verified on 2026-09-04 against source revision
+`42ad76538e8824bd774a3c71bfa41723ce9e07c2`. Current `main` requires Jolt
+0.8.1; the published `v0.5.0` release retains its historical Jolt 0.7.23+
+contract. The supported FFI-capable Babashka floor is 1.13.220 with libffi.
+
 jank and ClojureCLR implementations are merged but experimental. Do not select
 one for a consumer merely because its source branch exists: first read
 `docs/JANK.md` or `docs/CLR.md` and confirm the project accepts the focused
@@ -41,7 +46,7 @@ aliases to the consuming project, so activate the alias that contains the
 dependency when running the installer.
 
 ```bash
-# Jolt 0.7.23+
+# Current `main` / next release candidate: Jolt 0.8.1+
 jolt -A:test -m hegel.install
 
 # Babashka 1.13.220+ with libffi (on Linux, do not use the -static asset)
@@ -75,6 +80,14 @@ initialization. It reports coverage and routes such as `:jolt/direct`,
 unsupported Babashka build is diagnosed before the configured libhegel path is
 checked, so do not treat that error as a missing native dependency.
 
+When diagnosing Jolt scalar FFI writes, preserve the Jolt 0.8 value-before-offset
+argument order. In a mock-only adapter test, invoke `write-value` with an
+actually allocated pointer `p`, type `:int64`, offset `24`, and value `42`, then
+assert that the mocked underlying write records `[p :int64 42 24]`. Keep the
+nonzero offset and value distinct so a swap is obvious; do not use an integer
+sentinel as a pointer. This is a Jolt-adapter diagnostic only; shared property
+code must not branch on it.
+
 ## Write reliable properties
 
 - Generate the broadest valid domain. Boundary cases are part of the test.
@@ -105,6 +118,17 @@ Use `g/octet` for an unsigned protocol byte and convert only at an API boundary
 that requires a signed host byte. Use `(g/integer -128 127)` for a property
 defined over signed bytes and `g/bytes` for byte arrays. For streaming input,
 draw `(g/chunkings payload)` so both content and write boundaries shrink.
+
+`g/integer` bounds are validated when the generator is constructed: both bounds
+must satisfy Clojure's `integer?` predicate (so `1.0` is rejected), be in the
+signed 64-bit range, and have a minimum no greater than the maximum. Invalid
+bounds are usage errors before any native draw.
+
+`h/sample` returns up to `n` values when the underlying property run passes; the
+engine may exhaust its choices before reaching `n`. Ordinary property failures
+and flaky verdicts throw `::h/sample-failed` with the complete run result and
+original cause data instead of returning a partial sample. Usage, setup, and
+native harness exceptions from `run-test!` propagate directly.
 
 Use `g/recursive` for trees, ASTs, nested workflows, and recursive documents.
 Pass a leaf generator plus a branch function that consumes the supplied

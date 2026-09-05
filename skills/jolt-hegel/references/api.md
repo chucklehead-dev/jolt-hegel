@@ -20,8 +20,10 @@
 ## Install
 
 Use the runtime selected by the consuming project's toolchain contract: Jolt
-0.7.23 or later, an FFI-capable Babashka 1.13.220 or later build with the
-official `babashka.ffi`, or JVM Clojure on JDK 22 or later. On Linux, use the
+0.8.1 or later on current `main` and next-release work (the published `v0.5.0`
+tag retains its historical Jolt 0.7.23+ contract), an FFI-capable Babashka
+1.13.220 or later build with the official `babashka.ffi`, or JVM Clojure on
+JDK 22 or later. On Linux, use the
 ordinary release asset rather than the `-static` asset and confirm `bb describe`
 reports a non-nil `:libffi/version`. Do not substitute a
 convenient global executable for a project-selected binary. Add the public
@@ -47,7 +49,7 @@ From the consuming project, install the verified libhegel release with the host
 that will run the tests:
 
 ```bash
-# Jolt
+# Current `main` / next release candidate: Jolt 0.8.1+
 JOLT_CACHE_DIR=.jolt-cache/jolt-hegel-<jolt-hegel-commit-sha> \
   jolt -A:test -m hegel.install
 
@@ -98,7 +100,7 @@ loaded libhegel ABI version before a run.
 
 | Host | Status and current evidence |
 | --- | --- |
-| Jolt 0.7.23+ | Supported on Linux x86_64, Windows x86_64, and macOS arm64 |
+| Jolt 0.8.1+ on current `main` | Supported on Linux x86_64, Windows x86_64, and macOS arm64 |
 | FFI-capable Babashka 1.13.220+ | Supported on the same three-OS native-image matrix; Linux `-static` assets are excluded |
 | JVM Clojure on JDK 22+ | Supported on the same matrix with JDK 25 primary and a Linux JDK 22 minimum gate |
 | jank | Experimental focused Linux and macOS suites; see `docs/JANK.md` |
@@ -220,6 +222,11 @@ For wire formats, prefer `g/octet` and call `(unchecked-byte octet)` only at an
 API boundary that requires a host signed-byte representation. In the other
 direction, `(bit-and signed-byte 0xff)` recovers the unsigned octet. Use
 `g/bytes` when the property needs an array.
+
+`g/integer` validates both bounds at construction. Each must satisfy Clojure's
+`integer?` predicate (so `1.0` is rejected), be in the signed 64-bit range, and
+have a minimum no greater than the maximum. Fractional, nonnumeric, nil, and
+out-of-range bounds are usage errors before a native draw.
 
 ### Optional Malli adapter
 
@@ -421,6 +428,12 @@ namespace load time.
 | `(h/fprn ...)` | print values to stderr only during final replay |
 | `(h/note! ...)` | print according to configured verbosity |
 | `(h/sample n generator)` | inspect up to `n` values |
+
+`h/sample` returns up to `n` values when the underlying property run passes; the
+engine may exhaust its choices before reaching `n`. Ordinary property failures
+and flaky verdicts throw `::h/sample-failed` with the complete run result and
+original cause data; usage, setup, and native harness exceptions from
+`run-test!` propagate directly rather than being wrapped as sample failures.
 
 ## Stateful testing
 
