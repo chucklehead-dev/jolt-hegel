@@ -8,6 +8,7 @@
             [hegel.ffi.backend :as ffi-backend]
             [hegel.generator :as g]
             [hegel.history :as hhistory]
+            [hegel.history-oracle :as horacle]
             [hegel.host :as host]
             [hegel.install :as install]
             [hegel.install.backend :as install-backend]
@@ -2809,6 +2810,10 @@
                 (= 2 (:hegel.trace/event-count (ex-data failure)))
                 (= events (:hegel.trace/events (ex-data failure)))))))
 
+(defn exhaustive-history-oracle []
+  (doseq [[description passed?] (horacle/checks)]
+    (check description passed?)))
+
 (t/deftest embedded-hegel-property
   (ht/with {:test-cases 20
             :seed 20260727
@@ -2981,6 +2986,7 @@
   (scenario "latest stateful ABI and owned handles" latest-stateful-abi)
   (scenario "bounded semantic trace rules" semantic-trace-rules)
   (scenario "bounded linearizability" bounded-linearizability)
+  (scenario "independent exhaustive history oracle" exhaustive-history-oracle)
   (scenario "clojure.test integration" clojure-test-integration)
   (println "Ran jolt-hegel scenarios;" @failures "failures")
   (flush)
