@@ -1,10 +1,10 @@
 # Seeded materialized corpora
 
-Status: unreleased implementation for issue #56. Cross-platform CI and the
-coordinated live/offline db pilot remain acceptance gates; the existence of these
-APIs does not close that issue. Local Linux BB/JVM/Jolt corpus checks have passed
-in new network namespaces with an unavailable libhegel path; this validates the
-Hegel consumer path, not the still-pending db integration.
+Status: merged in PR86 at `88cc32cc3c39cb445fa16f725ff5f9c1db115858`, with
+the coordinated db pilot merged in aspect-packs PR93. These are source-pinned
+capabilities, not a claim that the historical v0.5.0 release supplies these APIs.
+Supported-host CI and independent reviews are recorded below; experimental
+hosts and unmeasured generation costs retain their explicit limitations.
 
 The purpose is to generate successful plain-data examples once and check those
 same examples in environments without libhegel or network access. This is distinct
@@ -183,14 +183,34 @@ prove network isolation; the physically offline fixture gate is separate.
 
 ## Cross-repository db pilot
 
-Aspect-packs roadmap #69 requires `docs/spec-corpus.md`, both live generation and
-baked fixtures, and a db pilot. That document was absent from public main when
-checked on 2026-09-05. The prerequisite contract has since landed in
-[aspect-packs PR #91](https://github.com/chucklehead-dev/jolt-aspect-packs/pull/91),
-commit `96be2d7f9070dede16d1291be218d7e26f3c0b26`, after root/Claude review and its
-applicable CI. It explicitly leaves both consumers and their new gates pending;
-this Hegel document is not a substitute for those implementations or coordinated
-pin updates.
+The prerequisite contract landed in aspect-packs PR91; both consumers and the
+db pilot then landed in
+[aspect-packs PR93](https://github.com/chucklehead-dev/jolt-aspect-packs/pull/93),
+merge `71a123cbeaf1bb7994f6524e27abb861c7ddd2c2`, pinning Hegel `88cc32cc`.
+Its final reviewed head `6be0648170921255cee437643d8efb175fc0f1d7` passed
+[all nine corpus CI rows](https://github.com/chucklehead-dev/jolt-aspect-packs/actions/runs/33983471261)
+and formal evidence after root and independent local Claude reviews.
+Each BB/JVM/Jolt row on Linux x86_64, Windows x86_64 and macOS arm64 ran
+positive/blocked/restored network controls, four model-checked baked histories
+with 48 offline assertions, and 67 live assertions after native installation.
+Linux uses network namespaces, macOS Seatbelt, and Windows a temporary rule
+for the actual runtime executable. The Windows gate is for the reviewed trusted
+consumer, not a general sandbox for hostile code.
+
+From that exact aspect-packs checkout, after dependency provisioning:
+
+```sh
+bb --config corpus-bb.edn corpus-offline
+clojure -M:db-corpus-offline
+jolt -M:db-corpus-offline
+```
+
+The committed fixture and independent expected manifest are
+`corpus-fixtures/db-v1.edn` and `corpus-fixtures/db-v1-pin.edn`. Both consumers
+reuse the existing model; a separate closed synthetic profile rejects arbitrary
+metadata before any consumer model callback. The pilot composes Hegel generators
+directly and introduces no Malli or checker dependency. Broader roadmap #69,
+compiler/provider evidence and Phase 4 obligations remain separate.
 
 For the db pilot, each generated value is the complete privacy-shaped event
 vector accepted by `jolt.aspect-packs.db.model/check!`. Both modes call that same
@@ -199,7 +219,12 @@ rows, spans, metrics, or arbitrary exception messages. The model's own event
 bound and event-contract/seam revision remain separate from corpus transport
 bounds. Corpus validity alone is not model validity or a non-vacuity proof.
 
-## Remaining implementation and acceptance gates
+## Regression obligations and remaining work
+
+The following implementation gates were exercised in Hegel PR86 and the db
+integration above. Retain them for changes; they are not still-unimplemented
+APIs. Repository/installed guidance coordination and performance measurement
+remain distinct follow-up work.
 
 - Extract and regression-test shared bounded data/EDN mechanics without changing
   replay-bundle v1 acceptance, errors, limits or native behavior.
@@ -207,8 +232,8 @@ bounds. Corpus validity alone is not model validity or a non-vacuity proof.
   supplementary characters, standard SHA-256 vectors and malformed surrogates.
   Released upstream `jolt-lang/crypto` v0.0.5 supplies MessageDigest on Jolt 0.8,
   but its metadata only declares Linux/macOS native candidates. The new Jolt
-  adapter implements Windows CNG; actual Windows execution is still a gate,
-  not permission to narrow supported hosts or infer success from Linux.
+  adapter implements Windows CNG, exercised by the actual Windows CI. Future
+  changes still require Windows execution, not inference from Linux.
 - Test exact count, constant values, uint64 seed wrap, repeated seeded generation,
   rejected candidates, ordinary failure, flakiness, abort propagation and cleanup.
   Verify different seeds actually exercise a nonconstant domain; do not count
