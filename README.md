@@ -476,6 +476,10 @@ not hardcode a Git cache path. Embedding the descriptor does not package
 `libhegel`: deploy the native library separately and verify its ABI/version and
 checksum through the normal installer or explicit-library-path contract.
 
+Embedded resources take precedence. For filesystem resources on Windows, the
+host seam retains direct source-root paths to avoid Jolt 0.8.1's file-URL
+drive-path rebasing bug; read errors are not swallowed to try a different copy.
+
 The Linux Jolt CI gate runs `bash script/check-standalone-resources.sh`: it builds
 from a disposable copy, moves those inputs out of their compiled paths, then
 runs a native property from a separate consumer directory. Source-root listings
