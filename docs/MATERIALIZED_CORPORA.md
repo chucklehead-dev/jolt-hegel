@@ -144,8 +144,12 @@ The shared transport performs a round-trip check; this is not canonical EDN.
 
 Aspect-packs roadmap #69 requires `docs/spec-corpus.md`, both live generation and
 baked fixtures, and a db pilot. That document was absent from public main when
-checked on 2026-09-05; this Hegel document is not a substitute for the owning
-consumer contract or coordinated pin update.
+checked on 2026-09-05. The prerequisite contract has since landed in
+[aspect-packs PR #91](https://github.com/chucklehead-dev/jolt-aspect-packs/pull/91),
+commit `96be2d7f9070dede16d1291be218d7e26f3c0b26`, after root/Claude review and its
+applicable CI. It explicitly leaves both consumers and their new gates pending;
+this Hegel document is not a substitute for those implementations or coordinated
+pin updates.
 
 For the db pilot, each generated value is the complete privacy-shaped event
 vector accepted by `jolt.aspect-packs.db.model/check!`. Both modes call that same
