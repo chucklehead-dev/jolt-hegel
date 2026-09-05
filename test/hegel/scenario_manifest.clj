@@ -21,6 +21,7 @@
    {:id :validation :suite :validation :description "public option validation" :entrypoint 'hegel.suites.validation/public-option-validation}
    {:id :temporal-precision :suite :generators :description "temporal precision compatibility" :entrypoint 'hegel.suites.generators/temporal-precision-contract}
    {:id :generator-cleanup :suite :generators :description "generator cleanup exception precedence" :entrypoint 'hegel.suites.generators/generator-cleanup-contract}
+   {:id :sequence-generators :suite :generators :description "permutations subsequences and samples" :entrypoint 'hegel.suites.generators/sequence-generators-contract}
    {:id :generated-seed :suite :runner :description "generated seed" :entrypoint 'hegel.suites.runner/generated-seed}
    {:id :controls-sample :suite :runner :description "controls and sample" :entrypoint 'hegel.suites.runner/controls-and-sample}
    {:id :primitive-generators :suite :generators :description "primitive generators" :entrypoint 'hegel.suites.generators/primitive-generators}

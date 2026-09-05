@@ -247,7 +247,8 @@ The built-in surface covers:
 - Unicode text, characters, regex strings, email addresses, domains, and URLs;
 - UUIDs, IPv4 and IPv6 addresses, dates, times, and datetimes;
 - constants, sampled values, mapping, dependent generation, filtering,
-  alternatives, and optional values; and
+  alternatives, and optional values;
+- permutations, order-preserving subsequences, and samples of finite inputs;
 - tuples, vectors, chunkings, lists, sets, sorted sets, maps, sorted maps, and
   fixed-key heterogeneous maps; and
 - recursive trees and documents with engine-owned depth, leaf-budget, retry,
@@ -262,6 +263,15 @@ domains fail as usage errors when the generator or test configuration is
 constructed. In particular, documented boolean options require `true` or
 `false`; they do not use generic Clojure truthiness. This keeps a configuration
 mistake made inside a property out of shrinking and replay.
+
+`g/permutations`, `g/subsequences`, and `g/samples` realize their finite input
+once and return vectors. They retain duplicate values by source position:
+permutations retain every position, subsequences preserve input order, and
+`{:replacement? false}` samples select each position at most once. Samples use
+replacement by default, so their default native maximum size remains unbounded
+for nonempty inputs. Full permutations intentionally remove one position at a
+time from the remaining vector (`O(n²)`) to keep positional duplicate handling
+and native choice shrinking intact.
 
 Recursive generators keep the recursion policy in libhegel, so generated
 trees use the same depth and leaf budgets on every host and can shrink by
