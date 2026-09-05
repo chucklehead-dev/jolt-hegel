@@ -6,6 +6,10 @@ for v0.1.0 through v0.4.0, see the tag and release history in that repository.
 
 ## Unreleased
 
+- Give native installers invocation-owned staging files and publish verified
+  bytes without deleting the previous cache entry first. Concurrent installers
+  accept only checksum-matching winners; unsupported atomic replacement fails
+  without removing the existing target.
 - Add bounded direct self-recursion to the optional Malli adapter, including
   engine-owned depth, leaf-budget, retry, and subtree-hoisting shrink behavior.
 - Publish experimental compiler-derived Jolt aspect join points on

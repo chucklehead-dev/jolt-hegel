@@ -4,6 +4,7 @@
             [clojure.string :as str])
   (:import [java.io File FileInputStream FileOutputStream]
            [java.net URI]
+           [java.nio.file Files CopyOption StandardCopyOption]
            [java.security MessageDigest]))
 
 (defn property [name]
@@ -29,7 +30,12 @@
   (.delete (File. path)))
 
 (defn rename-file! [source target]
-  (.renameTo (File. source) (File. target)))
+  ;; Both paths are siblings. Require atomic publication: do not fall back to
+  ;; copy/delete on an unsupported filesystem. Existing-target behavior is
+  ;; provider-specific; shared policy handles a verified concurrent winner.
+  (Files/move (.toPath (File. source)) (.toPath (File. target))
+              (into-array CopyOption [StandardCopyOption/ATOMIC_MOVE]))
+  true)
 
 (defn read-text [path]
   (slurp path))
