@@ -6,6 +6,7 @@
   maps.  Rules run outside instrumentation advice so an aspect's fail-open
   safety contract cannot swallow a test failure."
   (:require [hegel.host :as host]
+            [hegel.internal.event-id :as event-id]
             [hegel.validation :as validation]))
 
 (def default-max-events 256)
@@ -279,17 +280,6 @@
                        (< (:seq parent) (:seq event))))))))
          invocations))))))
 
-(defn- portable-operation-id-key [operation-id]
-  ;; A tagged scalar key is total and byte-stable across the supported hosts.
-  ;; Composite EDN and host objects have no portable printed iteration/identity
-  ;; contract and therefore cannot participate in canonical fan-in ordering.
-  (cond
-    (integer? operation-id) (str "0:" operation-id)
-    (string? operation-id) (str "1:" (pr-str operation-id))
-    (keyword? operation-id) (str "2:" (pr-str operation-id))
-    (symbol? operation-id) (str "3:" (pr-str operation-id))
-    :else nil))
-
 (defn causal-links
   "Require every invocation to carry canonical causal fan-in links.
 
@@ -311,9 +301,9 @@
          (fn [event]
            (let [links (:causal-links event)
                  link-keys (when (vector? links)
-                             (mapv portable-operation-id-key links))]
+                             (mapv event-id/key links))]
              (and (contains? event :causal-links)
-                  (some? (portable-operation-id-key (:operation-id event)))
+                  (some? (event-id/key (:operation-id event)))
                   (vector? links)
                   (every? some? link-keys)
                   (= (count links) (count (distinct links)))

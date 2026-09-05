@@ -30,6 +30,14 @@ cross-repository migration.
 
 ## Proposed decision
 
+The maintained top-level source scan also found
+`jolt-otel-clickhouse/test/otel/exporter/chdb_property_test.clj` at
+`8971ce58241ed236653fe7c84209579ae70027ac`. It uses legacy `:enter` and
+`:connection/:close` events with `event-model`, not complete operation events;
+its Hegel test pin is `d68ae004e45d9271d4d6378bdeb44eec6997c953`.
+It must retain the generic trace API, not be migrated to the canonical profile
+by renaming phases or inventing operation IDs for connection-close records.
+
 Define one opt-in canonical operation-event profile and version it separately
 from native replay blobs, corpus transport, compiler join points and individual
 domain models. Keep the existing generic trace and bounded history entry points
@@ -93,7 +101,7 @@ partitions or truth of a model transition.
 1. Land literal positive/negative differential characterization on supported
    BB/JVM/Jolt hosts, including missing metadata, sequence shifts/gaps,
    legacy phases, asynchronous lifetime and incomplete/empty histories.
-2. Implement and test the explicit canonical-profile checker and its bounded
+2. Validate the implemented explicit canonical-profile checker and its bounded
    evidence/usage-error contract. Include malformed and semantic negative
    controls; reuse existing rule policy without weakening generic APIs.
 3. Exercise actual aspect-packs producer/model fixtures against it; inventory

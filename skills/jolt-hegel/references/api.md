@@ -13,6 +13,7 @@
 - [Observations and coverage](#observations-and-coverage)
 - [Stateful testing](#stateful-testing)
 - [Semantic trace rules](#semantic-trace-rules)
+- [Canonical event profile](#canonical-event-profile)
 - [Bounded linearizability](#bounded-linearizability)
 - [Run options](#run-options)
 - [Replay bundles](#replay-bundles)
@@ -690,6 +691,36 @@ strictly increasing sequence rule instead of a contiguous one.
 interleaved events while preserving their order within each group. Keep the
 model pure so generation, shrinking, and final replay begin from the same
 `:initial` value.
+
+## Canonical event profile
+
+Current unreleased source adds `hegel.event-contract/check!` for explicit
+canonical operation events and `check-envelope!` for the closed envelope
+`{:contract-id "hegel.operation-events" :contract-revision "1" :events [...]}`.
+Both return their original input unchanged. These pure APIs need no native
+library. They do not replace or silently narrow generic trace/history rules.
+
+The optional settings are `:max-events` (positive, default 256) and
+`:sequence-start` (integer, default 1). Use an independent expected start to
+detect truncated prefixes. Events have contiguous integer sequence numbers,
+scalar operation IDs (integer/string/keyword/symbol), and complete
+`:invoke`/`:return` or `:invoke`/`:throw` lifecycles. Invocations require
+operation, parent, context and causal-link fields; nil root parents and empty
+link vectors are explicit. Parents and links refer to earlier invocations;
+child context matches its parent. Async children may outlive parents.
+
+Link vectors are unique and sorted by tagged scalar spelling, not numerical
+integer order (`[10 2]`, not `[2 10]`). Terminals need not repeat metadata.
+Extra fields and payloads are preserved; models still check operation/payload
+semantics. Generic legacy `:enter`, mixed event models and history ID domains
+remain valid through their existing APIs, not through this canonical profile.
+
+Bad options or unsupported envelope identity are usage errors. Semantic
+failures use stable trace-rule origins and bounded event evidence. Event count
+does not bound payload bytes or redact data. Transport/provenance validation,
+profile semantics and linearizability are separate checks. See
+`docs/EVENT_CONTRACT.md` and ADR0007 for exact boundaries and the pending
+cross-repository stabilization gates.
 
 ## Bounded linearizability
 

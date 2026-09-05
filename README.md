@@ -524,6 +524,11 @@ Jolt compiler aspects currently requires an aspect-enabled Jolt fork;
 protocol harnesses, explicit journals, application logs, and other producers
 can supply the same event vectors on an unmodified runtime.
 
+An explicit canonical operation-event profile is available through
+`hegel.event-contract/check!` and `check-envelope!`; see
+[the profile contract](docs/EVENT_CONTRACT.md). It does not silently change
+generic trace/history acceptance or replace domain-model checks.
+
 These APIs are experimental because their event and model contracts are still
 being exercised across the wider Jolt ecosystem. Their checks and failure
 evidence are covered by the shared jolt-hegel semantic suite.
