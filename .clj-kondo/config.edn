@@ -7,7 +7,12 @@
   {:level :off}
   :unused-private-var
   {:exclude [hegel.host/join-path]}}
+ :config-in-ns
+ {hegel.typed.controls.text-size-wrong-input
+  {:linters {:type-mismatch {:level :off}}}}
  :hooks
  {:analyze-call
   {hegel.clojure-test/with hooks.hegel/clojure-test-with
-   hegel.host/try-catch-all hooks.hegel/try-catch-all}}}
+   hegel.host/try-catch-all hooks.hegel/try-catch-all
+   typed.clojure/ann hooks.hegel/typed-declaration
+   typed.clojure/defalias hooks.hegel/typed-declaration}}}

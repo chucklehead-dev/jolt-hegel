@@ -697,8 +697,9 @@ Maintainer details live in:
 - [behavioral contracts](docs/DESIGN.md);
 - [experimental jank host status](docs/JANK.md);
 - [experimental ClojureCLR host status](docs/CLR.md);
-- [architecture decisions](docs/adr/README.md); and
-- [release process](docs/RELEASING.md).
+- [architecture decisions](docs/adr/README.md);
+- [release process](docs/RELEASING.md); and
+- [dev-only Typed Clojure pilot](docs/TYPED_CLOJURE.md) (`clojure -M:typed-check`).
 
 The repository also ships an [Agent Skill](skills/jolt-hegel/SKILL.md) for
 adding evidence-backed property and stateful tests to another project.
