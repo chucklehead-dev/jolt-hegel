@@ -6,6 +6,14 @@ for v0.1.0 through v0.4.0, see the tag and release history in that repository.
 
 ## Unreleased
 
+- Add the explicit `hegel.operation-events` revision 1 profile through
+  `hegel.event-contract/check!` and `check-envelope!`. Generic trace/history
+  callers retain their existing event domains; profile validation is separate
+  from transport, domain models and bounded linearizability search. See
+  [event contracts](docs/EVENT_CONTRACT.md) and ADR0007 for the supported
+  trace/history compatibility boundaries and cross-repository evidence.
+  Compiler-aspect join-point metadata remains experimental under #23.
+
 - Add categorical `event!`, numeric `observe!`, native `:show-statistics?`,
   bounded frontend `:observations?` and explicit `:coverage` requirements.
   Coverage failures are run-level results, not fabricated counterexamples;

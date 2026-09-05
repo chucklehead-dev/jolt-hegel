@@ -215,6 +215,12 @@ throw a `:hegel/inconclusive? true` exception on search-budget exhaustion;
 never turn that into a shrinkable property failure. The candidate-work budget
 does not limit preprocessing or wall time in arbitrary model callbacks.
 
+For producers explicitly claiming canonical operation events, use
+`hegel.event-contract/check!` or `check-envelope!` before the domain model.
+Read the canonical event profile section of [references/api.md](references/api.md).
+Do not apply that profile implicitly to legacy or mixed event-model traces;
+transport decoding and matching version strings alone do not check semantics.
+
 ## External systems
 
 An expensive service may wrap the complete `run-test!` call only when every

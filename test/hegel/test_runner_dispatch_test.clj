@@ -51,6 +51,8 @@
    {:id :trace-rules :suite :trace-history :description "bounded semantic trace rules" :entrypoint 'hegel.suites.trace-history/semantic-trace-rules}
    {:id :linearizability :suite :trace-history :description "bounded linearizability" :entrypoint 'hegel.suites.trace-history/bounded-linearizability}
    {:id :history-budget :suite :trace-history :description "bounded linearizability search budget" :entrypoint 'hegel.suites.trace-history/history-budget-contract}
+   {:id :event-contract :suite :trace-history :description "trace/history event domain characterization" :entrypoint 'hegel.suites.trace-history/event-contract-characterization}
+   {:id :canonical-events :suite :trace-history :description "canonical operation-event profile" :entrypoint 'hegel.suites.trace-history/canonical-event-contract}
    {:id :history-oracle :suite :trace-history :description "independent exhaustive history oracle" :entrypoint 'hegel.suites.trace-history/exhaustive-history-oracle}
    {:id :clojure-test :suite :clojure-test :description "clojure.test integration" :entrypoint 'hegel.suites.clojure-test/clojure-test-integration}])
 
