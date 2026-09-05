@@ -84,7 +84,10 @@
 
 (defn- ensure-directory! [path]
   (when-not (or (directory? path)
-                (install-backend/mkdirs! path))
+                (install-backend/mkdirs! path)
+                ;; Another installer may have created it after our first
+                ;; check; mkdirs returning false does not mean it is absent.
+                (directory? path))
     (throw
      (ex-info (str "could not create " path)
               {:type ::directory-failed
@@ -150,18 +153,6 @@
               {:type ::delete-failed
                :path path}))))
 
-(defn- replace-file! [source target]
-  (when (path-exists? target)
-    (delete-if-present! target))
-  (when-not (install-backend/rename-file! source target)
-    (throw
-     (ex-info (str "could not move verified download to " target
-                   "; verified file remains at " source)
-              {:type ::replace-failed
-               :source source
-               :path target})))
-  target)
-
 (defn- download! [url path]
   (println "native: downloading" url)
   (delete-if-present! path)
@@ -197,13 +188,35 @@
                  :path path})))
     path))
 
+(defn- replace-file! [source target expected]
+  ;; Never remove the target first. Some hosts atomically replace it; others
+  ;; refuse an existing destination. A matching concurrent winner is success
+  ;; in either case, but a mismatching target must survive a failed publish.
+  (let [result (host/try-catch-all
+                {:published? (install-backend/rename-file! source target)}
+                cause
+                {:published? false :cause cause})]
+    (when-not (or (:published? result)
+                  (checksum-matches? target expected))
+      (throw
+       (ex-info (str "could not publish verified download to " target
+                     "; existing target was not removed")
+                (cond-> {:type ::replace-failed
+                         :source source
+                         :path target}
+                  (:cause result) (assoc :cause (:cause result))))))
+    target))
+
 (defn- download-verified! [url target expected]
-  (let [staged (str target ".download")]
+  (let [staged (str target ".download-" (random-uuid))]
     (download! url staged)
     (host/try-catch-all
      (do
        (verify-file! staged expected)
-       (replace-file! staged target))
+       (replace-file! staged target expected)
+       ;; A host that refuses replacement may have accepted another verified
+       ;; winner. Its own staging file still belongs to this invocation.
+       (delete-if-present! staged))
      cause
      (delete-if-present! staged)
      (throw cause))
