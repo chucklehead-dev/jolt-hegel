@@ -127,9 +127,12 @@
           (reset! exited? true)
           (let [exit (.exitValue process)]
             (when-not (zero? exit)
-              (throw (ex-info "C layout probe failed"
-                              {:phase phase :command command :exit exit :log (str log-file)
-                               :output (read-log log-file)})))
+              (let [output (read-log log-file)]
+                (throw (ex-info (str "C layout probe failed during " (name phase)
+                                    " (exit " exit "): "
+                                    (subs output 0 (min 8000 (count output))))
+                                {:phase phase :command command :exit exit :log (str log-file)
+                                 :output output}))))
             {:exit exit :log (str log-file)}))
         (let [reap (force-reap! process)]
           (throw (ex-info "C layout probe timed out"
