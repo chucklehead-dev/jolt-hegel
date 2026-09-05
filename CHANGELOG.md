@@ -6,6 +6,12 @@ for v0.1.0 through v0.4.0, see the tag and release history in that repository.
 
 ## Unreleased
 
+- Documented the Jolt and babashka.ffi backend tradeoffs, retained the two
+  explicit adapters and Jolt's explicit temporary-pointer ownership, and added
+  a cross-runtime contract that checks every canonical ABI signature and
+  intentional carrier-policy difference. See
+  [the FFI backend evaluation](docs/FFI_BACKEND_EVALUATION.md).
+
 - Make compiler join-point acceptance checks independent of assertion settings,
   with assertion-elision and rejected-report/event-journal controls. Clarify
   that the existing manifest version is an opaque compatibility token, not

@@ -1,11 +1,23 @@
 (ns hegel.suites.ffi
   "FFI contract scenarios, loaded only when selected."
   (:require [clojure.string :as str]
+            [clojure.test :as t]
             [hegel.abi :as abi]
             [hegel.ffi :as hffi]
             [hegel.ffi.backend :as ffi-backend]
             [hegel.host :as host]
             [hegel.test-support :as support]))
+
+(defn signature-policy-contract [context]
+  (if (contains? #{:bb :jvm :jolt} (host/runtime))
+    (do
+      (require 'hegel.signature-policy-test)
+      (let [result (t/run-tests 'hegel.signature-policy-test)]
+        (support/check! context "canonical ABI signature policy"
+                        (zero? (+ (:fail result) (:error result))))))
+    (support/check! context
+                    "signature policy remains unqualified on experimental host"
+                    true)))
 
 (defn ffi-nullable-string-results [context]
   (let [native-result (atom ::native-result)
