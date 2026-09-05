@@ -24,6 +24,7 @@
    {:id :sequence-generators :suite :generators :description "permutations subsequences and samples" :entrypoint 'hegel.suites.generators/sequence-generators-contract}
    {:id :generated-seed :suite :runner :description "generated seed" :entrypoint 'hegel.suites.runner/generated-seed}
    {:id :controls-sample :suite :runner :description "controls and sample" :entrypoint 'hegel.suites.runner/controls-and-sample}
+   {:id :observations :suite :observations :description "observations and explicit coverage" :entrypoint 'hegel.suites.observations/observation-contract}
    {:id :primitive-generators :suite :generators :description "primitive generators" :entrypoint 'hegel.suites.generators/primitive-generators}
    {:id :temporal-generators :suite :generators :description "temporal generators through direct aggregate bindings" :entrypoint 'hegel.suites.generators/temporal-generators}
    {:id :harness-integrity :suite :runner :description "harness and replay integrity" :entrypoint 'hegel.suites.runner/harness-integrity}

@@ -3,6 +3,8 @@
   (:require [clojure.string :as str]
             [hegel.ffi :as hffi]
             [hegel.host :as host]
+            [hegel.internal.observation-policy :as observation-policy]
+            [hegel.internal.observations :as observations]
             [hegel.replay-bundle :as replay-bundle]
             [hegel.validation :as validation]
             [hegel.version :as version]))
@@ -52,6 +54,16 @@
 (defn- test-case [ctx handle final? verbosity]
   (assoc (->TestCase ctx handle final? verbosity)
          :native-cleanups (atom [])))
+
+(defn- observed-test-case [ctx handle final? verbosity run-observations]
+  (cond-> (test-case ctx handle final? verbosity)
+    run-observations (assoc :observations (atom (observations/empty-case)))))
+
+(defn- record-observations! [run-observations test-case outcome]
+  (when run-observations
+    (swap! run-observations update
+           (if (:final? test-case) :final-replay :exploration)
+           observations/record-case (:status outcome) @(:observations test-case))))
 
 (def ^:private max-observed-failure-origins 16)
 (def ^:private max-int64 9223372036854775807)
@@ -204,6 +216,37 @@
                    (double value)
                    (if (string? label) label (pr-str label))))))
 
+(defn event!
+  "Record a categorical observation under a stable string label.
+
+  Repeated occurrences count once per case. Native :show-statistics? output
+  and opt-in :observations? / :coverage result data are separate facilities."
+  [label]
+  (let [test-case (current-test-case!)
+        label (observation-policy/label! label)
+        data (:observations test-case)
+        next-data (when data (observations/event @data label))]
+    ;; Validate capacity before native work, but publish the frontend event
+    ;; only after the native call succeeds. Caught native errors are not hits.
+    (hffi/event! (:context test-case) (:handle test-case) label)
+    (when data (reset! data next-data)))
+  nil)
+
+(defn observe!
+  "Record a finite numeric observation under a stable string label.
+
+  Repeated observations are retained as count/min/max, not raw samples, in
+  opt-in frontend data. This does not guide targeting; use target! for that."
+  [value label]
+  (let [test-case (current-test-case!)
+        label (observation-policy/label! label)
+        value (observation-policy/finite-value! value)
+        data (:observations test-case)
+        next-data (when data (observations/observe @data label value))]
+    (hffi/event-value! (:context test-case) (:handle test-case) value label)
+    (when data (reset! data next-data)))
+  nil)
+
 (defn- exception-type-name [error]
   #?(:jank (str (or (:type (ex-data error)) :jank/error))
      :default (str (class error))))
@@ -221,7 +264,7 @@
 (def ^:private run-option-keys
   #{:mode :backend :test-cases :stateful-step-count :verbosity :seed
     :derandomize? :report-multiple-failures? :database :database-key :name
-    :phases :suppress-health-checks})
+    :phases :suppress-health-checks :show-statistics? :observations? :coverage})
 
 (defn- require-string! [option value]
   (when-not (string? value)
@@ -261,7 +304,8 @@
   (when (contains? opts :seed)
     (validation/require-integer-range! ::invalid-option :seed (:seed opts)
                                        0 max-uint64))
-  (doseq [option [:derandomize? :report-multiple-failures?]
+  (doseq [option [:derandomize? :report-multiple-failures?
+                  :show-statistics? :observations?]
           :when (contains? opts option)]
     (validation/require-boolean! ::invalid-option option (get opts option)))
   (doseq [option [:database :database-key :name]
@@ -273,7 +317,7 @@
     (require-option-keywords! :suppress-health-checks
                               (:suppress-health-checks opts)
                               health-check-values))
-  opts)
+  (observation-policy/validate-coverage! opts))
 
 (defn- run-body [test-case case-fn]
   (host/try-catch-all
@@ -374,6 +418,8 @@
   (when (contains? opts :report-multiple-failures?)
     (hffi/settings-set-report-multiple-failures!
      ctx settings (:report-multiple-failures? opts)))
+  (when (contains? opts :show-statistics?)
+    (hffi/settings-set-show-statistics! ctx settings (:show-statistics? opts)))
   (when (contains? opts :database)
     (hffi/settings-set-database! ctx settings (:database opts)))
   (when (or (contains? opts :database-key)
@@ -391,7 +437,7 @@
                  (:suppress-health-checks opts))))
   nil)
 
-(defn- drive-run! [ctx run verbosity case-fn]
+(defn- drive-run! [ctx run verbosity case-fn run-observations]
   (loop [counts {:test-cases 0
                  :valid-test-cases 0
                  :invalid-test-cases 0
@@ -399,11 +445,12 @@
                  :interesting-test-cases 0}
          observed []]
     (if-let [handle (hffi/next-test-case! ctx run)]
-      (let [test-case (test-case ctx handle false verbosity)
+      (let [test-case (observed-test-case ctx handle false verbosity run-observations)
             {next-counts :counts next-observed :observed}
             (try
               (let [outcome (run-body test-case case-fn)]
                 (mark-outcome! test-case outcome)
+                (record-observations! run-observations test-case outcome)
                 {:counts (count-outcome counts outcome)
                  :observed (record-observed-failure observed outcome)})
               (finally
@@ -423,15 +470,19 @@
   (let [n (hffi/run-result-failure-count! ctx result)]
     (mapv #(snapshot-failure! ctx result %) (range n))))
 
-(defn- replay-failure! [ctx settings verbosity case-fn failure]
+(defn- replay-failure!
+  ([ctx settings verbosity case-fn failure]
+   (replay-failure! ctx settings verbosity case-fn failure nil))
+  ([ctx settings verbosity case-fn failure run-observations]
   (if-let [blob (:reproduction-blob failure)]
     (let [handle (hffi/test-case-from-blob! ctx settings blob)
-          test-case (test-case ctx handle true verbosity)]
+          test-case (observed-test-case ctx handle true verbosity run-observations)]
       (try
         (let [outcome (run-body test-case case-fn)
               expected-origin (:origin failure)
               replay-origin (:origin outcome)]
           (mark-outcome! test-case outcome)
+          (record-observations! run-observations test-case outcome)
           (merge failure
                  outcome
                  {:origin expected-origin
@@ -442,7 +493,7 @@
           (release-test-case! test-case))))
     (assoc failure
            :status :missing-reproduction-blob
-           :reproduced? false)))
+           :reproduced? false))))
 
 (defn- run-status [native]
   (case native
@@ -552,7 +603,11 @@
   Supported options are :backend, :test-cases, :stateful-step-count,
   :verbosity, :seed,
   :derandomize?, :report-multiple-failures?, :database, :database-key/:name,
-  :phases, and :suppress-health-checks. The C ABI does not expose an
+  :phases, :suppress-health-checks, :show-statistics?, :observations?, and
+  :coverage. Coverage names its scope and categorical requirements explicitly;
+  it uses completed valid exploration cases, never final replay. A missed
+  requirement changes an otherwise passing result to :coverage-failed without
+  inventing a native failure blob. The C ABI does not expose an
   automatically chosen seed, so this wrapper always chooses and supplies one.
   When :derandomize? is true and no seed was supplied, it derives a stable seed
   from :database-key/:name. Property verdicts and libhegel-detected
@@ -562,7 +617,8 @@
   [opts case-fn]
   (let [opts (validate-run-options! opts case-fn)
         opts (assoc opts :seed (resolve-seed opts))
-        replay-options (capture-replay-options opts)]
+        replay-options (capture-replay-options opts)
+        run-observations (some-> (observation-policy/initial opts) atom)]
     (hffi/ensure-compatible-version!)
     (let [ctx (hffi/context-new!)]
       (try
@@ -572,7 +628,7 @@
             (let [run (hffi/run-start! ctx settings)]
               (try
                 (let [counts (drive-run! ctx run (or (:verbosity opts) :normal)
-                                         case-fn)
+                                         case-fn run-observations)
                       result (hffi/run-result! ctx run)]
                 (try
                   (let [status (run-status (hffi/run-result-status! ctx result))
@@ -592,7 +648,8 @@
                       ;; before a counterexample is available to replay. Keep
                       ;; that distinct from replay-time flakiness while still
                       ;; returning data that a counting runner can record.
-                      (merge
+                      (observation-policy/finish
+                       (merge
                        counts
                        {:passed? false
                         :status :error
@@ -604,6 +661,7 @@
                         :n-failures 0
                         :failures []
                         :final []})
+                       opts (when run-observations @run-observations))
                       (do
                         (when run-error
                           (throw
@@ -617,9 +675,10 @@
                               replayed (mapv #(replay-failure!
                                               ctx settings
                                               (or (:verbosity opts) :normal)
-                                              case-fn %)
+                                              case-fn % run-observations)
                                              failures)]
-                          (merge
+                          (observation-policy/finish
+                           (merge
                            counts
                            {:passed? (= :passed status)
                             :status status
@@ -632,7 +691,8 @@
                             :error nil
                             :n-failures (count failures)
                             :failures replayed
-                            :final (public-final replayed)})))))
+                            :final (public-final replayed)})
+                           opts (when run-observations @run-observations))))))
                   (finally
                     (hffi/run-result-free! ctx result))))
                 (finally

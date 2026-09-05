@@ -161,6 +161,15 @@ loading, actual static checking, compiler hints and runtime validation are
 different capabilities; require a version-pinned checker with a failing type
 control before claiming checker support on any host.
 
+## Observations and coverage
+
+Current source adds `h/event!` and `h/observe!`; use stable string labels and
+keep measurements separate from targeting. Read the observation section of
+[references/api.md](references/api.md) before adding `:coverage` requirements.
+Native printed statistics are not structured coverage data, and non-final
+cases are not necessarily generation cases. Keep explicit witness families;
+do not retry random runs until a coverage threshold happens to pass.
+
 ## Stateful testing
 
 Call `hegel.stateful/run!` inside a Hegel property. Each `hs/rule` receives the

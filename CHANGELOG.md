@@ -6,11 +6,18 @@ for v0.1.0 through v0.4.0, see the tag and release history in that repository.
 
 ## Unreleased
 
+- Add categorical `event!`, numeric `observe!`, native `:show-statistics?`,
+  bounded frontend `:observations?` and explicit `:coverage` requirements.
+  Coverage failures are run-level results, not fabricated counterexamples;
+  final replay is excluded and unavailable native subphases are not inferred.
+  See [observation contracts](docs/OBSERVATIONS.md) for scope and counting rules.
+
 - Add seeded materialization and bounded corpus envelopes with exact UTF-8
   SHA-256 integrity relative to independent consumer pins. Generation requires
   one successful native valid-case run per position; consumption needs neither
   libhegel nor a model dependency. Cross-platform/offline and coordinated db
-  pilot acceptance remains tracked in #56; this is not a release declaration.
+  pilot evidence landed in Hegel PR86 and aspect-packs PR93; this is not a
+  release declaration.
 - Add bounded, versioned EDN counterexample bundles and direct native replay
   with explicit provenance compatibility checks. Results capture present
   replay settings; exports omit host exceptions and opt out of traces by

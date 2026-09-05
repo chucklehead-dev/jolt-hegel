@@ -10,6 +10,7 @@
   - [Optional Malli adapter](#optional-malli-adapter)
 - [Combinators and collections](#combinators-and-collections)
 - [Core controls](#core-controls)
+- [Observations and coverage](#observations-and-coverage)
 - [Stateful testing](#stateful-testing)
 - [Semantic trace rules](#semantic-trace-rules)
 - [Bounded linearizability](#bounded-linearizability)
@@ -469,6 +470,45 @@ engine may exhaust its choices before reaching `n`. Ordinary property failures
 and flaky verdicts throw `::h/sample-failed` with the complete run result and
 original cause data; usage, setup, and native harness exceptions from
 `run-test!` propagate directly rather than being wrapped as sample failures.
+
+## Observations and coverage
+
+Current source (not v0.5.0) adds `(h/event! label)` for categorical hits and
+`(h/observe! value label)` for finite numeric measurements. Labels are nonblank
+Unicode strings without NUL, bounded to 256 UTF-16 code units. Numeric values
+are converted to finite doubles; invalid calls are usage errors, not shrinkable
+counterexamples. Calls require an active test case.
+
+`:observations? true` collects bounded structured results. Categorical labels
+count once per case; numeric labels retain count/min/max, not sample vectors.
+`:show-statistics? true` separately enables libhegel's native stderr report;
+never parse that report to decide coverage or confuse it with `*err*` capture.
+
+```clojure
+{:coverage {:scope :exploration
+            :requirements {"boundary" {:min-count 1 :min-fraction 0.0}}}}
+```
+
+Coverage implicitly enables collection. Requirements use completed valid
+exploration cases only; rejected, overrun, interesting and explicit final replay
+cannot supply hits. Zero valid cases or missing labels fail, and numeric values
+do not satisfy categorical requirements. Both thresholds apply; defaults are
+one hit and zero fraction. A missed requirement changes an otherwise passing
+result to `:passed? false`, `:status :coverage-failed`, without a native failure
+blob or extra shrink run. Existing native failures/errors remain primary.
+
+The C API does not expose each case's native subphase. Choose `:exploration`
+explicitly for mixed phases. `:generation-only` coverage requires the caller's
+explicit `:phases [:generate]`, which disables normal native reuse/target/shrink
+work; never make that choice silently. Final replay is separately summarized.
+Discarded draws within a valid case do not roll back frontend events: emit
+final-value coverage after a successful draw when that is the intended check.
+
+Read `docs/OBSERVATIONS.md` for result shapes, label cardinality, numeric
+threshold rules and statistical limitations. These are observations, not
+confidence bounds or proof of reachability. Retain independent model assertions
+and mandatory witnesses. Coverage/observation settings are not exported in
+schema-v1 counterexample bundles; a blob replay is not a coverage run.
 
 ## Stateful testing
 
