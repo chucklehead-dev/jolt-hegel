@@ -61,8 +61,10 @@
   [path]
   (let [index (max (or (str/last-index-of path "/") -1)
                    (or (str/last-index-of path "\\") -1))]
-    (when (pos? index)
-      (subs path 0 index))))
+    (cond
+      (neg? index) nil
+      (zero? index) (subs path 0 1)
+      :else (subs path 0 index))))
 
 (defn join-path
   "Join a parent and relative child while preserving the parent's separator

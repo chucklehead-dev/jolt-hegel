@@ -466,6 +466,8 @@
          (= ["/tmp/jolt-hegel"
              "C:\\src\\jolt-hegel"
              "\\\\server\\share\\jolt-hegel"
+             "/"
+             "\\"
              "src"
              nil
              nil]
@@ -473,6 +475,8 @@
                   ["/tmp/jolt-hegel/libhegel_c.so"
                    "C:\\src\\jolt-hegel\\libhegel_c.dll"
                    "\\\\server\\share\\jolt-hegel\\libhegel_c.dll"
+                   "/src"
+                   "\\src"
                    "src/libhegel_c.so"
                    "libhegel_c.so"
                    ""])))
