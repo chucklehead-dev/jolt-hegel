@@ -1,8 +1,9 @@
 # Canonical operation events
 
 The unreleased `hegel.event-contract` API implements the explicit
-`hegel.operation-events` revision `1` profile. Cross-repository stabilization
-is tracked in #22 and [ADR0007](adr/0007-versioned-operation-events.md).
+`hegel.operation-events` revision `1` profile. Supported-host semantics and
+cross-repository evidence are recorded in
+[ADR0007](adr/0007-versioned-operation-events.md).
 It is portable pure Clojure data checking: no native engine or aspect-enabled
 compiler is required. Native generation can produce inputs whose resulting
 events are checked, but the checker does not generate or record events itself.

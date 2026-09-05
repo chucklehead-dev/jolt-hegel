@@ -31,7 +31,10 @@
     (let [checked (contract/check! one-return)]
       (is (identical? one-return checked))
       (is (= {:preserved true} (-> checked first :extra)))
-      (is (= :terminal-metadata (-> checked second :extra))))))
+      (is (= :terminal-metadata (-> checked second :extra)))))
+  (testing "presence and model semantics are different obligations"
+    (let [nil-operation (assoc-in one-return [0 :operation] nil)]
+      (is (identical? nil-operation (contract/check! nil-operation))))))
 
 (deftest canonical-profile-allows-async-parentage-and-throw-terminals
   (let [async-events

@@ -1,6 +1,7 @@
 # 0007: Versioned operation events without collapsing checker domains
 
-Status: proposed; implementation and cross-repository acceptance pending (#22).
+Status: accepted for the next release; supported-host semantics (#22).
+Compiler-aspect metadata remains separately experimental under #23.
 
 ## Context and inspected baseline
 
@@ -23,12 +24,12 @@ Actual consumers in `models/jolt/aspect_packs/` include db, glitter, glimmer,
 HTTP client/server and mycelium trace models, and the core_async bounded
 history model. The db model uses synchronous parentage; async capture also
 supports a carrier whose parent has already terminated. These are distinct
-model obligations. The ordinary test/conformance aliases pin Hegel
+model obligations. At that baseline the ordinary test/conformance aliases pin Hegel
 `3bc46499e0cfb5cf8fe67c30e997fbcae135ab47`; db corpus aliases separately pin
 `88cc32cc3c39cb445fa16f725ff5f9c1db115858`. Updating only one pin is not a
 cross-repository migration.
 
-## Proposed decision
+## Decision
 
 The maintained top-level source scan also found
 `jolt-otel-clickhouse/test/otel/exporter/chdb_property_test.clj` at
@@ -46,8 +47,7 @@ into either legacy API.
 
 Use the existing trace-envelope fields for transported identity:
 `:contract-id "hegel.operation-events"`, `:contract-revision "1"`, and
-`:events`. These strings are a proposal until the implementation and consumer
-gates below pass. The envelope codec validates transport, not this semantic
+`:events`. The envelope codec validates transport, not this semantic
 profile; matching strings alone must never be described as semantic validation.
 
 The profile defines:
@@ -96,20 +96,41 @@ exhaustion is not a negative linearizability witness. Types can check event and
 result variants but cannot establish ordering, completeness, independence of
 partitions or truth of a model transition.
 
-## Remaining acceptance before stabilization
+## Acceptance evidence and integration
 
-1. Land literal positive/negative differential characterization on supported
-   BB/JVM/Jolt hosts, including missing metadata, sequence shifts/gaps,
-   legacy phases, asynchronous lifetime and incomplete/empty histories.
-2. Validate the implemented explicit canonical-profile checker and its bounded
-   evidence/usage-error contract. Include malformed and semantic negative
-   controls; reuse existing rule policy without weakening generic APIs.
-3. Exercise actual aspect-packs producer/model fixtures against it; inventory
-   remaining maintained consumers and update all affected pins together.
-   Preserve caller assertions outside fail-open instrumentation advice.
-4. Pin profile identity in the consuming fixture/transport metadata where used;
-   reject stale/unknown identities at that profile boundary. Keep #23 compiler
-   matching/versioning work distinct from event semantics.
-5. Complete root and independent Claude review plus applicable CI. Update
-   README, changelog and skill/API guidance before removing experimental
-   markers. This proposed ADR alone does not complete #22.
+- Hegel implementation `c74762b89679674076834b2728252ec97894ffe1` passed
+  [supported CI33987371982](https://github.com/chucklehead-dev/jolt-hegel/actions/runs/33987371982),
+  all 18 jobs. Root inspected all ten supported runtime rows: both new scenario
+  families actually ran at synthetic merge `d638d6fff24847d2637457555fa95743e06338bc`.
+  Literal characterization and profile tests covered 14 tests/103 assertions;
+  the final documentation delta adds an explicit nil-operation positive control.
+- [Hegel PR89](https://github.com/chucklehead-dev/jolt-hegel/pull/89) records
+  root review and two usable independent local Claude source/test/evidence
+  reviews. The timed-out earlier characterization attempt is not approval.
+  The scalar ordering helper was extracted without changing its branches or
+  spelling; the existing mixed-ID/fan-in and independent history oracle gates
+  remain in the aggregate suite.
+- Aspect-packs candidate `0e29833b58f71598851801912aea6cdaa5a881d7` adds an
+  atomic closed-journal `event-envelope`, independent literal identity pins,
+  real return/throw/async-carrier/multi-digit fan-in fixtures and mutated-event
+  and stale-identity controls. Its pure runner executes these alongside the
+  existing history normalization/ownership suite: 19 tests/93 assertions on
+  BB/JVM/Jolt, using the published Hegel SHA and unavailable libhegel.
+- [Consumer CI33987863168](https://github.com/chucklehead-dev/jolt-aspect-packs/actions/runs/33987863168)
+  passed all nine runtime/OS rows; the existing formal evidence gate also
+  passed. [Packs PR96](https://github.com/chucklehead-dev/jolt-aspect-packs/pull/96)
+  records independent Claude snapshot/test/CI review, ordinary test/conformance
+  and core.async scenario pin updates. Existing db corpus provenance, dependency
+  and setup-action pins remain intentionally separate and unchanged.
+- Broader aspect-runtime comparison at source-matched Jolt
+  `09f4218828f93320f3b43eb4e8ae5df76fc65210` has the same four pre-existing
+  pending-put/close failures on baseline and candidate; candidate adds exactly
+  six passing tests/28 assertions. See the evidence on
+  [packs #14](https://github.com/chucklehead-dev/jolt-aspect-packs/issues/14).
+  This is not a claim that the aspect runtime's entire core.async suite passes,
+  nor does it weaken those ownership assertions. The generic OTel mixed-event
+  consumer stays on its existing API; no forced migration is needed.
+
+Final-head CI/review and merge provenance live on the linked PRs. Experimental
+jank/CLR smoke success is compatibility evidence, not full host promotion.
+Profile semantics, transport limits and model truth remain distinct contracts.

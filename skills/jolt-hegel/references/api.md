@@ -629,8 +629,9 @@ the generated action or state-machine checkpoint has completed.
 The checker itself is portable and does not require a forked compiler or
 runtime. Capturing events from Jolt compiler aspects currently requires an
 aspect-enabled Jolt fork; explicit journals and other event producers work on
-an unmodified supported runtime. `hegel.trace` and `hegel.history` remain
-experimental while their contracts are exercised across more libraries.
+an unmodified supported runtime. `hegel.trace` and `hegel.history` have supported
+contracts on BB/JVM/Jolt; their intentionally different acceptance domains are
+recorded in ADR0007. Compiler-aspect join-point metadata remains experimental.
 
 ```clojure
 (require '[hegel.trace :as ht])
@@ -719,8 +720,8 @@ Bad options or unsupported envelope identity are usage errors. Semantic
 failures use stable trace-rule origins and bounded event evidence. Event count
 does not bound payload bytes or redact data. Transport/provenance validation,
 profile semantics and linearizability are separate checks. See
-`docs/EVENT_CONTRACT.md` and ADR0007 for exact boundaries and the pending
-cross-repository stabilization gates.
+`docs/EVENT_CONTRACT.md` and ADR0007 for exact boundaries and cross-repository
+acceptance evidence. This is source capability, not a new release declaration.
 
 ## Bounded linearizability
 
@@ -853,8 +854,8 @@ database paths/keys and display names. Blobs themselves may contain secrets
 and cannot be redacted without changing replay. Execute only trusted blobs:
 bounded EDN and matching versions do not bound native decompression or
 arbitrary property code. Consult `docs/REPLAY_BUNDLES.md` in the source checkout
-for the exact limits and transport boundary; this envelope does not settle
-the experimental trace/history semantic contract.
+for the exact limits and transport boundary; decoding this envelope does not
+check trace/history semantics. Use explicit profile and domain-model checks.
 
 ## Materialized corpora
 

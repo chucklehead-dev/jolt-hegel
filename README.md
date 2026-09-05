@@ -515,7 +515,7 @@ runs a native property from a separate consumer directory. Source-root listings
 alone do not package resources. The standalone gate is Linux-specific; ordinary
 resource lookup is also tested in the supported-host harness matrix.
 
-## Experimental additional features
+## Trace and history contracts
 
 The trace and history APIs below are portable library code and run on supported
 Jolt, Babashka, and JVM Clojure releases. Neither API requires a forked Jolt
@@ -529,12 +529,15 @@ An explicit canonical operation-event profile is available through
 [the profile contract](docs/EVENT_CONTRACT.md). It does not silently change
 generic trace/history acceptance or replace domain-model checks.
 
-These APIs are experimental because their event and model contracts are still
-being exercised across the wider Jolt ecosystem. Their checks and failure
-evidence are covered by the shared jolt-hegel semantic suite.
+The trace, bounded-history and explicit canonical-profile contracts are
+supported on Jolt, Babashka and JVM Clojure. Their intentional acceptance
+differences and versioning rules are recorded in
+[ADR0007](docs/adr/0007-versioned-operation-events.md), with shared differential
+tests and real aspect-packs producer/consumer evidence. Profile validity does
+not establish domain-model correctness or linearizability.
 
 The optional compiler-aspect manifest, join-point identifiers, and advice-role
-metadata are experimental as well. Instrumentation may rely on them only with
+metadata remain experimental (#23). Instrumentation may rely on them only with
 an exact jolt-hegel source pin until that producer contract is stabilized.
 
 ### Trace rules for aspect and event journals
