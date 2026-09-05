@@ -93,6 +93,15 @@ nonzero offset and value distinct so a swap is obvious; do not use an integer
 sentinel as a pointer. This is a Jolt-adapter diagnostic only; shared property
 code must not branch on it.
 
+Do not replace jolt-hegel's scoped temporary allocation with a fresh Jolt arena
+per wrapper or per FFI call. The landed evaluation measured that strategy as
+substantially slower for the adapter-scale workload; it did not directly prove
+which arena phase dominates. Treat upstream close/bookkeeping attribution as an
+optimization lead, not a supported capability. Consider arenas only for a real
+lexical batch that amortizes one close across many allocations, and require a
+`System/nanoTime` gate with an above-noise-floor workload and a bounded,
+regression-sensitive negative control before changing ownership.
+
 ## Write reliable properties
 
 - Generate the broadest valid domain. Boundary cases are part of the test.
@@ -156,10 +165,18 @@ for the source pin, generation policy and independent consumer-pin boundary.
 provenance or digest from the artifact being consumed, and never load the native
 generator in a baked-only consumer. Run model checks outside fail-open advice.
 
-Selective typing remains a separate development-tooling pilot (#73). Annotation
-loading, actual static checking, compiler hints and runtime validation are
-different capabilities; require a version-pinned checker with a failing type
-control before claiming checker support on any host.
+## Typed Clojure pilot
+
+The repository now has a bounded, JVM-only development checker at
+`clojure -M:typed-check`, pinned to Typed Clojure 1.3.0. It checks the unchanged
+`text-size` body, but `validate!` is externally annotated `^:no-check`: typed
+call sites enforce its polymorphic limits/callback/result contract while the
+production loop body remains trusted and covered by runtime tests. The checker
+and `typed/` tree are absent from normal consumer paths. Annotation loading,
+actual static checking, compiler hints and runtime validation remain different
+capabilities; do not claim that Jolt or another host runs the JVM checker, and
+do not weaken or remove the valid driver and mutation-specific failing controls
+when extending the pilot.
 
 ## Observations and coverage
 
