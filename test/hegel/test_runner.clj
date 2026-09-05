@@ -495,6 +495,48 @@
                    "src/libhegel_c.so"
                    "libhegel_c.so"
                    ""])))
+  (check "drive and UNC roots preserve absolute parent contracts"
+         (= ["/"
+             "/"
+             "C:/"
+             "C:\\"
+             "C:/"
+             "C:\\"
+             "C:/src"
+             "C:\\src"
+             "C:/src"
+             "C:\\src"
+             "\\\\server\\share"
+             "\\\\server\\share"
+             "\\\\server\\share"]
+            (mapv native/parent-path
+                  ["/"
+                   "/src"
+                   "C:/"
+                   "C:\\"
+                   "C:/src"
+                   "C:\\src"
+                   "C:/src/nested"
+                   "C:\\src\\nested"
+                   "C:/src/"
+                   "C:\\src\\"
+                   "\\\\server\\share"
+                   "\\\\server\\share\\item"
+                   "\\\\server\\share\\"])))
+  (check "drive and UNC parents round-trip through portable joins"
+         (let [paths ["C:/src"
+                      "C:\\src"
+                      "C:/src/nested"
+                      "C:\\src\\nested"
+                      "\\\\server\\share\\item"]]
+           (and (every? native/absolute-path?
+                        (map native/parent-path paths))
+                (= paths
+                   (mapv (fn [path]
+                           (native/join-path
+                            (native/parent-path path)
+                            (last (str/split path #"[/\\]"))))
+                         paths)))))
   (check "path joining preserves syntax and treats empty components as identity"
          (= ["/tmp/jolt-hegel/libhegel_c.so"
              "/tmp/jolt-hegel/libhegel_c.so"
