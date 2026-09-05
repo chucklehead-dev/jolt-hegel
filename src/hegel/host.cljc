@@ -1,6 +1,7 @@
 (ns hegel.host
   "Small host seam for resources and process identity."
   (:require [clojure.string :as str]
+            #?(:jolt [clojure.java.io :as io])
             #?(:jolt [jolt.host :as jolt-host]
                :bb [clojure.java.io :as io]
                :jank [hegel.host.jank-host :as jank-host]
@@ -121,6 +122,15 @@
                  :else nil)))
            (jolt-host/source-roots))))
 
+(defn- resource-text* [resource-name resolver fallback]
+  (if-let [resource (resolver resource-name)]
+    (slurp resource)
+    (if-let [path (and fallback (fallback resource-name))]
+      (slurp path)
+      (throw (ex-info (str "resource not found: " resource-name)
+                      {:type ::resource-not-found
+                       :resource resource-name})))))
+
 (defn resource-text
   "Read a classpath/source-root resource as text, or throw without loading any
   native library."
@@ -133,18 +143,10 @@
                         :resource resource-name})))
 
      :jolt
-     (if-let [path (jolt-resource-path resource-name)]
-       (slurp path)
-       (throw (ex-info (str "resource not found: " resource-name)
-                       {:type ::resource-not-found
-                        :resource resource-name})))
+     (resource-text* resource-name io/resource jolt-resource-path)
 
      :bb
-     (if-let [resource (io/resource resource-name)]
-       (slurp resource)
-       (throw (ex-info (str "resource not found: " resource-name)
-                       {:type ::resource-not-found
-                        :resource resource-name})))
+     (resource-text* resource-name io/resource nil)
 
      :jank
      (throw (ex-info (str "resource lookup is not available on jank: " resource-name)
@@ -152,8 +154,4 @@
                       :resource resource-name}))
 
      :clj
-     (if-let [resource (io/resource resource-name)]
-       (slurp resource)
-       (throw (ex-info (str "resource not found: " resource-name)
-                       {:type ::resource-not-found
-                        :resource resource-name})))))
+     (resource-text* resource-name io/resource nil)))

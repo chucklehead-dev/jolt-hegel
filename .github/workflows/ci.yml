@@ -276,6 +276,10 @@ jobs:
         if: matrix.host == 'jolt'
         run: jolt -M:test --bootstrap-load-probe
 
+      - name: Build and relocate standalone resource consumer (Jolt Linux)
+        if: matrix.host == 'jolt' && runner.os == 'Linux'
+        run: bash script/check-standalone-resources.sh
+
       - name: Run semantic suite (Babashka)
         if: matrix.host == 'bb'
         run: bb test
