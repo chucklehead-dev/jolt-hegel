@@ -25,6 +25,8 @@
    :test {:extra-paths ["test"]
          :extra-deps {metosin/malli {:mvn/version "0.20.1"}}
          :main-opts ["-m" "hegel.test-runner"]}
+   :harness-test {:extra-paths ["test"]
+                  :main-opts ["-m" "hegel.harness-test-runner"]}
   :fetch-libhegel {:extra-paths ["script"]
                    :main-opts ["-m" "fetch-libhegel"]}}
 
@@ -32,4 +34,5 @@
  {setup-native "jolt -M:setup-native"
   abi-test "jolt -M:abi-test"
   fetch-libhegel "jolt -M:fetch-libhegel"
-  test "jolt -M:test"}}
+  test "jolt -M:test"
+  harness-test "jolt -M:harness-test"}}

@@ -579,8 +579,16 @@ after all generated operations have terminated.
 ## Development and design
 
 The repository gates the same semantic suite under all supported hosts. Start
-with the host-specific installer, then run its test alias. Maintainer details
-live in:
+with the host-specific installer, then run its test alias.
+
+The default test command runs the reviewed ordered aggregate. For focused
+maintenance, list stable suite names with `bb test --list-suites`, then select
+one with `bb test --suite generators`; the equivalent host commands are
+`clojure -M:jvm:test --suite generators` and `jolt -M:test --suite generators`.
+Unknown or malformed runner arguments fail without falling back to the full
+aggregate.
+
+Maintainer details live in:
 
 - [architecture and ownership](docs/ARCHITECTURE.md);
 - [ABI descriptor and backend development](docs/ABI.md);

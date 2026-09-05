@@ -21,10 +21,9 @@
   test {:extra-paths ["test"]
         ;; Development-only: Malli remains optional for consumers.
         :extra-deps {metosin/malli {:mvn/version "0.20.1"}}
-        ;; Forward task arguments so the timeout harness can launch narrow
-        ;; child modes without recursively entering this task's full suite;
-        ;; retain `exec` for the ordinary no-argument task contract.
-        :task (if (seq *command-line-args*)
-                (apply (requiring-resolve 'hegel.test-runner/-main)
-                       *command-line-args*)
-                (exec 'hegel.test-runner/-main))}}}
+        ;; Capture task arguments before resolving the entrypoint, and forward
+        ;; them unchanged. A literal "test" is user input, not a task token.
+        :task (let [args *command-line-args*]
+                (apply (requiring-resolve 'hegel.test-runner/-main) args))}
+  harness-test {:extra-paths ["test"]
+                :task ((requiring-resolve 'hegel.harness-test-runner/-main))}}}
