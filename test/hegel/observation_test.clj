@@ -4,6 +4,7 @@
             [hegel.core :as h]
             [hegel.ffi :as hffi]
             [hegel.generator :as g]
+            [hegel.host :as host]
             [hegel.internal.observation-policy :as policy]
             [hegel.internal.observations :as observations]
             [hegel.report :as report]
@@ -37,10 +38,17 @@
     (binding [h/*test-case* {:context :ctx :handle :case}]
       (with-redefs [hffi/event! (fn [& args] (swap! calls conj args))
                     hffi/event-value! (fn [& args] (swap! calls conj args))]
-        (doseq [label [nil :keyword "" "  " "x\u0000y" (apply str (repeat 257 "x"))
-                       (str (char 55296)) (str (char 56320))
-                       (apply str (repeat 129 "😀"))]]
+        (doseq [label (concat
+                      [nil :keyword "" "  " "x\u0000y" (apply str (repeat 257 "x"))
+                       (apply str (repeat 129 "😀"))]
+                      ;; Jolt rejects surrogate codepoints at construction;
+                      ;; UTF-16 hosts can supply malformed strings to the API.
+                      (when-not (= :jolt (host/runtime))
+                        [(str (char 55296)) (str (char 56320))]))]
           (is (:hegel/usage-error? (ex-data (error-of #(h/event! label))))))
+        (when (= :jolt (host/runtime))
+          (doseq [codepoint [55296 56320]]
+            (is (some? (error-of #(char codepoint))))))
         (doseq [value [nil "2" ##NaN ##Inf ##-Inf]]
           (is (:hegel/usage-error? (ex-data (error-of #(h/observe! value "size"))))))
         (is (empty? @calls))
