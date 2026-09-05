@@ -6,6 +6,11 @@ for v0.1.0 through v0.4.0, see the tag and release history in that repository.
 
 ## Unreleased
 
+- Add `g/permutations`, `g/subsequences`, and `g/samples`. They realize finite
+  inputs once and return vectors while retaining duplicate source positions;
+  replacement samples keep an unbounded default maximum size for nonempty
+  inputs. Full permutations intentionally use `O(n²)` positional removal to
+  preserve native choice shrinking.
 - Preserve the original generator exception when owned span, collection,
   recursion, string, or context cleanup also fails. A cleanup-only failure
   still surfaces; native-discarded recursive retry spans are not closed during

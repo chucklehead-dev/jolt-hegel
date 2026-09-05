@@ -357,6 +357,9 @@ strings.
 | `(g/optional generator)` | `nil` or a generated value |
 | `(g/tuple generators...)` | vector with one value per generator |
 | `(g/vector opts elements)` | vector; supports `:unique?` |
+| `(g/permutations values)` | vector containing every finite input position once |
+| `(g/subsequences [opts] values)` | input-order vector selected without replacement |
+| `(g/samples [opts] values)` | vector sampled with replacement by default |
 | `(g/chunkings payload)` | vector chunks that concatenate to `payload` |
 | `(g/recursive leaf branch-fn)` | recursively defined values with engine-owned sizing and shrinking |
 | `(g/recursive opts leaf branch-fn)` | recursive values bounded by `:max-depth` and `:max-leaves` |
@@ -370,6 +373,20 @@ strings.
 Collection options are `:size`, `:min-size`, and `:max-size`. The forms without
 an options map use engine-managed unbounded sizing. Duplicate set elements, map
 keys, and unique-vector elements are rejected and redrawn.
+
+`permutations`, `subsequences`, and `samples` realize a finite `values` input
+once and always return vectors. They use native integer choices over source
+positions, so equal values at distinct positions are retained rather than
+deduplicated. `permutations` has exactly the input cardinality;
+`subsequences` preserve source order; and `samples` accepts
+`:replacement? true` or `false` in addition to the size options. For
+subsequences and samples without replacement, the default maximum is the input
+cardinality and an explicit maximum above it is a usage error. For nonempty
+replacement samples, the default maximum remains engine-unbounded; an empty
+input permits only size zero. Positional selection lets native shrinking move
+toward earlier positions and smaller selected collections; full permutations
+remove positions from a remaining vector and therefore intentionally cost
+`O(n²)`.
 
 For recursive data, `leaf` generates base values and `branch-fn` receives a
 reusable generator for child values. The branch function must return a

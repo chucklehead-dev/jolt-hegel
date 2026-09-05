@@ -934,6 +934,142 @@
          #(hffi/collection-free! context collection)
          (constantly true))))))
 
+(def ^:private sequence-size-options #{:size :min-size :max-size})
+
+(defn- bounded-sequence-bounds [kind opts element-count]
+  (let [opts (options! (str kind " options") sequence-size-options opts)
+        normalized-opts
+        (if (or (contains? opts :size) (contains? opts :max-size))
+          opts
+          (assoc opts :max-size element-count))
+        [min-size max-size]
+        (collection-bounds kind sequence-size-options normalized-opts)]
+    (when (> max-size element-count)
+      (invalid-option
+       (str kind " maximum size cannot exceed input size")
+       {:max-size max-size :input-size element-count}))
+    [min-size max-size]))
+
+(defn- sample-bounds [opts element-count replacement?]
+  (let [opts (options! "samples options"
+                       #{:size :min-size :max-size :replacement?} opts)
+        normalized-opts
+        (cond
+          (or (contains? opts :size) (contains? opts :max-size)) opts
+          (not replacement?) (assoc opts :max-size element-count)
+          (zero? element-count) (assoc opts :max-size 0)
+          :else opts)
+        [min-size max-size]
+        (collection-bounds "samples" #{:size :min-size :max-size :replacement?}
+                           normalized-opts)]
+    (when (and (zero? element-count)
+               (or (pos? min-size) (pos? max-size)))
+      (invalid-option "samples from an empty input require size zero"
+                      {:min-size min-size :max-size max-size}))
+    (if replacement?
+      [min-size max-size]
+      (do
+        (when (> max-size element-count)
+          (invalid-option
+           "samples without replacement cannot exceed input size"
+           {:max-size max-size :input-size element-count}))
+        [min-size max-size]))))
+
+(defn- remove-index [values index]
+  ;; Positional removal intentionally costs O(n). It retains duplicate source
+  ;; positions and lets the native integer choices shrink toward early indices.
+  (into (subvec values 0 index) (subvec values (inc index))))
+
+(defn- draw-without-replacement
+  [test-case min-size max-size element-count]
+  (let [remaining (atom (vec (range element-count)))]
+    (draw-collection
+     test-case hffi/label-list min-size max-size []
+     (fn [_ selected]
+       (let [available @remaining
+             choice (hffi/generate-integer!
+                     (:context test-case) (:handle test-case)
+                     0 (dec (count available)))
+             index (nth available choice)]
+         (reset! remaining (remove-index available choice))
+         (conj selected index))))))
+
+(defn permutations
+  "Generate every input element in a native-choice-selected order.
+
+  Duplicate values retain distinct source positions. Empty input produces an
+  empty vector without a draw. Shrinking moves selections toward the original
+  input order."
+  [values]
+  (let [values (vec values)
+        element-count (count values)]
+    (if (zero? element-count)
+      (just [])
+      (composite-fn
+       (fn [test-case]
+         (mapv #(nth values %)
+               (draw-without-replacement
+                test-case element-count element-count element-count)))))))
+
+(defn subsequences
+  "Generate an order-preserving positional subset of input values.
+
+  Options are :size, :min-size, and :max-size. Duplicate values retain their
+  source positions. The default size range is zero through input size."
+  ([values]
+   (subsequences {} values))
+  ([opts values]
+   (let [opts (options! "subsequences options" sequence-size-options opts)
+         values (vec values)
+         element-count (count values)
+         [min-size max-size]
+         (bounded-sequence-bounds "subsequences" opts element-count)]
+     (if (zero? element-count)
+       (just [])
+       (composite-fn
+        (fn [test-case]
+          (mapv #(nth values %)
+                (sort
+                 (draw-without-replacement
+                  test-case min-size max-size element-count)))))))))
+
+(defn samples
+  "Generate a positional sample of input values.
+
+  Options are :size, :min-size, :max-size, and :replacement?. Replacement is
+  true by default; without replacement each input position is selected at most
+  once. Empty input permits only size zero."
+  ([values]
+   (samples {} values))
+  ([opts values]
+   (let [opts (options! "samples options"
+                        #{:size :min-size :max-size :replacement?} opts)
+         replacement?
+         (if (contains? opts :replacement?)
+           (do
+             (validation/require-boolean!
+              ::invalid-option :replacement? (:replacement? opts))
+             (:replacement? opts))
+           true)
+         values (vec values)
+         element-count (count values)
+         [min-size max-size] (sample-bounds opts element-count replacement?)]
+     (if (zero? element-count)
+       (just [])
+       (composite-fn
+        (fn [test-case]
+          (if replacement?
+            (draw-collection
+             test-case hffi/label-list min-size max-size []
+             (fn [_ selected]
+               (let [index (hffi/generate-integer!
+                            (:context test-case) (:handle test-case)
+                            0 (dec element-count))]
+                 (conj selected (nth values index)))))
+            (mapv #(nth values %)
+                  (draw-without-replacement
+                   test-case min-size max-size element-count)))))))))
+
 (defn vector
   "Generate a vector. Options: :size, :min-size, :max-size, :unique?."
   ([elements]
