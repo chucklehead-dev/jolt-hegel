@@ -55,9 +55,19 @@
    (integer (if (contains? opts :min) (:min opts) min-int64)
             (if (contains? opts :max) (:max opts) max-int64)))
   ([min-value max-value]
+   (when-not (and (integer? min-value)
+                  (integer? max-value)
+                  (<= min-int64 min-value max-int64)
+                  (<= min-int64 max-value max-int64))
+     (throw (ex-info "integer generator bounds must be signed 64-bit integers"
+                     {:type ::invalid-bounds
+                      :hegel/usage-error? true
+                      :min min-value
+                      :max max-value})))
    (when (> min-value max-value)
      (throw (ex-info "integer generator minimum exceeds maximum"
                      {:type ::invalid-bounds
+                      :hegel/usage-error? true
                       :min min-value
                       :max max-value})))
    (composite-fn

@@ -495,6 +495,48 @@
                    "src/libhegel_c.so"
                    "libhegel_c.so"
                    ""])))
+  (check "drive and UNC roots preserve absolute parent contracts"
+         (= ["/"
+             "/"
+             "C:/"
+             "C:\\"
+             "C:/"
+             "C:\\"
+             "C:/src"
+             "C:\\src"
+             "C:/src"
+             "C:\\src"
+             "\\\\server\\share"
+             "\\\\server\\share"
+             "\\\\server\\share"]
+            (mapv native/parent-path
+                  ["/"
+                   "/src"
+                   "C:/"
+                   "C:\\"
+                   "C:/src"
+                   "C:\\src"
+                   "C:/src/nested"
+                   "C:\\src\\nested"
+                   "C:/src/"
+                   "C:\\src\\"
+                   "\\\\server\\share"
+                   "\\\\server\\share\\item"
+                   "\\\\server\\share\\"])))
+  (check "drive and UNC parents round-trip through portable joins"
+         (let [paths ["C:/src"
+                      "C:\\src"
+                      "C:/src/nested"
+                      "C:\\src\\nested"
+                      "\\\\server\\share\\item"]]
+           (and (every? native/absolute-path?
+                        (map native/parent-path paths))
+                (= paths
+                   (mapv (fn [path]
+                           (native/join-path
+                            (native/parent-path path)
+                            (last (str/split path #"[/\\]"))))
+                         paths)))))
   (check "path joining preserves syntax and treats empty components as identity"
          (= ["/tmp/jolt-hegel/libhegel_c.so"
              "/tmp/jolt-hegel/libhegel_c.so"
@@ -630,7 +672,52 @@
     (check "sample returns generated values"
            (and (seq values)
                 (<= (count values) 5)
-                (every? #{7} values)))))
+                (every? #{7} values))))
+  (let [error
+        (try
+          (h/sample
+           5
+           (g/composite-fn
+            (fn [_]
+              (throw
+               (ex-info "sample generator failed"
+                        {:hegel/origin "hegel.test-runner:sample-failure"
+                         :sample :original-cause})))))
+          nil
+          (catch Throwable error
+            error))
+        data (ex-data error)
+        run (:run data)]
+    (check "sample throws instead of returning a partial failed sample"
+           (and (= ::h/sample-failed (:type data))
+                (not (:passed? run))
+                (= :failed (:status run))
+                (= 1 (:n-failures run))))
+    (check "sample failure retains the original cause data"
+           (= {:message "sample generator failed"
+               :data {:hegel/origin "hegel.test-runner:sample-failure"
+                      :sample :original-cause}}
+              (select-keys (:cause data) [:message :data]))))
+  (let [run {:passed? false
+             :status :error
+             :flaky? true
+             :error "Flaky test detected: sample"
+             :failures []
+             :final []}
+        error (try
+                (with-redefs [h/run-test! (fn [& _] run)]
+                  (h/sample 5 (g/just :never-returned)))
+                nil
+                (catch Throwable error
+                  error))
+        data (ex-data error)]
+    (check "sample rejects a flaky run without returning values"
+           (and (= ::h/sample-failed (:type data))
+                (= run (:run data))
+                (not (:passed? (:run data)))
+                (true? (:flaky? (:run data)))
+                (= "Flaky test detected: sample"
+                   (-> data :run :error))))))
 
 (defn- valid-ipv4? [value]
   (let [parts (str/split value #"\.")]
@@ -658,6 +745,54 @@
   (count (re-seq #"(?s)." value)))
 
 (defn primitive-generators []
+  (doseq [[description min-value max-value]
+          [["rejects fractional integer bounds" 1.5 1.5]
+           ["rejects integral double integer bounds" 1.0 1.0]
+           ["rejects ratio integer bounds" 3/2 3/2]
+           ["rejects nil integer bounds" nil 0]
+           ["rejects non-numeric integer bounds" :minimum 0]
+           ["rejects integer bounds below int64" -9223372036854775809N 0]
+           ["rejects integer bounds above int64" 0 9223372036854775808N]]]
+    (let [error (try
+                  (g/integer min-value max-value)
+                  nil
+                  (catch Throwable error error))]
+      (check description
+             (and (= {:type ::g/invalid-bounds
+                      :min min-value
+                      :max max-value}
+                     (select-keys (ex-data error) [:type :min :max]))
+                  (true? (:hegel/usage-error? (ex-data error)))))))
+  (check "accepts in-range BigInt integer bounds"
+         (g/generator? (g/integer 1N 1N)))
+  (check "accepts exact signed int64 endpoints"
+         (g/generator? (g/integer -9223372036854775808N
+                                    9223372036854775807)))
+  (let [error (try
+                (g/integer 1 0)
+                nil
+                (catch Throwable error error))]
+    (check "inverted integer bounds retain their message and abort classification"
+           (and (= "integer generator minimum exceeds maximum"
+                   (ex-message error))
+                (= ::g/invalid-bounds (:type (ex-data error)))
+                (true? (:hegel/usage-error? (ex-data error))))))
+  (let [native-draw? (atom false)
+        error (try
+                (with-redefs [hffi/generate-integer!
+                              (fn [& _]
+                                (reset! native-draw? true)
+                                0)]
+                  (h/run-test!
+                   {:test-cases 1 :seed 1 :database "" :verbosity :quiet}
+                   (fn [_]
+                     (h/draw! (g/integer 1.5 1.5)))))
+                nil
+                (catch Throwable error error))]
+    (check "invalid integer bounds abort a property before a native draw"
+           (and (= ::g/invalid-bounds (:type (ex-data error)))
+                (true? (:hegel/usage-error? (ex-data error)))
+                (false? @native-draw?))))
   (let [values (atom {:true [] :false [] :octets [] :doubles [] :bytes []
                       :empty-bytes [] :uuids [] :ipv4 [] :ipv6 []})
         result
@@ -2536,6 +2671,28 @@
   ;; These classic single-register fixtures have the same shape used by
   ;; Knossos and Porcupine examples, but this portable suite has no dependency
   ;; on either implementation.
+  (let [always-legal (fn [state _] {:state state})
+        events-for (fn [first-id second-id]
+                     [{:seq 0 :operation-id first-id :phase :invoke
+                       :operation :first}
+                      {:seq 1 :operation-id first-id :phase :return
+                       :value :ok}
+                      {:seq 2 :operation-id second-id :phase :invoke
+                       :operation :second}
+                      {:seq 3 :operation-id second-id :phase :return
+                       :value :ok}])
+        original (hhistory/linearization
+                  nil always-legal (events-for false :second))
+        renamed (hhistory/linearization
+                 nil always-legal (events-for :first :second))]
+    (check "false operation IDs preserve non-overlapping precedence"
+           (and (= [false :second] (:order original))
+                (= [:first :second] (:order renamed))))
+    (check "history membership survives a bijective ID renaming"
+           (and (hhistory/linearizable? nil always-legal
+                                        (events-for false :second))
+                (hhistory/linearizable? nil always-legal
+                                        (events-for :first :second)))))
   (let [overlap [{:seq 0 :operation-id :write :phase :invoke
                   :operation :write :input 1}
                  {:seq 1 :operation-id :read :phase :invoke
@@ -2605,7 +2762,9 @@
          [{:seq 0 :operation-id :x :phase :invoke :operation :read}
           {:seq 1 :operation-id :x :phase :invoke :operation :read}]
          [{:seq 0 :operation-id :x :phase :invoke :operation :read}
-          {:seq 2 :operation-id :x :phase :return :value 0}]]
+          {:seq 2 :operation-id :x :phase :return :value 0}]
+         [{:seq 0 :operation-id nil :phase :invoke :operation :read}
+          {:seq 1 :operation-id nil :phase :return :value 0}]]
         failures
         (mapv (fn [events]
                 (try

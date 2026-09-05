@@ -16,6 +16,14 @@
                  (= "\\\\server\\share\\jolt-hegel"
                     (native/parent-path
                      "\\\\server\\share\\jolt-hegel\\libhegel_c.dll"))
+                 (= "C:/"
+                    (native/parent-path "C:/src"))
+                 (= "C:\\"
+                    (native/parent-path "C:\\src"))
+                 (= "\\\\server\\share"
+                    (native/parent-path "\\\\server\\share"))
+                 (= "\\\\server\\share"
+                    (native/parent-path "\\\\server\\share\\item"))
                  (= "C:\\src\\jolt-hegel\\libhegel_c.dll"
                     (native/join-path "C:\\src\\jolt-hegel"
                                       "libhegel_c.dll"))

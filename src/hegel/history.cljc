@@ -214,7 +214,7 @@
                  :final-state state}
                 (some
                  (fn [operation]
-                   (when (every? chosen
+                   (when (every? #(contains? chosen %)
                                  (get before (:operation-id operation)))
                      (when-let [transition
                                 (model-step step state operation events opts)]

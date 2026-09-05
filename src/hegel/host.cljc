@@ -64,6 +64,17 @@
     (cond
       (neg? index) nil
       (zero? index) (subs path 0 1)
+      ;; Retain the separator for both a drive root and the direct child of
+      ;; one: C:/src -> C:/ and C:\src -> C:\.
+      (and (= 2 index)
+           (= \: (nth path 1))
+           (or (= \/ (nth path 2))
+               (= \\ (nth path 2))))
+      (subs path 0 (inc index))
+      ;; UNC shares are roots, not children of their server names.
+      (and (str/starts-with? path "\\\\")
+           (= index (str/index-of path "\\" 2)))
+      path
       :else (subs path 0 index))))
 
 (defn join-path
