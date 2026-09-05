@@ -10,6 +10,8 @@
    :generator-revision "generator-v1"
    :model-revision nil})
 
+(defrecord OpaqueRecord [value])
+
 (def valid-bundle
   {:format :hegel/replay-bundle
    :schema-version 1
@@ -129,7 +131,7 @@
       (is (= :max-nodes (reason-of #(bundle/validate! too-many-nodes))))
       (is (= :max-trace-events (reason-of #(bundle/validate! too-many-events))))))
   (testing "opaque and nonportable values do not reach a schema coercion"
-    (doseq [value [(Object.) '(lazy) #{:a} \x 3/2 ##Inf]]
+    (doseq [value [(Object.) (->OpaqueRecord 1) '(lazy) #{:a} \x 3/2 ##Inf]]
       (is (= :opaque-value
              (reason-of #(bundle/validate!
                           (assoc-in valid-bundle [:failures 0 :origin]

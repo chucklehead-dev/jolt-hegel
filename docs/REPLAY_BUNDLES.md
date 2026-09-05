@@ -44,7 +44,9 @@ architecture. A portable artifact can be decoded on another supported host;
 that is not a claim that executing it under changed provenance is compatible.
 Malformed schema throws a marked usage error. A well-formed mismatch returns
 `{:status :incompatible :reproduced? false :mismatches [...]}` with stable paths
-and expected/actual values, without executing the property or allocating a
+and expected/actual values. `:expected` always names the independent manifest
+value; `:actual` comes from the indicated `:source` (`:bundle`, `:runtime`, or
+`:native-binding`). Mismatches return without executing the property or allocating a
 replay context. Loading `hegel.core` still initializes the native backend;
 use the pure bundle/codec namespaces for offline validation.
 

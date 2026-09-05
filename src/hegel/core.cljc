@@ -499,15 +499,17 @@
   [expected-provenance bundle case-fn]
   (let [{:keys [mismatches]} (replay-bundle/compatibility expected-provenance bundle)
         mismatches
-        (cond-> mismatches
+        (cond-> (mapv #(assoc % :source :bundle) mismatches)
           (not= (host/runtime) (get-in expected-provenance [:runtime :host]))
           (conj {:path [:runtime :host]
-                 :expected (host/runtime)
-                 :actual (get-in expected-provenance [:runtime :host])})
+                 :source :runtime
+                 :expected (get-in expected-provenance [:runtime :host])
+                 :actual (host/runtime)})
           (not= version/libhegel-version (:libhegel-version expected-provenance))
           (conj {:path [:libhegel-version]
-                 :expected version/libhegel-version
-                 :actual (:libhegel-version expected-provenance)}))
+                 :source :native-binding
+                 :expected (:libhegel-version expected-provenance)
+                 :actual version/libhegel-version}))
         opts (assoc (:options bundle) :seed (bigint (:seed bundle)) :database "")]
     (validate-run-options! opts case-fn)
     (if (seq mismatches)

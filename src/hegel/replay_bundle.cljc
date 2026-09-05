@@ -40,6 +40,13 @@
 (defn- nonblank-string? [value]
   (and (string? value) (not (str/blank? value))))
 
+(defn- record-value? [value]
+  ;; The experimental jank runtime has neither records nor record?. Keep the
+  ;; exclusion on hosts that can construct records, without preventing jank
+  ;; from loading shared core (which also represents TestCase as a plain map).
+  #?(:jank (do value false)
+     :default (record? value)))
+
 (defn- finite-floating? [value]
   (and (or (double? value) (float? value))
        (= value value)
@@ -87,7 +94,7 @@
           :value
           (let [nodes (consume-node! path depth nodes)]
             (cond
-              (record? item) (invalid! path :opaque-value)
+              (record-value? item) (invalid! path :opaque-value)
               (map? item)
               (recur (conj frames [:map path (seq item) (inc depth) 0])
                      nodes text-chars)
@@ -309,7 +316,7 @@
     (when (> (count events) (:max-trace-events limits))
       (invalid! (conj path :events) :max-trace-events))
     (doseq [[index event] (map-indexed vector events)]
-      (when-not (and (map? event) (not (record? event)))
+      (when-not (and (map? event) (not (record-value? event)))
         (invalid! (conj path :events index) :map-required))))
   trace)
 

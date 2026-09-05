@@ -96,7 +96,10 @@
         (let [replayed (h/replay-bundle! provenance
                                          (assoc-in step-bundle (into [:provenance] path) changed)
                                          property)]
-          (is (= :incompatible (:status replayed))))
+          (is (= :incompatible (:status replayed)))
+          (is (= [{:path path :source :bundle
+                   :expected (get-in provenance path) :actual changed}]
+                 (:mismatches replayed))))
         (is (empty? @calls)))
       (is (= :hegel.replay-bundle/invalid-bundle
              (:type (ex-data (caught #(h/replay-bundle!
@@ -104,7 +107,14 @@
       (let [wrong (assoc-in provenance [:runtime :host]
                             (if (= :bb (host/runtime)) :jvm :bb))]
         (is (= :incompatible
-               (:status (h/replay-bundle! wrong (assoc step-bundle :provenance wrong) property)))))
+               (:status (h/replay-bundle! wrong (assoc step-bundle :provenance wrong) property))))
+        (is (= [{:path [:runtime :host] :source :runtime
+                 :expected (get-in wrong [:runtime :host]) :actual (host/runtime)}]
+               (:mismatches (h/replay-bundle! wrong (assoc step-bundle :provenance wrong) property)))))
+      (let [wrong (assoc provenance :libhegel-version "0.33.3")]
+        (is (= [{:path [:libhegel-version] :source :native-binding
+                 :expected "0.33.3" :actual version/libhegel-version}]
+               (:mismatches (h/replay-bundle! wrong (assoc step-bundle :provenance wrong) property)))))
       (is (empty? @calls)))))
 
 (deftest wrong-origin-pass-and-assumption-are-not-reproduction
