@@ -268,13 +268,45 @@ jobs:
         if: matrix.host == 'jolt'
         run: jolt -M:test
 
+      - name: Run contract harness controls (Jolt)
+        if: matrix.host == 'jolt'
+        run: jolt -M:harness-test
+
+      - name: Probe bootstrap optional loading (Jolt)
+        if: matrix.host == 'jolt'
+        run: jolt -M:test --bootstrap-load-probe
+
       - name: Run semantic suite (Babashka)
         if: matrix.host == 'bb'
         run: bb test
 
+      - name: Run contract harness controls (Babashka)
+        if: matrix.host == 'bb'
+        run: bb harness-test
+
+      - name: Probe bootstrap optional loading (Babashka)
+        if: matrix.host == 'bb'
+        run: bb test --bootstrap-load-probe
+
+      - name: Reject a literal task name passed as a test argument (Babashka)
+        if: matrix.host == 'bb'
+        run: >-
+          bb -e '(require (quote clojure.java.shell))
+          (let [result (clojure.java.shell/sh "bb" "test" "test" "--list-suites")]
+          (when-not (= 2 (:exit result))
+          (throw (ex-info "Test task changed user arguments" result))))'
+
       - name: Run semantic suite (JVM)
         if: matrix.host == 'jvm'
         run: clojure -J--enable-native-access=ALL-UNNAMED -M:jvm:test
+
+      - name: Run contract harness controls (JVM)
+        if: matrix.host == 'jvm'
+        run: clojure -J--enable-native-access=ALL-UNNAMED -M:jvm:harness-test
+
+      - name: Probe bootstrap optional loading (JVM)
+        if: matrix.host == 'jvm'
+        run: clojure -J--enable-native-access=ALL-UNNAMED -M:jvm:test --bootstrap-load-probe
 
       - name: Run Git dependency consumer smoke test (Jolt)
         if: matrix.host == 'jolt'
