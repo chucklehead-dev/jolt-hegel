@@ -5,6 +5,14 @@
 
 (defn- field-names [fields] (set (map (comp keyword :name) fields)))
 
+(deftest quoted-include-paths-are-portable
+  (let [include-name (ns-resolve 'hegel.header-layout 'include-name)]
+    (is (= "\"D:/a/project with spaces/hegel.h\""
+           (include-name "D:\\a\\project with spaces\\hegel.h")))
+    (is (= "\"/tmp/project/hegel.h\"" (include-name "/tmp/project/hegel.h")))
+    (is (thrown? clojure.lang.ExceptionInfo (include-name "a\"b.h")))
+    (is (thrown? clojure.lang.ExceptionInfo (include-name "a\nb.h")))))
+
 (deftest compiled-probe-measures-the-pinned-header
   (let [snapshot (header/snapshot)
         result (layout/measure! snapshot)]

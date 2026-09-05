@@ -21,8 +21,14 @@
    ["size_t" "size_t"] ["float" "float"] ["double" "double"]
    ["pointer" "void *"]])
 
-(defn- c-string [value]
-  (str "\"" (str/replace value #"[\\\"]" "\\$0") "\""))
+(defn- include-name [value]
+  ;; A preprocessor header-name is not a C string literal. Use forward path
+  ;; separators on Windows and reject characters that cannot be represented
+  ;; safely inside a quoted #include directive; do not apply regex replacement
+  ;; string escaping (which previously emitted literal $0 for backslashes).
+  (when (re-find #"[\"\r\n]" value)
+    (throw (ex-info "Unsupported character in C header path" {:path value})))
+  (str "\"" (str/replace value "\\" "/") "\""))
 
 (defn- emit-map-entry [key expression]
   (str "printf(" (pr-str (str ":" key " %zu ")) ", (size_t)(" expression "));\n"))
@@ -50,7 +56,7 @@
          "#include <stdint.h>\n"
          "#include <limits.h>\n"
          "#include <stdbool.h>\n"
-         "#include " (c-string (.getAbsolutePath (io/file header-path))) "\n\n"
+         "#include " (include-name (.getAbsolutePath (io/file header-path))) "\n\n"
          "int main(void) {\n"
          (emit-text "{")
          (emit-enum-entry "char-bit" "CHAR_BIT")
