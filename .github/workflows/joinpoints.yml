@@ -1,0 +1,72 @@
+name: Compiler join-point contract
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  joinpoints:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: casselc/jolt
+          ref: 09f4218828f93320f3b43eb4e8ae5df76fc65210
+          path: target/aspect-compiler
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: cisco/ChezScheme
+          ref: e95a7efbafa2cf3bd5343ea542e6bc909a7ab2c4 # v10.4.1
+          path: target/chez-source
+          submodules: recursive
+          persist-credentials: false
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential liblz4-dev zlib1g-dev libncurses-dev uuid-dev ripgrep
+      - name: Build pinned threaded Chez with native-linking files
+        working-directory: target/chez-source
+        run: |
+          test "$(git rev-parse HEAD)" = e95a7efbafa2cf3bd5343ea542e6bc909a7ab2c4
+          ./configure --installprefix="$RUNNER_TEMP/chez" --threads --disable-x11
+          make -j2
+          make install
+          test "$("$RUNNER_TEMP/chez/bin/scheme" --version 2>&1)" = 10.4.1
+          echo "CHEZ=$RUNNER_TEMP/chez/bin/scheme" >> "$GITHUB_ENV"
+          echo "CHEZSCHEME=$RUNNER_TEMP/chez/bin/scheme" >> "$GITHUB_ENV"
+          echo "JOLT_CHEZ=$RUNNER_TEMP/chez/bin/scheme" >> "$GITHUB_ENV"
+      - name: Build exact aspect-capable compiler
+        working-directory: target/aspect-compiler
+        run: |
+          test "$(git rev-parse HEAD)" = 09f4218828f93320f3b43eb4e8ae5df76fc65210
+          JOLT_FORCE_TESTBIN=1 make -j1 CHEZ="$CHEZ" testbin
+          ./target/release/jolt --version
+          echo "JOLT_BIN=$PWD/target/release/jolt" >> "$GITHUB_ENV"
+      - name: Provision pinned Babashka
+        uses: ./.github/actions/setup-babashka
+        with:
+          version: 1.13.220
+          asset: babashka-1.13.220-linux-amd64.tar.gz
+          sha256: 5211ebf6267be2dbbf4857611cb01331b865bf6b0a8c9bc500c83a816df1a769
+      - name: Install verified libhegel
+        env:
+          HEGEL_CACHE_DIR: ${{ runner.temp }}/hegel-native
+        run: |
+          bb -m hegel.install
+          native="$HEGEL_CACHE_DIR/libhegel_c.so"
+          test -f "$native"
+          echo "12d804f8767f926f8ec22a733e57af265f0b79f383ce78cc8d9fcbae2a8a3ad7  $native" | sha256sum --check
+          echo "HEGEL_LIBHEGEL_LIBRARY=$native" >> "$GITHUB_ENV"
+      - name: Check actual manifest, compiler reports and runtime controls
+        run: bash script/check-joinpoints.sh
