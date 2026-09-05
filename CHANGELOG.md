@@ -6,6 +6,9 @@ for v0.1.0 through v0.4.0, see the tag and release history in that repository.
 
 ## Unreleased
 
+- Add `hegel.history/analyze` with decisive linearizability results and an
+  explicit global `:max-search-steps` bound (default 100000). Exhaustion is an
+  inconclusive marked abort, never a shrinkable false linearizability verdict.
 - Audit the canonical ABI against the byte-pinned C header, compiler-measured
   layouts and constants, source option/status/span values, and explicit
   temporal units. Add offline development commands and three-platform CI.

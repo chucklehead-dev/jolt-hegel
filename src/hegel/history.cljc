@@ -5,11 +5,13 @@
   integer `:seq`, an `:operation-id`, and a `:phase` of `:invoke`, `:return`,
   or `:throw`. An invocation also has `:operation`. Every operation must have
   exactly one invocation followed by exactly one terminal event."
-  (:require [hegel.host :as host]
+  (:require [clojure.set :as set]
+            [hegel.host :as host]
             [hegel.trace :as trace]
             [hegel.validation :as validation]))
 
 (def ^:private default-max-operations 10)
+(def ^:private default-max-search-steps 100000)
 
 (defn- origin [name]
   (str "hegel.history/"
@@ -44,13 +46,14 @@
                            {:hegel/origin "hegel.history/linearizable"
                             :options opts})
   (let [opts (merge {:max-operations default-max-operations
+                     :max-search-steps default-max-search-steps
                      :name :linearizable
                      :partition-by nil
                      :sequence-start nil}
                     opts)]
     (validation/reject-unknown-keys!
      ::invalid-options "history options"
-     #{:max-operations :name :partition-by :sequence-start} opts
+     #{:max-operations :max-search-steps :name :partition-by :sequence-start} opts
      {:hegel/origin (origin (:name opts))})
     (when-not (and (integer? (:max-operations opts))
                    (not (neg? (:max-operations opts))))
@@ -58,6 +61,12 @@
        ::invalid-options "history :max-operations must be a non-negative integer"
        {:hegel/origin (origin (:name opts))
         :max-operations (:max-operations opts)}))
+    (when-not (and (integer? (:max-search-steps opts))
+                   (not (neg? (:max-search-steps opts))))
+      (validation/usage-error!
+       ::invalid-options "history :max-search-steps must be a non-negative integer"
+       {:hegel/origin (origin (:name opts))
+        :max-search-steps (:max-search-steps opts)}))
     (when-not (or (nil? (:partition-by opts))
                   (ifn? (:partition-by opts)))
       (validation/usage-error!
@@ -172,10 +181,12 @@
         (host/try-catch-all
          (step state operation)
          error
-         (fail! "history model transition threw"
-                ::model-error events opts
-                {:hegel.history/operation operation}
-                error))]
+         (if (:hegel/inconclusive? (ex-data error))
+           (throw error)
+           (fail! "history model transition threw"
+                  ::model-error events opts
+                  {:hegel.history/operation operation}
+                  error)))]
     (cond
       (nil? transition) nil
       (and (map? transition) (contains? transition :state)) transition
@@ -185,69 +196,124 @@
              {:hegel.history/operation operation
               :hegel.history/transition transition}))))
 
-(defn- predecessors [ops]
-  (into {}
-        (map (fn [operation]
-               [(:operation-id operation)
-                (->> ops
-                     (filter #(< (:terminal-seq %)
-                                 (:invoke-seq operation)))
-                     (map :operation-id)
-                     set)]))
+(defn- predecessor-indexes [ops]
+  (mapv (fn [operation]
+          (into #{}
+                (keep-indexed
+                 (fn [index predecessor]
+                   (when (< (:terminal-seq predecessor)
+                            (:invoke-seq operation))
+                     index)))
+                ops))
         ops))
 
-(defn- search [initial step ops events opts]
-  (let [before (predecessors ops)]
-    (letfn [(visit [state remaining chosen order]
+(defn- search [initial step ops predecessors indices events opts budget]
+  (let [allowed (set indices)
+        predecessors (mapv #(set/intersection allowed %) predecessors)]
+    (letfn [(visit [state remaining chosen order budget]
               (if (empty? remaining)
-                {:order order
-                 :operations (mapv (fn [operation-id]
-                                     (first
-                                      (filter #(= operation-id
-                                                  (:operation-id %))
-                                              ops)))
-                                   order)
-                 :final-state state}
-                (some
-                 (fn [operation]
-                   (when (every? #(contains? chosen %)
-                                 (get before (:operation-id operation)))
-                     (when-let [transition
-                                (model-step step state operation events opts)]
-                       (visit (:state transition)
-                              (vec
-                               (remove #(= (:operation-id operation)
-                                           (:operation-id %))
-                                       remaining))
-                              (conj chosen (:operation-id operation))
-                              (conj order (:operation-id operation))))))
-                 remaining)))]
-      (visit initial ops #{} []))))
+                {:status :linearizable
+                 :witness {:order (mapv #(:operation-id (nth ops %)) order)
+                           :operations (mapv #(nth ops %) order)
+                           :final-state state}
+                 :remaining-budget budget}
+                (loop [candidates remaining
+                       budget budget]
+                  (if-let [index (first candidates)]
+                    (if (zero? budget)
+                      {:status :inconclusive :remaining-budget budget}
+                      (let [budget (dec budget)
+                            eligible? (every? #(contains? chosen %)
+                                              (nth predecessors index))]
+                        (if-not eligible?
+                          (recur (next candidates) budget)
+                          (if-let [transition
+                                   (model-step step state (nth ops index) events opts)]
+                            (let [result (visit (:state transition)
+                                                (disj remaining index)
+                                                (conj chosen index)
+                                                (conj order index)
+                                                budget)]
+                              (if (= :not-linearizable (:status result))
+                                (recur (next candidates) (:remaining-budget result))
+                                result))
+                            (recur (next candidates) budget)))))
+                    {:status :not-linearizable :remaining-budget budget}))))]
+      (visit initial (into (sorted-set) indices) #{} [] budget))))
 
 (defn- partition-of [partition-by operation events opts]
   (host/try-catch-all
    (partition-by operation)
    error
-   (fail! "history partition function threw"
-          ::partition-error events opts
-          {:hegel.history/operation operation}
-          error)))
+   (if (:hegel/inconclusive? (ex-data error))
+     (throw error)
+     (fail! "history partition function threw"
+            ::partition-error events opts
+            {:hegel.history/operation operation}
+            error))))
 
 (defn- ordered-groups [ops partition-by events opts]
   (if-not partition-by
-    [[nil ops]]
+    [[nil (vec (range (count ops)))]]
     (reduce
-     (fn [groups operation]
+     (fn [groups [operation-index operation]]
        (let [partition (partition-of partition-by operation events opts)
              index (first
                     (keep-indexed
                      (fn [index [key _]] (when (= key partition) index))
                      groups))]
          (if (nil? index)
-           (conj groups [partition [operation]])
-           (update-in groups [index 1] conj operation))))
+           (conj groups [partition [operation-index]])
+           (update-in groups [index 1] conj operation-index))))
      []
-     ops)))
+     (map-indexed vector ops))))
+
+(defn- search-exhausted! [analysis events opts]
+  (fail! "history search budget exhausted" ::search-exhausted events opts
+         {:hegel/inconclusive? true
+          :search (:search analysis)}))
+
+(defn analyze
+  "Analyze a bounded history as :linearizable, :not-linearizable, or :inconclusive.
+
+  :max-search-steps defaults to 100000 and counts every candidate considered,
+  including one blocked by real-time predecessors. It is global across
+  partitions; preprocessing and model callback wall time are not budgeted."
+  ([initial step events] (analyze initial step events {}))
+  ([initial step events opts]
+   (let [opts (options opts)]
+     (when-not (ifn? step)
+       (validation/usage-error! ::invalid-options
+                                "history model step must be callable"
+                                {:hegel/origin (origin (:name opts)) :step step}))
+     (let [ops (operations events opts)
+           predecessors (predecessor-indexes ops)
+           groups (ordered-groups ops (:partition-by opts) events opts)
+           result (loop [remaining groups witnesses [] budget (:max-search-steps opts)]
+                    (if-let [[partition partition-ops] (first remaining)]
+                      (let [outcome (search initial step ops predecessors partition-ops events opts budget)]
+                        (case (:status outcome)
+                          :inconclusive outcome
+                          :not-linearizable outcome
+                          :linearizable
+                          (recur (next remaining)
+                                 (conj witnesses (assoc (:witness outcome) :partition partition))
+                                 (:remaining-budget outcome))))
+                      {:status :linearizable :witnesses witnesses :remaining-budget budget}))
+           search-data {:max-search-steps (:max-search-steps opts)
+                        :search-steps (- (:max-search-steps opts) (:remaining-budget result))
+                        :operation-count (count ops)
+                        :partition-count (count groups)}]
+       (case (:status result)
+         :inconclusive {:status :inconclusive :reason :search-budget :search search-data}
+         :not-linearizable {:status :not-linearizable :search search-data}
+         :linearizable
+         (let [witnesses (:witnesses result)
+               witness (if (:partition-by opts)
+                         {:operation-count (count ops) :partitions witnesses}
+                         (assoc (dissoc (first witnesses) :partition)
+                                :operation-count (count ops)))]
+           {:status :linearizable :witness witness :search search-data}))))))
 
 (defn linearization
   "Return a sequential-model witness for a complete bounded history, or nil.
@@ -260,6 +326,7 @@
   Options:
 
   * `:max-operations` bounds the total search (default 10).
+  * `:max-search-steps` bounds candidate consideration globally (default 100000).
   * `:partition-by` independently checks completed operations grouped by the
     callable's result, using `initial` for every partition.
   * `:sequence-start` optionally requires an exact first sequence number.
@@ -267,32 +334,16 @@
 
   An unpartitioned witness has `:order`, `:operations`, and `:final-state`.
   A partitioned witness has `:partitions`, each containing those keys plus
-  `:partition`."
+  `:partition`. When the search budget is exhausted, this legacy API throws a
+  marked inconclusive exception rather than returning nil."
   ([initial step events] (linearization initial step events {}))
   ([initial step events opts]
-   (let [opts (options opts)]
-     (when-not (ifn? step)
-       (validation/usage-error! ::invalid-options
-                                "history model step must be callable"
-                                {:hegel/origin (origin (:name opts))
-                                 :step step}))
-     (let [ops (operations events opts)
-           groups (ordered-groups ops (:partition-by opts) events opts)
-           witnesses
-           (loop [remaining groups
-                  witnesses []]
-             (if-let [[partition partition-ops] (first remaining)]
-               (if-let [witness (search initial step partition-ops events opts)]
-                 (recur (next remaining)
-                        (conj witnesses (assoc witness :partition partition)))
-                 nil)
-               witnesses))]
-       (when witnesses
-         (if (:partition-by opts)
-           {:operation-count (count ops)
-            :partitions witnesses}
-           (assoc (dissoc (first witnesses) :partition)
-                  :operation-count (count ops))))))))
+   (let [opts (options opts)
+         analysis (analyze initial step events opts)]
+     (case (:status analysis)
+       :linearizable (:witness analysis)
+       :not-linearizable nil
+       :inconclusive (search-exhausted! analysis events opts)))))
 
 (defn linearizable?
   "True when `linearization` finds a sequential-model witness."
@@ -320,7 +371,7 @@
                            {:hegel/origin (origin name) :options opts})
   (validation/reject-unknown-keys!
    ::invalid-options "history rule options"
-   #{:initial :step :max-operations :partition-by :sequence-start} opts
+   #{:initial :step :max-operations :max-search-steps :partition-by :sequence-start} opts
    {:hegel/origin (origin name)})
   (let [{:keys [initial step]} opts
         linear-options
