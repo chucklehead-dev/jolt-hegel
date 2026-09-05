@@ -18,6 +18,8 @@
                 :task (exec 'hegel.header-audit/-main)}
   abi-test {:extra-paths ["script"]
             :task (exec 'hegel.abi-check/-main)}
+  corpus-test {:extra-paths ["test"]
+               :task ((requiring-resolve 'hegel.corpus-contract-runner/-main))}
   test {:extra-paths ["test"]
         ;; Development-only: Malli remains optional for consumers.
         :extra-deps {metosin/malli {:mvn/version "0.20.1"}}

@@ -1,7 +1,10 @@
 # Seeded materialized corpora
 
-Status: implementation contract for issue #56, not a released API. This document
-does not by itself satisfy the native, offline, or aspect-pack integration gates.
+Status: unreleased implementation for issue #56. Cross-platform CI and the
+coordinated live/offline db pilot remain acceptance gates; the existence of these
+APIs does not close that issue. Local Linux BB/JVM/Jolt corpus checks have passed
+in new network namespaces with an unavailable libhegel path; this validates the
+Hegel consumer path, not the still-pending db integration.
 
 The purpose is to generate successful plain-data examples once and check those
 same examples in environments without libhegel or network access. This is distinct
@@ -10,7 +13,7 @@ failed-property exceptions. Both modes must use the same consumer/model contract
 
 ## Generation contract
 
-The planned `hegel.materialize/materialize!` entry point accepts an options map,
+The `hegel.materialize/materialize!` entry point accepts an options map,
 a Hegel generator, and optionally a `check!` function of one generated value.
 The check's return value is ignored, like a normal Hegel property; it must throw
 to report failure. Generator/check assumptions reject a candidate before it is
@@ -51,7 +54,7 @@ consumption of an existing payload is required.
 
 ## Envelope and exact-byte digest
 
-The planned schema-v1 envelope is a closed map:
+The schema-v1 envelope is a closed map:
 
 ```clojure
 {:format :hegel/materialized-corpus
@@ -99,7 +102,7 @@ consumer pin. This is integrity relative to a trusted manifest, not a signature
 or authentication scheme. Values may contain secrets; no implicit redaction or
 safe-to-publish claim is made.
 
-The planned consumer call is `(hegel.corpus/consume! expected envelope)`, where
+The consumer call is `(hegel.corpus/consume! expected envelope)`, where
 `expected` is a closed map `{:sha256 digest :provenance provenance :count n
 :valid-case-policy :exact-valid-count}` supplied by the consuming test's checked-in
 manifest. `consume!` returns the validated payload map, including `:values`, only
@@ -115,7 +118,7 @@ update the independent consumer pin in the same reviewed integration slice.
 
 ## Bounded offline consumption
 
-The planned `hegel.corpus` schema/consumer namespace must not require
+The `hegel.corpus` schema/consumer namespace does not require
 `hegel.core`, `hegel.ffi`, an installer, Malli, or a type checker. Its digest
 adapter must not load libhegel or access the network. Dependency provisioning is
 a separate explicit setup step; it must be complete before the offline gate.
@@ -127,7 +130,7 @@ then release the values to the model. No model callback runs before verification
 Wrong versions, stale provenance, unknown keys, count mismatch and bad digests
 fail closed. Parsing does not execute tagged literals or reproduction blobs.
 
-Proposed payload limits: 262144 UTF-16 code units of serialized text, depth 32
+Payload limits: 262144 UTF-16 code units of serialized text, depth 32
 with root depth zero, 65536 data nodes (including map keys), 8192 UTF-16 units
 per scalar string/keyword, and 256 values. The outer escaped envelope has a
 separate 2097152-unit text bound and permits a payload string up to 262144 units;
@@ -139,6 +142,44 @@ booleans, strings, keywords, integers in [-2^63, 2^64-1], and finite floating
 values. Lists, lazy sequences, sets, records, arrays, host handles, exceptions,
 NUL strings, nonfinite numbers and unreadable keyword spellings are rejected.
 The shared transport performs a round-trip check; this is not canonical EDN.
+
+### Usage and digest dependencies
+
+Generate with `(materialize/materialize! opts generator check!)`; omitting
+`check!` performs generation without a model assertion. Return false is not a
+failure. `corpus/seal` validates and hashes an already complete payload;
+`corpus/encode` and `corpus/decode` handle the outer EDN transport. Decoding the
+envelope is not verification: call `corpus/consume!` with an independent pin
+before running the consumer model.
+
+BB/JVM hashing uses the platform SHA-256 provider. Jolt uses a small optional
+FFI adapter: system OpenSSL on Linux/macOS, and Windows CNG `bcrypt.dll` from
+`SystemRoot\\System32` on Windows 10 / Server 2016 or later. macOS users must
+provision OpenSSL (the CI uses Homebrew `openssl@3`) before offline operation.
+No subprocess, installer, network request, or libhegel load is part of hashing.
+Native output is copied into an owned array before temporary allocations are
+freed; CNG handles are closed per call. Static crypto linkage is not claimed.
+The ClojureCLR digest branch is experimental and not yet feature-validated;
+jank corpus hashing currently throws an explicit unsupported-host error.
+
+Generation seals each proposed prefix before retaining it, bounding both data
+and its escaped representation before the next native run. This first
+implementation repeats validation/encoding/hashing across prefixes, in addition
+to creating one native context per position. Both costs must be measured before
+claiming suitability for large-volume generation; the count ceiling is 256.
+
+Focused engine-free checks (after dependency/toolchain provisioning):
+
+```sh
+bb corpus-test
+clojure -M:corpus-test
+jolt -M:corpus-test
+```
+
+The normal semantic suite includes corpus and actual materialization scenarios.
+Engine-free tests run a fixed UTF-8 artifact against an independently calculated
+digest, plus corrupt/stale/reader/bounds controls. These commands alone do not
+prove network isolation; the physically offline fixture gate is separate.
 
 ## Cross-repository db pilot
 
@@ -165,8 +206,9 @@ bounds. Corpus validity alone is not model validity or a non-vacuity proof.
 - Verify the digest adapter on every supported host/OS, including UTF-8
   supplementary characters, standard SHA-256 vectors and malformed surrogates.
   Released upstream `jolt-lang/crypto` v0.0.5 supplies MessageDigest on Jolt 0.8,
-  but its metadata only declares Linux/macOS native candidates. Windows is an
-  unresolved implementation gate, not permission to narrow supported hosts.
+  but its metadata only declares Linux/macOS native candidates. The new Jolt
+  adapter implements Windows CNG; actual Windows execution is still a gate,
+  not permission to narrow supported hosts or infer success from Linux.
 - Test exact count, constant values, uint64 seed wrap, repeated seeded generation,
   rejected candidates, ordinary failure, flakiness, abort propagation and cleanup.
   Verify different seeds actually exercise a nonconstant domain; do not count

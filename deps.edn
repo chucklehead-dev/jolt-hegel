@@ -27,6 +27,8 @@
          :main-opts ["-m" "hegel.test-runner"]}
    :harness-test {:extra-paths ["test"]
                   :main-opts ["-m" "hegel.harness-test-runner"]}
+   :corpus-test {:extra-paths ["test"]
+                 :main-opts ["-m" "hegel.corpus-contract-runner"]}
   :fetch-libhegel {:extra-paths ["script"]
                    :main-opts ["-m" "fetch-libhegel"]}}
 
