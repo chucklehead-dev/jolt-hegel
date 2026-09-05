@@ -3,6 +3,7 @@
   (:require [clojure.test :as t]
             [hegel.core :as h]
             [hegel.generator :as g]
+            [hegel.event-contract-test]
             [hegel.history :as hhistory]
             [hegel.history-budget-test]
             [hegel.history-oracle :as horacle]
@@ -414,4 +415,9 @@
 (defn history-budget-contract [context]
   (let [result (t/run-tests 'hegel.history-budget-test)]
     (support/check! context "history budget contract suite"
+                    (zero? (+ (:fail result) (:error result))))))
+
+(defn event-contract-characterization [context]
+  (let [result (t/run-tests 'hegel.event-contract-test)]
+    (support/check! context "trace/history event domain characterization"
                     (zero? (+ (:fail result) (:error result))))))
