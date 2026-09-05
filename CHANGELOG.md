@@ -6,8 +6,13 @@ for v0.1.0 through v0.4.0, see the tag and release history in that repository.
 
 ## Unreleased
 
+- Make compiler join-point acceptance checks independent of assertion settings,
+  with assertion-elision and rejected-report/event-journal controls. Clarify
+  that the existing manifest version is an opaque compatibility token, not
+  declaration source provenance; its value is unchanged.
+
 - Stabilize the optional compiler join-point declaration contract without
-  changing its existing identifiers or historical manifest revision. Exact
+  changing its existing identifiers or opaque manifest compatibility token. Exact
   source/provider pins remain independent. Pure cross-host manifest tests and
   a pinned-source Linux compiler gate cover actual matching, runtime advice,
   exception preservation, stale-provider rejection and plain builds. See

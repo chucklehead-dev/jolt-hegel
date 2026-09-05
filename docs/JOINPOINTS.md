@@ -8,9 +8,14 @@ Normal BB/JVM/Jolt property use never requires compiler aspects or a provider.
 
 The resource `META-INF/jolt/aspects/hegel.edn` declares schema 1 and library
 `chucklehead-dev/jolt-hegel`. Its revision is currently
-`86a70acf7880184707a77069b60b2e8fd4acbbbb`, the historical declaration revision.
-It is not the current source checkout SHA, native ABI version, or event-profile
-revision. Pin the actual Hegel dependency by full Git SHA independently.
+`86a70acf7880184707a77069b60b2e8fd4acbbbb`, an opaque provider compatibility
+token, not a source revision containing the declarations. The manifest and
+entry annotations were introduced in `2186afd9fef8b8ba766af5ea06b517e6af36cd4e`
+(#19), using its parent commit's SHA as the token. That parent does not contain
+the manifest or annotations. We retain the existing token to preserve provider
+compatibility, not to identify declaration source. It is neither the current
+source checkout SHA, native ABI version, nor event-profile revision. Pin the
+actual Hegel dependency by full Git SHA independently.
 
 A provider must independently declare the same manifest library revision.
 Reading the incoming manifest to manufacture a matching provider revision would
@@ -59,7 +64,7 @@ Compiler-generated site IDs, source positions and build identities are
 artifact-specific evidence, not stable public Hegel identifiers. Rebuild and
 validate report cardinality after source/compiler changes; do not pin generated
 site IDs across unrelated artifacts or infer source identity from the manifest
-revision alone. The historical revision need not change for unrelated Hegel
+revision alone. The compatibility token need not change for unrelated Hegel
 implementation changes that preserve this declaration contract.
 
 ## Reproduce the current evidence
@@ -92,6 +97,15 @@ libhegel; do not advertise that command as native-free. The bundled fixture
 is a consumer, not a production instrumentation package. The report validator
 checks ten malformed-report controls; stale provider rejection exercises the
 compiler itself.
+
+Acceptance and rejection checks use explicit exceptions, not elidable `assert`
+forms. The report checker is loaded with assertions disabled. A fresh Jolt
+source-evaluation process disables assertions before loading the actual runtime
+fixture and checks assertion elision before running its plain-mode controls.
+Its explicit checks must still reject a malformed event journal. The ordinary
+woven and plain AOT gates remain separate: this does not claim an AOT
+assertion-disabling option. The report tests also verify that bypassing the
+validator makes the mutant harness fail (#92).
 
 At Hegel `6cf5c37d063d61995525b56b56af45ee646e055a`, the
 [compiler CI gate](https://github.com/chucklehead-dev/jolt-hegel/actions/runs/33989695854)
