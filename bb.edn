@@ -19,4 +19,10 @@
   test {:extra-paths ["test"]
         ;; Development-only: Malli remains optional for consumers.
         :extra-deps {metosin/malli {:mvn/version "0.20.1"}}
-        :task (exec 'hegel.test-runner/-main)}}}
+        ;; Forward task arguments so the timeout harness can launch narrow
+        ;; child modes without recursively entering this task's full suite;
+        ;; retain `exec` for the ordinary no-argument task contract.
+        :task (if (seq *command-line-args*)
+                (apply (requiring-resolve 'hegel.test-runner/-main)
+                       *command-line-args*)
+                (exec 'hegel.test-runner/-main))}}}
