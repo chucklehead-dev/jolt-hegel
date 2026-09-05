@@ -32,6 +32,11 @@
                     " -PassThru -NoNewWindow -RedirectStandardOutput "
                     (powershell-literal output-file)
                     " -RedirectStandardError " (powershell-literal error-file) ";"
+                    ;; Start-Process can otherwise leave ExitCode null after a
+                    ;; successful wait. Force the Process handle to be opened
+                    ;; while the child is still alive, and keep it referenced
+                    ;; through the subsequent wait and exit-code read.
+                    "$ownedHandle=$p.Handle;"
                     "if(-not $p.WaitForExit(" wait-ms ")){"
                     ;; Windows PowerShell 5.1 only supports Kill(), unlike
                     ;; newer pwsh's Kill(bool). jolt.exe is the direct child.
