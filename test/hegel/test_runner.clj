@@ -630,7 +630,52 @@
     (check "sample returns generated values"
            (and (seq values)
                 (<= (count values) 5)
-                (every? #{7} values)))))
+                (every? #{7} values))))
+  (let [error
+        (try
+          (h/sample
+           5
+           (g/composite-fn
+            (fn [_]
+              (throw
+               (ex-info "sample generator failed"
+                        {:hegel/origin "hegel.test-runner:sample-failure"
+                         :sample :original-cause})))))
+          nil
+          (catch Throwable error
+            error))
+        data (ex-data error)
+        run (:run data)]
+    (check "sample throws instead of returning a partial failed sample"
+           (and (= ::h/sample-failed (:type data))
+                (not (:passed? run))
+                (= :failed (:status run))
+                (= 1 (:n-failures run))))
+    (check "sample failure retains the original cause data"
+           (= {:message "sample generator failed"
+               :data {:hegel/origin "hegel.test-runner:sample-failure"
+                      :sample :original-cause}}
+              (select-keys (:cause data) [:message :data]))))
+  (let [run {:passed? false
+             :status :error
+             :flaky? true
+             :error "Flaky test detected: sample"
+             :failures []
+             :final []}
+        error (try
+                (with-redefs [h/run-test! (fn [& _] run)]
+                  (h/sample 5 (g/just :never-returned)))
+                nil
+                (catch Throwable error
+                  error))
+        data (ex-data error)]
+    (check "sample rejects a flaky run without returning values"
+           (and (= ::h/sample-failed (:type data))
+                (= run (:run data))
+                (not (:passed? (:run data)))
+                (true? (:flaky? (:run data)))
+                (= "Flaky test detected: sample"
+                   (-> data :run :error))))))
 
 (defn- valid-ipv4? [value]
   (let [parts (str/split value #"\.")]

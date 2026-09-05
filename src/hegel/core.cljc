@@ -518,14 +518,34 @@
   [opts & body]
   `(run-test! ~opts (fn [~'_] ~@body)))
 
+(defn- sample-failure! [run]
+  ;; A failed property is normally returned by run-test!, rather than thrown.
+  ;; Keep both the complete run and a portable summary of its original cause so
+  ;; interactive callers never mistake a partial sample for a successful one.
+  (let [cause (or (-> run :final first :exception)
+                  (-> run :failures first :exception))]
+    (throw
+     (ex-info
+      "Hegel sample failed"
+      {:type ::sample-failed
+       :run run
+       :cause (when cause (throwable-observation cause))}
+      cause))))
+
 (defn sample
-  "Generate up to n values for interactive inspection."
+  "Generate up to n values for interactive inspection.
+
+  Throws with the complete run result and original cause data when the
+  underlying property fails or is flaky; it never returns a partial sample as
+  a successful result."
   [n generator]
-  (let [values (atom [])]
-    (run-test! {:test-cases n
-                :database ""
-                :report-multiple-failures? false
-                :verbosity :quiet}
-               (fn [_]
-                 (swap! values conj (draw! generator))))
-    @values))
+  (let [values (atom [])
+        run (run-test! {:test-cases n
+                        :database ""
+                        :report-multiple-failures? false
+                        :verbosity :quiet}
+                       (fn [_]
+                         (swap! values conj (draw! generator))))]
+    (if (and (:passed? run) (not (:flaky? run)))
+      @values
+      (sample-failure! run))))
