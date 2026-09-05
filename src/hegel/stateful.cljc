@@ -5,14 +5,11 @@
             [hegel.core :as h]
             [hegel.ffi :as hffi]
             [hegel.generator :as g]
-            [hegel.host :as host]))
+            [hegel.host :as host]
+            [hegel.validation :as validation]))
 
 (defn- invalid-argument [message data]
-  (throw
-   (ex-info message
-            (assoc data
-                   :type ::invalid-argument
-                   :hegel/usage-error? true))))
+  (validation/usage-error! ::invalid-argument message data))
 
 (defn- normalized-name [kind value]
   (let [value (cond

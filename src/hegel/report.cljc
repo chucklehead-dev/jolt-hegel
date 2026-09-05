@@ -1,7 +1,8 @@
 (ns hegel.report
   "Reporting helpers for framework-less Jolt property suites."
   (:refer-clojure :exclude [run!])
-  (:require [hegel.host :as host]))
+  (:require [hegel.host :as host]
+            [hegel.validation :as validation]))
 
 #?(:jank
    ;; CountingRunner is an associative value; jank can preserve that contract
@@ -37,12 +38,17 @@
   ([]
    (counting-runner {}))
   ([opts]
-   (let [reporter (or (:reporter opts) default-reporter)]
+   (validation/reject-unknown-keys! ::invalid-option "counting-runner options"
+                                    #{:reporter} opts)
+   (let [reporter (if (contains? opts :reporter)
+                    (if (nil? (:reporter opts))
+                      default-reporter
+                      (:reporter opts))
+                    default-reporter)]
      (when-not (fn? reporter)
-       (throw
-        (ex-info "counting-runner :reporter must be a function"
-                 {:type ::invalid-option
-                  :reporter reporter})))
+       (validation/usage-error!
+        ::invalid-option "counting-runner :reporter must be a function"
+        {:reporter reporter}))
      (->CountingRunner (atom 0) (atom 0) reporter))))
 
 (defn run-count
@@ -68,11 +74,9 @@
   when the thunk threw."
   [runner description run]
   (when-not (fn? run)
-    (throw
-     (ex-info "counting runner requires a property thunk"
-              {:type ::invalid-run
-               :description description
-               :run run})))
+    (validation/usage-error!
+     ::invalid-run "counting runner requires a property thunk"
+     {:description description :run run}))
   (swap! (:runs runner) inc)
   (let [outcome (host/try-catch-all
                  {:result (run)}

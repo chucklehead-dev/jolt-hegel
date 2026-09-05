@@ -5,7 +5,8 @@
   (:require [clojure.string :as str]
             [hegel.core :as h]
             [hegel.ffi :as hffi]
-            [hegel.host :as host]))
+            [hegel.host :as host]
+            [hegel.validation :as validation]))
 
 (def ^:private min-int64 -9223372036854775808N)
 (def ^:private max-int64 9223372036854775807)
@@ -13,7 +14,24 @@
 (def ^:private min-positive-double 4.9406564584124654E-324)
 
 (defn- invalid-option [message data]
-  (throw (ex-info message (assoc data :type ::invalid-option))))
+  (validation/usage-error! ::invalid-option message data))
+
+(defn- options! [label allowed opts]
+  (validation/reject-unknown-keys! ::invalid-option label allowed opts))
+
+(defn- uint64! [option value]
+  (when-not (and (integer? value) (<= 0 value hffi/no-max-size))
+    (invalid-option (str (name option) " must fit uint64") {option value}))
+  value)
+
+(defn- float-bound! [option value]
+  (when-not (number? value)
+    (invalid-option (str (name option) " must be numeric") {option value}))
+  (let [value (clojure.core/double value)]
+    (when (or (not (<= value ##Inf))
+              (not (>= value ##-Inf)))
+      (invalid-option (str (name option) " cannot be NaN") {option value})))
+  value)
 
 (defn generator?
   "True when value is a generator produced by this namespace."
@@ -52,6 +70,7 @@
   ([]
    (integer min-int64 max-int64))
   ([opts]
+   (options! "integer options" #{:min :max} opts)
    (integer (if (contains? opts :min) (:min opts) min-int64)
             (if (contains? opts :max) (:max opts) max-int64)))
   ([min-value max-value]
@@ -95,6 +114,14 @@
   ([]
    (double {}))
   ([opts]
+   (options! "double options"
+             #{:min :max :exclude-min? :exclude-max? :nan? :infinity?} opts)
+   (doseq [option [:exclude-min? :exclude-max? :nan? :infinity?]
+           :when (contains? opts option)]
+     (validation/require-boolean! ::invalid-option option (get opts option)))
+   (doseq [option [:min :max]
+           :when (some? (get opts option))]
+     (float-bound! option (get opts option)))
    (let [has-min? (some? (:min opts))
          has-max? (some? (:max opts))
          allow-nan? (if (contains? opts :nan?)
@@ -141,14 +168,17 @@
   ([]
    (bytes {}))
   ([opts]
+   (options! "bytes options" #{:min-size :max-size} opts)
    (let [min-size (or (:min-size opts) 0)
+         _ (uint64! :min-size min-size)
          max-size (if (some? (:max-size opts))
                     (:max-size opts)
                     (max min-size 100))]
+     (uint64! :max-size max-size)
      (bytes min-size max-size)))
   ([min-size max-size]
    (when-not (and (integer? min-size) (integer? max-size)
-                  (<= 0 min-size max-size))
+                  (<= 0 min-size max-size hffi/no-max-size))
      (invalid-option
       "byte generator sizes must be non-negative integers with min <= max"
       {:min-size min-size :max-size max-size}))
@@ -337,6 +367,7 @@
   ([]
    (date {}))
   ([opts]
+   (options! "date options" #{:min :max} opts)
    (let [minimum (if (contains? opts :min) (:min opts) minimum-date)
          maximum (if (contains? opts :max) (:max opts) maximum-date)]
      (validate-bounds! "date" valid-date? ordered-dates? minimum maximum)
@@ -356,6 +387,7 @@
   ([]
    (time {}))
   ([opts]
+   (options! "time options" #{:min :max} opts)
    (let [minimum (if (contains? opts :min) (:min opts) minimum-time)
          maximum (if (contains? opts :max) (:max opts) maximum-time)]
      (validate-bounds! "time" valid-time? ordered-times? minimum maximum)
@@ -375,6 +407,7 @@
   ([]
    (datetime {}))
   ([opts]
+   (options! "datetime options" #{:min :max} opts)
    (let [minimum (if (contains? opts :min) (:min opts) minimum-datetime)
          maximum (if (contains? opts :max) (:max opts) maximum-datetime)]
      (validate-bounds!
@@ -418,7 +451,13 @@
 (defn- normalize-text-options [opts]
   (when-not (map? opts)
     (invalid-option "string options must be a map" {:options opts}))
+  (options! "string options"
+            #{:min-size :max-size :codec :min-codepoint :max-codepoint
+              :categories :exclude-categories :include-characters
+              :exclude-characters :alphabet}
+            opts)
   (let [min-size (if (contains? opts :min-size) (:min-size opts) 0)
+        _ (uint64! :min-size min-size)
         max-size (if (contains? opts :max-size)
                    (:max-size opts)
                    (max min-size 100))
@@ -432,7 +471,7 @@
         has-character-filter?
         (some #(some? (get opts %)) character-filter-options)]
     (when-not (and (integer? min-size) (integer? max-size)
-                   (<= 0 min-size max-size))
+                   (<= 0 min-size max-size hffi/no-max-size))
       (invalid-option
        "string sizes must be non-negative integers with min <= max"
        {:min-size min-size :max-size max-size}))
@@ -521,6 +560,11 @@
   ([]
    (character {}))
   ([opts]
+   (options! "character options"
+             #{:codec :min-codepoint :max-codepoint
+               :categories :exclude-categories :include-characters
+               :exclude-characters :alphabet}
+             opts)
    (string (assoc opts :min-size 1 :max-size 1))))
 
 (defn regex-str
@@ -533,8 +577,10 @@
   ([pattern opts]
    (when (nil? pattern)
      (invalid-option "regex pattern cannot be nil" {:pattern pattern}))
-   (when-not (map? opts)
-     (invalid-option "regex options must be a map" {:options opts}))
+   (options! "regex options" #{:full-match?} opts)
+   (when (contains? opts :full-match?)
+     (validation/require-boolean! ::invalid-option :full-match?
+                                  (:full-match? opts)))
    (let [full-match? (if (contains? opts :full-match?)
                        (clojure.core/boolean (:full-match? opts))
                        true)
@@ -561,8 +607,7 @@
   ([]
    (domain {}))
   ([opts]
-   (when-not (map? opts)
-     (invalid-option "domain options must be a map" {:options opts}))
+   (options! "domain options" #{:max-length} opts)
    (let [max-length (if (contains? opts :max-length)
                       (:max-length opts)
                       255)]
@@ -842,9 +887,8 @@
   [& generators]
   (tuple* generators))
 
-(defn- collection-bounds [kind opts]
-  (when-not (map? opts)
-    (invalid-option (str kind " options must be a map") {:options opts}))
+(defn- collection-bounds [kind allowed opts]
+  (options! (str kind " options") allowed opts)
   (let [size (when (contains? opts :size) (:size opts))
         min-size (cond
                    (contains? opts :min-size) (:min-size opts)
@@ -854,8 +898,10 @@
                    (contains? opts :max-size) (:max-size opts)
                    (some? size) size
                    :else hffi/no-max-size)]
+    (when (some? size)
+      (uint64! :size size))
     (when-not (and (integer? min-size) (integer? max-size)
-                   (<= 0 min-size max-size))
+                   (<= 0 min-size max-size hffi/no-max-size))
       (invalid-option
        (str kind " sizes must be non-negative integers with min <= max")
        {:min-size min-size :max-size max-size}))
@@ -884,7 +930,12 @@
    (vector {} elements))
   ([opts elements]
    (require-generator! "vector" elements)
-   (let [[min-size max-size] (collection-bounds "vector" opts)
+   (let [[min-size max-size] (collection-bounds "vector"
+                                                #{:size :min-size :max-size :unique?}
+                                                opts)
+         _ (when (contains? opts :unique?)
+             (validation/require-boolean! ::invalid-option :unique?
+                                          (:unique? opts)))
          unique? (clojure.core/boolean (:unique? opts))]
      (composite-fn
       (fn [test-case]
@@ -941,7 +992,9 @@
    (set {} elements))
   ([opts elements]
    (require-generator! "set" elements)
-   (let [[min-size max-size] (collection-bounds "set" opts)]
+   (let [[min-size max-size] (collection-bounds "set"
+                                                #{:size :min-size :max-size}
+                                                opts)]
      (composite-fn
       (fn [test-case]
         (draw-collection
@@ -971,7 +1024,9 @@
   ([opts keys values]
    (require-generator! "map keys" keys)
    (require-generator! "map values" values)
-   (let [[min-size max-size] (collection-bounds "map" opts)]
+   (let [[min-size max-size] (collection-bounds "map"
+                                                #{:size :min-size :max-size}
+                                                opts)]
      (composite-fn
       (fn [test-case]
         (draw-collection

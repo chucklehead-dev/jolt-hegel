@@ -6,7 +6,8 @@
   or `:throw`. An invocation also has `:operation`. Every operation must have
   exactly one invocation followed by exactly one terminal event."
   (:require [hegel.host :as host]
-            [hegel.trace :as trace]))
+            [hegel.trace :as trace]
+            [hegel.validation :as validation]))
 
 (def ^:private default-max-operations 10)
 
@@ -39,41 +40,36 @@
                    cause))))
 
 (defn- options [opts]
-  (when-not (map? opts)
-    (throw (ex-info "history options must be a map"
-                    {:hegel/origin "hegel.history/linearizable"
-                     :type ::invalid-options
-                     :options opts})))
-  (let [allowed #{:max-operations :name :partition-by :sequence-start}
-        unknown (seq (remove allowed (keys opts)))
-        opts (merge {:max-operations default-max-operations
+  (validation/require-map! ::invalid-options "history options" opts
+                           {:hegel/origin "hegel.history/linearizable"
+                            :options opts})
+  (let [opts (merge {:max-operations default-max-operations
                      :name :linearizable
                      :partition-by nil
                      :sequence-start nil}
                     opts)]
-    (when unknown
-      (throw (ex-info "unsupported history option"
-                      {:hegel/origin (origin (:name opts))
-                       :type ::invalid-options
-                       :unknown-keys (vec unknown)})))
+    (validation/reject-unknown-keys!
+     ::invalid-options "history options"
+     #{:max-operations :name :partition-by :sequence-start} opts
+     {:hegel/origin (origin (:name opts))})
     (when-not (and (integer? (:max-operations opts))
                    (not (neg? (:max-operations opts))))
-      (throw (ex-info "history :max-operations must be a non-negative integer"
-                      {:hegel/origin (origin (:name opts))
-                       :type ::invalid-options
-                       :max-operations (:max-operations opts)})))
+      (validation/usage-error!
+       ::invalid-options "history :max-operations must be a non-negative integer"
+       {:hegel/origin (origin (:name opts))
+        :max-operations (:max-operations opts)}))
     (when-not (or (nil? (:partition-by opts))
                   (ifn? (:partition-by opts)))
-      (throw (ex-info "history :partition-by must be nil or callable"
-                      {:hegel/origin (origin (:name opts))
-                       :type ::invalid-options
-                       :partition-by (:partition-by opts)})))
+      (validation/usage-error!
+       ::invalid-options "history :partition-by must be nil or callable"
+       {:hegel/origin (origin (:name opts))
+        :partition-by (:partition-by opts)}))
     (when-not (or (nil? (:sequence-start opts))
                   (integer? (:sequence-start opts)))
-      (throw (ex-info "history :sequence-start must be nil or an integer"
-                      {:hegel/origin (origin (:name opts))
-                       :type ::invalid-options
-                       :sequence-start (:sequence-start opts)})))
+      (validation/usage-error!
+       ::invalid-options "history :sequence-start must be nil or an integer"
+       {:hegel/origin (origin (:name opts))
+        :sequence-start (:sequence-start opts)}))
     opts))
 
 (defn- validate-events! [events opts]
@@ -276,10 +272,10 @@
   ([initial step events opts]
    (let [opts (options opts)]
      (when-not (ifn? step)
-       (throw (ex-info "history model step must be callable"
-                       {:hegel/origin (origin (:name opts))
-                        :type ::invalid-options
-                        :step step})))
+       (validation/usage-error! ::invalid-options
+                                "history model step must be callable"
+                                {:hegel/origin (origin (:name opts))
+                                 :step step}))
      (let [ops (operations events opts)
            groups (ordered-groups ops (:partition-by opts) events opts)
            witnesses
@@ -320,26 +316,19 @@
   `opts` may contain `:initial`, `:step`, and any `linearization` option except
   `:name`, which is supplied as the first argument."
   [name opts]
-  (when-not (map? opts)
-    (throw (ex-info "history rule options must be a map"
-                    {:hegel/origin (origin name)
-                     :type ::invalid-options
-                     :options opts})))
-  (let [allowed #{:initial :step :max-operations :partition-by :sequence-start}
-        unknown (seq (remove allowed (keys opts)))
-        {:keys [initial step]} opts]
-    (when unknown
-      (throw (ex-info "unsupported history rule option"
-                      {:hegel/origin (origin name)
-                       :type ::invalid-options
-                       :unknown-keys (vec unknown)})))
+  (validation/require-map! ::invalid-options "history rule options" opts
+                           {:hegel/origin (origin name) :options opts})
+  (validation/reject-unknown-keys!
+   ::invalid-options "history rule options"
+   #{:initial :step :max-operations :partition-by :sequence-start} opts
+   {:hegel/origin (origin name)})
+  (let [{:keys [initial step]} opts
+        linear-options
+        (options (assoc (dissoc opts :initial :step) :name name))]
     (when-not (ifn? step)
-      (throw (ex-info "history rule :step must be callable"
-                      {:hegel/origin (origin name)
-                       :type ::invalid-options
-                       :step step})))
+      (validation/usage-error! ::invalid-options
+                               "history rule :step must be callable"
+                               {:hegel/origin (origin name) :step step}))
     (trace/rule name
                 (fn [events]
-                  (linearizable?
-                   initial step events
-                   (assoc (dissoc opts :initial :step) :name name))))))
+                  (linearizable? initial step events linear-options)))))
