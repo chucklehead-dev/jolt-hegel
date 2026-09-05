@@ -79,17 +79,16 @@
                 ::timeout)]
     (cond
       (= ::timeout result)
-      (do
-        ;; A future may be blocked in native code, where cancellation is not a
-        ;; termination guarantee. Do not continue into another scenario.
-        (try
-          (progress! (str "TIMEOUT " description))
-          (println "FAIL" description "timed out; aborting suite")
-          (flush)
-          (finally
-            ;; Progress/reporting can fail too. A timed-out native scenario is
-            ;; nevertheless terminal for this process.
-            (System/exit 1))))
+      ;; A future may be blocked in native code, where cancellation is not a
+      ;; termination guarantee. Do not continue into another scenario.
+      (try
+        (progress! (str "TIMEOUT " description))
+        (println "FAIL" description "timed out; aborting suite")
+        (flush)
+        (finally
+          ;; Progress/reporting can fail too. A timed-out native scenario is
+          ;; nevertheless terminal for this process.
+          (System/exit 1)))
 
       (:ok? result)
       (println "SCENARIO" description "completed")
@@ -114,7 +113,10 @@
           "--enable-native-access=ALL-UNNAMED"
           "-cp" (System/getProperty "java.class.path")
           "clojure.main" "-m" "hegel.test-runner" mode]
-    :jolt ["jolt" "-M:test" mode]
+    ;; The released Windows asset contains jolt.exe. Jolt's process launcher
+    ;; does not supply the shell's PATHEXT lookup for the extensionless name.
+    :jolt [(if (= :windows (:os (native/platform))) "jolt.exe" "jolt")
+           "-M:test" mode]
     (throw (ex-info "timeout regression has no child launcher for this runtime"
                     {:runtime (host/runtime)}))))
 
