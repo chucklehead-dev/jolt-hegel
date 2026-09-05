@@ -1,6 +1,7 @@
 (ns hegel.ffi
   "Low-level, ownership-aware bindings to libhegel's C ABI."
   (:require [hegel.ffi.backend :as backend]
+            [hegel.internal.signed-bytes :as signed-bytes]
             [hegel.host :as host]
             [hegel.native :as native]
             [hegel.version :as version]))
@@ -54,6 +55,7 @@
 (def c-test-case-from-blob (backend/function :test-case-from-blob))
 (def c-test-case-free (backend/function :test-case-free))
 (def c-generate-integer (backend/function :generate-integer))
+(def c-generate-integer-big (backend/function :generate-integer-big))
 (def c-generate-boolean (backend/function :generate-boolean))
 (def c-generate-float (backend/function :generate-float))
 (def c-generate-bytes (backend/function :generate-bytes))
@@ -398,6 +400,57 @@
            (backend/read-value out :int64))
          (finally
            (backend/free out)))))))
+
+(defn- with-owned-byte-buffer [size call]
+  ;; Allocation failure leaves earlier enclosing buffers owned by their caller.
+  ;; Preserve the primary exception if cleanup also fails; never free twice.
+  (let [pointer (backend/alloc size)
+        result (host/try-catch-all
+                (call pointer)
+                error
+                (do
+                  (host/try-catch-all (backend/free pointer) _cleanup nil)
+                  (throw error)))]
+    (backend/free pointer)
+    result))
+
+(defn generate-integer-big!
+  "Draw an arbitrary-width integer from inclusive integer bounds.
+  All three signed little-endian buffers and the size output are caller-owned."
+  [ctx test-case min-value max-value]
+  (let [minimum (signed-bytes/encode min-value)
+        maximum (signed-bytes/encode max-value)
+        capacity (max (count minimum) (count maximum))]
+    (backend/with-native-scope
+      (fn []
+        (with-owned-byte-buffer (count minimum)
+          (fn [min-pointer]
+            (doseq [[index octet] (map-indexed vector minimum)]
+              (backend/write-value min-pointer :uint8 index octet))
+            (with-owned-byte-buffer (count maximum)
+              (fn [max-pointer]
+                (doseq [[index octet] (map-indexed vector maximum)]
+                  (backend/write-value max-pointer :uint8 index octet))
+                (with-owned-byte-buffer capacity
+                  (fn [out-pointer]
+                    (with-owned-byte-buffer (backend/sizeof :size_t)
+                      (fn [length-pointer]
+                        (backend/write-value length-pointer :size_t 0 0)
+                        (check-draw! ctx :generate-integer-big
+                          (c-generate-integer-big
+                            ctx test-case min-pointer (count minimum)
+                            max-pointer (count maximum) out-pointer capacity
+                            length-pointer))
+                        (let [length (backend/read-value length-pointer :size_t)]
+                          (when-not (<= 1 length capacity)
+                            (throw (ex-info "native integer length exceeds caller buffer"
+                                            {:type ::error
+                                             :operation :generate-integer-big
+                                             :length length :capacity capacity})))
+                          ;; The C contract sign-fills the whole output buffer.
+                          (signed-bytes/decode
+                            (mapv #(backend/read-value out-pointer :uint8 %)
+                                  (range capacity))))))))))))))))
 
 (defn generate-boolean! [ctx test-case probability forced forced?]
   (backend/with-native-scope

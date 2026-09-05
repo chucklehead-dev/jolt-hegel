@@ -22,6 +22,8 @@
    {:id :temporal-precision :suite :generators :description "temporal precision compatibility" :entrypoint 'hegel.suites.generators/temporal-precision-contract}
    {:id :generator-cleanup :suite :generators :description "generator cleanup exception precedence" :entrypoint 'hegel.suites.generators/generator-cleanup-contract}
    {:id :sequence-generators :suite :generators :description "permutations subsequences and samples" :entrypoint 'hegel.suites.generators/sequence-generators-contract}
+   {:id :big-integer :suite :generators :description "arbitrary-width integer domains and ownership" :entrypoint 'hegel.suites.generators/big-integer-contract}
+   {:id :float32 :suite :generators :description "native float32 domains and exact bounds" :entrypoint 'hegel.suites.generators/float32-contract}
    {:id :generated-seed :suite :runner :description "generated seed" :entrypoint 'hegel.suites.runner/generated-seed}
    {:id :controls-sample :suite :runner :description "controls and sample" :entrypoint 'hegel.suites.runner/controls-and-sample}
    {:id :observations :suite :observations :description "observations and explicit coverage" :entrypoint 'hegel.suites.observations/observation-contract}

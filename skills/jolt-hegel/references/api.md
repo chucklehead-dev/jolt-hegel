@@ -205,12 +205,17 @@ All generators return `(fn [test-case] value)` and are consumed with
 | `(g/integer)` | full signed 64-bit range |
 | `(g/integer min max)` | inclusive integer bounds |
 | `(g/integer {:min x :max y})` | either integer bound may be omitted |
+| `(g/big-integer min max)` | arbitrary-width integer; both inclusive bounds required |
+| `(g/big-integer {:min x :max y})` | explicit finite integer domain; no default bounds |
 | `(g/octet)` | unsigned wire octet as an integer from 0 through 255 |
 | `(g/boolean)` | unbiased boolean |
 | `(g/boolean p)` | boolean with probability `p` of true |
 | `(g/double)` | double; NaN and infinities allowed |
 | `(g/double min max)` | inclusive finite bounds |
 | `(g/double opts)` | `:min`, `:max`, `:exclude-min?`, `:exclude-max?`, `:nan?`, `:infinity?` |
+| `(g/float32)` | native binary32, returned as an exactly widened host double |
+| `(g/float32 min max)` | inclusive exactly representable binary32 bounds |
+| `(g/float32 opts)` | double option keys; exact bounds, native width-32 exclusions/subnormals |
 | `(g/bytes)` | byte array with length 0 through 100 |
 | `(g/bytes min-size max-size)` | byte array with inclusive size bounds |
 | `(g/bytes opts)` | `:min-size` and `:max-size` |
@@ -240,6 +245,28 @@ direction, `(bit-and signed-byte 0xff)` recovers the unsigned octet. Use
 `integer?` predicate (so `1.0` is rejected), be in the signed 64-bit range, and
 have a minimum no greater than the maximum. Fractional, nonnumeric, nil, and
 out-of-range bounds are usage errors before a native draw.
+
+`g/big-integer` accepts arbitrary-width `integer?` bounds in increasing order.
+Both bounds are required; `(g/big-integer)` is not an API. Results retain exact
+integer values, but their host class is not a portable contract. The canonical
+native ABI receives caller-owned signed two's-complement little-endian buffers;
+native shrinking and replay remain authoritative. Existing `g/integer` remains
+int64-only.
+
+`g/float32` includes subnormals down to `1.401298464324817E-45` and finite values
+through `3.4028234663852886E38`. Results are host doubles representing binary32
+values exactly, not host Float objects. Finite bounds are validated without
+rounding: `0.5`, `1/2`, and `0.5M` are valid; `0.1`, `1/10`, and `0.1M` are not.
+Do not use a host `float` cast as the validator; Jolt's cast does not narrow on
+the selected release. Explicit infinite endpoints are accepted. `:infinity?`
+requires at least one unbounded endpoint; `:nan?` cannot be true with a bound.
+With neither bound, both default to true. `:exclude-min?`/`:exclude-max?` step
+at native width 32, not width 64. Native shrinking uses its simplicity ordering,
+not a promise to find the numerically smallest value. `g/double` is unchanged.
+
+These new numeric contracts are qualified on BB/JVM/Jolt, not yet on
+experimental jank or ClojureCLR. Do not infer arbitrary-width numeric semantics
+from successful symbol resolution or a focused host smoke test.
 
 ### Optional Malli adapter
 

@@ -28,6 +28,12 @@ identity as runtime provenance.
 
 ## What works
 
+The new `g/big-integer` and `g/float32` domains are qualified on the supported
+BB/JVM/Jolt matrix only. This experimental host's symbol/ABI and focused semantic
+smokes do not yet qualify arbitrary-precision values, exact binary32 bounds,
+or their complete shrinking/replay contracts. Do not assume parity from loading
+the shared namespace successfully.
+
 - all 103 libhegel 0.36.3 symbols are generated from the canonical ABI descriptor
   and resolved from the selected library;
 - fixed-width integer, floating-point, pointer, UTF-8, out-parameter, and bulk

@@ -272,7 +272,8 @@ never retain one between cases.
 
 The built-in surface covers:
 
-- signed integers, unsigned octets, booleans, doubles, and byte arrays;
+- signed int64 and arbitrary-width integers, unsigned octets, booleans,
+  binary32/binary64 floating-point values, and byte arrays;
 - Unicode text, characters, regex strings, email addresses, domains, and URLs;
 - UUIDs, IPv4 and IPv6 addresses, dates, times, and datetimes;
 - constants, sampled values, mapping, dependent generation, filtering,
@@ -292,6 +293,23 @@ domains fail as usage errors when the generator or test configuration is
 constructed. In particular, documented boolean options require `true` or
 `false`; they do not use generic Clojure truthiness. This keeps a configuration
 mistake made inside a property out of shrinking and replay.
+
+`g/big-integer` requires two inclusive integer bounds (or `{:min x :max y}`)
+and returns a portable arbitrary-precision integer value; do not depend on its
+host class. There is no unbounded default. `g/integer` remains int64-only.
+
+`g/float32` uses native width-32 generation and returns exactly widened host
+doubles, including subnormals. It accepts the same option keys as `g/double`;
+finite bounds must be exactly binary32-representable, without rounding the
+original integer, ratio, or decimal input. For example, `0.5` is valid but
+`0.1` is not. NaN is allowed only without bounds; infinities require the
+corresponding unbounded endpoint and `:infinity? true`. With no bounds both
+are enabled by default. Explicit infinite endpoints are accepted.
+`g/double` retains its existing width-64 behavior.
+
+The new numeric domains are tested on BB/JVM/Jolt. Their full arbitrary-width
+and binary32 contracts are not yet qualified on experimental jank/ClojureCLR;
+see the host-specific documentation before selecting those hosts.
 
 `g/permutations`, `g/subsequences`, and `g/samples` realize their finite input
 once and return vectors. They retain duplicate values by source position:
