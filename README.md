@@ -172,6 +172,16 @@ native blobs; it does not substitute a seed rerun. See
 variants and the trusted-artifact boundary. Matching provenance and bounded
 EDN do not make untrusted native blobs safe to execute.
 
+### Seeded corpora (unreleased)
+
+`hegel.materialize/materialize!` generates an exact bounded count of successful
+plain-data examples. `hegel.corpus/consume!` verifies their exact payload digest
+and provenance against an independent pin before releasing values; consumption
+does not load libhegel. See [materialized corpora](docs/MATERIALIZED_CORPORA.md)
+for the seed policy, platform crypto requirements, bounds, and remaining
+cross-platform/db-pilot acceptance gates. Corpus integrity is not proof that
+the values satisfy a model or are safe to publish.
+
 ## Stateful and swarm testing
 
 A function can be correct in isolation while a sequence of operations is not.

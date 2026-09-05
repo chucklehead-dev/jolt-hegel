@@ -1,6 +1,7 @@
 {:cljc {:features #{:clj}}
  :lint-as
- {hegel.generator/let clojure.core/let}
+ {hegel.generator/let clojure.core/let
+  jolt.ffi/with-alloc clojure.core/let}
  :linters
  {:redefined-var
   {:level :off}

@@ -240,6 +240,24 @@ jobs:
           asset: ${{ matrix.bb-asset }}
           sha256: ${{ matrix.bb-sha256 }}
 
+      - name: Check corpus integrity without libhegel (Jolt)
+        if: matrix.host == 'jolt'
+        env:
+          HEGEL_LIBHEGEL_LIBRARY: deliberately-missing-corpus-native-library
+        run: jolt -M:corpus-test
+
+      - name: Check corpus integrity without libhegel (Babashka)
+        if: matrix.host == 'bb'
+        env:
+          HEGEL_LIBHEGEL_LIBRARY: deliberately-missing-corpus-native-library
+        run: bb corpus-test
+
+      - name: Check corpus integrity without libhegel or JVM FFI dependency (JVM)
+        if: matrix.host == 'jvm'
+        env:
+          HEGEL_LIBHEGEL_LIBRARY: deliberately-missing-corpus-native-library
+        run: clojure -M:corpus-test
+
       - name: Install libhegel (Jolt)
         if: matrix.host == 'jolt'
         run: jolt -m hegel.install fetch-libhegel
