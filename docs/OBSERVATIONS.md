@@ -1,7 +1,8 @@
 # Observations and explicit coverage
 
-These APIs are an unreleased implementation of #54. Supported-host CI and
-independent review remain acceptance gates. They do not enable concurrent runs.
+These APIs are an unreleased implementation of #54, not part of historical
+v0.5.0. Changes require supported-host CI and independent review. They do not
+enable concurrent runs.
 
 ```clojure
 (require '[hegel.core :as h] '[hegel.generator :as g])
@@ -65,6 +66,9 @@ Absent label/outcome entries mean zero observations. Numeric counts count
 calls, while categorical counts count cases. Only completed cases are merged;
 setup, usage, native and inconclusive aborts propagate with existing cleanup.
 An event whose native call throws is not committed to frontend counters.
+These are case-level observations: a generator retry or discarded draw within
+an eventually valid case does not roll them back. Put final-value coverage
+events after the generator has returned when that is the intended obligation.
 
 libhegel's printed statistics cover **generation-phase** cases. Its C 0.36.3
 ABI does not expose the native subphase of each returned test case. Therefore:
