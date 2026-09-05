@@ -693,6 +693,7 @@ Maintainer details live in:
 
 - [architecture and ownership](docs/ARCHITECTURE.md);
 - [ABI descriptor and backend development](docs/ABI.md);
+- [FFI backend evaluation](docs/FFI_BACKEND_EVALUATION.md);
 - [behavioral contracts](docs/DESIGN.md);
 - [experimental jank host status](docs/JANK.md);
 - [experimental ClojureCLR host status](docs/CLR.md);
