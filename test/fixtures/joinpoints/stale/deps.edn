@@ -1,0 +1,7 @@
+{:paths ["../src"]
+ :deps {io.github.chucklehead-dev/jolt-hegel {:local/root "../../../.."}}
+ :jolt/build
+ {:aspects [{:resource "META-INF/jolt/aspects/hegel.edn"
+             :provider fixture.stale-provider}]
+  :aspect-report "target/aspects.edn"
+  :embed ["../../../../resources"]}}

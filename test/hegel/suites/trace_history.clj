@@ -5,6 +5,7 @@
             [hegel.generator :as g]
             [hegel.event-contract-test]
             [hegel.canonical-event-contract-test]
+            [hegel.joinpoint-contract-test]
             [hegel.history :as hhistory]
             [hegel.history-budget-test]
             [hegel.history-oracle :as horacle]
@@ -426,4 +427,9 @@
 (defn canonical-event-contract [context]
   (let [result (t/run-tests 'hegel.canonical-event-contract-test)]
     (support/check! context "canonical operation-event profile"
+                    (zero? (+ (:fail result) (:error result))))))
+
+(defn joinpoint-manifest-contract [context]
+  (let [result (t/run-tests 'hegel.joinpoint-contract-test)]
+    (support/check! context "pure compiler join-point manifest contract"
                     (zero? (+ (:fail result) (:error result))))))
