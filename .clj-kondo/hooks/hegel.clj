@@ -21,3 +21,11 @@
                (api/token-node 'Throwable)
                binding
                catch-forms))])}))
+
+(defn typed-declaration
+  "Treat dev-only Typed Clojure declarations as data for lint purposes.
+  Typed Clojure itself validates their syntax and meaning in the typed-check
+  job; ignoring their children here lets clj-kondo analyze the surrounding
+  ordinary Clojure definitions without interpreting type syntax as code."
+  [_]
+  {:node (api/list-node [(api/token-node 'comment)])})

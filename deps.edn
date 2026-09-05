@@ -30,7 +30,13 @@
    :corpus-test {:extra-paths ["test"]
                  :main-opts ["-m" "hegel.corpus-contract-runner"]}
   :fetch-libhegel {:extra-paths ["script"]
-                   :main-opts ["-m" "fetch-libhegel"]}}
+                   :main-opts ["-m" "fetch-libhegel"]}
+   ;; Dev-only bounded Typed Clojure pilot (docs/TYPED_CLOJURE.md). Not on the
+   ;; default :paths, so ordinary consumers never resolve or need the checker.
+   :typed-check {:extra-paths ["script" "typed"]
+                 :extra-deps {org.typedclojure/typed.clj.checker
+                              {:mvn/version "1.3.0"}}
+                 :main-opts ["-m" "hegel.typed-check"]}}
 
  :tasks
  {setup-native "jolt -M:setup-native"

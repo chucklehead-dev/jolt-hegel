@@ -12,6 +12,21 @@ for v0.1.0 through v0.4.0, see the tag and release history in that repository.
   intentional carrier-policy difference. See
   [the FFI backend evaluation](docs/FFI_BACKEND_EVALUATION.md).
 
+- Add a dev-only, bounded Typed Clojure pilot (`clojure -M:typed-check`) that
+  externally annotates the unchanged `hegel.internal.portable-data`. Only
+  `text-size`'s body is actually checked; `validate!`'s iterative loop over
+  unannotated private helpers cannot be checked without editing `src`, so its
+  external annotation is `^:no-check` — its polymorphic
+  Limits/InvalidFn/input-result contract is still enforced at a valid driver
+  and four named intentionally invalid control namespaces whose exact
+  structured errors are checked, but its production body is trusted, not
+  checked; runtime validation and existing behavioral tests remain
+  authoritative. The optional `:typed-check` alias and its checker dependency
+  are invisible to normal consumers. See
+  [the Typed Clojure pilot](docs/TYPED_CLOJURE.md) for the exact
+  checked/trusted boundary, the two errors an actual run reported, and
+  expand/constrain/reject criteria.
+
 - Make compiler join-point acceptance checks independent of assertion settings,
   with assertion-elision and rejected-report/event-journal controls. Clarify
   that the existing manifest version is an opaque compatibility token, not

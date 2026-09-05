@@ -26,8 +26,26 @@ jobs:
       - uses: DeLaGuardo/setup-clojure@13.5
         with:
           clj-kondo: latest
-      - name: Lint portable source, scripts, and tests
-        run: clj-kondo --fail-level warning --lint src script test
+      - name: Lint portable source, scripts, tests, and the typed pilot
+        run: clj-kondo --fail-level warning --lint src script test typed
+
+  typed-check:
+    name: Typed Clojure pilot (JVM, text-size body checked, validate! contract-checked only)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: DeLaGuardo/setup-clojure@13.5
+        with:
+          cli: latest
+      - name: Check annotations, text-size's body, validate!'s call-site contract, a valid driver, and reject every mutant control
+        run: clojure -M:typed-check
 
   abi-data:
     name: ABI descriptor
