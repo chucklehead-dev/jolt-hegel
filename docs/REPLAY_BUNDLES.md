@@ -96,12 +96,16 @@ Metadata is not exported. NUL strings are forbidden.
 
 | Limit | Maximum |
 | --- | --- |
-| Encoded text characters | 262144 |
+| Encoded text UTF-16 code units | 262144 |
 | Data depth (root is zero) | 32 |
 | Data nodes, including map keys | 8192 |
-| Individual string/keyword spelling | 8192 characters |
+| Individual string/keyword spelling | 8192 UTF-16 code units |
 | Failures | 16 |
 | Trace events | 256 |
+
+Text limits use UTF-16 code units on every host, including codepoint-indexed
+Jolt: a supplementary character such as an emoji consumes two units. This is
+a transport measurement, not a change to host string indexing.
 
 The data validator bounds traversal and aggregate string content; the codec
 also bounds escaped output. The decoder checks text length, nesting and token

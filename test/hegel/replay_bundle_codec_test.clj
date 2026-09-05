@@ -75,6 +75,26 @@
     (is (thrown? clojure.lang.ExceptionInfo
                  (codec/encode (assoc-in value [:trace :events 0 :value] [nested]))))))
 
+(deftest unicode-bounds-use-the-same-unit-on-every-host
+  (is (= 4 (bundle/text-size "a😀z")))
+  (let [at-limit (apply str (repeat 4096 "😀"))
+        over-limit (str at-limit "😀")
+        value (assoc fixture :trace
+                     {:contract-id "codec" :contract-revision "1"
+                      :events [{:text at-limit}]})]
+    (is (= value (codec/decode (codec/encode value))))
+    (let [invalid-value (assoc-in value [:trace :events 0 :text] over-limit)]
+      (is (thrown? clojure.lang.ExceptionInfo (codec/encode invalid-value)))
+      (is (= :max-string-chars
+             (:reason (encoding-error (pr-str invalid-value)))))))
+  ;; The length guard must run before the EDN reader even when Jolt's
+  ;; codepoint count fits but the portable UTF-16-unit count does not.
+  (let [calls (atom 0)]
+    (with-redefs [edn/read-string (fn [& _] (swap! calls inc) [])]
+      (is (= :max-text-chars
+             (:reason (encoding-error (str "\"" (apply str (repeat 131072 "😀")) "\"")))))
+      (is (zero? @calls)))))
+
 (deftest encoder-checks-escaped-budget-and-readable-keywords
   (testing "escaped strings can exceed the budget even when raw text fits"
     (let [value (assoc fixture :trace

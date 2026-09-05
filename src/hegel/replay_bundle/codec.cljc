@@ -18,6 +18,8 @@
     (invalid! :string-required))
   (when (> (count text) (:max-text-chars bundle/limits))
     (invalid! :max-text-chars))
+  (when (> (bundle/text-size text) (:max-text-chars bundle/limits))
+    (invalid! :max-text-chars))
   ;; Check nesting and token counts BEFORE the recursive EDN reader. Dispatch
   ;; syntax is deliberately absent: no tags, sets, discards or reader eval.
   (loop [index 0 stack [] quoted? false escaped? false comment? false
@@ -102,7 +104,7 @@
       (let [pending (next pending)]
         (cond
           (= kind :text)
-          (let [length (+ length (count value))]
+          (let [length (+ length (bundle/text-size value))]
             (when (> length (:max-text-chars bundle/limits))
               (invalid! :max-text-chars))
             (recur pending (conj fragments value) length))

@@ -14,6 +14,12 @@
    :max-failures 16
    :max-trace-events 256})
 
+(defn text-size
+  "Count UTF-16 code units consistently, including on codepoint-indexed Jolt.
+  Transport limits use this unit, not a host-specific String/count result."
+  [text]
+  (reduce (fn [size c] (+ size (if (> (int c) 65535) 2 1))) 0 text))
+
 (def ^:private min-int64 -9223372036854775808N)
 (def ^:private max-int64 9223372036854775807N)
 (def ^:private max-uint64 18446744073709551615N)
@@ -71,7 +77,10 @@
     nodes))
 
 (defn- consume-text! [path text-chars value]
-  (let [length (count value)
+  ;; Cheap rejection precedes the portable scan for already oversized input.
+  (when (> (count value) (:max-string-chars limits))
+    (invalid! path :max-string-chars))
+  (let [length (text-size value)
         text-chars (+ text-chars length)]
     (when (str/includes? value "\u0000")
       (invalid! path :nul-string))
