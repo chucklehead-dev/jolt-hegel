@@ -8,6 +8,7 @@
             [hegel.ffi.backend :as ffi-backend]
             [hegel.generator :as g]
             [hegel.history :as hhistory]
+            [hegel.history-budget-test]
             [hegel.history-oracle :as horacle]
             [hegel.host :as host]
             [hegel.install :as install]
@@ -3221,6 +3222,10 @@
       (scenario "latest stateful ABI and owned handles" latest-stateful-abi)
       (scenario "bounded semantic trace rules" semantic-trace-rules)
       (scenario "bounded linearizability" bounded-linearizability)
+      (scenario "bounded linearizability search budget"
+                #(let [result (t/run-tests 'hegel.history-budget-test)]
+                   (check "history budget contract suite"
+                          (zero? (+ (:fail result) (:error result))))))
       (scenario "independent exhaustive history oracle" exhaustive-history-oracle)
       (scenario "clojure.test integration" clojure-test-integration)
       (println "Ran jolt-hegel scenarios;" @failures "failures")

@@ -75,7 +75,8 @@
              (host/try-catch-all
               (boolean ((::check r) events))
               error
-              (if (:hegel/usage-error? (ex-data error))
+              (if (or (:hegel/usage-error? (ex-data error))
+                      (:hegel/inconclusive? (ex-data error)))
                 (throw error)
                 (throw (ex-info "trace rule evaluation threw"
                                 {:hegel/origin (origin name)

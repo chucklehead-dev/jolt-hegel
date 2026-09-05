@@ -553,12 +553,25 @@ Sequence numbers must be integer, unique, contiguous, and in vector order.
 `check!` returns a witness or throws with a stable `:hegel/origin` and bounded
 history evidence. `linearization` returns the witness or nil, while
 `linearizable?` returns a boolean. The sequential step returns nil for an
-illegal observation or `{:state next-state}` for a legal one.
+illegal observation or `{:state next-state}` for a legal one. For callers that
+need to distinguish a negative result from a bounded search, `analyze` returns
+one of `:linearizable`, `:not-linearizable`, or `:inconclusive`.
 
 The checker defaults to at most ten total operations because its exhaustive
-search is exponential. `:partition-by` can split independent keys into their
-own model instances, and `:sequence-start` can require a particular first
-sequence number. `hegel.history/rule` creates a rule accepted by
+search is exponential. `:max-search-steps` defaults to 100000 and is a global
+cap across partitions: each candidate operation considered consumes one step,
+including a candidate blocked by real-time precedence. It does not bound
+history preprocessing or wall time spent in a model callback. Empty valid
+histories are decisive without consuming a step. If the cap is exhausted,
+legacy `linearization`, `linearizable?`, and `check!` throw an exception marked
+`:hegel/inconclusive? true`; they never convert exhaustion into a false verdict
+that can be shrunk. `:partition-by` can split independent keys into their own
+model instances (so cross-key precedence is intentionally outside each local
+model), and `:sequence-start` can require a particular first sequence number.
+The indexed search uses persistent sets and vectors rather than fixed-width
+masks. It deliberately does not memoize model states: safe memoization requires
+an equality-congruence promise for arbitrary user state and step functions that
+this API does not make. `hegel.history/rule` creates a rule accepted by
 `hegel.trace/check!`, so linearizability can be checked beside lifecycle and
 parentage rules. Incomplete histories are rejected; callers must snapshot only
 after all generated operations have terminated.

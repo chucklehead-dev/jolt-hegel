@@ -289,6 +289,7 @@
      {:status :invalid}
 
      (or (usage-error? error)
+         (:hegel/inconclusive? (ex-data error))
          (hffi/error? error))
      (throw error)
 

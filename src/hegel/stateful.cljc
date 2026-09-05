@@ -179,6 +179,7 @@
 (defn- control-flow? [error]
   (or (hffi/stop-test? error)
       (hffi/assumption-rejected? error)
+      (:hegel/inconclusive? (ex-data error))
       (= :hegel.core/assumption-rejected (:type (ex-data error)))))
 
 (defn- stateful-error [phase item trace error]
@@ -239,7 +240,8 @@
       :applied? false}
 
      :else
-     (if (hffi/stop-test? error)
+     (if (or (hffi/stop-test? error)
+             (:hegel/inconclusive? (ex-data error)))
        (throw error)
        (throw (stateful-error :rule item trace error))))))
 
