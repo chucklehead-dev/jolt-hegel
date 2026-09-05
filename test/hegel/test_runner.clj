@@ -113,10 +113,7 @@
           "--enable-native-access=ALL-UNNAMED"
           "-cp" (System/getProperty "java.class.path")
           "clojure.main" "-m" "hegel.test-runner" mode]
-    ;; The released Windows asset contains jolt.exe. Jolt's process launcher
-    ;; does not supply the shell's PATHEXT lookup for the extensionless name.
-    :jolt [(if (= :windows (:os (native/platform))) "jolt.exe" "jolt")
-           "-M:test" mode]
+    :jolt ["jolt" "-M:test" mode]
     (throw (ex-info "timeout regression has no child launcher for this runtime"
                     {:runtime (host/runtime)}))))
 
@@ -139,47 +136,86 @@
       {:output nil
        :output-error (str (ex-message error))})))
 
+(defn- read-redirected-error [error-file]
+  (when error-file
+    (try
+      {:error-output (slurp error-file)}
+      (catch Throwable error
+        {:error-output nil
+         :error-output-error (str (ex-message error))}))))
+
+(defn- windows-jolt-child? []
+  (and (= :jolt (host/runtime))
+       (= :windows (:os (native/platform)))))
+
+(defn- windows-jolt-child-run! [mode deadline output-file]
+  ;; The released Jolt 0.8.1 ProcessBuilder host shim invokes /bin/sh even on
+  ;; Windows, so ProcessBuilder cannot supervise a nested Jolt there. Keep the
+  ;; workaround entirely in the test harness and use PowerShell's native
+  ;; process boundary with the same monotonic aggregate allowance. `system`
+  ;; itself is synchronous, so the outer 60s terminal scenario remains the
+  ;; fail-closed bound if PowerShell cannot start at all.
+  (let [wait-ms (bounded-wait-ms deadline child-deadline-ms)
+        reap-ms (when wait-ms
+                  (let [remaining-after-wait
+                        (- (remaining-nanos deadline)
+                           (* wait-ms nanos-per-millisecond))]
+                    (max 0 (min child-reap-ms
+                                (quot (max 0 remaining-after-wait)
+                                      nanos-per-millisecond)))))]
+    (if wait-ms
+      (let [result ((requiring-resolve 'hegel.timeout-windows/run-child!)
+                    ["jolt.exe" "-M:test" mode] output-file wait-ms reap-ms)]
+        (merge result
+               (read-redirected-output output-file)
+               (read-redirected-error (:error-file result))))
+      {:command ["jolt.exe" "-M:test" mode]
+       :skipped? true
+       :reason :aggregate-deadline-exhausted})))
+
 (defn- child-run! [mode deadline]
   (if-not (pos? (remaining-nanos deadline))
     {:command (child-command mode)
      :skipped? true
      :reason :aggregate-deadline-exhausted}
     (let [output-file (str progress-file ".child-"
-                           (random-uuid) ".log")
-          process (.start (doto (ProcessBuilder.
-                                 (into-array String (child-command mode)))
-                            (.redirectErrorStream true)
-                            ;; Jolt's ProcessBuilder shim accepts the explicit
-                            ;; Redirect descriptor, while JVM Clojure also
-                            ;; accepts it. Passing File selects a JVM overload
-                            ;; that the shim cannot represent.
-                            (.redirectOutput
-                             (java.lang.ProcessBuilder$Redirect/to
-                              (java.io.File. output-file)))))
-          wait-ms (bounded-wait-ms deadline child-deadline-ms)
-          waited (if wait-ms
-                   (deref (future (.waitFor process)) wait-ms ::timeout)
-                   ::timeout)
-          forced? (= ::timeout waited)
-          exit (if forced?
-                 (do
-                   ;; This is a parent-process fallback only. The child harness
-                   ;; must exit itself on timeout; cancellation is not treated
-                   ;; as native termination.
-                   (.destroyForcibly process)
-                   (if-let [reap-ms (bounded-wait-ms deadline child-reap-ms)]
-                     (deref (future (.waitFor process)) reap-ms ::unreaped)
-                     ::unreaped))
-                 waited)
-          result {:command (child-command mode)
-                  :forced? forced?
-                  :exit exit
-                  :output-file output-file}]
-      ;; Do not read a pipe after an unreaped process: its EOF may never come.
-      ;; The redirected output remains beside the progress transcript.
-      (if (= ::unreaped exit)
-        result
-        (merge result (read-redirected-output output-file))))))
+                           (random-uuid) ".log")]
+      (if (windows-jolt-child?)
+        (windows-jolt-child-run! mode deadline output-file)
+        (let [process (.start (doto (ProcessBuilder.
+                                     (into-array String (child-command mode)))
+                                (.redirectErrorStream true)
+                                ;; Jolt's ProcessBuilder shim accepts the explicit
+                                ;; Redirect descriptor, while JVM Clojure also
+                                ;; accepts it. Passing File selects a JVM overload
+                                ;; that the shim cannot represent.
+                                (.redirectOutput
+                                 (java.lang.ProcessBuilder$Redirect/to
+                                  (java.io.File. output-file)))))
+              wait-ms (bounded-wait-ms deadline child-deadline-ms)
+              waited (if wait-ms
+                       (deref (future (.waitFor process)) wait-ms ::timeout)
+                       ::timeout)
+              forced? (= ::timeout waited)
+              exit (if forced?
+                     (do
+                       ;; This is a parent-process fallback only. The child harness
+                       ;; must exit itself on timeout; cancellation is not treated
+                       ;; as native termination.
+                       (.destroyForcibly process)
+                       (if-let [reap-ms (bounded-wait-ms deadline child-reap-ms)]
+                         (deref (future (.waitFor process)) reap-ms ::unreaped)
+                         ::unreaped))
+                     waited)
+              result {:command (child-command mode)
+                      :forced? forced?
+                      :exit exit
+                      :output-file output-file}]
+          ;; Do not read a pipe after an unreaped process: its EOF may never come.
+          ;; The redirected output remains beside the progress transcript.
+          (if (= ::unreaped exit)
+            result
+            (merge result (read-redirected-output output-file))))))))
 
 (defn- child-progress-path [output]
   (when (string? output)
