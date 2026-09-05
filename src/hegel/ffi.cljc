@@ -41,6 +41,7 @@
 (def c-settings-set-seed (backend/function :settings-set-seed))
 (def c-settings-set-derandomize (backend/function :settings-set-derandomize))
 (def c-settings-set-report-multiple-failures (backend/function :settings-set-report-multiple-failures))
+(def c-settings-set-show-statistics (backend/function :settings-set-show-statistics))
 (def c-settings-set-database (backend/function :settings-set-database))
 (def c-settings-set-database-key (backend/function :settings-set-database-key))
 (def c-settings-set-phases (backend/function :settings-set-phases))
@@ -72,6 +73,8 @@
 (def c-generate-time (backend/function :generate-time))
 (def c-generate-datetime (backend/function :generate-datetime))
 (def c-target (backend/function :target))
+(def c-event (backend/function :event))
+(def c-event-value (backend/function :event-value))
 (def c-start-span (backend/function :start-span))
 (def c-stop-span (backend/function :stop-span))
 (def c-new-collection (backend/function :new-collection))
@@ -325,6 +328,10 @@
   (check! ctx :settings-set-report-multiple-failures
           (c-settings-set-report-multiple-failures
            ctx settings (if value 1 0))))
+
+(defn settings-set-show-statistics! [ctx settings enabled?]
+  (check! ctx :settings-set-show-statistics
+          (c-settings-set-show-statistics ctx settings (if enabled? 1 0))))
 
 (defn settings-set-database! [ctx settings database]
   (with-c-string
@@ -798,6 +805,16 @@
   (with-c-string
     label
     #(check! ctx :target (c-target ctx test-case value %))))
+
+(defn event! [ctx test-case label]
+  (with-c-string
+    label
+    #(check! ctx :event (c-event ctx test-case %))))
+
+(defn event-value! [ctx test-case value label]
+  (with-c-string
+    label
+    #(check! ctx :event-value (c-event-value ctx test-case value %))))
 
 (defn mark-complete! [ctx test-case status origin]
   (with-c-string
