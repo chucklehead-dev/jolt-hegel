@@ -9,7 +9,6 @@
            [java.util UUID]
            [java.util.concurrent TimeUnit]))
 
-(def ^:private default-header "test/fixtures/hegel-0.33.3/hegel.h")
 (def ^:private default-timeout-ms 10000)
 
 (def ^:private primitive-expressions
@@ -157,8 +156,9 @@
   ([snapshot] (measure! snapshot {}))
   ([snapshot {:keys [compiler header-path timeout-ms work-dir]
               :or {compiler (or (System/getenv "HEGEL_ABI_CC") "cc")
-                   header-path default-header timeout-ms default-timeout-ms}}]
-   (let [work-dir (or work-dir (task-dir!))
+                   timeout-ms default-timeout-ms}}]
+   (let [header-path (or header-path (str header/fixture-dir "/hegel.h"))
+         work-dir (or work-dir (task-dir!))
          work-dir (if (instance? Path work-dir) work-dir (Paths/get (str work-dir) (make-array String 0)))
          work-dir (.toAbsolutePath work-dir)
          _ (Files/createDirectories work-dir (make-array java.nio.file.attribute.FileAttribute 0))

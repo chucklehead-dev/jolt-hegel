@@ -1,0 +1,7 @@
+{:engine-version "0.32.3"
+ :stateful-step-count 52
+ :property "hegel.stateful/invariant:below-fifty-one"
+ :trace-length 51
+ :blob "AXic7cihDQAACAPBr2V/xbRgCKobVDS9fAOC2nGnL2FoOU7+Az0="
+ :purpose "Historical regression for replay incorrectly capped at 50 steps."
+ :compatibility "Not a v0.36.3 replay fixture; native continuation choices changed."}

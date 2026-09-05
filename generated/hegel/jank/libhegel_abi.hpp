@@ -24,6 +24,8 @@ struct hegel_jank_hegel_collection;
 struct hegel_jank_hegel_context;
 struct hegel_jank_hegel_failure;
 struct hegel_jank_hegel_pool;
+struct hegel_jank_hegel_printer;
+struct hegel_jank_hegel_printer_options;
 struct hegel_jank_hegel_recursion;
 struct hegel_jank_hegel_run;
 struct hegel_jank_hegel_run_result;
@@ -45,6 +47,12 @@ struct hegel_jank_hegel_date
   std::uint8_t day;
 };
 
+struct hegel_jank_hegel_printer_value_result
+{
+  std::int8_t * data;
+  std::size_t len;
+};
+
 struct hegel_jank_hegel_string_result
 {
   std::int8_t * data;
@@ -56,7 +64,7 @@ struct hegel_jank_hegel_time
   std::uint8_t hour;
   std::uint8_t minute;
   std::uint8_t second;
-  std::uint32_t microsecond;
+  std::uint32_t nanosecond;
 };
 
 struct hegel_jank_hegel_datetime
@@ -73,6 +81,8 @@ using hegel_jank_fn_collection_reject = std::int32_t (*) (hegel_jank_hegel_conte
 using hegel_jank_fn_context_free = std::int32_t (*) (hegel_jank_hegel_context *); // hegel_context_free
 using hegel_jank_fn_context_last_error = char const * (*) (hegel_jank_hegel_context *); // hegel_context_last_error
 using hegel_jank_fn_context_new = hegel_jank_hegel_context * (*) (void); // hegel_context_new
+using hegel_jank_fn_event = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, char const *); // hegel_event
+using hegel_jank_fn_event_value = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, double, char const *); // hegel_event_value
 using hegel_jank_fn_failure_free = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_failure *); // hegel_failure_free
 using hegel_jank_fn_failure_origin = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_failure *, char const * *); // hegel_failure_origin
 using hegel_jank_fn_failure_reproduction_blob = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_failure *, char const * *); // hegel_failure_reproduction_blob
@@ -96,9 +106,31 @@ using hegel_jank_fn_new_pool = std::int32_t (*) (hegel_jank_hegel_context *, heg
 using hegel_jank_fn_new_recursion = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, std::uint64_t, std::uint64_t, hegel_jank_hegel_recursion * *); // hegel_new_recursion
 using hegel_jank_fn_new_state_machine = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, char const * *, std::int64_t *, std::size_t, char const * *, std::size_t, std::int64_t, std::int64_t, hegel_jank_hegel_state_machine * *, std::int64_t *); // hegel_new_state_machine
 using hegel_jank_fn_next_test_case = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_run *, hegel_jank_hegel_test_case * *); // hegel_next_test_case
+using hegel_jank_fn_note = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, std::uint8_t *, std::size_t); // hegel_note
 using hegel_jank_fn_pool_add = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, hegel_jank_hegel_pool *, std::int64_t *); // hegel_pool_add
 using hegel_jank_fn_pool_free = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_pool *); // hegel_pool_free
 using hegel_jank_fn_pool_generate = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, hegel_jank_hegel_pool *, std::uint8_t, std::int64_t *); // hegel_pool_generate
+using hegel_jank_fn_printer_abort_speculative = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_printer *); // hegel_printer_abort_speculative
+using hegel_jank_fn_printer_begin_group = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_printer *, std::uint64_t, std::uint8_t *, std::size_t); // hegel_printer_begin_group
+using hegel_jank_fn_printer_begin_speculative = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_printer *); // hegel_printer_begin_speculative
+using hegel_jank_fn_printer_breakable = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_printer *, std::uint8_t *, std::size_t); // hegel_printer_breakable
+using hegel_jank_fn_printer_comment = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_printer *, std::uint8_t *, std::size_t); // hegel_printer_comment
+using hegel_jank_fn_printer_commit_speculative = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_printer *); // hegel_printer_commit_speculative
+using hegel_jank_fn_printer_deferred = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_printer *, hegel_jank_hegel_printer * *); // hegel_printer_deferred
+using hegel_jank_fn_printer_end_group = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_printer *, std::uint8_t *, std::size_t); // hegel_printer_end_group
+using hegel_jank_fn_printer_free = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_printer *); // hegel_printer_free
+using hegel_jank_fn_printer_hard_break = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_printer *); // hegel_printer_hard_break
+using hegel_jank_fn_printer_if_break = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_printer *, std::uint8_t *, std::size_t); // hegel_printer_if_break
+using hegel_jank_fn_printer_is_live = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_printer *, std::uint8_t *); // hegel_printer_is_live
+using hegel_jank_fn_printer_new = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_printer_options *, hegel_jank_hegel_printer * *); // hegel_printer_new
+using hegel_jank_fn_printer_options_free = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_printer_options *); // hegel_printer_options_free
+using hegel_jank_fn_printer_options_new = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_printer_options * *); // hegel_printer_options_new
+using hegel_jank_fn_printer_options_set_max_width = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_printer_options *, std::uint64_t); // hegel_printer_options_set_max_width
+using hegel_jank_fn_printer_resolve = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_printer *); // hegel_printer_resolve
+using hegel_jank_fn_printer_shift_indent = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_printer *, std::int64_t); // hegel_printer_shift_indent
+using hegel_jank_fn_printer_text = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_printer *, std::uint8_t *, std::size_t); // hegel_printer_text
+using hegel_jank_fn_printer_value = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_printer *, hegel_jank_hegel_printer_value_result *); // hegel_printer_value
+using hegel_jank_fn_printer_value_result_free = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_printer_value_result *); // hegel_printer_value_result_free
 using hegel_jank_fn_recursion_branch = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, hegel_jank_hegel_recursion *, std::uint64_t, std::uint8_t *); // hegel_recursion_branch
 using hegel_jank_fn_recursion_finish = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, hegel_jank_hegel_recursion *); // hegel_recursion_finish
 using hegel_jank_fn_recursion_free = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_recursion *); // hegel_recursion_free
@@ -118,10 +150,10 @@ using hegel_jank_fn_settings_set_backend = std::int32_t (*) (hegel_jank_hegel_co
 using hegel_jank_fn_settings_set_database = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, char const *); // hegel_settings_set_database
 using hegel_jank_fn_settings_set_database_key = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, char const *); // hegel_settings_set_database_key
 using hegel_jank_fn_settings_set_derandomize = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, std::uint8_t); // hegel_settings_set_derandomize
-using hegel_jank_fn_settings_set_mode = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, std::uint32_t); // hegel_settings_set_mode
 using hegel_jank_fn_settings_set_phases = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, std::uint32_t); // hegel_settings_set_phases
 using hegel_jank_fn_settings_set_report_multiple_failures = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, std::uint8_t); // hegel_settings_set_report_multiple_failures
 using hegel_jank_fn_settings_set_seed = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, std::uint64_t, std::uint8_t); // hegel_settings_set_seed
+using hegel_jank_fn_settings_set_show_statistics = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, std::uint8_t); // hegel_settings_set_show_statistics
 using hegel_jank_fn_settings_set_stateful_step_count = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, std::int64_t); // hegel_settings_set_stateful_step_count
 using hegel_jank_fn_settings_set_suppress_health_check = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, std::uint32_t); // hegel_settings_set_suppress_health_check
 using hegel_jank_fn_settings_set_test_cases = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, std::uint64_t); // hegel_settings_set_test_cases
@@ -131,6 +163,7 @@ using hegel_jank_fn_state_machine_free = std::int32_t (*) (hegel_jank_hegel_cont
 using hegel_jank_fn_state_machine_next_group = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, hegel_jank_hegel_state_machine *, std::int64_t *); // hegel_state_machine_next_group
 using hegel_jank_fn_state_machine_next_rule = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, hegel_jank_hegel_state_machine *, std::int64_t, std::int64_t *); // hegel_state_machine_next_rule
 using hegel_jank_fn_state_machine_rule_rejected = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, hegel_jank_hegel_state_machine *, std::int64_t); // hegel_state_machine_rule_rejected
+using hegel_jank_fn_state_machine_should_check_invariant = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, hegel_jank_hegel_state_machine *, std::int64_t, std::uint8_t *); // hegel_state_machine_should_check_invariant
 using hegel_jank_fn_stop_span = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, std::uint8_t); // hegel_stop_span
 using hegel_jank_fn_string_generator_domain = std::int32_t (*) (hegel_jank_hegel_context *, std::uint64_t, hegel_jank_hegel_string_generator * *); // hegel_string_generator_domain
 using hegel_jank_fn_string_generator_email = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_string_generator * *); // hegel_string_generator_email
@@ -143,6 +176,7 @@ using hegel_jank_fn_test_case_clone = std::int32_t (*) (hegel_jank_hegel_context
 using hegel_jank_fn_test_case_free = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *); // hegel_test_case_free
 using hegel_jank_fn_test_case_from_blob = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, char const *, hegel_jank_hegel_output_callback, void *, hegel_jank_hegel_test_case * *); // hegel_test_case_from_blob
 using hegel_jank_fn_test_case_is_nondeterministic = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, std::uint8_t *); // hegel_test_case_is_nondeterministic
+using hegel_jank_fn_test_case_printer = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, hegel_jank_hegel_printer_options *, hegel_jank_hegel_printer * *); // hegel_test_case_printer
 using hegel_jank_fn_version = std::int32_t (*) (hegel_jank_hegel_context *, char const * *); // hegel_version
 }
 
@@ -155,6 +189,8 @@ struct hegel_jank_bindings
   hegel_jank_fn_context_free context_free{};
   hegel_jank_fn_context_last_error context_last_error{};
   hegel_jank_fn_context_new context_new{};
+  hegel_jank_fn_event event{};
+  hegel_jank_fn_event_value event_value{};
   hegel_jank_fn_failure_free failure_free{};
   hegel_jank_fn_failure_origin failure_origin{};
   hegel_jank_fn_failure_reproduction_blob failure_reproduction_blob{};
@@ -178,9 +214,31 @@ struct hegel_jank_bindings
   hegel_jank_fn_new_recursion new_recursion{};
   hegel_jank_fn_new_state_machine new_state_machine{};
   hegel_jank_fn_next_test_case next_test_case{};
+  hegel_jank_fn_note note{};
   hegel_jank_fn_pool_add pool_add{};
   hegel_jank_fn_pool_free pool_free{};
   hegel_jank_fn_pool_generate pool_generate{};
+  hegel_jank_fn_printer_abort_speculative printer_abort_speculative{};
+  hegel_jank_fn_printer_begin_group printer_begin_group{};
+  hegel_jank_fn_printer_begin_speculative printer_begin_speculative{};
+  hegel_jank_fn_printer_breakable printer_breakable{};
+  hegel_jank_fn_printer_comment printer_comment{};
+  hegel_jank_fn_printer_commit_speculative printer_commit_speculative{};
+  hegel_jank_fn_printer_deferred printer_deferred{};
+  hegel_jank_fn_printer_end_group printer_end_group{};
+  hegel_jank_fn_printer_free printer_free{};
+  hegel_jank_fn_printer_hard_break printer_hard_break{};
+  hegel_jank_fn_printer_if_break printer_if_break{};
+  hegel_jank_fn_printer_is_live printer_is_live{};
+  hegel_jank_fn_printer_new printer_new{};
+  hegel_jank_fn_printer_options_free printer_options_free{};
+  hegel_jank_fn_printer_options_new printer_options_new{};
+  hegel_jank_fn_printer_options_set_max_width printer_options_set_max_width{};
+  hegel_jank_fn_printer_resolve printer_resolve{};
+  hegel_jank_fn_printer_shift_indent printer_shift_indent{};
+  hegel_jank_fn_printer_text printer_text{};
+  hegel_jank_fn_printer_value printer_value{};
+  hegel_jank_fn_printer_value_result_free printer_value_result_free{};
   hegel_jank_fn_recursion_branch recursion_branch{};
   hegel_jank_fn_recursion_finish recursion_finish{};
   hegel_jank_fn_recursion_free recursion_free{};
@@ -200,10 +258,10 @@ struct hegel_jank_bindings
   hegel_jank_fn_settings_set_database settings_set_database{};
   hegel_jank_fn_settings_set_database_key settings_set_database_key{};
   hegel_jank_fn_settings_set_derandomize settings_set_derandomize{};
-  hegel_jank_fn_settings_set_mode settings_set_mode{};
   hegel_jank_fn_settings_set_phases settings_set_phases{};
   hegel_jank_fn_settings_set_report_multiple_failures settings_set_report_multiple_failures{};
   hegel_jank_fn_settings_set_seed settings_set_seed{};
+  hegel_jank_fn_settings_set_show_statistics settings_set_show_statistics{};
   hegel_jank_fn_settings_set_stateful_step_count settings_set_stateful_step_count{};
   hegel_jank_fn_settings_set_suppress_health_check settings_set_suppress_health_check{};
   hegel_jank_fn_settings_set_test_cases settings_set_test_cases{};
@@ -213,6 +271,7 @@ struct hegel_jank_bindings
   hegel_jank_fn_state_machine_next_group state_machine_next_group{};
   hegel_jank_fn_state_machine_next_rule state_machine_next_rule{};
   hegel_jank_fn_state_machine_rule_rejected state_machine_rule_rejected{};
+  hegel_jank_fn_state_machine_should_check_invariant state_machine_should_check_invariant{};
   hegel_jank_fn_stop_span stop_span{};
   hegel_jank_fn_string_generator_domain string_generator_domain{};
   hegel_jank_fn_string_generator_email string_generator_email{};
@@ -225,6 +284,7 @@ struct hegel_jank_bindings
   hegel_jank_fn_test_case_free test_case_free{};
   hegel_jank_fn_test_case_from_blob test_case_from_blob{};
   hegel_jank_fn_test_case_is_nondeterministic test_case_is_nondeterministic{};
+  hegel_jank_fn_test_case_printer test_case_printer{};
   hegel_jank_fn_version version{};
 };
 
@@ -266,6 +326,8 @@ inline hegel_jank_bindings *hegel_jank_load_bindings(std::string const &path)
   bindings->context_free = reinterpret_cast<hegel_jank_fn_context_free>(hegel_jank_find_symbol(bindings->library, "hegel_context_free"));
   bindings->context_last_error = reinterpret_cast<hegel_jank_fn_context_last_error>(hegel_jank_find_symbol(bindings->library, "hegel_context_last_error"));
   bindings->context_new = reinterpret_cast<hegel_jank_fn_context_new>(hegel_jank_find_symbol(bindings->library, "hegel_context_new"));
+  bindings->event = reinterpret_cast<hegel_jank_fn_event>(hegel_jank_find_symbol(bindings->library, "hegel_event"));
+  bindings->event_value = reinterpret_cast<hegel_jank_fn_event_value>(hegel_jank_find_symbol(bindings->library, "hegel_event_value"));
   bindings->failure_free = reinterpret_cast<hegel_jank_fn_failure_free>(hegel_jank_find_symbol(bindings->library, "hegel_failure_free"));
   bindings->failure_origin = reinterpret_cast<hegel_jank_fn_failure_origin>(hegel_jank_find_symbol(bindings->library, "hegel_failure_origin"));
   bindings->failure_reproduction_blob = reinterpret_cast<hegel_jank_fn_failure_reproduction_blob>(hegel_jank_find_symbol(bindings->library, "hegel_failure_reproduction_blob"));
@@ -289,9 +351,31 @@ inline hegel_jank_bindings *hegel_jank_load_bindings(std::string const &path)
   bindings->new_recursion = reinterpret_cast<hegel_jank_fn_new_recursion>(hegel_jank_find_symbol(bindings->library, "hegel_new_recursion"));
   bindings->new_state_machine = reinterpret_cast<hegel_jank_fn_new_state_machine>(hegel_jank_find_symbol(bindings->library, "hegel_new_state_machine"));
   bindings->next_test_case = reinterpret_cast<hegel_jank_fn_next_test_case>(hegel_jank_find_symbol(bindings->library, "hegel_next_test_case"));
+  bindings->note = reinterpret_cast<hegel_jank_fn_note>(hegel_jank_find_symbol(bindings->library, "hegel_note"));
   bindings->pool_add = reinterpret_cast<hegel_jank_fn_pool_add>(hegel_jank_find_symbol(bindings->library, "hegel_pool_add"));
   bindings->pool_free = reinterpret_cast<hegel_jank_fn_pool_free>(hegel_jank_find_symbol(bindings->library, "hegel_pool_free"));
   bindings->pool_generate = reinterpret_cast<hegel_jank_fn_pool_generate>(hegel_jank_find_symbol(bindings->library, "hegel_pool_generate"));
+  bindings->printer_abort_speculative = reinterpret_cast<hegel_jank_fn_printer_abort_speculative>(hegel_jank_find_symbol(bindings->library, "hegel_printer_abort_speculative"));
+  bindings->printer_begin_group = reinterpret_cast<hegel_jank_fn_printer_begin_group>(hegel_jank_find_symbol(bindings->library, "hegel_printer_begin_group"));
+  bindings->printer_begin_speculative = reinterpret_cast<hegel_jank_fn_printer_begin_speculative>(hegel_jank_find_symbol(bindings->library, "hegel_printer_begin_speculative"));
+  bindings->printer_breakable = reinterpret_cast<hegel_jank_fn_printer_breakable>(hegel_jank_find_symbol(bindings->library, "hegel_printer_breakable"));
+  bindings->printer_comment = reinterpret_cast<hegel_jank_fn_printer_comment>(hegel_jank_find_symbol(bindings->library, "hegel_printer_comment"));
+  bindings->printer_commit_speculative = reinterpret_cast<hegel_jank_fn_printer_commit_speculative>(hegel_jank_find_symbol(bindings->library, "hegel_printer_commit_speculative"));
+  bindings->printer_deferred = reinterpret_cast<hegel_jank_fn_printer_deferred>(hegel_jank_find_symbol(bindings->library, "hegel_printer_deferred"));
+  bindings->printer_end_group = reinterpret_cast<hegel_jank_fn_printer_end_group>(hegel_jank_find_symbol(bindings->library, "hegel_printer_end_group"));
+  bindings->printer_free = reinterpret_cast<hegel_jank_fn_printer_free>(hegel_jank_find_symbol(bindings->library, "hegel_printer_free"));
+  bindings->printer_hard_break = reinterpret_cast<hegel_jank_fn_printer_hard_break>(hegel_jank_find_symbol(bindings->library, "hegel_printer_hard_break"));
+  bindings->printer_if_break = reinterpret_cast<hegel_jank_fn_printer_if_break>(hegel_jank_find_symbol(bindings->library, "hegel_printer_if_break"));
+  bindings->printer_is_live = reinterpret_cast<hegel_jank_fn_printer_is_live>(hegel_jank_find_symbol(bindings->library, "hegel_printer_is_live"));
+  bindings->printer_new = reinterpret_cast<hegel_jank_fn_printer_new>(hegel_jank_find_symbol(bindings->library, "hegel_printer_new"));
+  bindings->printer_options_free = reinterpret_cast<hegel_jank_fn_printer_options_free>(hegel_jank_find_symbol(bindings->library, "hegel_printer_options_free"));
+  bindings->printer_options_new = reinterpret_cast<hegel_jank_fn_printer_options_new>(hegel_jank_find_symbol(bindings->library, "hegel_printer_options_new"));
+  bindings->printer_options_set_max_width = reinterpret_cast<hegel_jank_fn_printer_options_set_max_width>(hegel_jank_find_symbol(bindings->library, "hegel_printer_options_set_max_width"));
+  bindings->printer_resolve = reinterpret_cast<hegel_jank_fn_printer_resolve>(hegel_jank_find_symbol(bindings->library, "hegel_printer_resolve"));
+  bindings->printer_shift_indent = reinterpret_cast<hegel_jank_fn_printer_shift_indent>(hegel_jank_find_symbol(bindings->library, "hegel_printer_shift_indent"));
+  bindings->printer_text = reinterpret_cast<hegel_jank_fn_printer_text>(hegel_jank_find_symbol(bindings->library, "hegel_printer_text"));
+  bindings->printer_value = reinterpret_cast<hegel_jank_fn_printer_value>(hegel_jank_find_symbol(bindings->library, "hegel_printer_value"));
+  bindings->printer_value_result_free = reinterpret_cast<hegel_jank_fn_printer_value_result_free>(hegel_jank_find_symbol(bindings->library, "hegel_printer_value_result_free"));
   bindings->recursion_branch = reinterpret_cast<hegel_jank_fn_recursion_branch>(hegel_jank_find_symbol(bindings->library, "hegel_recursion_branch"));
   bindings->recursion_finish = reinterpret_cast<hegel_jank_fn_recursion_finish>(hegel_jank_find_symbol(bindings->library, "hegel_recursion_finish"));
   bindings->recursion_free = reinterpret_cast<hegel_jank_fn_recursion_free>(hegel_jank_find_symbol(bindings->library, "hegel_recursion_free"));
@@ -311,10 +395,10 @@ inline hegel_jank_bindings *hegel_jank_load_bindings(std::string const &path)
   bindings->settings_set_database = reinterpret_cast<hegel_jank_fn_settings_set_database>(hegel_jank_find_symbol(bindings->library, "hegel_settings_set_database"));
   bindings->settings_set_database_key = reinterpret_cast<hegel_jank_fn_settings_set_database_key>(hegel_jank_find_symbol(bindings->library, "hegel_settings_set_database_key"));
   bindings->settings_set_derandomize = reinterpret_cast<hegel_jank_fn_settings_set_derandomize>(hegel_jank_find_symbol(bindings->library, "hegel_settings_set_derandomize"));
-  bindings->settings_set_mode = reinterpret_cast<hegel_jank_fn_settings_set_mode>(hegel_jank_find_symbol(bindings->library, "hegel_settings_set_mode"));
   bindings->settings_set_phases = reinterpret_cast<hegel_jank_fn_settings_set_phases>(hegel_jank_find_symbol(bindings->library, "hegel_settings_set_phases"));
   bindings->settings_set_report_multiple_failures = reinterpret_cast<hegel_jank_fn_settings_set_report_multiple_failures>(hegel_jank_find_symbol(bindings->library, "hegel_settings_set_report_multiple_failures"));
   bindings->settings_set_seed = reinterpret_cast<hegel_jank_fn_settings_set_seed>(hegel_jank_find_symbol(bindings->library, "hegel_settings_set_seed"));
+  bindings->settings_set_show_statistics = reinterpret_cast<hegel_jank_fn_settings_set_show_statistics>(hegel_jank_find_symbol(bindings->library, "hegel_settings_set_show_statistics"));
   bindings->settings_set_stateful_step_count = reinterpret_cast<hegel_jank_fn_settings_set_stateful_step_count>(hegel_jank_find_symbol(bindings->library, "hegel_settings_set_stateful_step_count"));
   bindings->settings_set_suppress_health_check = reinterpret_cast<hegel_jank_fn_settings_set_suppress_health_check>(hegel_jank_find_symbol(bindings->library, "hegel_settings_set_suppress_health_check"));
   bindings->settings_set_test_cases = reinterpret_cast<hegel_jank_fn_settings_set_test_cases>(hegel_jank_find_symbol(bindings->library, "hegel_settings_set_test_cases"));
@@ -324,6 +408,7 @@ inline hegel_jank_bindings *hegel_jank_load_bindings(std::string const &path)
   bindings->state_machine_next_group = reinterpret_cast<hegel_jank_fn_state_machine_next_group>(hegel_jank_find_symbol(bindings->library, "hegel_state_machine_next_group"));
   bindings->state_machine_next_rule = reinterpret_cast<hegel_jank_fn_state_machine_next_rule>(hegel_jank_find_symbol(bindings->library, "hegel_state_machine_next_rule"));
   bindings->state_machine_rule_rejected = reinterpret_cast<hegel_jank_fn_state_machine_rule_rejected>(hegel_jank_find_symbol(bindings->library, "hegel_state_machine_rule_rejected"));
+  bindings->state_machine_should_check_invariant = reinterpret_cast<hegel_jank_fn_state_machine_should_check_invariant>(hegel_jank_find_symbol(bindings->library, "hegel_state_machine_should_check_invariant"));
   bindings->stop_span = reinterpret_cast<hegel_jank_fn_stop_span>(hegel_jank_find_symbol(bindings->library, "hegel_stop_span"));
   bindings->string_generator_domain = reinterpret_cast<hegel_jank_fn_string_generator_domain>(hegel_jank_find_symbol(bindings->library, "hegel_string_generator_domain"));
   bindings->string_generator_email = reinterpret_cast<hegel_jank_fn_string_generator_email>(hegel_jank_find_symbol(bindings->library, "hegel_string_generator_email"));
@@ -336,6 +421,7 @@ inline hegel_jank_bindings *hegel_jank_load_bindings(std::string const &path)
   bindings->test_case_free = reinterpret_cast<hegel_jank_fn_test_case_free>(hegel_jank_find_symbol(bindings->library, "hegel_test_case_free"));
   bindings->test_case_from_blob = reinterpret_cast<hegel_jank_fn_test_case_from_blob>(hegel_jank_find_symbol(bindings->library, "hegel_test_case_from_blob"));
   bindings->test_case_is_nondeterministic = reinterpret_cast<hegel_jank_fn_test_case_is_nondeterministic>(hegel_jank_find_symbol(bindings->library, "hegel_test_case_is_nondeterministic"));
+  bindings->test_case_printer = reinterpret_cast<hegel_jank_fn_test_case_printer>(hegel_jank_find_symbol(bindings->library, "hegel_test_case_printer"));
   bindings->version = reinterpret_cast<hegel_jank_fn_version>(hegel_jank_find_symbol(bindings->library, "hegel_version"));
   hegel_jank_active_bindings = bindings;
   return bindings;
@@ -375,6 +461,16 @@ inline char const * hegel_jank_call_context_last_error(hegel_jank_bindings *bind
 inline hegel_jank_hegel_context * hegel_jank_call_context_new(hegel_jank_bindings *bindings)
 {
   return bindings->context_new();
+}
+
+inline std::int32_t hegel_jank_call_event(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, char const * arg2)
+{
+  return bindings->event(arg0, arg1, arg2);
+}
+
+inline std::int32_t hegel_jank_call_event_value(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, double arg2, char const * arg3)
+{
+  return bindings->event_value(arg0, arg1, arg2, arg3);
 }
 
 inline std::int32_t hegel_jank_call_failure_free(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_failure * arg1)
@@ -492,6 +588,11 @@ inline std::int32_t hegel_jank_call_next_test_case(hegel_jank_bindings *bindings
   return bindings->next_test_case(arg0, arg1, arg2);
 }
 
+inline std::int32_t hegel_jank_call_note(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, std::uint8_t * arg2, std::size_t arg3)
+{
+  return bindings->note(arg0, arg1, arg2, arg3);
+}
+
 inline std::int32_t hegel_jank_call_pool_add(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, hegel_jank_hegel_pool * arg2, std::int64_t * arg3)
 {
   return bindings->pool_add(arg0, arg1, arg2, arg3);
@@ -505,6 +606,111 @@ inline std::int32_t hegel_jank_call_pool_free(hegel_jank_bindings *bindings, heg
 inline std::int32_t hegel_jank_call_pool_generate(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, hegel_jank_hegel_pool * arg2, std::uint8_t arg3, std::int64_t * arg4)
 {
   return bindings->pool_generate(arg0, arg1, arg2, arg3, arg4);
+}
+
+inline std::int32_t hegel_jank_call_printer_abort_speculative(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_printer * arg1)
+{
+  return bindings->printer_abort_speculative(arg0, arg1);
+}
+
+inline std::int32_t hegel_jank_call_printer_begin_group(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_printer * arg1, std::uint64_t arg2, std::uint8_t * arg3, std::size_t arg4)
+{
+  return bindings->printer_begin_group(arg0, arg1, arg2, arg3, arg4);
+}
+
+inline std::int32_t hegel_jank_call_printer_begin_speculative(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_printer * arg1)
+{
+  return bindings->printer_begin_speculative(arg0, arg1);
+}
+
+inline std::int32_t hegel_jank_call_printer_breakable(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_printer * arg1, std::uint8_t * arg2, std::size_t arg3)
+{
+  return bindings->printer_breakable(arg0, arg1, arg2, arg3);
+}
+
+inline std::int32_t hegel_jank_call_printer_comment(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_printer * arg1, std::uint8_t * arg2, std::size_t arg3)
+{
+  return bindings->printer_comment(arg0, arg1, arg2, arg3);
+}
+
+inline std::int32_t hegel_jank_call_printer_commit_speculative(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_printer * arg1)
+{
+  return bindings->printer_commit_speculative(arg0, arg1);
+}
+
+inline std::int32_t hegel_jank_call_printer_deferred(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_printer * arg1, hegel_jank_hegel_printer * * arg2)
+{
+  return bindings->printer_deferred(arg0, arg1, arg2);
+}
+
+inline std::int32_t hegel_jank_call_printer_end_group(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_printer * arg1, std::uint8_t * arg2, std::size_t arg3)
+{
+  return bindings->printer_end_group(arg0, arg1, arg2, arg3);
+}
+
+inline std::int32_t hegel_jank_call_printer_free(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_printer * arg1)
+{
+  return bindings->printer_free(arg0, arg1);
+}
+
+inline std::int32_t hegel_jank_call_printer_hard_break(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_printer * arg1)
+{
+  return bindings->printer_hard_break(arg0, arg1);
+}
+
+inline std::int32_t hegel_jank_call_printer_if_break(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_printer * arg1, std::uint8_t * arg2, std::size_t arg3)
+{
+  return bindings->printer_if_break(arg0, arg1, arg2, arg3);
+}
+
+inline std::int32_t hegel_jank_call_printer_is_live(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_printer * arg1, std::uint8_t * arg2)
+{
+  return bindings->printer_is_live(arg0, arg1, arg2);
+}
+
+inline std::int32_t hegel_jank_call_printer_new(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_printer_options * arg1, hegel_jank_hegel_printer * * arg2)
+{
+  return bindings->printer_new(arg0, arg1, arg2);
+}
+
+inline std::int32_t hegel_jank_call_printer_options_free(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_printer_options * arg1)
+{
+  return bindings->printer_options_free(arg0, arg1);
+}
+
+inline std::int32_t hegel_jank_call_printer_options_new(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_printer_options * * arg1)
+{
+  return bindings->printer_options_new(arg0, arg1);
+}
+
+inline std::int32_t hegel_jank_call_printer_options_set_max_width(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_printer_options * arg1, std::uint64_t arg2)
+{
+  return bindings->printer_options_set_max_width(arg0, arg1, arg2);
+}
+
+inline std::int32_t hegel_jank_call_printer_resolve(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_printer * arg1)
+{
+  return bindings->printer_resolve(arg0, arg1);
+}
+
+inline std::int32_t hegel_jank_call_printer_shift_indent(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_printer * arg1, std::int64_t arg2)
+{
+  return bindings->printer_shift_indent(arg0, arg1, arg2);
+}
+
+inline std::int32_t hegel_jank_call_printer_text(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_printer * arg1, std::uint8_t * arg2, std::size_t arg3)
+{
+  return bindings->printer_text(arg0, arg1, arg2, arg3);
+}
+
+inline std::int32_t hegel_jank_call_printer_value(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_printer * arg1, hegel_jank_hegel_printer_value_result * arg2)
+{
+  return bindings->printer_value(arg0, arg1, arg2);
+}
+
+inline std::int32_t hegel_jank_call_printer_value_result_free(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_printer_value_result * arg1)
+{
+  return bindings->printer_value_result_free(arg0, arg1);
 }
 
 inline std::int32_t hegel_jank_call_recursion_branch(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, hegel_jank_hegel_recursion * arg2, std::uint64_t arg3, std::uint8_t * arg4)
@@ -602,11 +808,6 @@ inline std::int32_t hegel_jank_call_settings_set_derandomize(hegel_jank_bindings
   return bindings->settings_set_derandomize(arg0, arg1, arg2);
 }
 
-inline std::int32_t hegel_jank_call_settings_set_mode(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_settings * arg1, std::uint32_t arg2)
-{
-  return bindings->settings_set_mode(arg0, arg1, arg2);
-}
-
 inline std::int32_t hegel_jank_call_settings_set_phases(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_settings * arg1, std::uint32_t arg2)
 {
   return bindings->settings_set_phases(arg0, arg1, arg2);
@@ -620,6 +821,11 @@ inline std::int32_t hegel_jank_call_settings_set_report_multiple_failures(hegel_
 inline std::int32_t hegel_jank_call_settings_set_seed(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_settings * arg1, std::uint64_t arg2, std::uint8_t arg3)
 {
   return bindings->settings_set_seed(arg0, arg1, arg2, arg3);
+}
+
+inline std::int32_t hegel_jank_call_settings_set_show_statistics(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_settings * arg1, std::uint8_t arg2)
+{
+  return bindings->settings_set_show_statistics(arg0, arg1, arg2);
 }
 
 inline std::int32_t hegel_jank_call_settings_set_stateful_step_count(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_settings * arg1, std::int64_t arg2)
@@ -665,6 +871,11 @@ inline std::int32_t hegel_jank_call_state_machine_next_rule(hegel_jank_bindings 
 inline std::int32_t hegel_jank_call_state_machine_rule_rejected(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, hegel_jank_hegel_state_machine * arg2, std::int64_t arg3)
 {
   return bindings->state_machine_rule_rejected(arg0, arg1, arg2, arg3);
+}
+
+inline std::int32_t hegel_jank_call_state_machine_should_check_invariant(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, hegel_jank_hegel_state_machine * arg2, std::int64_t arg3, std::uint8_t * arg4)
+{
+  return bindings->state_machine_should_check_invariant(arg0, arg1, arg2, arg3, arg4);
 }
 
 inline std::int32_t hegel_jank_call_stop_span(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, std::uint8_t arg2)
@@ -727,6 +938,11 @@ inline std::int32_t hegel_jank_call_test_case_is_nondeterministic(hegel_jank_bin
   return bindings->test_case_is_nondeterministic(arg0, arg1, arg2);
 }
 
+inline std::int32_t hegel_jank_call_test_case_printer(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, hegel_jank_hegel_printer_options * arg2, hegel_jank_hegel_printer * * arg3)
+{
+  return bindings->test_case_printer(arg0, arg1, arg2, arg3);
+}
+
 inline std::int32_t hegel_jank_call_version(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, char const * * arg1)
 {
   return bindings->version(arg0, arg1);
@@ -782,6 +998,12 @@ static_assert(offsetof(hegel_jank_hegel_date, year) == 0);
 static_assert(offsetof(hegel_jank_hegel_date, month) == 4);
 static_assert(offsetof(hegel_jank_hegel_date, day) == 5);
 
+static_assert(std::is_standard_layout_v<hegel_jank_hegel_printer_value_result>);
+static_assert(sizeof(hegel_jank_hegel_printer_value_result) == 16);
+static_assert(alignof(hegel_jank_hegel_printer_value_result) == 8);
+static_assert(offsetof(hegel_jank_hegel_printer_value_result, data) == 0);
+static_assert(offsetof(hegel_jank_hegel_printer_value_result, len) == 8);
+
 static_assert(std::is_standard_layout_v<hegel_jank_hegel_string_result>);
 static_assert(sizeof(hegel_jank_hegel_string_result) == 16);
 static_assert(alignof(hegel_jank_hegel_string_result) == 8);
@@ -794,7 +1016,7 @@ static_assert(alignof(hegel_jank_hegel_time) == 4);
 static_assert(offsetof(hegel_jank_hegel_time, hour) == 0);
 static_assert(offsetof(hegel_jank_hegel_time, minute) == 1);
 static_assert(offsetof(hegel_jank_hegel_time, second) == 2);
-static_assert(offsetof(hegel_jank_hegel_time, microsecond) == 4);
+static_assert(offsetof(hegel_jank_hegel_time, nanosecond) == 4);
 
 static_assert(std::is_standard_layout_v<hegel_jank_hegel_datetime>);
 static_assert(sizeof(hegel_jank_hegel_datetime) == 16);

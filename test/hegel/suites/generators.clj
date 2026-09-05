@@ -1,9 +1,11 @@
 (ns hegel.suites.generators
   "Generator contract scenarios, loaded only when their suite is selected."
   (:require [clojure.string :as str]
+            [clojure.test :as t]
             [hegel.core :as h]
             [hegel.ffi :as hffi]
             [hegel.generator :as g]
+            [hegel.temporal-test]
             [hegel.test-support :as support]))
 
 (defn- valid-ipv4? [value]
@@ -267,6 +269,11 @@
            (= ["2024-02-29"] @final-dates))
     (support/check! context "the temporal counterexample is reproduced, not flaky"
            (and (:reproduced? failure) (false? (:flaky? result))))))
+
+(defn temporal-precision-contract [context]
+  (let [result (t/run-tests 'hegel.temporal-test)]
+    (support/check! context "temporal precision contract suite"
+                    (zero? (+ (:fail result) (:error result))))))
 
 
 (defn string-generators [context]

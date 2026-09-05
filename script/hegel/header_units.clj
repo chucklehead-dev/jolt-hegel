@@ -6,15 +6,15 @@
   ;; This deliberately requires review if a future header changes either;
   ;; uint32 width and aggregate size alone would not detect a unit migration.
   (let [[_ minimum maximum]
-        (re-find #"`microsecond` in `\[([0-9]+), ([0-9]+)\]`" raw-header)
-        [_ body] (re-find #"(?s)typedef struct \{([^{}]*uint32_t microsecond;[^{}]*)\} hegel_time_t;"
+        (re-find #"`nanosecond` in `\[([0-9]+), ([0-9]+)\]`" raw-header)
+        [_ body] (re-find #"(?s)typedef struct \{([^{}]*uint32_t nanosecond;[^{}]*)\} hegel_time_t;"
                           raw-header)
-        field (some #(when (= :microsecond (:name %)) %)
+        field (some #(when (= :nanosecond (:name %)) %)
                     (get-in descriptor [:types :hegel/time :fields]))]
     (when-not (and minimum maximum body)
       (throw (ex-info "Pinned temporal unit declaration changed"
                       {:type ::header-unit-drift})))
-    (let [expected {:unit :microsecond
+    (let [expected {:unit :nanosecond
                     :range [(Long/parseLong minimum) (Long/parseLong maximum)]}
           actual (select-keys field [:unit :range])]
       (when-not (= expected actual)

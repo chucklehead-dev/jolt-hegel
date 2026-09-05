@@ -28,7 +28,7 @@ identity as runtime provenance.
 
 ## What works
 
-- all 77 libhegel 0.33.3 symbols are generated from the canonical ABI descriptor
+- all 103 libhegel 0.36.3 symbols are generated from the canonical ABI descriptor
   and resolved from the selected library;
 - fixed-width integer, floating-point, pointer, UTF-8, out-parameter, and bulk
   byte operations;
@@ -56,7 +56,7 @@ bb jank-codegen-check
 
 ## Running the spike
 
-Install libhegel 0.33.3 with one of the supported host installers, or point jank
+Install libhegel 0.36.3 with one of the supported host installers, or point jank
 at an existing compatible library. Then run the native and shared semantic
 gates:
 

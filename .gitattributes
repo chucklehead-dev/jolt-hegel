@@ -6,3 +6,4 @@
 
 # Preserve the independently hashed upstream fixture on every checkout host.
 test/fixtures/hegel-0.33.3/hegel.h -text
+test/fixtures/hegel-0.36.3/hegel.h -text

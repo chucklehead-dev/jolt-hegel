@@ -313,6 +313,13 @@ Time bounds are inclusive maps:
 Datetime bounds are `{:date date-map :time time-map}`. Pass temporal
 bounds as `{:min minimum :max maximum}` or as two positional maps.
 
+With libhegel 0.36, these public maps and six-digit fractional strings remain
+microsecond-based. Raw `hegel.ffi` time maps use `:nanosecond` instead. The
+generator converts inclusive microsecond bounds to full nanosecond buckets
+and projects results with integer quotient by 1000; valid sub-microsecond
+draws are not rejected. Seed streams and blobs are version-specific, not
+guaranteed identical across a native upgrade.
+
 String options are:
 
 | Option | Meaning |
@@ -457,7 +464,8 @@ Each rule step is `(fn [state] next-state)`. A rule's optional
 `:precondition` is evaluated before its step. False preconditions and failed
 `h/assume!` calls reject that attempted rule without consuming the configured
 `:stateful-step-count`; invariants do not run after a skipped rule. All other
-rule exceptions fail the property. Invariants are
+ordinary rule exceptions fail the property; usage, native control flow and
+marked inconclusive errors retain their abort/control classification. Invariants are
 truth-valued predicates checked on the initial state and after every successful
 rule.
 
@@ -633,19 +641,33 @@ are illegal in that state. The normalized operation contains
 | Form | Contract |
 | --- | --- |
 | `(history/operations events opts?)` | Validate and normalize the complete history |
+| `(history/analyze initial step events opts?)` | Return `:linearizable`, `:not-linearizable`, or `:inconclusive` in `:status`, plus `:search` metadata and a `:witness` on success |
 | `(history/linearization initial step events opts?)` | Return a witness or nil |
 | `(history/linearizable? initial step events opts?)` | Return a boolean |
 | `(history/check! initial step events opts?)` | Return a witness or throw with stable bounded Hegel evidence |
 | `(history/rule name opts)` | Create a rule accepted by `hegel.trace/check!`; opts require `:step` and may contain `:initial` plus checker options |
 
-Checker options are `:max-operations` (default 10 total operations), optional
+Checker options are `:max-operations` (default 10 total operations),
+`:max-search-steps` (default 100000 candidate considerations), optional
 callable `:partition-by`, optional integer `:sequence-start`, and `:name` for a
 stable `hegel.history` failure origin. The witness contains the selected
 `:order`, normalized `:operations`, and `:final-state`. A partitioned witness
 instead contains ordered `:partitions`; each partition starts from the same
 supplied initial state and has its own order and final state.
 
-Search is exhaustive and exponential, so keep the bound small. Evidence is
+Search is exhaustive only within its budget and can grow factorially, so keep
+the operation bound small. Each candidate consumes one search step, even if
+blocked by precedence, and the budget is global across partitions and
+backtracking. Empty valid histories are decisive at budget zero. Exhaustion
+returns `{:status :inconclusive :reason :search-budget :search ...}` from
+`analyze`; the legacy witness/boolean/check APIs instead throw with
+`:hegel/inconclusive? true`, stable origin and bounded evidence. Core, trace
+and stateful wrappers preserve that abort rather than shrinking a false
+counterexample. Preprocessing and arbitrary model callback wall time are not
+bounded by candidate counts. Partitions must be independent models; the
+checker intentionally ignores cross-partition predecessors within each model.
+
+Evidence is
 limited to twice the operation bound even when an oversized malformed history
 is supplied. The checker rejects incomplete histories rather than completing
 or dropping pending operations. Snapshot the journal only after every worker
@@ -659,14 +681,20 @@ Common `run-test!` options:
 
 | Option | Meaning |
 | --- | --- |
-| `:test-cases` | maximum generated cases |
+| `:test-cases` | positive maximum valid generated cases; assumptions do not consume the budget |
 | `:stateful-step-count` | positive state-machine round budget; libhegel defaults to 50 and rejected sequential rules do not consume it |
-| `:seed` | numeric seed for exact replay |
+| `:seed` | numeric seed for replay with the same engine and property contract |
 | `:derandomize?` | derive repeatable behavior when no seed is supplied |
 | `:name` or `:database-key` | stable identity for derived seeds and persistence |
 | `:database` | database path; `""` disables persistence |
 | `:verbosity` | `:quiet`, `:normal`, `:verbose`, or `:debug` |
 | `:report-multiple-failures?` | retain multiple stable failure origins |
+
+libhegel 0.36 removes `:mode`, including `:single-test-case`. Supplying it is
+an actionable pre-native usage error. Use `:test-cases 1` only when a one-valid-
+case budget is intended: shrinking/replay may still invoke the property again,
+and this is not the old no-shrink mode. Such runs skip the native simplest-
+example probe and its large-initial-case health check.
 
 The result includes `:passed?`, `:status`, `:seed`, `:test-cases`,
 `:valid-test-cases`, `:invalid-test-cases`, `:overrun-test-cases`,

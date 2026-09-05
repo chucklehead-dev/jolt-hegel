@@ -14,6 +14,11 @@
                          (constants/snapshot)
                          (constants/source-constants))))))
 
+(deftest removed-mode-enum-is-not-accepted-as-a-runtime-contract
+  (let [source (constants/source-constants)]
+    (is (not (contains? (:core source) :mode-values)))
+    (is (not (contains? (:enums (constants/snapshot)) "hegel_mode_t")))))
+
 (deftest source-reading-is-independent-of-caller-namespace
   (let [a (binding [*ns* (create-ns 'hegel.constants-test-a)]
             (constants/source-constants))

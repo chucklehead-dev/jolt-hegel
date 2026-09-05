@@ -7,7 +7,7 @@
 (defn descriptor [] (edn/read-string (slurp "resources/hegel/abi.edn")))
 
 (deftest exact-header-contract
-  (is (= {:functions 77 :structs 5 :opaque-handles 11 :callbacks 1}
+  (is (= {:functions 103 :structs 6 :opaque-handles 13 :callbacks 1}
          (check/check! (header/snapshot) (descriptor)))))
 
 (deftest independent-signature-and-field-mutations
@@ -36,7 +36,10 @@
              ["callback argument"
               (assoc-in original [:types :hegel/output-callback :args 2] :c/uint32)]
              ["omitted opaque handle"
-              (update original :types dissoc :hegel/pool)]]]
+              (update original :types dissoc :hegel/printer)]
+             ["new printer result pointer"
+              (assoc-in original [:functions :printer-value :args 2]
+                        [:pointer :hegel/string-result])]]]
       (testing label
         (let [failure (try (check/check! snapshot mutant) nil
                            (catch clojure.lang.ExceptionInfo e (ex-data e)))]
@@ -44,7 +47,17 @@
           (is (not= (:header failure) (:descriptor failure))))))
     ;; Adjacent valid control: ownership metadata is intentionally not guessed
     ;; from C signatures and does not alter this signature comparison.
-    (is (= 77 (:functions (check/check! snapshot
+    (is (= 103 (:functions (check/check! snapshot
                                         (assoc-in original
                                                   [:functions :context-new :review-note]
                                                   "non-ABI metadata")))))))
+
+(deftest printer-ownership-is-explicit
+  (let [functions (:functions (descriptor))]
+    (is (= {:out {:kind :owned :release :printer-options-free}}
+           (:ownership (:printer-options-new functions))))
+    (doseq [name [:printer-new :printer-deferred :test-case-printer]]
+      (is (= {:out {:kind :owned :release :printer-free}}
+             (:ownership (get functions name))) name))
+    (is (= {:out {:kind :owned :release :printer-value-result-free}}
+           (:ownership (:printer-value functions))))))

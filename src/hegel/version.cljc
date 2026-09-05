@@ -7,4 +7,4 @@
 
 (def libhegel-version
   "The libhegel release whose C header and ABI this project targets."
-  "0.33.3")
+  "0.36.3")

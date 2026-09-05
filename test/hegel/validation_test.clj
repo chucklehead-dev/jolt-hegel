@@ -80,7 +80,7 @@
 (deftest core-options-are-closed-and-preflight-native-work
   (doseq [[label opts]
           [["non-map" []] ["unknown key" {:unknown true}]
-           ["mode" {:mode :missing}] ["backend" {:backend :missing}]
+           ["backend" {:backend :missing}]
            ["verbosity" {:verbosity :missing}] ["zero test cases" {:test-cases 0}]
            ["test cases below uint64" {:test-cases -1}]
            ["test cases above uint64" {:test-cases (inc max-uint64)}]
@@ -96,6 +96,17 @@
                       hffi/context-new! #(reset! native-entered? true)]
           (assert-error! ::h/invalid-option #(h/run-test! opts (fn [_] nil))))
         (is (false? @native-entered?))))))
+
+(deftest removed-mode-is-an-actionable-pre-native-usage-error
+  (doseq [mode [:test-run :single-test-case :missing nil]]
+    (let [native-entered? (atom false)
+          error (with-redefs [hffi/ensure-compatible-version! #(reset! native-entered? true)
+                              hffi/context-new! #(reset! native-entered? true)]
+                  (error-of #(h/run-test! {:mode mode} (fn [_] nil))))]
+      (is (= ::h/removed-mode (:type (ex-data error))))
+      (is (true? (:hegel/usage-error? (ex-data error))))
+      (is (re-find #"valid-case budget, not the former no-shrink" (ex-message error)))
+      (is (false? @native-entered?)))))
 
 (deftest core-numeric-boundaries-match-the-abi-contract
   (let [validate-options (ns-resolve 'hegel.core 'validate-run-options!)]

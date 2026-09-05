@@ -7,7 +7,6 @@
   (:require [clojure.java.io :as io]
             [hegel.header-snapshot :as header]))
 
-(def fixture-dir "test/fixtures/hegel-0.33.3")
 (def source-root "src")
 
 (def ffi-enum-map
@@ -28,12 +27,11 @@
    :label-flat-map ["hegel_label_t" "HEGEL_LABEL_FLAT_MAP"]
    :label-filter ["hegel_label_t" "HEGEL_LABEL_FILTER"]
    :label-mapped ["hegel_label_t" "HEGEL_LABEL_MAPPED"]
+   :label-stateful-rule ["hegel_label_t" "HEGEL_LABEL_STATEFUL_RULE"]
    :label-recursive ["hegel_label_t" "HEGEL_LABEL_RECURSIVE"]})
 
 (def core-enum-maps
-  {:mode-values {"test-run" ["hegel_mode_t" "HEGEL_MODE_TEST_RUN"]
-                 "single-test-case" ["hegel_mode_t" "HEGEL_MODE_SINGLE_TEST_CASE"]}
-   :backend-values {"auto" ["hegel_backend_t" "HEGEL_BACKEND_AUTO"]
+  {:backend-values {"auto" ["hegel_backend_t" "HEGEL_BACKEND_AUTO"]
                     "default" ["hegel_backend_t" "HEGEL_BACKEND_DEFAULT"]
                     "urandom" ["hegel_backend_t" "HEGEL_BACKEND_URANDOM"]}
    :verbosity-values {"quiet" ["hegel_verbosity_t" "HEGEL_VERBOSITY_QUIET"]

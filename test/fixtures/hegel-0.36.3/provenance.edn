@@ -1,0 +1,11 @@
+{:repository "hegeldev/hegel-rust"
+ :tag "v0.36.3"
+ :commit "caafb40bbc37b5c44c7843f2442b62e382d73894"
+ :path "hegel-c/include/hegel.h"
+ :git-blob "5ded5dc64377e3b5b712dca89e67b915bd57ea6b"
+ :sha256 "960734c9a1d2d2a00421220cea6bdd384da2d20d2877394651742718d7c6bce3"
+ :bytes 98757
+ :lines 2460
+ :encoding "UTF-8"
+ :line-endings "LF"
+ :license-preserved? true}

@@ -52,6 +52,20 @@
   :return [:pointer :hegel/context],
   :route :jank/generated,
   :symbol "hegel_context_new"},
+ :event
+ {:args [[:pointer :hegel/context] [:pointer :hegel/test-case] :c/string],
+  :cpp-function-type "hegel_jank_fn_event",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_event"},
+ :event-value
+ {:args [[:pointer :hegel/context] [:pointer :hegel/test-case] :c/double :c/string],
+  :cpp-function-type "hegel_jank_fn_event_value",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_event_value"},
  :failure-free
  {:args [[:pointer :hegel/context] [:pointer :hegel/failure]],
   :cpp-function-type "hegel_jank_fn_failure_free",
@@ -288,6 +302,13 @@
   :return :c/int32,
   :route :jank/generated,
   :symbol "hegel_next_test_case"},
+ :note
+ {:args [[:pointer :hegel/context] [:pointer :hegel/test-case] [:pointer :c/uint8] :c/size],
+  :cpp-function-type "hegel_jank_fn_note",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_note"},
  :pool-add
  {:args
   [[:pointer :hegel/context]
@@ -318,6 +339,158 @@
   :return :c/int32,
   :route :jank/generated,
   :symbol "hegel_pool_generate"},
+ :printer-abort-speculative
+ {:args [[:pointer :hegel/context] [:pointer :hegel/printer]],
+  :cpp-function-type "hegel_jank_fn_printer_abort_speculative",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_printer_abort_speculative"},
+ :printer-begin-group
+ {:args
+  [[:pointer :hegel/context] [:pointer :hegel/printer] :c/uint64 [:pointer :c/uint8] :c/size],
+  :cpp-function-type "hegel_jank_fn_printer_begin_group",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_printer_begin_group"},
+ :printer-begin-speculative
+ {:args [[:pointer :hegel/context] [:pointer :hegel/printer]],
+  :cpp-function-type "hegel_jank_fn_printer_begin_speculative",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_printer_begin_speculative"},
+ :printer-breakable
+ {:args [[:pointer :hegel/context] [:pointer :hegel/printer] [:pointer :c/uint8] :c/size],
+  :cpp-function-type "hegel_jank_fn_printer_breakable",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_printer_breakable"},
+ :printer-comment
+ {:args [[:pointer :hegel/context] [:pointer :hegel/printer] [:pointer :c/uint8] :c/size],
+  :cpp-function-type "hegel_jank_fn_printer_comment",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_printer_comment"},
+ :printer-commit-speculative
+ {:args [[:pointer :hegel/context] [:pointer :hegel/printer]],
+  :cpp-function-type "hegel_jank_fn_printer_commit_speculative",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_printer_commit_speculative"},
+ :printer-deferred
+ {:args [[:pointer :hegel/context] [:pointer :hegel/printer] [:pointer [:pointer :hegel/printer]]],
+  :cpp-function-type "hegel_jank_fn_printer_deferred",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_printer_deferred"},
+ :printer-end-group
+ {:args [[:pointer :hegel/context] [:pointer :hegel/printer] [:pointer :c/uint8] :c/size],
+  :cpp-function-type "hegel_jank_fn_printer_end_group",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_printer_end_group"},
+ :printer-free
+ {:args [[:pointer :hegel/context] [:pointer :hegel/printer]],
+  :cpp-function-type "hegel_jank_fn_printer_free",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_printer_free"},
+ :printer-hard-break
+ {:args [[:pointer :hegel/context] [:pointer :hegel/printer]],
+  :cpp-function-type "hegel_jank_fn_printer_hard_break",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_printer_hard_break"},
+ :printer-if-break
+ {:args [[:pointer :hegel/context] [:pointer :hegel/printer] [:pointer :c/uint8] :c/size],
+  :cpp-function-type "hegel_jank_fn_printer_if_break",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_printer_if_break"},
+ :printer-is-live
+ {:args [[:pointer :hegel/context] [:pointer :hegel/printer] [:pointer :c/bool]],
+  :cpp-function-type "hegel_jank_fn_printer_is_live",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_printer_is_live"},
+ :printer-new
+ {:args
+  [[:pointer :hegel/context]
+   [:pointer :hegel/printer-options]
+   [:pointer [:pointer :hegel/printer]]],
+  :cpp-function-type "hegel_jank_fn_printer_new",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_printer_new"},
+ :printer-options-free
+ {:args [[:pointer :hegel/context] [:pointer :hegel/printer-options]],
+  :cpp-function-type "hegel_jank_fn_printer_options_free",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_printer_options_free"},
+ :printer-options-new
+ {:args [[:pointer :hegel/context] [:pointer [:pointer :hegel/printer-options]]],
+  :cpp-function-type "hegel_jank_fn_printer_options_new",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_printer_options_new"},
+ :printer-options-set-max-width
+ {:args [[:pointer :hegel/context] [:pointer :hegel/printer-options] :c/uint64],
+  :cpp-function-type "hegel_jank_fn_printer_options_set_max_width",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_printer_options_set_max_width"},
+ :printer-resolve
+ {:args [[:pointer :hegel/context] [:pointer :hegel/printer]],
+  :cpp-function-type "hegel_jank_fn_printer_resolve",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_printer_resolve"},
+ :printer-shift-indent
+ {:args [[:pointer :hegel/context] [:pointer :hegel/printer] :c/int64],
+  :cpp-function-type "hegel_jank_fn_printer_shift_indent",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_printer_shift_indent"},
+ :printer-text
+ {:args [[:pointer :hegel/context] [:pointer :hegel/printer] [:pointer :c/uint8] :c/size],
+  :cpp-function-type "hegel_jank_fn_printer_text",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_printer_text"},
+ :printer-value
+ {:args
+  [[:pointer :hegel/context] [:pointer :hegel/printer] [:pointer :hegel/printer-value-result]],
+  :cpp-function-type "hegel_jank_fn_printer_value",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_printer_value"},
+ :printer-value-result-free
+ {:args [[:pointer :hegel/context] [:pointer :hegel/printer-value-result]],
+  :cpp-function-type "hegel_jank_fn_printer_value_result_free",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_printer_value_result_free"},
  :recursion-branch
  {:args
   [[:pointer :hegel/context]
@@ -466,13 +639,6 @@
   :return :c/int32,
   :route :jank/generated,
   :symbol "hegel_settings_set_derandomize"},
- :settings-set-mode
- {:args [[:pointer :hegel/context] [:pointer :hegel/settings] :c/uint32],
-  :cpp-function-type "hegel_jank_fn_settings_set_mode",
-  :native-ready? false,
-  :return :c/int32,
-  :route :jank/generated,
-  :symbol "hegel_settings_set_mode"},
  :settings-set-phases
  {:args [[:pointer :hegel/context] [:pointer :hegel/settings] :c/uint32],
   :cpp-function-type "hegel_jank_fn_settings_set_phases",
@@ -494,6 +660,13 @@
   :return :c/int32,
   :route :jank/generated,
   :symbol "hegel_settings_set_seed"},
+ :settings-set-show-statistics
+ {:args [[:pointer :hegel/context] [:pointer :hegel/settings] :c/bool],
+  :cpp-function-type "hegel_jank_fn_settings_set_show_statistics",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_settings_set_show_statistics"},
  :settings-set-stateful-step-count
  {:args [[:pointer :hegel/context] [:pointer :hegel/settings] :c/int64],
   :cpp-function-type "hegel_jank_fn_settings_set_stateful_step_count",
@@ -567,6 +740,18 @@
   :return :c/int32,
   :route :jank/generated,
   :symbol "hegel_state_machine_rule_rejected"},
+ :state-machine-should-check-invariant
+ {:args
+  [[:pointer :hegel/context]
+   [:pointer :hegel/test-case]
+   [:pointer :hegel/state-machine]
+   :c/int64
+   [:pointer :c/bool]],
+  :cpp-function-type "hegel_jank_fn_state_machine_should_check_invariant",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_state_machine_should_check_invariant"},
  :stop-span
  {:args [[:pointer :hegel/context] [:pointer :hegel/test-case] :c/bool],
   :cpp-function-type "hegel_jank_fn_stop_span",
@@ -678,6 +863,17 @@
   :return :c/int32,
   :route :jank/generated,
   :symbol "hegel_test_case_is_nondeterministic"},
+ :test-case-printer
+ {:args
+  [[:pointer :hegel/context]
+   [:pointer :hegel/test-case]
+   [:pointer :hegel/printer-options]
+   [:pointer [:pointer :hegel/printer]]],
+  :cpp-function-type "hegel_jank_fn_test_case_printer",
+  :native-ready? false,
+  :return :c/int32,
+  :route :jank/generated,
+  :symbol "hegel_test_case_printer"},
  :version
  {:args [[:pointer :hegel/context] [:pointer :c/string]],
   :cpp-function-type "hegel_jank_fn_version",
@@ -723,13 +919,18 @@
    [:date :year] {:offset 0, :type :c/int32},
    [:date] {:offset 0, :type :hegel/date},
    [:time :hour] {:offset 8, :type :c/uint8},
-   [:time :microsecond] {:offset 12, :type :c/uint32},
    [:time :minute] {:offset 9, :type :c/uint8},
+   [:time :nanosecond] {:offset 12, :type :c/uint32},
    [:time :second] {:offset 10, :type :c/uint8},
    [:time] {:offset 8, :type :hegel/time}},
   :size 16,
   :type :hegel/datetime},
  :hegel/output-callback {:alignment 8, :size 8, :type :hegel/output-callback},
+ :hegel/printer-value-result
+ {:alignment 8,
+  :fields {[:data] {:offset 0, :type [:pointer :c/int8]}, [:len] {:offset 8, :type :c/size}},
+  :size 16,
+  :type :hegel/printer-value-result},
  :hegel/string-result
  {:alignment 8,
   :fields {[:data] {:offset 0, :type [:pointer :c/int8]}, [:len] {:offset 8, :type :c/size}},
@@ -739,8 +940,8 @@
  {:alignment 4,
   :fields
   {[:hour] {:offset 0, :type :c/uint8},
-   [:microsecond] {:offset 4, :type :c/uint32},
    [:minute] {:offset 1, :type :c/uint8},
+   [:nanosecond] {:offset 4, :type :c/uint32},
    [:second] {:offset 2, :type :c/uint8}},
   :size 8,
   :type :hegel/time}}
@@ -781,6 +982,21 @@
 (defn invoke-context_new [& values]
   (let [native-bindings (cpp/hegel_jank_current_bindings)]
     (cpp/box (cpp/unsafe-cast (:* cpp/void) (cpp/hegel_jank_call_context_new native-bindings)))))
+
+(defn invoke-event [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_event native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_test_case) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/unsafe-cast (:* (:const cpp/char)) (cpp/unbox (:* cpp/void) (nth values 2))))))
+
+(defn invoke-event_value [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_event_value native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_test_case) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/cast cpp/double (nth values 2))
+     (cpp/unsafe-cast (:* (:const cpp/char)) (cpp/unbox (:* cpp/void) (nth values 3))))))
 
 (defn invoke-failure_free [& values]
   (let [native-bindings (cpp/hegel_jank_current_bindings)]
@@ -983,6 +1199,14 @@
      (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_run) (cpp/unbox (:* cpp/void) (nth values 1)))
      (cpp/unsafe-cast (:* (:* cpp/hegel_jank_hegel_test_case)) (cpp/unbox (:* cpp/void) (nth values 2))))))
 
+(defn invoke-note [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_note native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_test_case) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/unsafe-cast (:* cpp/std.uint8_t) (cpp/unbox (:* cpp/void) (nth values 2)))
+     (cpp/cast cpp/std.size_t (nth values 3)))))
+
 (defn invoke-pool_add [& values]
   (let [native-bindings (cpp/hegel_jank_current_bindings)]
     (cpp/hegel_jank_call_pool_add native-bindings
@@ -1005,6 +1229,151 @@
      (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_pool) (cpp/unbox (:* cpp/void) (nth values 2)))
      (cpp/cast cpp/std.uint8_t (nth values 3))
      (cpp/unsafe-cast (:* cpp/std.int64_t) (cpp/unbox (:* cpp/void) (nth values 4))))))
+
+(defn invoke-printer_abort_speculative [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_printer_abort_speculative native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_printer) (cpp/unbox (:* cpp/void) (nth values 1))))))
+
+(defn invoke-printer_begin_group [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_printer_begin_group native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_printer) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/hegel_jank_to_uint64 (nth values 2))
+     (cpp/unsafe-cast (:* cpp/std.uint8_t) (cpp/unbox (:* cpp/void) (nth values 3)))
+     (cpp/cast cpp/std.size_t (nth values 4)))))
+
+(defn invoke-printer_begin_speculative [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_printer_begin_speculative native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_printer) (cpp/unbox (:* cpp/void) (nth values 1))))))
+
+(defn invoke-printer_breakable [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_printer_breakable native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_printer) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/unsafe-cast (:* cpp/std.uint8_t) (cpp/unbox (:* cpp/void) (nth values 2)))
+     (cpp/cast cpp/std.size_t (nth values 3)))))
+
+(defn invoke-printer_comment [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_printer_comment native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_printer) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/unsafe-cast (:* cpp/std.uint8_t) (cpp/unbox (:* cpp/void) (nth values 2)))
+     (cpp/cast cpp/std.size_t (nth values 3)))))
+
+(defn invoke-printer_commit_speculative [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_printer_commit_speculative native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_printer) (cpp/unbox (:* cpp/void) (nth values 1))))))
+
+(defn invoke-printer_deferred [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_printer_deferred native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_printer) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/unsafe-cast (:* (:* cpp/hegel_jank_hegel_printer)) (cpp/unbox (:* cpp/void) (nth values 2))))))
+
+(defn invoke-printer_end_group [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_printer_end_group native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_printer) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/unsafe-cast (:* cpp/std.uint8_t) (cpp/unbox (:* cpp/void) (nth values 2)))
+     (cpp/cast cpp/std.size_t (nth values 3)))))
+
+(defn invoke-printer_free [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_printer_free native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_printer) (cpp/unbox (:* cpp/void) (nth values 1))))))
+
+(defn invoke-printer_hard_break [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_printer_hard_break native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_printer) (cpp/unbox (:* cpp/void) (nth values 1))))))
+
+(defn invoke-printer_if_break [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_printer_if_break native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_printer) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/unsafe-cast (:* cpp/std.uint8_t) (cpp/unbox (:* cpp/void) (nth values 2)))
+     (cpp/cast cpp/std.size_t (nth values 3)))))
+
+(defn invoke-printer_is_live [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_printer_is_live native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_printer) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/unsafe-cast (:* cpp/std.uint8_t) (cpp/unbox (:* cpp/void) (nth values 2))))))
+
+(defn invoke-printer_new [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_printer_new native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_printer_options) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/unsafe-cast (:* (:* cpp/hegel_jank_hegel_printer)) (cpp/unbox (:* cpp/void) (nth values 2))))))
+
+(defn invoke-printer_options_free [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_printer_options_free native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_printer_options) (cpp/unbox (:* cpp/void) (nth values 1))))))
+
+(defn invoke-printer_options_new [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_printer_options_new native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* (:* cpp/hegel_jank_hegel_printer_options)) (cpp/unbox (:* cpp/void) (nth values 1))))))
+
+(defn invoke-printer_options_set_max_width [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_printer_options_set_max_width native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_printer_options) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/hegel_jank_to_uint64 (nth values 2)))))
+
+(defn invoke-printer_resolve [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_printer_resolve native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_printer) (cpp/unbox (:* cpp/void) (nth values 1))))))
+
+(defn invoke-printer_shift_indent [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_printer_shift_indent native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_printer) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/cast cpp/std.int64_t (nth values 2)))))
+
+(defn invoke-printer_text [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_printer_text native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_printer) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/unsafe-cast (:* cpp/std.uint8_t) (cpp/unbox (:* cpp/void) (nth values 2)))
+     (cpp/cast cpp/std.size_t (nth values 3)))))
+
+(defn invoke-printer_value [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_printer_value native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_printer) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_printer_value_result) (cpp/unbox (:* cpp/void) (nth values 2))))))
+
+(defn invoke-printer_value_result_free [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_printer_value_result_free native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_printer_value_result) (cpp/unbox (:* cpp/void) (nth values 1))))))
 
 (defn invoke-recursion_branch [& values]
   (let [native-bindings (cpp/hegel_jank_current_bindings)]
@@ -1139,13 +1508,6 @@
      (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_settings) (cpp/unbox (:* cpp/void) (nth values 1)))
      (cpp/cast cpp/std.uint8_t (nth values 2)))))
 
-(defn invoke-settings_set_mode [& values]
-  (let [native-bindings (cpp/hegel_jank_current_bindings)]
-    (cpp/hegel_jank_call_settings_set_mode native-bindings
-     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
-     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_settings) (cpp/unbox (:* cpp/void) (nth values 1)))
-     (cpp/cast cpp/std.uint32_t (nth values 2)))))
-
 (defn invoke-settings_set_phases [& values]
   (let [native-bindings (cpp/hegel_jank_current_bindings)]
     (cpp/hegel_jank_call_settings_set_phases native-bindings
@@ -1167,6 +1529,13 @@
      (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_settings) (cpp/unbox (:* cpp/void) (nth values 1)))
      (cpp/hegel_jank_to_uint64 (nth values 2))
      (cpp/cast cpp/std.uint8_t (nth values 3)))))
+
+(defn invoke-settings_set_show_statistics [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_settings_set_show_statistics native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_settings) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/cast cpp/std.uint8_t (nth values 2)))))
 
 (defn invoke-settings_set_stateful_step_count [& values]
   (let [native-bindings (cpp/hegel_jank_current_bindings)]
@@ -1233,6 +1602,15 @@
      (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_test_case) (cpp/unbox (:* cpp/void) (nth values 1)))
      (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_state_machine) (cpp/unbox (:* cpp/void) (nth values 2)))
      (cpp/cast cpp/std.int64_t (nth values 3)))))
+
+(defn invoke-state_machine_should_check_invariant [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_state_machine_should_check_invariant native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_test_case) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_state_machine) (cpp/unbox (:* cpp/void) (nth values 2)))
+     (cpp/cast cpp/std.int64_t (nth values 3))
+     (cpp/unsafe-cast (:* cpp/std.uint8_t) (cpp/unbox (:* cpp/void) (nth values 4))))))
 
 (defn invoke-stop_span [& values]
   (let [native-bindings (cpp/hegel_jank_current_bindings)]
@@ -1332,6 +1710,14 @@
      (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_test_case) (cpp/unbox (:* cpp/void) (nth values 1)))
      (cpp/unsafe-cast (:* cpp/std.uint8_t) (cpp/unbox (:* cpp/void) (nth values 2))))))
 
+(defn invoke-test_case_printer [& values]
+  (let [native-bindings (cpp/hegel_jank_current_bindings)]
+    (cpp/hegel_jank_call_test_case_printer native-bindings
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 0)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_test_case) (cpp/unbox (:* cpp/void) (nth values 1)))
+     (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_printer_options) (cpp/unbox (:* cpp/void) (nth values 2)))
+     (cpp/unsafe-cast (:* (:* cpp/hegel_jank_hegel_printer)) (cpp/unbox (:* cpp/void) (nth values 3))))))
+
 (defn invoke-version [& values]
   (let [native-bindings (cpp/hegel_jank_current_bindings)]
     (cpp/hegel_jank_call_version native-bindings
@@ -1345,6 +1731,8 @@
  :context-free invoke-context_free,
  :context-last-error invoke-context_last_error,
  :context-new invoke-context_new,
+ :event invoke-event,
+ :event-value invoke-event_value,
  :failure-free invoke-failure_free,
  :failure-origin invoke-failure_origin,
  :failure-reproduction-blob invoke-failure_reproduction_blob,
@@ -1368,9 +1756,31 @@
  :new-recursion invoke-new_recursion,
  :new-state-machine invoke-new_state_machine,
  :next-test-case invoke-next_test_case,
+ :note invoke-note,
  :pool-add invoke-pool_add,
  :pool-free invoke-pool_free,
  :pool-generate invoke-pool_generate,
+ :printer-abort-speculative invoke-printer_abort_speculative,
+ :printer-begin-group invoke-printer_begin_group,
+ :printer-begin-speculative invoke-printer_begin_speculative,
+ :printer-breakable invoke-printer_breakable,
+ :printer-comment invoke-printer_comment,
+ :printer-commit-speculative invoke-printer_commit_speculative,
+ :printer-deferred invoke-printer_deferred,
+ :printer-end-group invoke-printer_end_group,
+ :printer-free invoke-printer_free,
+ :printer-hard-break invoke-printer_hard_break,
+ :printer-if-break invoke-printer_if_break,
+ :printer-is-live invoke-printer_is_live,
+ :printer-new invoke-printer_new,
+ :printer-options-free invoke-printer_options_free,
+ :printer-options-new invoke-printer_options_new,
+ :printer-options-set-max-width invoke-printer_options_set_max_width,
+ :printer-resolve invoke-printer_resolve,
+ :printer-shift-indent invoke-printer_shift_indent,
+ :printer-text invoke-printer_text,
+ :printer-value invoke-printer_value,
+ :printer-value-result-free invoke-printer_value_result_free,
  :recursion-branch invoke-recursion_branch,
  :recursion-finish invoke-recursion_finish,
  :recursion-free invoke-recursion_free,
@@ -1390,10 +1800,10 @@
  :settings-set-database invoke-settings_set_database,
  :settings-set-database-key invoke-settings_set_database_key,
  :settings-set-derandomize invoke-settings_set_derandomize,
- :settings-set-mode invoke-settings_set_mode,
  :settings-set-phases invoke-settings_set_phases,
  :settings-set-report-multiple-failures invoke-settings_set_report_multiple_failures,
  :settings-set-seed invoke-settings_set_seed,
+ :settings-set-show-statistics invoke-settings_set_show_statistics,
  :settings-set-stateful-step-count invoke-settings_set_stateful_step_count,
  :settings-set-suppress-health-check invoke-settings_set_suppress_health_check,
  :settings-set-test-cases invoke-settings_set_test_cases,
@@ -1403,6 +1813,7 @@
  :state-machine-next-group invoke-state_machine_next_group,
  :state-machine-next-rule invoke-state_machine_next_rule,
  :state-machine-rule-rejected invoke-state_machine_rule_rejected,
+ :state-machine-should-check-invariant invoke-state_machine_should_check_invariant,
  :stop-span invoke-stop_span,
  :string-generator-domain invoke-string_generator_domain,
  :string-generator-email invoke-string_generator_email,
@@ -1415,5 +1826,6 @@
  :test-case-free invoke-test_case_free,
  :test-case-from-blob invoke-test_case_from_blob,
  :test-case-is-nondeterministic invoke-test_case_is_nondeterministic,
+ :test-case-printer invoke-test_case_printer,
  :version invoke-version}
 )

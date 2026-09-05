@@ -6,7 +6,8 @@ compiler using cc/clang-style flags; `HEGEL_ABI_CC` selects its executable
 (default `cc`). Windows CI uses `clang`, not MSVC command-line syntax.
 
 The complete pinned header and provenance are under
-`test/fixtures/hegel-0.33.3/`. The audit checks its SHA-256 before parsing,
+`test/fixtures/hegel-0.36.3/` (the 0.33.3 fixture is retained as historical
+evidence). The audit checks its SHA-256 before parsing,
 rejects unsupported declarations, and compares all exported signatures,
 callback signatures, opaque handles and ordered struct fields against
 `resources/hegel/abi.edn`. The EDN remains the backend/code-generation input;

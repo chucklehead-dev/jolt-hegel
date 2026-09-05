@@ -33,6 +33,14 @@
    :ownership {:return {:kind :owned, :release :context-free}},
    :return [:pointer :hegel/context],
    :symbol "hegel_context_new"},
+  :event
+  {:args [[:pointer :hegel/context] [:pointer :hegel/test-case] :c/string],
+   :return :c/int32,
+   :symbol "hegel_event"},
+  :event-value
+  {:args [[:pointer :hegel/context] [:pointer :hegel/test-case] :c/double :c/string],
+   :return :c/int32,
+   :symbol "hegel_event_value"},
   :failure-free
   {:args [[:pointer :hegel/context] [:pointer :hegel/failure]],
    :return :c/int32,
@@ -206,6 +214,10 @@
    :blocking? true,
    :return :c/int32,
    :symbol "hegel_next_test_case"},
+  :note
+  {:args [[:pointer :hegel/context] [:pointer :hegel/test-case] [:pointer :c/uint8] :c/size],
+   :return :c/int32,
+   :symbol "hegel_note"},
   :pool-add
   {:args
    [[:pointer :hegel/context]
@@ -227,6 +239,100 @@
     [:pointer :c/int64]],
    :return :c/int32,
    :symbol "hegel_pool_generate"},
+  :printer-abort-speculative
+  {:args [[:pointer :hegel/context] [:pointer :hegel/printer]],
+   :return :c/int32,
+   :symbol "hegel_printer_abort_speculative"},
+  :printer-begin-group
+  {:args
+   [[:pointer :hegel/context] [:pointer :hegel/printer] :c/uint64 [:pointer :c/uint8] :c/size],
+   :return :c/int32,
+   :symbol "hegel_printer_begin_group"},
+  :printer-begin-speculative
+  {:args [[:pointer :hegel/context] [:pointer :hegel/printer]],
+   :return :c/int32,
+   :symbol "hegel_printer_begin_speculative"},
+  :printer-breakable
+  {:args [[:pointer :hegel/context] [:pointer :hegel/printer] [:pointer :c/uint8] :c/size],
+   :return :c/int32,
+   :symbol "hegel_printer_breakable"},
+  :printer-comment
+  {:args [[:pointer :hegel/context] [:pointer :hegel/printer] [:pointer :c/uint8] :c/size],
+   :return :c/int32,
+   :symbol "hegel_printer_comment"},
+  :printer-commit-speculative
+  {:args [[:pointer :hegel/context] [:pointer :hegel/printer]],
+   :return :c/int32,
+   :symbol "hegel_printer_commit_speculative"},
+  :printer-deferred
+  {:args
+   [[:pointer :hegel/context] [:pointer :hegel/printer] [:pointer [:pointer :hegel/printer]]],
+   :ownership {:out {:kind :owned, :release :printer-free}},
+   :return :c/int32,
+   :symbol "hegel_printer_deferred"},
+  :printer-end-group
+  {:args [[:pointer :hegel/context] [:pointer :hegel/printer] [:pointer :c/uint8] :c/size],
+   :return :c/int32,
+   :symbol "hegel_printer_end_group"},
+  :printer-free
+  {:args [[:pointer :hegel/context] [:pointer :hegel/printer]],
+   :return :c/int32,
+   :symbol "hegel_printer_free"},
+  :printer-hard-break
+  {:args [[:pointer :hegel/context] [:pointer :hegel/printer]],
+   :return :c/int32,
+   :symbol "hegel_printer_hard_break"},
+  :printer-if-break
+  {:args [[:pointer :hegel/context] [:pointer :hegel/printer] [:pointer :c/uint8] :c/size],
+   :return :c/int32,
+   :symbol "hegel_printer_if_break"},
+  :printer-is-live
+  {:args [[:pointer :hegel/context] [:pointer :hegel/printer] [:pointer :c/bool]],
+   :return :c/int32,
+   :symbol "hegel_printer_is_live"},
+  :printer-new
+  {:args
+   [[:pointer :hegel/context]
+    [:pointer :hegel/printer-options]
+    [:pointer [:pointer :hegel/printer]]],
+   :ownership {:out {:kind :owned, :release :printer-free}},
+   :return :c/int32,
+   :symbol "hegel_printer_new"},
+  :printer-options-free
+  {:args [[:pointer :hegel/context] [:pointer :hegel/printer-options]],
+   :return :c/int32,
+   :symbol "hegel_printer_options_free"},
+  :printer-options-new
+  {:args [[:pointer :hegel/context] [:pointer [:pointer :hegel/printer-options]]],
+   :ownership {:out {:kind :owned, :release :printer-options-free}},
+   :return :c/int32,
+   :symbol "hegel_printer_options_new"},
+  :printer-options-set-max-width
+  {:args [[:pointer :hegel/context] [:pointer :hegel/printer-options] :c/uint64],
+   :return :c/int32,
+   :symbol "hegel_printer_options_set_max_width"},
+  :printer-resolve
+  {:args [[:pointer :hegel/context] [:pointer :hegel/printer]],
+   :return :c/int32,
+   :symbol "hegel_printer_resolve"},
+  :printer-shift-indent
+  {:args [[:pointer :hegel/context] [:pointer :hegel/printer] :c/int64],
+   :return :c/int32,
+   :symbol "hegel_printer_shift_indent"},
+  :printer-text
+  {:args [[:pointer :hegel/context] [:pointer :hegel/printer] [:pointer :c/uint8] :c/size],
+   :return :c/int32,
+   :symbol "hegel_printer_text"},
+  :printer-value
+  {:args
+   [[:pointer :hegel/context] [:pointer :hegel/printer] [:pointer :hegel/printer-value-result]],
+   :ownership {:out {:kind :owned, :release :printer-value-result-free}},
+   :return :c/int32,
+   :symbol "hegel_printer_value"},
+  :printer-value-result-free
+  {:args [[:pointer :hegel/context] [:pointer :hegel/printer-value-result]],
+   :return :c/int32,
+   :symbol "hegel_printer_value_result_free"},
   :recursion-branch
   {:args
    [[:pointer :hegel/context]
@@ -322,10 +428,6 @@
   {:args [[:pointer :hegel/context] [:pointer :hegel/settings] :c/bool],
    :return :c/int32,
    :symbol "hegel_settings_set_derandomize"},
-  :settings-set-mode
-  {:args [[:pointer :hegel/context] [:pointer :hegel/settings] :c/uint32],
-   :return :c/int32,
-   :symbol "hegel_settings_set_mode"},
   :settings-set-phases
   {:args [[:pointer :hegel/context] [:pointer :hegel/settings] :c/uint32],
    :return :c/int32,
@@ -338,6 +440,10 @@
   {:args [[:pointer :hegel/context] [:pointer :hegel/settings] :c/uint64 :c/bool],
    :return :c/int32,
    :symbol "hegel_settings_set_seed"},
+  :settings-set-show-statistics
+  {:args [[:pointer :hegel/context] [:pointer :hegel/settings] :c/bool],
+   :return :c/int32,
+   :symbol "hegel_settings_set_show_statistics"},
   :settings-set-stateful-step-count
   {:args [[:pointer :hegel/context] [:pointer :hegel/settings] :c/int64],
    :return :c/int32,
@@ -387,6 +493,15 @@
     :c/int64],
    :return :c/int32,
    :symbol "hegel_state_machine_rule_rejected"},
+  :state-machine-should-check-invariant
+  {:args
+   [[:pointer :hegel/context]
+    [:pointer :hegel/test-case]
+    [:pointer :hegel/state-machine]
+    :c/int64
+    [:pointer :c/bool]],
+   :return :c/int32,
+   :symbol "hegel_state_machine_should_check_invariant"},
   :stop-span
   {:args [[:pointer :hegel/context] [:pointer :hegel/test-case] :c/bool],
    :return :c/int32,
@@ -469,6 +584,15 @@
   {:args [[:pointer :hegel/context] [:pointer :hegel/test-case] [:pointer :c/bool]],
    :return :c/int32,
    :symbol "hegel_test_case_is_nondeterministic"},
+  :test-case-printer
+  {:args
+   [[:pointer :hegel/context]
+    [:pointer :hegel/test-case]
+    [:pointer :hegel/printer-options]
+    [:pointer [:pointer :hegel/printer]]],
+   :ownership {:out {:kind :owned, :release :printer-free}},
+   :return :c/int32,
+   :symbol "hegel_test_case_printer"},
   :version
   {:args [[:pointer :hegel/context] [:pointer :c/string]],
    :ownership {:out {:kind :borrowed, :owner :library}},
@@ -476,12 +600,12 @@
    :symbol "hegel_version"}},
  :library
  {:header
-  {:commit "94edce76aaac1e96e3d93916475d9b2fa3ee97f0",
+  {:commit "caafb40bbc37b5c44c7843f2442b62e382d73894",
    :path "hegel-c/include/hegel.h",
    :repository "hegeldev/hegel-rust",
-   :tag "v0.33.3"},
+   :tag "v0.36.3"},
   :name "libhegel",
-  :version "0.33.3"},
+  :version "0.36.3"},
  :schema-version 1,
  :types
  {:c/bool {:bits 8, :kind :boolean, :signed? false},
@@ -512,6 +636,10 @@
   :hegel/output-callback
   {:args [[:pointer :c/void] :c/string :c/size], :kind :function-pointer, :return :c/void},
   :hegel/pool {:kind :opaque},
+  :hegel/printer {:kind :opaque},
+  :hegel/printer-options {:kind :opaque},
+  :hegel/printer-value-result
+  {:fields [{:name :data, :type [:pointer :c/int8]} {:name :len, :type :c/size}], :kind :struct},
   :hegel/recursion {:kind :opaque},
   :hegel/run {:kind :opaque},
   :hegel/run-result {:kind :opaque},
@@ -526,6 +654,6 @@
    [{:name :hour, :type :c/uint8}
     {:name :minute, :type :c/uint8}
     {:name :second, :type :c/uint8}
-    {:name :microsecond, :range [0 999999], :type :c/uint32, :unit :microsecond}],
+    {:name :nanosecond, :range [0 999999999], :type :c/uint32, :unit :nanosecond}],
    :kind :struct}}}
 )
