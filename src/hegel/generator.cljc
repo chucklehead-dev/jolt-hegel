@@ -526,24 +526,53 @@
                :include-characters alphabet)
         normalized))))
 
+(defn- with-cleanup
+  "Run `cleanup` after `body`, at most once.
+
+  A cleanup failure after a successful body remains visible. During an
+  existing body failure cleanup is best-effort, so it cannot replace the
+  original throwable or its identity. Callers may opt out of cleanup for a
+  specific error when the native engine has already discarded that resource."
+  [body cleanup cleanup-on-error?]
+  (let [cleaned? (atom false)
+        clean! (fn []
+                 (when-not @cleaned?
+                   ;; Mark before cleanup: a throwing cleanup must never be
+                   ;; attempted again while handling that throw.
+                   (reset! cleaned? true)
+                   (cleanup)))]
+    (host/try-catch-all
+     (let [value (body)]
+       (clean!)
+       value)
+     error
+     (do
+       (when (and (not @cleaned?) (cleanup-on-error? error))
+         (host/try-catch-all
+          (clean!)
+          _cleanup-error
+          nil))
+       (throw error)))))
+
 (defn- native-string-generator [builder]
   ;; Validate at generator construction, matching the C++ binding. The actual
   ;; immutable native handle is rebuilt per draw so every allocation has a
   ;; deterministic free even though Jolt has no user-facing close protocol.
   (let [validation-context (hffi/context-new!)]
-    (try
-      (let [handle (builder validation-context)]
-        (hffi/string-generator-free! validation-context handle))
-      (finally
-        (hffi/context-free! validation-context))))
+    (with-cleanup
+      (fn []
+        (let [handle (builder validation-context)]
+          (hffi/string-generator-free! validation-context handle)))
+      #(hffi/context-free! validation-context)
+      (constantly true)))
   (composite-fn
    (fn [test-case]
      (let [context (:context test-case)
            handle (builder context)]
-       (try
-         (hffi/generate-string! context (:handle test-case) handle)
-         (finally
-           (hffi/string-generator-free! context handle)))))))
+       (with-cleanup
+         #(hffi/generate-string! context (:handle test-case) handle)
+         #(hffi/string-generator-free! context handle)
+         (constantly true))))))
 
 (defn string
   "Generate Unicode text.
@@ -643,23 +672,10 @@
 
 (defn- in-span [test-case label body]
   (hffi/start-span! (:context test-case) (:handle test-case) label)
-  (let [closed? (atom false)]
-    (host/try-catch-all
-     (let [value (body)]
-       ;; Mark first: if stop-span itself fails, the catch path must not call
-       ;; it a second time against an already-consumed or invalid span.
-       (reset! closed? true)
-       (hffi/stop-span! (:context test-case) (:handle test-case))
-       value)
-     error
-     ;; The engine, not the unwinding frontend, discards every still-open span
-     ;; in an abandoned recursive attempt. Stopping one here would pop the
-     ;; innermost recursive span instead of this combinator's span.
-     (when (and (not @closed?)
-                (not (recursion-retry-control? error)))
-       (reset! closed? true)
-       (hffi/stop-span! (:context test-case) (:handle test-case)))
-     (throw error))))
+  (with-cleanup
+    body
+    #(hffi/stop-span! (:context test-case) (:handle test-case))
+    (complement recursion-retry-control?)))
 
 (defn fmap
   "Transform values from generator with f while preserving shrink structure."
@@ -720,14 +736,15 @@
               recursion
               (hffi/new-recursion!
                context handle max-depth max-leaves)]
-          (try
+          (with-cleanup
+           (fn []
             (letfn [(draw-subtree! [current-test-case depth]
                       (let [current-context (:context current-test-case)
-                            current-handle (:handle current-test-case)
-                            closed? (atom false)]
+                            current-handle (:handle current-test-case)]
                         (hffi/start-span!
                          current-context current-handle hffi/label-recursive)
-                        (host/try-catch-all
+                        (with-cleanup
+                         (fn []
                           (let [branch?
                                 (hffi/recursion-branch!
                                  current-context current-handle recursion depth)
@@ -762,17 +779,9 @@
                               (throw
                                (ex-info "recursive attempt was mispriced"
                                         {:type finish-retry})))
-                            (reset! closed? true)
-                            (hffi/stop-span!
-                             current-context current-handle)
-                            value)
-                          error
-                          (when (and (not @closed?)
-                                     (not (recursion-retry-control? error)))
-                            (reset! closed? true)
-                            (hffi/stop-span!
-                             current-context current-handle))
-                          (throw error))))]
+                            value))
+                         #(hffi/stop-span! current-context current-handle)
+                         (complement recursion-retry-control?))))]
               (loop []
                 (let [attempt
                       (host/try-catch-all
@@ -791,9 +800,9 @@
                     (do
                       (hffi/recursion-retry! context handle recursion)
                       (recur))
-                    :finish-retry (recur)))))
-            (finally
-              (hffi/recursion-free! context recursion)))))))))
+                    :finish-retry (recur))))))
+           #(hffi/recursion-free! context recursion)
+           (constantly true))))))))
 
 (defn filter
   "Keep values satisfying pred. Three failed attempts reject the test case."
@@ -806,22 +815,17 @@
      (loop [attempt 0]
        (hffi/start-span! (:context test-case) (:handle test-case)
                          hffi/label-filter)
-       (let [[accepted? value]
-             (let [closed? (atom false)]
-               (host/try-catch-all
+       (let [discard? (atom false)
+             [accepted? value]
+             (with-cleanup
+               (fn []
                  (let [value (generator test-case)
                        accepted? (clojure.core/boolean (pred value))]
-                   (reset! closed? true)
-                   (hffi/stop-span! (:context test-case) (:handle test-case)
-                                    (not accepted?))
-                   [accepted? value])
-                 error
-                 (when (and (not @closed?)
-                            (not (recursion-retry-control? error)))
-                   (reset! closed? true)
-                   (hffi/stop-span! (:context test-case)
-                                    (:handle test-case)))
-                 (throw error)))]
+                   (reset! discard? (not accepted?))
+                   [accepted? value]))
+               #(hffi/stop-span! (:context test-case) (:handle test-case)
+                                @discard?)
+               (complement recursion-retry-control?))]
          (if accepted?
            value
            (if (< attempt 2)
@@ -921,13 +925,14 @@
            handle (:handle test-case)
            collection (hffi/new-collection!
                        context handle min-size max-size)]
-       (try
-         (loop [result initial-value]
-           (if (hffi/collection-more! context handle collection)
-             (recur (step collection result))
-             result))
-         (finally
-           (hffi/collection-free! context collection)))))))
+       (with-cleanup
+         (fn []
+           (loop [result initial-value]
+             (if (hffi/collection-more! context handle collection)
+               (recur (step collection result))
+               result)))
+         #(hffi/collection-free! context collection)
+         (constantly true))))))
 
 (defn vector
   "Generate a vector. Options: :size, :min-size, :max-size, :unique?."

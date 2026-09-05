@@ -5,6 +5,7 @@
             [hegel.core :as h]
             [hegel.ffi :as hffi]
             [hegel.generator :as g]
+            [hegel.generator-cleanup-test]
             [hegel.temporal-test]
             [hegel.test-support :as support]))
 
@@ -275,6 +276,10 @@
     (support/check! context "temporal precision contract suite"
                     (zero? (+ (:fail result) (:error result))))))
 
+(defn generator-cleanup-contract [context]
+  (let [result (t/run-tests 'hegel.generator-cleanup-test)]
+    (support/check! context "generator cleanup exception precedence suite"
+                    (zero? (+ (:fail result) (:error result))))))
 
 (defn string-generators [context]
   (let [text-gen (g/string {:min-size 2 :max-size 5

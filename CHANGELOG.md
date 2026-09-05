@@ -6,6 +6,10 @@ for v0.1.0 through v0.4.0, see the tag and release history in that repository.
 
 ## Unreleased
 
+- Preserve the original generator exception when owned span, collection,
+  recursion, string, or context cleanup also fails. A cleanup-only failure
+  still surfaces; native-discarded recursive retry spans are not closed during
+  host unwinding, and no secondary throwable is mutated or attached.
 - Upgrade libhegel to 0.36.3 with its complete 103-function canonical ABI and
   regenerated experimental backends. Native time fields now use nanoseconds;
   public `time`/`datetime` retain microsecond bounds and six-digit precision
