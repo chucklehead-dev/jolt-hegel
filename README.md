@@ -283,6 +283,12 @@ to 100. A depth of zero forces leaves. libhegel owns branch decisions, retry
 policy, size steering, and subtree-hoisting shrink structure; application code
 does not write its own recursive depth draw.
 
+Generator-owned spans and native handles preserve exception precedence: if a
+generator body fails while its cleanup also fails, the exact body throwable is
+rethrown. If only cleanup fails, that cleanup failure remains visible. Native
+recursive retry controls already discard their open spans, so host unwinding
+does not close them; no secondary throwable is mutated or attached as evidence.
+
 The exact constructors and options are documented in the bundled
 [API reference](skills/jolt-hegel/references/api.md).
 
