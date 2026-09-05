@@ -2536,6 +2536,28 @@
   ;; These classic single-register fixtures have the same shape used by
   ;; Knossos and Porcupine examples, but this portable suite has no dependency
   ;; on either implementation.
+  (let [always-legal (fn [state _] {:state state})
+        events-for (fn [first-id second-id]
+                     [{:seq 0 :operation-id first-id :phase :invoke
+                       :operation :first}
+                      {:seq 1 :operation-id first-id :phase :return
+                       :value :ok}
+                      {:seq 2 :operation-id second-id :phase :invoke
+                       :operation :second}
+                      {:seq 3 :operation-id second-id :phase :return
+                       :value :ok}])
+        original (hhistory/linearization
+                  nil always-legal (events-for false :second))
+        renamed (hhistory/linearization
+                 nil always-legal (events-for :first :second))]
+    (check "false operation IDs preserve non-overlapping precedence"
+           (and (= [false :second] (:order original))
+                (= [:first :second] (:order renamed))))
+    (check "history membership survives a bijective ID renaming"
+           (and (hhistory/linearizable? nil always-legal
+                                        (events-for false :second))
+                (hhistory/linearizable? nil always-legal
+                                        (events-for :first :second)))))
   (let [overlap [{:seq 0 :operation-id :write :phase :invoke
                   :operation :write :input 1}
                  {:seq 1 :operation-id :read :phase :invoke
@@ -2605,7 +2627,9 @@
          [{:seq 0 :operation-id :x :phase :invoke :operation :read}
           {:seq 1 :operation-id :x :phase :invoke :operation :read}]
          [{:seq 0 :operation-id :x :phase :invoke :operation :read}
-          {:seq 2 :operation-id :x :phase :return :value 0}]]
+          {:seq 2 :operation-id :x :phase :return :value 0}]
+         [{:seq 0 :operation-id nil :phase :invoke :operation :read}
+          {:seq 1 :operation-id nil :phase :return :value 0}]]
         failures
         (mapv (fn [events]
                 (try
