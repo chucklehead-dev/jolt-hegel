@@ -125,7 +125,11 @@
           [[::g/invalid-option #(g/integer [])]
            [::trace/invalid-options #(trace/check! [] [] [])]
            [::history/invalid-options #(history/linearization nil identity [] [])]
-           [::history/invalid-options #(history/rule :x [])]
+           [::history/invalid-options
+            (fn []
+              ;; Deliberately violate the map contract to test public validation.
+              #_{:clj-kondo/ignore [:type-mismatch]}
+              (history/rule :x []))]
            [::report/invalid-option #(report/counting-runner [])]]]
     (assert-error! type thunk)))
 
@@ -133,7 +137,10 @@
   (let [non-map (error-of #(history/linearization nil identity [] []))
         unknown (error-of #(history/linearization nil identity []
                                                 {:name :named :unknown true}))
-        rule-non-map (error-of #(history/rule :rule []))
+        rule-non-map (error-of (fn []
+                                ;; Deliberate invalid-input regression.
+                                #_{:clj-kondo/ignore [:type-mismatch]}
+                                (history/rule :rule [])))
         rule-unknown (error-of #(history/rule :rule {:unknown true}))]
     (is (= "hegel.history/linearizable" (:hegel/origin (ex-data non-map))))
     (is (= [] (:options (ex-data non-map))))
