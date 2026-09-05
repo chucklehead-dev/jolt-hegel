@@ -139,10 +139,13 @@
                                 {:phase phase :command command :exit exit :log (str log-file)
                                  :output output}))))
             {:exit exit :log (str log-file)}))
-        (let [reap (force-reap! process)]
-          (throw (ex-info "C layout probe timed out"
+        (let [reap (force-reap! process)
+              output (read-log log-file)]
+          (throw (ex-info (str "C layout probe timed out during " (name phase)
+                              " after " timeout-ms " ms; log " log-file ": "
+                              (subs output 0 (min 8000 (count output))))
                           (merge {:phase phase :command command :timeout-ms timeout-ms
-                                  :log (str log-file)} reap)))))
+                                  :log (str log-file) :output output} reap)))))
       (finally
         ;; This covers interruption and any error after start; normal nonzero
         ;; exits are already reaped and do not need another termination call.

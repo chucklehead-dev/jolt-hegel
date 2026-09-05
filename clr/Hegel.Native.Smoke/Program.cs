@@ -14,7 +14,7 @@ internal static class Program
         }
 
         Bridge.Load(args[0]);
-        Require("all descriptor symbols loaded", Bridge.ExpectedSymbols.Count == 77);
+        Require("all descriptor symbols loaded", Bridge.ExpectedSymbols.Count == 103);
         CheckLayouts();
         CheckMemory();
         CheckNativeCalls();
@@ -28,7 +28,7 @@ internal static class Program
         Require("date month offset", Marshal.OffsetOf<HegelDate>(nameof(HegelDate.Month)).ToInt32() == 4);
         Require("date day offset", Marshal.OffsetOf<HegelDate>(nameof(HegelDate.Day)).ToInt32() == 5);
         Require("time size", Marshal.SizeOf<HegelTime>() == 8);
-        Require("time microsecond offset", Marshal.OffsetOf<HegelTime>(nameof(HegelTime.Microsecond)).ToInt32() == 4);
+        Require("time nanosecond offset", Marshal.OffsetOf<HegelTime>(nameof(HegelTime.Nanosecond)).ToInt32() == 4);
         Require("datetime size", Marshal.SizeOf<HegelDatetime>() == 16);
         Require("datetime time offset", Marshal.OffsetOf<HegelDatetime>(nameof(HegelDatetime.Time)).ToInt32() == 8);
     }
@@ -69,7 +69,7 @@ internal static class Program
             {
                 Ok("version", context, versionOut);
                 var versionPointer = (IntPtr)Bridge.ReadValue("pointer", versionOut);
-                Require("libhegel version", Bridge.NativeToString(versionPointer) == "0.33.3");
+                Require("libhegel version", Bridge.NativeToString(versionPointer) == "0.36.3");
             }
             finally
             {
@@ -155,7 +155,7 @@ internal static class Program
         Bridge.WriteValue("uint8", pointer, offset, (byte)12);
         Bridge.WriteValue("uint8", pointer, offset + 1, (byte)34);
         Bridge.WriteValue("uint8", pointer, offset + 2, (byte)56);
-        Bridge.WriteValue("uint32", pointer, offset + 4, 789U);
+        Bridge.WriteValue("uint32", pointer, offset + 4, 789123456U);
     }
 
     private static bool ReadDate(IntPtr pointer, long offset)
@@ -170,7 +170,7 @@ internal static class Program
         return (byte)Bridge.ReadValue("uint8", pointer, offset) == 12
             && (byte)Bridge.ReadValue("uint8", pointer, offset + 1) == 34
             && (byte)Bridge.ReadValue("uint8", pointer, offset + 2) == 56
-            && (uint)Bridge.ReadValue("uint32", pointer, offset + 4) == 789U;
+            && (uint)Bridge.ReadValue("uint32", pointer, offset + 4) == 789123456U;
     }
 
     private static IntPtr PointerResult(string functionId, params object?[] args)
