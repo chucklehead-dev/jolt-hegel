@@ -107,22 +107,22 @@ jobs:
             name: Linux x86_64
             runner: ubuntu-24.04
             shell: bash
-            jolt-asset: jolt-v0.7.23-x86_64-linux.tar.gz
-            jolt-sha256: feda9a68792b454fa540677069edc6b6d9b82aa8ab77ae8a322934f0b8cd32e7
+            jolt-asset: jolt-v0.8.1-x86_64-linux.tar.gz
+            jolt-sha256: ddca03c95190a8079c3674482187782796031cf0de685ee29411f08481bc440c
           - runtime: Jolt
             host: jolt
             name: Windows x86_64
             runner: windows-2022
             shell: pwsh
-            jolt-asset: jolt-v0.7.23-x86_64-windows.zip
-            jolt-sha256: d414dc30d6992613f8bf1bd6a5fd709fd583ef564ce9b684bc2f90a5be498074
+            jolt-asset: jolt-v0.8.1-x86_64-windows.zip
+            jolt-sha256: 352868932cb98caf33085ebff89fbbf6abc3d32ad9eba0bf6a8f2f0faee7b3f5
           - runtime: Jolt
             host: jolt
             name: macOS arm64
             runner: macos-14
             shell: bash
-            jolt-asset: jolt-v0.7.23-aarch64-macos.tar.gz
-            jolt-sha256: 2e4b9804382548b58b10079aa73688afe587d7b6d0986ee52c61f843ae912bb9
+            jolt-asset: jolt-v0.8.1-aarch64-macos.tar.gz
+            jolt-sha256: 0d7744da0133fa1a69886b0d04da41ee88bfa17be59506afe0b66fea8d1a88a6
           - runtime: Babashka
             host: bb
             name: Linux x86_64
@@ -181,7 +181,7 @@ jobs:
         if: matrix.host == 'jolt'
         uses: ./.github/actions/setup-jolt
         with:
-          version: 0.7.23
+          version: 0.8.1
           asset: ${{ matrix.jolt-asset }}
           sha256: ${{ matrix.jolt-sha256 }}
 

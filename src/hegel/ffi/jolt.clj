@@ -124,7 +124,7 @@
   ([pointer type] (ffi/read pointer type))
   ([pointer type offset] (ffi/read pointer type offset)))
 (defn write-value [pointer type offset value]
-  (ffi/write pointer type offset value))
+  (ffi/write pointer type value offset))
 (defn read-array [pointer length] (ffi/read-array pointer length))
 (defn write-array [pointer value] (ffi/write-array pointer value))
 (defn read-utf8 [pointer length] (ffi/read-bytes pointer length))
