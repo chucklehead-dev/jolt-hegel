@@ -6,6 +6,7 @@
             [hegel.core :as h]
             [hegel.ffi :as hffi]
             [hegel.host :as host]
+            [hegel.internal.binary32 :as binary32]
             [hegel.temporal :as temporal]
             [hegel.validation :as validation]))
 
@@ -97,6 +98,25 @@
                               min-value
                               max-value)))))
 
+(defn big-integer
+  "Generate an arbitrary-width integer between explicit inclusive bounds.
+
+  Both bounds are required, either as two arguments or {:min x :max y}.
+  There is no implicit finite default for an unbounded integer domain."
+  ([opts]
+   (options! "big-integer options" #{:min :max} opts)
+   (big-integer (:min opts) (:max opts)))
+  ([min-value max-value]
+   (when-not (and (integer? min-value) (integer? max-value)
+                  (<= min-value max-value))
+     (validation/usage-error! ::invalid-bounds
+       "big-integer requires ordered inclusive integer bounds"
+       {:min min-value :max max-value}))
+   (composite-fn
+     (fn [test-case]
+       (hffi/generate-integer-big! (:context test-case) (:handle test-case)
+                                 min-value max-value)))))
+
 (defn octet
   "Generate an unsigned wire octet as an integer from 0 through 255.
 
@@ -159,6 +179,51 @@
          (:exclude-min? opts) (:exclude-max? opts) min-positive-double)))))
   ([min-value max-value]
    (double {:min min-value :max max-value})))
+
+(defn float32
+  "Generate native binary32 values, returned as exactly widened host doubles.
+
+  Options mirror double: :min, :max, :exclude-min?, :exclude-max?, :nan?,
+  :infinity?. Bounds must be exactly representable, or explicit infinities.
+  With no bounds, NaN and infinities are allowed. Subnormals are included."
+  ([] (float32 {}))
+  ([opts]
+   (options! "float32 options"
+             #{:min :max :exclude-min? :exclude-max? :nan? :infinity?} opts)
+   (doseq [option [:exclude-min? :exclude-max? :nan? :infinity?]
+           :when (contains? opts option)]
+     (validation/require-boolean! ::invalid-option option (get opts option)))
+   (doseq [option [:min :max]
+           :let [value (get opts option)]
+           :when (some? value)]
+     (when-not (or (and (float? value) (or (= value ##Inf) (= value ##-Inf)))
+                   (binary32/finite-exact? value))
+       (invalid-option "float32 bound must be exactly representable or infinite"
+                       {option value})))
+   (let [has-min? (some? (:min opts))
+         has-max? (some? (:max opts))
+         allow-nan? (get opts :nan? (and (not has-min?) (not has-max?)))
+         allow-infinity? (get opts :infinity? (or (not has-min?) (not has-max?)))
+         min-value (if has-min? (clojure.core/double (:min opts))
+                       (if allow-infinity? ##-Inf (- binary32/max-finite)))
+         max-value (if has-max? (clojure.core/double (:max opts))
+                       (if allow-infinity? ##Inf binary32/max-finite))]
+     (when (> min-value max-value)
+       (invalid-option "float32 generator minimum exceeds maximum"
+                       {:min min-value :max max-value}))
+     (when (and allow-nan? (or has-min? has-max?))
+       (invalid-option "float32 generator cannot allow NaN with a bound"
+                       {:min (:min opts) :max (:max opts)}))
+     (when (and allow-infinity? (not (or (= min-value ##-Inf)
+                                                       (= max-value ##Inf))))
+       (invalid-option "float32 infinity requires an unbounded endpoint" opts))
+     (composite-fn
+       (fn [test-case]
+         (hffi/generate-float!
+           (:context test-case) (:handle test-case)
+           32 min-value max-value allow-nan? allow-infinity?
+           (:exclude-min? opts) (:exclude-max? opts) binary32/min-positive)))))
+  ([min-value max-value] (float32 {:min min-value :max max-value})))
 
 (defn bytes
   "Generate a byte array with an inclusive length range.

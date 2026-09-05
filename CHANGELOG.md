@@ -14,6 +14,13 @@ for v0.1.0 through v0.4.0, see the tag and release history in that repository.
   [join-point contracts](docs/JOINPOINTS.md); ordinary property use still needs
   no aspect-capable compiler or instrumentation provider.
 
+- Add `g/big-integer` with explicit arbitrary-width inclusive integer bounds
+  and caller-owned canonical ABI buffers, and `g/float32` with exact bound
+  validation, native width-32 generation, subnormals and widened-double results.
+  Existing int64 `g/integer` and width-64 `g/double` behavior is unchanged.
+  New numeric contracts are tested on BB/JVM/Jolt; experimental-host numeric
+  qualification remains separate.
+
 - Add the explicit `hegel.operation-events` revision 1 profile through
   `hegel.event-contract/check!` and `check-envelope!`. Generic trace/history
   callers retain their existing event domains; profile validation is separate

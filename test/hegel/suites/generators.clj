@@ -2,6 +2,10 @@
   "Generator contract scenarios, loaded only when their suite is selected."
   (:require [clojure.string :as str]
             [clojure.test :as t]
+            [hegel.big-integer-test]
+            [hegel.big-integer-ffi-test]
+            [hegel.float32-test]
+            [hegel.signed-bytes-test]
             [hegel.core :as h]
             [hegel.ffi :as hffi]
             [hegel.generator :as g]
@@ -285,6 +289,18 @@
 (defn sequence-generators-contract [context]
   (let [result (t/run-tests 'hegel.sequence-generators-test)]
     (support/check! context "sequence generator contract suite"
+                    (zero? (+ (:fail result) (:error result))))))
+
+(defn big-integer-contract [context]
+  (let [result (t/run-tests 'hegel.signed-bytes-test
+                            'hegel.big-integer-ffi-test
+                            'hegel.big-integer-test)]
+    (support/check! context "arbitrary-width integer contract suite"
+                    (zero? (+ (:fail result) (:error result))))))
+
+(defn float32-contract [context]
+  (let [result (t/run-tests 'hegel.float32-test)]
+    (support/check! context "native float32 contract suite"
                     (zero? (+ (:fail result) (:error result))))))
 
 (defn string-generators [context]
