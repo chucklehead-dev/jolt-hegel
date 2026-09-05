@@ -2,7 +2,8 @@
   "The property-test run loop and dynamic test-case API."
   (:require [clojure.string :as str]
             [hegel.ffi :as hffi]
-            [hegel.host :as host]))
+            [hegel.host :as host]
+            [hegel.validation :as validation]))
 
 (def ^:dynamic *test-case*
   "The test case currently being executed by run-test!."
@@ -52,6 +53,7 @@
 
 (def ^:private max-observed-failure-origins 16)
 (def ^:private max-int64 9223372036854775807)
+(def ^:private max-uint64 18446744073709551615N)
 
 (def ^:private mode-values
   {:test-run 0
@@ -109,12 +111,10 @@
 (defn- enum-value! [kind values value]
   (if (contains? values value)
     (get values value)
-    (throw
-     (ex-info (str "unknown " (name kind) " " (pr-str value))
-              {:type ::invalid-option
-               :option kind
-               :value value
-               :allowed (vec (keys values))}))))
+    (validation/usage-error!
+     ::invalid-option
+     (str "unknown " (name kind) " " (pr-str value))
+     {:option kind :value value :allowed (vec (keys values))})))
 
 (defn- enum-mask! [kind values selected]
   (reduce bit-or 0 (map #(enum-value! kind values %) selected)))
@@ -165,8 +165,16 @@
 (defn draw!
   "Draw a value from a generator function `(fn [test-case] value)`."
   ([generator]
+   (when-not (fn? generator)
+     (validation/usage-error! ::invalid-generator
+                              "draw! requires a generator function"
+                              {:generator generator}))
    (generator (current-test-case!)))
   ([generator label]
+   (when-not (fn? generator)
+     (validation/usage-error! ::invalid-generator
+                              "draw! requires a generator function"
+                              {:generator generator}))
    (let [test-case (current-test-case!)
          value (generator test-case)]
      (when (should-log? test-case)
@@ -211,6 +219,60 @@
 
 (defn- usage-error? [error]
   (true? (:hegel/usage-error? (ex-data error))))
+
+(def ^:private run-option-keys
+  #{:mode :backend :test-cases :stateful-step-count :verbosity :seed
+    :derandomize? :report-multiple-failures? :database :database-key :name
+    :phases :suppress-health-checks})
+
+(defn- require-string! [option value]
+  (when-not (string? value)
+    (validation/usage-error!
+     ::invalid-option (str (name option) " must be a string") {option value}))
+  value)
+
+(defn- require-option-keywords! [option values allowed]
+  (when-not (and (coll? values) (not (string? values)))
+    (validation/usage-error!
+     ::invalid-option (str (name option) " must be a collection") {option values}))
+  (doseq [value values]
+    (enum-value! (if (= option :phases) :phase :health-check) allowed value))
+  values)
+
+(defn- validate-run-options! [opts case-fn]
+  (validation/reject-unknown-keys! ::invalid-option "run-test! options"
+                                   run-option-keys opts)
+  (when-not (fn? case-fn)
+    (validation/usage-error! ::invalid-option "run-test! case-fn must be a function"
+                             {:case-fn case-fn}))
+  (when (contains? opts :mode)
+    (enum-value! :mode mode-values (:mode opts)))
+  (when (contains? opts :backend)
+    (enum-value! :backend backend-values (:backend opts)))
+  (when (contains? opts :verbosity)
+    (enum-value! :verbosity verbosity-values (:verbosity opts)))
+  (when (contains? opts :test-cases)
+    (validation/require-integer-range! ::invalid-option :test-cases
+                                       (:test-cases opts) 1 max-uint64))
+  (when (contains? opts :stateful-step-count)
+    (validation/require-integer-range! ::invalid-option :stateful-step-count
+                                       (:stateful-step-count opts) 1 max-int64))
+  (when (contains? opts :seed)
+    (validation/require-integer-range! ::invalid-option :seed (:seed opts)
+                                       0 max-uint64))
+  (doseq [option [:derandomize? :report-multiple-failures?]
+          :when (contains? opts option)]
+    (validation/require-boolean! ::invalid-option option (get opts option)))
+  (doseq [option [:database :database-key :name]
+          :when (contains? opts option)]
+    (require-string! option (get opts option)))
+  (when (contains? opts :phases)
+    (require-option-keywords! :phases (:phases opts) phase-values))
+  (when (contains? opts :suppress-health-checks)
+    (require-option-keywords! :suppress-health-checks
+                              (:suppress-health-checks opts)
+                              health-check-values))
+  opts)
 
 (defn- run-body [test-case case-fn]
   (host/try-catch-all
@@ -297,14 +359,8 @@
   (when (contains? opts :test-cases)
     (hffi/settings-set-test-cases! ctx settings (:test-cases opts)))
   (when (contains? opts :stateful-step-count)
-    (let [value (:stateful-step-count opts)]
-      (when-not (and (integer? value) (pos? value))
-        (throw
-         (ex-info ":stateful-step-count must be a positive integer"
-                  {:type ::invalid-option
-                   :option :stateful-step-count
-                   :value value})))
-      (hffi/settings-set-stateful-step-count! ctx settings value)))
+    (hffi/settings-set-stateful-step-count!
+     ctx settings (:stateful-step-count opts)))
   (when (contains? opts :verbosity)
     (hffi/settings-set-verbosity!
      ctx settings
@@ -431,18 +487,19 @@
   true, and an :error explanation. Setup, health-check, and unexpected engine
   errors throw."
   [opts case-fn]
-  (hffi/ensure-compatible-version!)
-  (let [opts (assoc opts :seed (resolve-seed opts))
-        ctx (hffi/context-new!)]
-    (try
-      (let [settings (hffi/settings-new! ctx)]
-        (try
-          (configure-settings! ctx settings opts)
-          (let [run (hffi/run-start! ctx settings)]
-            (try
-              (let [counts (drive-run! ctx run (or (:verbosity opts) :normal)
-                                       case-fn)
-                    result (hffi/run-result! ctx run)]
+  (let [opts (validate-run-options! opts case-fn)
+        opts (assoc opts :seed (resolve-seed opts))]
+    (hffi/ensure-compatible-version!)
+    (let [ctx (hffi/context-new!)]
+      (try
+        (let [settings (hffi/settings-new! ctx)]
+          (try
+            (configure-settings! ctx settings opts)
+            (let [run (hffi/run-start! ctx settings)]
+              (try
+                (let [counts (drive-run! ctx run (or (:verbosity opts) :normal)
+                                         case-fn)
+                      result (hffi/run-result! ctx run)]
                 (try
                   (let [status (run-status (hffi/run-result-status! ctx result))
                         run-error (when (= :error status)
@@ -502,12 +559,12 @@
                             :final (public-final replayed)})))))
                   (finally
                     (hffi/run-result-free! ctx result))))
-              (finally
-                (hffi/run-free! ctx run))))
-          (finally
-            (hffi/settings-free! ctx settings))))
-      (finally
-        (hffi/context-free! ctx)))))
+                (finally
+                  (hffi/run-free! ctx run))))
+            (finally
+              (hffi/settings-free! ctx settings))))
+        (finally
+          (hffi/context-free! ctx))))))
 
 (def test-fn!
   "Compatibility name for run-test!."
@@ -539,6 +596,13 @@
   underlying property fails or is flaky; it never returns a partial sample as
   a successful result."
   [n generator]
+  (when-not (and (integer? n) (pos? n))
+    (validation/usage-error! ::invalid-sample
+                             "sample count must be a positive integer" {:n n}))
+  (when-not (fn? generator)
+    (validation/usage-error! ::invalid-sample
+                             "sample requires a generator function"
+                             {:generator generator}))
   (let [values (atom [])
         run (run-test! {:test-cases n
                         :database ""

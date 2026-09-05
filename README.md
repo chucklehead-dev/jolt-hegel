@@ -257,6 +257,12 @@ Generators are ordinary values drawn with `h/draw!`. Prefer a generator that
 constructs valid data directly. Use `h/assume!` only for uncommon exclusions;
 rejecting most cases wastes the run and weakens shrinking.
 
+Public option maps are closed: unsupported keys and invalid documented option
+domains fail as usage errors when the generator or test configuration is
+constructed. In particular, documented boolean options require `true` or
+`false`; they do not use generic Clojure truthiness. This keeps a configuration
+mistake made inside a property out of shrinking and replay.
+
 Recursive generators keep the recursion policy in libhegel, so generated
 trees use the same depth and leaf budgets on every host and can shrink by
 replacing a tree with one of its own subtrees:

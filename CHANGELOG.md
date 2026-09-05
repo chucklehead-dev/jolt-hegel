@@ -10,6 +10,9 @@ for v0.1.0 through v0.4.0, see the tag and release history in that repository.
   bytes without deleting the previous cache entry first. Concurrent installers
   accept only checksum-matching winners; unsupported atomic replacement fails
   without removing the existing target.
+- Tighten public option validation: documented option maps now reject unknown
+ keys, documented booleans must be booleans, and invalid public configuration
+ is classified as a usage error before native execution where feasible.
 - Add bounded direct self-recursion to the optional Malli adapter, including
   engine-owned depth, leaf-budget, retry, and subtree-hoisting shrink behavior.
 - Publish experimental compiler-derived Jolt aspect join points on

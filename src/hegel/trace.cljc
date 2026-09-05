@@ -5,7 +5,8 @@
   harnesses, and ordinary application event logs can all supply a vector of
   maps.  Rules run outside instrumentation advice so an aspect's fail-open
   safety contract cannot swallow a test failure."
-  (:require [hegel.host :as host]))
+  (:require [hegel.host :as host]
+            [hegel.validation :as validation]))
 
 (def default-max-events 256)
 
@@ -15,11 +16,12 @@
   so they must not contain generated data."
   [name check]
   (when-not (or (keyword? name) (symbol? name) (string? name))
-    (throw (ex-info "trace rule name must be a keyword, symbol, or string"
-                    {:type ::invalid-rule :name name})))
+    (validation/usage-error!
+     ::invalid-rule "trace rule name must be a keyword, symbol, or string"
+     {:name name}))
   (when-not (ifn? check)
-    (throw (ex-info "trace rule check must be callable"
-                    {:type ::invalid-rule :name name})))
+    (validation/usage-error! ::invalid-rule "trace rule check must be callable"
+                             {:name name}))
   {::rule true ::name name ::check check})
 
 (defn rule? [value]
@@ -36,8 +38,9 @@
     (throw (ex-info "trace events must be a vector"
                     {:type ::invalid-trace :value-type (str (type events))})))
   (when-not (and (integer? max-events) (pos? max-events))
-    (throw (ex-info "trace max-events must be a positive integer"
-                    {:type ::invalid-options :max-events max-events})))
+    (validation/usage-error! ::invalid-options
+                             "trace max-events must be a positive integer"
+                             {:max-events max-events}))
   (when (> (count events) max-events)
     (throw (ex-info "trace exceeded its configured test bound"
                     {:hegel/origin "hegel.trace/event-bound"
@@ -54,25 +57,33 @@
   command sequence that produced it. Predicate exceptions are wrapped with the
   same stable origin and retained as the cause."
   ([events rules] (check! events rules {}))
-  ([events rules {:keys [max-events] :or {max-events default-max-events}}]
-   (let [events (validate-events events max-events)
+  ([events rules opts]
+   (validation/reject-unknown-keys! ::invalid-options "trace check options"
+                                    #{:max-events} opts)
+   (let [max-events (if (contains? opts :max-events)
+                      (:max-events opts)
+                      default-max-events)
+         events (validate-events events max-events)
          rules (vec rules)]
      (doseq [r rules]
        (when-not (rule? r)
-         (throw (ex-info "trace rules must be created with hegel.trace/rule"
-                         {:type ::invalid-rule :rule r})))
+         (validation/usage-error!
+          ::invalid-rule "trace rules must be created with hegel.trace/rule"
+          {:rule r}))
        (let [name (::name r)
              passed?
              (host/try-catch-all
               (boolean ((::check r) events))
               error
-              (throw (ex-info "trace rule evaluation threw"
-                              {:hegel/origin (origin name)
-                               :type ::rule-error
-                               :hegel.trace/rule name
-                               :hegel.trace/event-count (count events)
-                               :hegel.trace/events events}
-                              error)))]
+              (if (:hegel/usage-error? (ex-data error))
+                (throw error)
+                (throw (ex-info "trace rule evaluation threw"
+                                {:hegel/origin (origin name)
+                                 :type ::rule-error
+                                 :hegel.trace/rule name
+                                 :hegel.trace/event-count (count events)
+                                 :hegel.trace/events events}
+                                error))))]
          (when-not passed?
            (throw (ex-info "trace rule failed"
                            {:hegel/origin (origin name)
@@ -90,21 +101,28 @@
   optional integer `:start`. With `:scope`, ordering is checked independently
   for each scope in its original observation order."
   ([name] (ordered-sequence name {}))
-  ([name {:keys [value scope order start]
-          :or {value :seq order :strictly-increasing}}]
+  ([name opts]
+   (validation/reject-unknown-keys! ::invalid-rule "trace sequence options"
+                                    #{:value :scope :order :start}
+                                    opts)
+   (let [{:keys [value scope order start]
+          :or {value :seq order :strictly-increasing}} opts]
    (when-not (ifn? value)
-     (throw (ex-info "trace sequence :value must be callable"
-                     {:type ::invalid-rule :name name :value value})))
+     (validation/usage-error! ::invalid-rule
+                              "trace sequence :value must be callable"
+                              {:name name :value value}))
    (when-not (or (nil? scope) (ifn? scope))
-     (throw (ex-info "trace sequence :scope must be nil or callable"
-                     {:type ::invalid-rule :name name :scope scope})))
+     (validation/usage-error! ::invalid-rule
+                              "trace sequence :scope must be nil or callable"
+                              {:name name :scope scope}))
    (when-not (contains? #{:nondecreasing :strictly-increasing :contiguous}
                         order)
-     (throw (ex-info "unsupported trace sequence order"
-                     {:type ::invalid-rule :name name :order order})))
+     (validation/usage-error! ::invalid-rule "unsupported trace sequence order"
+                              {:name name :order order}))
    (when-not (or (nil? start) (integer? start))
-     (throw (ex-info "trace sequence :start must be an integer"
-                     {:type ::invalid-rule :name name :start start})))
+     (validation/usage-error! ::invalid-rule
+                              "trace sequence :start must be an integer"
+                              {:name name :start start}))
    (let [ordered?
          (case order
            :nondecreasing <=
@@ -123,7 +141,7 @@
                     (or (nil? start) (empty? values) (= start (first values)))
                     (every? true?
                             (map ordered? values (rest values))))))
-           groups)))))))
+           groups))))))))
 
 (defn event-model
   "Fold events through a small pure state model and check every transition.
@@ -134,30 +152,30 @@
   runs one independent model per scope while preserving each scope's observed
   order."
   [name opts]
-  (when-not (map? opts)
-    (throw (ex-info "trace event-model options must be a map"
-                    {:type ::invalid-rule :name name :options opts})))
-  (let [allowed #{:initial :step :invariant :final :scope}
-        unknown (seq (remove allowed (keys opts)))
-        {:keys [initial step invariant final scope]
+  (validation/require-map! ::invalid-rule "trace event-model options" opts
+                           {:name name :options opts})
+  (validation/reject-unknown-keys! ::invalid-rule "trace event-model options"
+                                   #{:initial :step :invariant :final :scope}
+                                   opts {:name name})
+  (let [{:keys [initial step invariant final scope]
          :or {invariant (fn [_ _] true)
               final (fn [_] true)}} opts]
-    (when unknown
-      (throw (ex-info "unsupported trace event-model option"
-                      {:type ::invalid-rule :name name
-                       :unknown-keys (vec unknown)})))
     (when-not (ifn? step)
-      (throw (ex-info "trace event-model :step must be callable"
-                      {:type ::invalid-rule :name name :step step})))
+      (validation/usage-error! ::invalid-rule
+                               "trace event-model :step must be callable"
+                               {:name name :step step}))
     (when-not (ifn? invariant)
-      (throw (ex-info "trace event-model :invariant must be callable"
-                      {:type ::invalid-rule :name name :invariant invariant})))
+      (validation/usage-error! ::invalid-rule
+                               "trace event-model :invariant must be callable"
+                               {:name name :invariant invariant}))
     (when-not (ifn? final)
-      (throw (ex-info "trace event-model :final must be callable"
-                      {:type ::invalid-rule :name name :final final})))
+      (validation/usage-error! ::invalid-rule
+                               "trace event-model :final must be callable"
+                               {:name name :final final}))
     (when-not (or (nil? scope) (ifn? scope))
-      (throw (ex-info "trace event-model :scope must be nil or callable"
-                      {:type ::invalid-rule :name name :scope scope})))
+      (validation/usage-error! ::invalid-rule
+                               "trace event-model :scope must be nil or callable"
+                               {:name name :scope scope}))
     (rule
      name
      (fn [events]

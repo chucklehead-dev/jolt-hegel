@@ -18,6 +18,7 @@
             [hegel.report :as report]
             [hegel.stateful :as hs]
             [hegel.trace :as htrace]
+            [hegel.validation-test]
             [hegel.version :as version]
             [malli.core :as m]))
 
@@ -3193,6 +3194,10 @@
       (scenario "installer publication ownership"
                 #(let [result (t/run-tests 'hegel.install-publication-test)]
                    (check "installer publication contract suite"
+                          (zero? (+ (:fail result) (:error result))))))
+      (scenario "public option validation"
+                #(let [result (t/run-tests 'hegel.validation-test)]
+                   (check "public validation contract suite"
                           (zero? (+ (:fail result) (:error result))))))
       (scenario "generated seed" generated-seed)
       (scenario "controls and sample" controls-and-sample)
