@@ -178,9 +178,18 @@ EDN do not make untrusted native blobs safe to execute.
 plain-data examples. `hegel.corpus/consume!` verifies their exact payload digest
 and provenance against an independent pin before releasing values; consumption
 does not load libhegel. See [materialized corpora](docs/MATERIALIZED_CORPORA.md)
-for the seed policy, platform crypto requirements, bounds, and remaining
-cross-platform/db-pilot acceptance gates. Corpus integrity is not proof that
+for the seed policy, platform crypto requirements, bounds, and verified
+cross-platform/db-pilot evidence. Corpus integrity is not proof that
 the values satisfy a model or are safe to publish.
+
+### Observations and coverage (unreleased)
+
+Use `h/event!` for categorical labels and `h/observe!` for numeric measurements.
+`:observations? true` returns bounded structured counts; `:coverage` adds explicit
+run-level requirements and makes missed coverage a failing result. Native
+`:show-statistics?` printing remains a separate diagnostic facility. See
+[observations and coverage](docs/OBSERVATIONS.md) for phase scopes, valid-case
+denominators, zero-hit controls and statistical limitations.
 
 ## Stateful and swarm testing
 

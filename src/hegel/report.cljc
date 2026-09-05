@@ -23,7 +23,7 @@
              (pr-str
               (select-keys result
                            [:status :seed :n-failures :failures
-                            :observed-failures :flaky? :error])))
+                            :observed-failures :coverage :flaky? :error])))
 
     :error
     (println "ERROR" description
