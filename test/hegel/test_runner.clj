@@ -424,6 +424,21 @@
                   (= :libffi (:required-capability (ex-data error)))
                   (str/includes? (ex-message error) "not the -static asset"))))))
 
+(defn jolt-ffi-write-order-contract []
+  (if (= :jolt (host/runtime))
+    (let [write-var (ns-resolve 'jolt.ffi 'write)
+          write-value-var (ns-resolve 'hegel.ffi.jolt 'write-value)
+          calls (atom [])]
+      (with-redefs-fn
+        {write-var
+         (fn [& arguments]
+           (swap! calls conj arguments)
+           nil)}
+        #(write-value-var 17 :int64 24 42))
+      (check "Jolt scalar writes use the 0.8 value-before-offset contract"
+             (= [[17 :int64 42 24]] @calls)))
+    (check "Jolt scalar write contract is Jolt-only" true)))
+
 (defn installer-source-identity []
   (check "installer recognizes POSIX and Windows absolute paths"
          (and (native/absolute-path? "/tmp/jolt-hegel")
@@ -2777,6 +2792,7 @@
   (scenario "cleanup and ABI version" cleanup-and-version)
   (scenario "nullable FFI string results" ffi-nullable-string-results)
   (scenario "upstream babashka.ffi adapter" upstream-babashka-ffi-adapter)
+  (scenario "Jolt 0.8 FFI write order" jolt-ffi-write-order-contract)
   (scenario "installer source identity" installer-source-identity)
   (scenario "portable path contracts" portable-path-contracts)
   (scenario "installer checksum contract" installer-checksum-contract)
