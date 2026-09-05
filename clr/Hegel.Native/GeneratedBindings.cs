@@ -23,6 +23,13 @@ public struct HegelDate
 }
 
 [StructLayout(LayoutKind.Sequential)]
+public struct HegelPrinterValueResult
+{
+    public IntPtr Data;
+    public nuint Len;
+}
+
+[StructLayout(LayoutKind.Sequential)]
 public struct HegelStringResult
 {
     public IntPtr Data;
@@ -35,7 +42,7 @@ public struct HegelTime
     public byte Hour;
     public byte Minute;
     public byte Second;
-    public uint Microsecond;
+    public uint Nanosecond;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -72,6 +79,14 @@ internal static partial class NativeMethods
     [LibraryImport(LibraryName, EntryPoint = "hegel_context_new")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial IntPtr ContextNew();
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_event")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int Event(IntPtr arg0, IntPtr arg1, IntPtr arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_event_value")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int EventValue(IntPtr arg0, IntPtr arg1, double arg2, IntPtr arg3);
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_failure_free")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
@@ -165,6 +180,10 @@ internal static partial class NativeMethods
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int NextTestCase(IntPtr arg0, IntPtr arg1, IntPtr arg2);
 
+    [LibraryImport(LibraryName, EntryPoint = "hegel_note")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int Note(IntPtr arg0, IntPtr arg1, IntPtr arg2, nuint arg3);
+
     [LibraryImport(LibraryName, EntryPoint = "hegel_pool_add")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int PoolAdd(IntPtr arg0, IntPtr arg1, IntPtr arg2, IntPtr arg3);
@@ -176,6 +195,90 @@ internal static partial class NativeMethods
     [LibraryImport(LibraryName, EntryPoint = "hegel_pool_generate")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int PoolGenerate(IntPtr arg0, IntPtr arg1, IntPtr arg2, byte arg3, IntPtr arg4);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_printer_abort_speculative")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int PrinterAbortSpeculative(IntPtr arg0, IntPtr arg1);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_printer_begin_group")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int PrinterBeginGroup(IntPtr arg0, IntPtr arg1, ulong arg2, IntPtr arg3, nuint arg4);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_printer_begin_speculative")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int PrinterBeginSpeculative(IntPtr arg0, IntPtr arg1);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_printer_breakable")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int PrinterBreakable(IntPtr arg0, IntPtr arg1, IntPtr arg2, nuint arg3);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_printer_comment")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int PrinterComment(IntPtr arg0, IntPtr arg1, IntPtr arg2, nuint arg3);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_printer_commit_speculative")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int PrinterCommitSpeculative(IntPtr arg0, IntPtr arg1);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_printer_deferred")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int PrinterDeferred(IntPtr arg0, IntPtr arg1, IntPtr arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_printer_end_group")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int PrinterEndGroup(IntPtr arg0, IntPtr arg1, IntPtr arg2, nuint arg3);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_printer_free")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int PrinterFree(IntPtr arg0, IntPtr arg1);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_printer_hard_break")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int PrinterHardBreak(IntPtr arg0, IntPtr arg1);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_printer_if_break")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int PrinterIfBreak(IntPtr arg0, IntPtr arg1, IntPtr arg2, nuint arg3);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_printer_is_live")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int PrinterIsLive(IntPtr arg0, IntPtr arg1, IntPtr arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_printer_new")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int PrinterNew(IntPtr arg0, IntPtr arg1, IntPtr arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_printer_options_free")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int PrinterOptionsFree(IntPtr arg0, IntPtr arg1);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_printer_options_new")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int PrinterOptionsNew(IntPtr arg0, IntPtr arg1);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_printer_options_set_max_width")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int PrinterOptionsSetMaxWidth(IntPtr arg0, IntPtr arg1, ulong arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_printer_resolve")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int PrinterResolve(IntPtr arg0, IntPtr arg1);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_printer_shift_indent")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int PrinterShiftIndent(IntPtr arg0, IntPtr arg1, long arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_printer_text")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int PrinterText(IntPtr arg0, IntPtr arg1, IntPtr arg2, nuint arg3);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_printer_value")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int PrinterValue(IntPtr arg0, IntPtr arg1, IntPtr arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_printer_value_result_free")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int PrinterValueResultFree(IntPtr arg0, IntPtr arg1);
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_recursion_branch")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
@@ -253,10 +356,6 @@ internal static partial class NativeMethods
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int SettingsSetDerandomize(IntPtr arg0, IntPtr arg1, byte arg2);
 
-    [LibraryImport(LibraryName, EntryPoint = "hegel_settings_set_mode")]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial int SettingsSetMode(IntPtr arg0, IntPtr arg1, uint arg2);
-
     [LibraryImport(LibraryName, EntryPoint = "hegel_settings_set_phases")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int SettingsSetPhases(IntPtr arg0, IntPtr arg1, uint arg2);
@@ -268,6 +367,10 @@ internal static partial class NativeMethods
     [LibraryImport(LibraryName, EntryPoint = "hegel_settings_set_seed")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int SettingsSetSeed(IntPtr arg0, IntPtr arg1, ulong arg2, byte arg3);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_settings_set_show_statistics")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int SettingsSetShowStatistics(IntPtr arg0, IntPtr arg1, byte arg2);
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_settings_set_stateful_step_count")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
@@ -304,6 +407,10 @@ internal static partial class NativeMethods
     [LibraryImport(LibraryName, EntryPoint = "hegel_state_machine_rule_rejected")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int StateMachineRuleRejected(IntPtr arg0, IntPtr arg1, IntPtr arg2, long arg3);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_state_machine_should_check_invariant")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int StateMachineShouldCheckInvariant(IntPtr arg0, IntPtr arg1, IntPtr arg2, long arg3, IntPtr arg4);
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_stop_span")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
@@ -353,6 +460,10 @@ internal static partial class NativeMethods
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int TestCaseIsNondeterministic(IntPtr arg0, IntPtr arg1, IntPtr arg2);
 
+    [LibraryImport(LibraryName, EntryPoint = "hegel_test_case_printer")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int TestCasePrinter(IntPtr arg0, IntPtr arg1, IntPtr arg2, IntPtr arg3);
+
     [LibraryImport(LibraryName, EntryPoint = "hegel_version")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int Version(IntPtr arg0, IntPtr arg1);
@@ -368,6 +479,8 @@ public static partial class Bridge
         "hegel_context_free",
         "hegel_context_last_error",
         "hegel_context_new",
+        "hegel_event",
+        "hegel_event_value",
         "hegel_failure_free",
         "hegel_failure_origin",
         "hegel_failure_reproduction_blob",
@@ -391,9 +504,31 @@ public static partial class Bridge
         "hegel_new_recursion",
         "hegel_new_state_machine",
         "hegel_next_test_case",
+        "hegel_note",
         "hegel_pool_add",
         "hegel_pool_free",
         "hegel_pool_generate",
+        "hegel_printer_abort_speculative",
+        "hegel_printer_begin_group",
+        "hegel_printer_begin_speculative",
+        "hegel_printer_breakable",
+        "hegel_printer_comment",
+        "hegel_printer_commit_speculative",
+        "hegel_printer_deferred",
+        "hegel_printer_end_group",
+        "hegel_printer_free",
+        "hegel_printer_hard_break",
+        "hegel_printer_if_break",
+        "hegel_printer_is_live",
+        "hegel_printer_new",
+        "hegel_printer_options_free",
+        "hegel_printer_options_new",
+        "hegel_printer_options_set_max_width",
+        "hegel_printer_resolve",
+        "hegel_printer_shift_indent",
+        "hegel_printer_text",
+        "hegel_printer_value",
+        "hegel_printer_value_result_free",
         "hegel_recursion_branch",
         "hegel_recursion_finish",
         "hegel_recursion_free",
@@ -413,10 +548,10 @@ public static partial class Bridge
         "hegel_settings_set_database",
         "hegel_settings_set_database_key",
         "hegel_settings_set_derandomize",
-        "hegel_settings_set_mode",
         "hegel_settings_set_phases",
         "hegel_settings_set_report_multiple_failures",
         "hegel_settings_set_seed",
+        "hegel_settings_set_show_statistics",
         "hegel_settings_set_stateful_step_count",
         "hegel_settings_set_suppress_health_check",
         "hegel_settings_set_test_cases",
@@ -426,6 +561,7 @@ public static partial class Bridge
         "hegel_state_machine_next_group",
         "hegel_state_machine_next_rule",
         "hegel_state_machine_rule_rejected",
+        "hegel_state_machine_should_check_invariant",
         "hegel_stop_span",
         "hegel_string_generator_domain",
         "hegel_string_generator_email",
@@ -438,6 +574,7 @@ public static partial class Bridge
         "hegel_test_case_free",
         "hegel_test_case_from_blob",
         "hegel_test_case_is_nondeterministic",
+        "hegel_test_case_printer",
         "hegel_version",
     };
 
@@ -452,6 +589,8 @@ public static partial class Bridge
             "context-free" => InvokeContextFree(args),
             "context-last-error" => InvokeContextLastError(args),
             "context-new" => InvokeContextNew(args),
+            "event" => InvokeEvent(args),
+            "event-value" => InvokeEventValue(args),
             "failure-free" => InvokeFailureFree(args),
             "failure-origin" => InvokeFailureOrigin(args),
             "failure-reproduction-blob" => InvokeFailureReproductionBlob(args),
@@ -475,9 +614,31 @@ public static partial class Bridge
             "new-recursion" => InvokeNewRecursion(args),
             "new-state-machine" => InvokeNewStateMachine(args),
             "next-test-case" => InvokeNextTestCase(args),
+            "note" => InvokeNote(args),
             "pool-add" => InvokePoolAdd(args),
             "pool-free" => InvokePoolFree(args),
             "pool-generate" => InvokePoolGenerate(args),
+            "printer-abort-speculative" => InvokePrinterAbortSpeculative(args),
+            "printer-begin-group" => InvokePrinterBeginGroup(args),
+            "printer-begin-speculative" => InvokePrinterBeginSpeculative(args),
+            "printer-breakable" => InvokePrinterBreakable(args),
+            "printer-comment" => InvokePrinterComment(args),
+            "printer-commit-speculative" => InvokePrinterCommitSpeculative(args),
+            "printer-deferred" => InvokePrinterDeferred(args),
+            "printer-end-group" => InvokePrinterEndGroup(args),
+            "printer-free" => InvokePrinterFree(args),
+            "printer-hard-break" => InvokePrinterHardBreak(args),
+            "printer-if-break" => InvokePrinterIfBreak(args),
+            "printer-is-live" => InvokePrinterIsLive(args),
+            "printer-new" => InvokePrinterNew(args),
+            "printer-options-free" => InvokePrinterOptionsFree(args),
+            "printer-options-new" => InvokePrinterOptionsNew(args),
+            "printer-options-set-max-width" => InvokePrinterOptionsSetMaxWidth(args),
+            "printer-resolve" => InvokePrinterResolve(args),
+            "printer-shift-indent" => InvokePrinterShiftIndent(args),
+            "printer-text" => InvokePrinterText(args),
+            "printer-value" => InvokePrinterValue(args),
+            "printer-value-result-free" => InvokePrinterValueResultFree(args),
             "recursion-branch" => InvokeRecursionBranch(args),
             "recursion-finish" => InvokeRecursionFinish(args),
             "recursion-free" => InvokeRecursionFree(args),
@@ -497,10 +658,10 @@ public static partial class Bridge
             "settings-set-database" => InvokeSettingsSetDatabase(args),
             "settings-set-database-key" => InvokeSettingsSetDatabaseKey(args),
             "settings-set-derandomize" => InvokeSettingsSetDerandomize(args),
-            "settings-set-mode" => InvokeSettingsSetMode(args),
             "settings-set-phases" => InvokeSettingsSetPhases(args),
             "settings-set-report-multiple-failures" => InvokeSettingsSetReportMultipleFailures(args),
             "settings-set-seed" => InvokeSettingsSetSeed(args),
+            "settings-set-show-statistics" => InvokeSettingsSetShowStatistics(args),
             "settings-set-stateful-step-count" => InvokeSettingsSetStatefulStepCount(args),
             "settings-set-suppress-health-check" => InvokeSettingsSetSuppressHealthCheck(args),
             "settings-set-test-cases" => InvokeSettingsSetTestCases(args),
@@ -510,6 +671,7 @@ public static partial class Bridge
             "state-machine-next-group" => InvokeStateMachineNextGroup(args),
             "state-machine-next-rule" => InvokeStateMachineNextRule(args),
             "state-machine-rule-rejected" => InvokeStateMachineRuleRejected(args),
+            "state-machine-should-check-invariant" => InvokeStateMachineShouldCheckInvariant(args),
             "stop-span" => InvokeStopSpan(args),
             "string-generator-domain" => InvokeStringGeneratorDomain(args),
             "string-generator-email" => InvokeStringGeneratorEmail(args),
@@ -522,6 +684,7 @@ public static partial class Bridge
             "test-case-free" => InvokeTestCaseFree(args),
             "test-case-from-blob" => InvokeTestCaseFromBlob(args),
             "test-case-is-nondeterministic" => InvokeTestCaseIsNondeterministic(args),
+            "test-case-printer" => InvokeTestCasePrinter(args),
             "version" => InvokeVersion(args),
             _ => throw new ArgumentOutOfRangeException(nameof(functionId), functionId, "Unknown libhegel function"),
         };
@@ -561,6 +724,18 @@ public static partial class Bridge
     {
         RequireArity("context-new", args, 0);
         return NativeMethods.ContextNew();
+    }
+
+    private static object? InvokeEvent(object?[] args)
+    {
+        RequireArity("event", args, 3);
+        return NativeMethods.Event(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]));
+    }
+
+    private static object? InvokeEventValue(object?[] args)
+    {
+        RequireArity("event-value", args, 4);
+        return NativeMethods.EventValue(ToIntPtr(args[0]), ToIntPtr(args[1]), Convert.ToDouble(args[2], CultureInfo.InvariantCulture), ToIntPtr(args[3]));
     }
 
     private static object? InvokeFailureFree(object?[] args)
@@ -701,6 +876,12 @@ public static partial class Bridge
         return NativeMethods.NextTestCase(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]));
     }
 
+    private static object? InvokeNote(object?[] args)
+    {
+        RequireArity("note", args, 4);
+        return NativeMethods.Note(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]), ToNUInt(args[3]));
+    }
+
     private static object? InvokePoolAdd(object?[] args)
     {
         RequireArity("pool-add", args, 4);
@@ -717,6 +898,132 @@ public static partial class Bridge
     {
         RequireArity("pool-generate", args, 5);
         return NativeMethods.PoolGenerate(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]), ToByte(args[3]), ToIntPtr(args[4]));
+    }
+
+    private static object? InvokePrinterAbortSpeculative(object?[] args)
+    {
+        RequireArity("printer-abort-speculative", args, 2);
+        return NativeMethods.PrinterAbortSpeculative(ToIntPtr(args[0]), ToIntPtr(args[1]));
+    }
+
+    private static object? InvokePrinterBeginGroup(object?[] args)
+    {
+        RequireArity("printer-begin-group", args, 5);
+        return NativeMethods.PrinterBeginGroup(ToIntPtr(args[0]), ToIntPtr(args[1]), ToUInt64(args[2]), ToIntPtr(args[3]), ToNUInt(args[4]));
+    }
+
+    private static object? InvokePrinterBeginSpeculative(object?[] args)
+    {
+        RequireArity("printer-begin-speculative", args, 2);
+        return NativeMethods.PrinterBeginSpeculative(ToIntPtr(args[0]), ToIntPtr(args[1]));
+    }
+
+    private static object? InvokePrinterBreakable(object?[] args)
+    {
+        RequireArity("printer-breakable", args, 4);
+        return NativeMethods.PrinterBreakable(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]), ToNUInt(args[3]));
+    }
+
+    private static object? InvokePrinterComment(object?[] args)
+    {
+        RequireArity("printer-comment", args, 4);
+        return NativeMethods.PrinterComment(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]), ToNUInt(args[3]));
+    }
+
+    private static object? InvokePrinterCommitSpeculative(object?[] args)
+    {
+        RequireArity("printer-commit-speculative", args, 2);
+        return NativeMethods.PrinterCommitSpeculative(ToIntPtr(args[0]), ToIntPtr(args[1]));
+    }
+
+    private static object? InvokePrinterDeferred(object?[] args)
+    {
+        RequireArity("printer-deferred", args, 3);
+        return NativeMethods.PrinterDeferred(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]));
+    }
+
+    private static object? InvokePrinterEndGroup(object?[] args)
+    {
+        RequireArity("printer-end-group", args, 4);
+        return NativeMethods.PrinterEndGroup(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]), ToNUInt(args[3]));
+    }
+
+    private static object? InvokePrinterFree(object?[] args)
+    {
+        RequireArity("printer-free", args, 2);
+        return NativeMethods.PrinterFree(ToIntPtr(args[0]), ToIntPtr(args[1]));
+    }
+
+    private static object? InvokePrinterHardBreak(object?[] args)
+    {
+        RequireArity("printer-hard-break", args, 2);
+        return NativeMethods.PrinterHardBreak(ToIntPtr(args[0]), ToIntPtr(args[1]));
+    }
+
+    private static object? InvokePrinterIfBreak(object?[] args)
+    {
+        RequireArity("printer-if-break", args, 4);
+        return NativeMethods.PrinterIfBreak(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]), ToNUInt(args[3]));
+    }
+
+    private static object? InvokePrinterIsLive(object?[] args)
+    {
+        RequireArity("printer-is-live", args, 3);
+        return NativeMethods.PrinterIsLive(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]));
+    }
+
+    private static object? InvokePrinterNew(object?[] args)
+    {
+        RequireArity("printer-new", args, 3);
+        return NativeMethods.PrinterNew(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]));
+    }
+
+    private static object? InvokePrinterOptionsFree(object?[] args)
+    {
+        RequireArity("printer-options-free", args, 2);
+        return NativeMethods.PrinterOptionsFree(ToIntPtr(args[0]), ToIntPtr(args[1]));
+    }
+
+    private static object? InvokePrinterOptionsNew(object?[] args)
+    {
+        RequireArity("printer-options-new", args, 2);
+        return NativeMethods.PrinterOptionsNew(ToIntPtr(args[0]), ToIntPtr(args[1]));
+    }
+
+    private static object? InvokePrinterOptionsSetMaxWidth(object?[] args)
+    {
+        RequireArity("printer-options-set-max-width", args, 3);
+        return NativeMethods.PrinterOptionsSetMaxWidth(ToIntPtr(args[0]), ToIntPtr(args[1]), ToUInt64(args[2]));
+    }
+
+    private static object? InvokePrinterResolve(object?[] args)
+    {
+        RequireArity("printer-resolve", args, 2);
+        return NativeMethods.PrinterResolve(ToIntPtr(args[0]), ToIntPtr(args[1]));
+    }
+
+    private static object? InvokePrinterShiftIndent(object?[] args)
+    {
+        RequireArity("printer-shift-indent", args, 3);
+        return NativeMethods.PrinterShiftIndent(ToIntPtr(args[0]), ToIntPtr(args[1]), Convert.ToInt64(args[2], CultureInfo.InvariantCulture));
+    }
+
+    private static object? InvokePrinterText(object?[] args)
+    {
+        RequireArity("printer-text", args, 4);
+        return NativeMethods.PrinterText(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]), ToNUInt(args[3]));
+    }
+
+    private static object? InvokePrinterValue(object?[] args)
+    {
+        RequireArity("printer-value", args, 3);
+        return NativeMethods.PrinterValue(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]));
+    }
+
+    private static object? InvokePrinterValueResultFree(object?[] args)
+    {
+        RequireArity("printer-value-result-free", args, 2);
+        return NativeMethods.PrinterValueResultFree(ToIntPtr(args[0]), ToIntPtr(args[1]));
     }
 
     private static object? InvokeRecursionBranch(object?[] args)
@@ -833,12 +1140,6 @@ public static partial class Bridge
         return NativeMethods.SettingsSetDerandomize(ToIntPtr(args[0]), ToIntPtr(args[1]), ToByte(args[2]));
     }
 
-    private static object? InvokeSettingsSetMode(object?[] args)
-    {
-        RequireArity("settings-set-mode", args, 3);
-        return NativeMethods.SettingsSetMode(ToIntPtr(args[0]), ToIntPtr(args[1]), Convert.ToUInt32(args[2], CultureInfo.InvariantCulture));
-    }
-
     private static object? InvokeSettingsSetPhases(object?[] args)
     {
         RequireArity("settings-set-phases", args, 3);
@@ -855,6 +1156,12 @@ public static partial class Bridge
     {
         RequireArity("settings-set-seed", args, 4);
         return NativeMethods.SettingsSetSeed(ToIntPtr(args[0]), ToIntPtr(args[1]), ToUInt64(args[2]), ToByte(args[3]));
+    }
+
+    private static object? InvokeSettingsSetShowStatistics(object?[] args)
+    {
+        RequireArity("settings-set-show-statistics", args, 3);
+        return NativeMethods.SettingsSetShowStatistics(ToIntPtr(args[0]), ToIntPtr(args[1]), ToByte(args[2]));
     }
 
     private static object? InvokeSettingsSetStatefulStepCount(object?[] args)
@@ -909,6 +1216,12 @@ public static partial class Bridge
     {
         RequireArity("state-machine-rule-rejected", args, 4);
         return NativeMethods.StateMachineRuleRejected(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]), Convert.ToInt64(args[3], CultureInfo.InvariantCulture));
+    }
+
+    private static object? InvokeStateMachineShouldCheckInvariant(object?[] args)
+    {
+        RequireArity("state-machine-should-check-invariant", args, 5);
+        return NativeMethods.StateMachineShouldCheckInvariant(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]), Convert.ToInt64(args[3], CultureInfo.InvariantCulture), ToIntPtr(args[4]));
     }
 
     private static object? InvokeStopSpan(object?[] args)
@@ -981,6 +1294,12 @@ public static partial class Bridge
     {
         RequireArity("test-case-is-nondeterministic", args, 3);
         return NativeMethods.TestCaseIsNondeterministic(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]));
+    }
+
+    private static object? InvokeTestCasePrinter(object?[] args)
+    {
+        RequireArity("test-case-printer", args, 4);
+        return NativeMethods.TestCasePrinter(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]), ToIntPtr(args[3]));
     }
 
     private static object? InvokeVersion(object?[] args)

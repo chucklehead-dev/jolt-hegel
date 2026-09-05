@@ -261,7 +261,8 @@
   [test-case machine rules invariants initial-state initial-trace initial-step]
   (loop [state initial-state
          trace initial-trace
-         step-number initial-step]
+         step-number initial-step
+         rejected? false]
     (if-some [index
               (hffi/state-machine-next-rule!
                (:context test-case) (:handle test-case) machine)]
@@ -285,15 +286,49 @@
             (if applied?
               (do
                 (check-invariants! invariants next-state next-trace)
-                (recur next-state next-trace (inc step-number)))
+                (recur next-state next-trace (inc step-number) rejected?))
               (do
                 (hffi/state-machine-rule-rejected!
                  (:context test-case) (:handle test-case) machine)
                 (h/note! "Rule stopped early due to violated assumption.")
-                (recur state trace step-number))))))
+                (recur state trace step-number true))))))
       {:state state
        :trace trace
-       :step-number step-number})))
+       :step-number step-number
+       :rejected? rejected?})))
+
+(defn- in-stateful-round-span
+  "Run one state-machine round inside the native stateful-rule span.
+
+  `round-fn` returns a map with :discard? when its completed rule was
+  rejected.  The terminating next-group probe is also a span: that keeps its
+  stop choice structured for shrinking.  On an exception, close exactly once
+  when possible but retain the original error even if closing also fails."
+  [test-case round-fn]
+  (hffi/start-span! (:context test-case) (:handle test-case)
+                    hffi/label-stateful-rule)
+  (let [closed? (atom false)
+        close! (fn [discard?]
+                 (when-not @closed?
+                   ;; Set before the FFI call: stop-span! can itself throw,
+                   ;; and the error path must never pop a second span.
+                   (reset! closed? true)
+                   (hffi/stop-span! (:context test-case) (:handle test-case)
+                                    discard?)))]
+    (host/try-catch-all
+     (let [round (round-fn)]
+       (close! (:discard? round))
+       round)
+     error
+     (do
+       (when-not @closed?
+         ;; A body error (including stop-test) remains authoritative.  Closing
+         ;; is best-effort solely to balance the stateful round span.
+         (host/try-catch-all
+          (close! false)
+          _close-error
+          nil))
+       (throw error)))))
 
 (defn ^{:jolt.aspects/id :hegel.stateful/run
         :jolt.aspects/role :test/state-machine-run}
@@ -333,15 +368,21 @@
         (loop [state (:initial-state config)
                trace []
                step-number 1]
-          (if-some [_group
-                    (hffi/state-machine-next-group!
-                     (:context test-case) (:handle test-case) machine)]
-            (let [group-result
-                  (run-group! test-case machine rules invariants
-                              state trace step-number)]
-              (recur (:state group-result)
-                     (:trace group-result)
-                     (:step-number group-result)))
-            state))
+          (let [round
+                (in-stateful-round-span
+                 test-case
+                 (fn []
+                   (if-some [_group
+                             (hffi/state-machine-next-group!
+                              (:context test-case) (:handle test-case) machine)]
+                     (let [group-result
+                           (run-group! test-case machine rules invariants
+                                       state trace step-number)]
+                       (assoc group-result :continue? true
+                              :discard? (:rejected? group-result)))
+                     {:continue? false :discard? false})))]
+            (if (:continue? round)
+              (recur (:state round) (:trace round) (:step-number round))
+              state)))
         (finally
           (hffi/state-machine-free! (:context test-case) machine))))))

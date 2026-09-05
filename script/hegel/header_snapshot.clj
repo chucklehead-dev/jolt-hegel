@@ -5,7 +5,7 @@
             [clojure.string :as str])
   (:import [java.security MessageDigest]))
 
-(def fixture-dir "test/fixtures/hegel-0.33.3")
+(def fixture-dir "test/fixtures/hegel-0.36.3")
 (defn fail! [message data] (throw (ex-info (str "header snapshot parse failed: " message) data)))
 (defn read-utf8 [path] (slurp (io/file path) :encoding "UTF-8"))
 (defn sha256 [bytes]

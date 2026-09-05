@@ -10,9 +10,9 @@ authoritative header, named types, and named functions:
 ```clojure
 {:schema-version 1
  :library {:name "libhegel"
-           :version "0.33.3"
+           :version "0.36.3"
            :header {:repository "hegeldev/hegel-rust"
-                    :tag "v0.33.3"
+                    :tag "v0.36.3"
                     :commit "..."
                     :path "hegel-c/include/hegel.h"}}
  :types {...}
@@ -32,7 +32,8 @@ and explicit by-value use.
  :fields [{:name :hour :type :c/uint8}
           {:name :minute :type :c/uint8}
           {:name :second :type :c/uint8}
-          {:name :microsecond :type :c/uint32}]}
+          {:name :nanosecond :type :c/uint32
+           :unit :nanosecond :range [0 999999999]}]}
 
 :hegel/datetime
 {:kind :struct
@@ -138,8 +139,8 @@ registered by the selected runtime. Current route names are:
 The report is intended for CI, diagnostics, and ABI upgrades. Application code
 should not branch on the route.
 
-The supported Jolt, Babashka, and JVM backends cover all 77 functions in the
-current libhegel 0.33.3 descriptor. The jank and ClojureCLR generators also cover
+The supported Jolt, Babashka, and JVM backends describe all 103 functions in the
+current libhegel 0.36.3 descriptor. The jank and ClojureCLR generators also cover
 the complete descriptor at code-generation time, but those hosts currently run
 focused experimental semantic suites rather than the full supported-host parity
 matrix. Descriptor coverage therefore answers "can this backend express every

@@ -6,6 +6,19 @@ for v0.1.0 through v0.4.0, see the tag and release history in that repository.
 
 ## Unreleased
 
+- Upgrade libhegel to 0.36.3 with its complete 103-function canonical ABI and
+  regenerated experimental backends. Native time fields now use nanoseconds;
+  public `time`/`datetime` retain microsecond bounds and six-digit precision
+  through an explicit full-bucket, round-down adapter. Seed/choice streams
+  and reproduction blobs are not promised compatible across engine versions.
+- Remove the obsolete `:mode` run option with an actionable pre-native usage
+  error. `:test-cases 1` is a valid-case budget, not the former no-shrink
+  single-test-case mode. Every-step stateful invariant checking remains the
+  default; new native sampling, printer and observation APIs are not silently
+  enabled by the upgrade.
+- Record native stateful-rule spans around complete rounds so the native
+  shrinker can attempt whole-step deletion, while retaining existing invariant
+  timing and preserving property errors during span cleanup.
 - Add `hegel.history/analyze` with decisive linearizability results and an
   explicit global `:max-search-steps` bound (default 100000). Exhaustion is an
   inconclusive marked abort, never a shrinkable false linearizability verdict.

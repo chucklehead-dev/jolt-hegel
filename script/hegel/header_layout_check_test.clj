@@ -9,7 +9,7 @@
   (let [snapshot (header/snapshot)
         descriptor (edn/read-string (slurp "resources/hegel/abi.edn"))
         measurement (compiler/measure! snapshot)]
-    (is (= {:scalars 12 :structs 5 :enums 2}
+    (is (= {:scalars 12 :structs 6 :enums 2}
            (check/check! snapshot descriptor measurement)))
     (doseq [[label mutant]
             [["scalar width" (assoc-in descriptor [:types :c/uint32 :bits] 64)]

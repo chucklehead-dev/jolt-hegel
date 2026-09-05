@@ -26,7 +26,7 @@
   (backend/write-field pointer layout [:hour] (:hour value))
   (backend/write-field pointer layout [:minute] (:minute value))
   (backend/write-field pointer layout [:second] (:second value))
-  (backend/write-field pointer layout [:microsecond] (:microsecond value)))
+  (backend/write-field pointer layout [:nanosecond] (:nanosecond value)))
 
 (defn- read-date [pointer layout prefix]
   {:year (backend/read-field pointer layout (conj prefix :year))
@@ -37,7 +37,7 @@
   {:hour (backend/read-field pointer layout (conj prefix :hour))
    :minute (backend/read-field pointer layout (conj prefix :minute))
    :second (backend/read-field pointer layout (conj prefix :second))
-   :microsecond (backend/read-field pointer layout (conj prefix :microsecond))})
+   :nanosecond (backend/read-field pointer layout (conj prefix :nanosecond))})
 
 (defn -main [& args]
   (println "jank backend smoke: namespace loaded")
@@ -47,7 +47,7 @@
       (throw (ex-info "pass the absolute libhegel library path"
                       {:type ::missing-library-path})))
     (backend/load! library-path))
-  (println "jank backend smoke: library and 77 symbols loaded")
+  (println "jank backend smoke: library and 103 symbols loaded")
   (let [memory (backend/alloc 32)
         pointee (backend/alloc 8)]
     (try
@@ -119,7 +119,7 @@
                     time-layout (backend/layout :hegel/time)
                     datetime-layout (backend/layout :hegel/datetime)
                     fixed-date {:year 2024 :month 2 :day 29}
-                    fixed-time {:hour 12 :minute 34 :second 56 :microsecond 789}
+                    fixed-time {:hour 12 :minute 34 :second 56 :nanosecond 789123456}
                     min-date (backend/alloc (backend/layout-size date-layout))
                     max-date (backend/alloc (backend/layout-size date-layout))
                     date-out (backend/alloc (backend/layout-size date-layout))
@@ -138,7 +138,7 @@
                     (doseq [field [:year :month :day]]
                       (backend/write-field pointer datetime-layout
                                            [:date field] (get fixed-date field)))
-                    (doseq [field [:hour :minute :second :microsecond]]
+                    (doseq [field [:hour :minute :second :nanosecond]]
                       (backend/write-field pointer datetime-layout
                                            [:time field] (get fixed-time field))))
                   (require! "date struct passed by value"

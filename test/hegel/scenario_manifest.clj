@@ -19,6 +19,7 @@
    {:id :installer-checksum :suite :install :description "installer checksum contract" :entrypoint 'hegel.suites.install/installer-checksum-contract}
    {:id :installer-publication :suite :install :description "installer publication ownership" :entrypoint 'hegel.suites.install/installer-publication-contract}
    {:id :validation :suite :validation :description "public option validation" :entrypoint 'hegel.suites.validation/public-option-validation}
+   {:id :temporal-precision :suite :generators :description "temporal precision compatibility" :entrypoint 'hegel.suites.generators/temporal-precision-contract}
    {:id :generated-seed :suite :runner :description "generated seed" :entrypoint 'hegel.suites.runner/generated-seed}
    {:id :controls-sample :suite :runner :description "controls and sample" :entrypoint 'hegel.suites.runner/controls-and-sample}
    {:id :primitive-generators :suite :generators :description "primitive generators" :entrypoint 'hegel.suites.generators/primitive-generators}
@@ -35,6 +36,7 @@
    {:id :stateful-shrinking :suite :stateful :description "stateful shrink quality" :entrypoint 'hegel.suites.stateful/stateful-shrink-quality}
    {:id :stateful-swarm :suite :stateful :description "stateful swarm and control flow" :entrypoint 'hegel.suites.stateful/stateful-swarm-and-control-flow}
    {:id :stateful-abi :suite :stateful :description "latest stateful ABI and owned handles" :entrypoint 'hegel.suites.stateful/latest-stateful-abi}
+   {:id :libhegel-upgrade :suite :stateful :description "libhegel upgrade and versioned replay contracts" :entrypoint 'hegel.suites.stateful/libhegel-upgrade-contract}
    {:id :trace-rules :suite :trace-history :description "bounded semantic trace rules" :entrypoint 'hegel.suites.trace-history/semantic-trace-rules}
    {:id :linearizability :suite :trace-history :description "bounded linearizability" :entrypoint 'hegel.suites.trace-history/bounded-linearizability}
    {:id :history-budget :suite :trace-history :description "bounded linearizability search budget" :entrypoint 'hegel.suites.trace-history/history-budget-contract}

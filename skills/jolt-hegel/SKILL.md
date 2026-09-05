@@ -9,10 +9,14 @@ Use jolt-hegel to write property-based and model-based tests on Jolt,
 Babashka, or JVM Clojure. The public API and behavioral contract are shared;
 runtime choice affects installation and native diagnostics, not property code.
 
-The guidance below was verified on 2026-09-04 against source revision
+The base runtime guidance was verified on 2026-09-04 against source revision
 `42ad76538e8824bd774a3c71bfa41723ce9e07c2`. Current `main` requires Jolt
 0.8.1; the published `v0.5.0` release retains its historical Jolt 0.7.23+
 contract. The supported FFI-capable Babashka floor is 1.13.220 with libffi.
+
+API additions below follow the accompanying source, not the published v0.5.0
+API. Check `hegel.version/libhegel-version` when migrating native dependencies;
+the 0.36 migration changes raw temporal fields and removes `:mode`.
 
 jank and ClojureCLR implementations are merged but experimental. Do not select
 one for a consumer merely because its source branch exists: first read
@@ -130,6 +134,12 @@ and flaky verdicts throw `::h/sample-failed` with the complete run result and
 original cause data instead of returning a partial sample. Usage, setup, and
 native harness exceptions from `run-test!` propagate directly.
 
+Public `g/time` and `g/datetime` retain microsecond bounds and six-digit
+fractional strings with libhegel 0.36. Raw FFI time maps instead use
+nanoseconds. The generator adapter rounds native sub-microsecond precision
+down; do not reject those native draws or reinterpret a microsecond value as
+nanoseconds. Native upgrades may change seed streams and reproduction blobs.
+
 Use `g/recursive` for trees, ASTs, nested workflows, and recursive documents.
 Pass a leaf generator plus a branch function that consumes the supplied
 subtree generator; let libhegel own depth, leaf-budget, retry, and subtree
@@ -173,6 +183,12 @@ reliable test verdict. Keep the snapshot within `:max-events` and use
 `contiguous-sequence` when a bounded ring journal can discard its prefix.
 Hegel will then shrink the inputs or stateful rule sequence that produced a
 failed trace and retain the bounded events in final exception data.
+
+For bounded histories, use `hegel.history/analyze` when the caller needs an
+explicit legal/illegal/inconclusive result. Legacy witness/boolean/check APIs
+throw a `:hegel/inconclusive? true` exception on search-budget exhaustion;
+never turn that into a shrinkable property failure. The candidate-work budget
+does not limit preprocessing or wall time in arbitrary model callbacks.
 
 ## External systems
 

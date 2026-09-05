@@ -9,7 +9,6 @@
            [java.util UUID]
            [java.util.concurrent TimeUnit]))
 
-(def ^:private default-header "test/fixtures/hegel-0.33.3/hegel.h")
 (def ^:private default-timeout-ms 10000)
 
 (def ^:private primitive-expressions
@@ -140,10 +139,13 @@
                                 {:phase phase :command command :exit exit :log (str log-file)
                                  :output output}))))
             {:exit exit :log (str log-file)}))
-        (let [reap (force-reap! process)]
-          (throw (ex-info "C layout probe timed out"
+        (let [reap (force-reap! process)
+              output (read-log log-file)]
+          (throw (ex-info (str "C layout probe timed out during " (name phase)
+                              " after " timeout-ms " ms; log " log-file ": "
+                              (subs output 0 (min 8000 (count output))))
                           (merge {:phase phase :command command :timeout-ms timeout-ms
-                                  :log (str log-file)} reap)))))
+                                  :log (str log-file) :output output} reap)))))
       (finally
         ;; This covers interruption and any error after start; normal nonzero
         ;; exits are already reaped and do not need another termination call.
@@ -157,8 +159,9 @@
   ([snapshot] (measure! snapshot {}))
   ([snapshot {:keys [compiler header-path timeout-ms work-dir]
               :or {compiler (or (System/getenv "HEGEL_ABI_CC") "cc")
-                   header-path default-header timeout-ms default-timeout-ms}}]
-   (let [work-dir (or work-dir (task-dir!))
+                   timeout-ms default-timeout-ms}}]
+   (let [header-path (or header-path (str header/fixture-dir "/hegel.h"))
+         work-dir (or work-dir (task-dir!))
          work-dir (if (instance? Path work-dir) work-dir (Paths/get (str work-dir) (make-array String 0)))
          work-dir (.toAbsolutePath work-dir)
          _ (Files/createDirectories work-dir (make-array java.nio.file.attribute.FileAttribute 0))

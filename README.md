@@ -10,7 +10,7 @@ before the result is reported. The seed in every result makes the run
 repeatable.
 
 jolt-hegel exposes one Clojure API on all three hosts. It calls the same
-libhegel 0.33.3 C ABI directly through `jolt.ffi` or the upstream
+libhegel 0.36.3 C ABI directly through `jolt.ffi` or the upstream
 `babashka.ffi` library (which uses the final JDK Foreign Function & Memory API
 on the JVM). There is no service to start and no subprocess protocol.
 
@@ -330,8 +330,12 @@ The supported schema contract is listed in the
 
 ## Installation
 
-jolt-hegel uses libhegel 0.33.3. Prebuilt upstream libraries are available for
-Linux x86_64, Windows x86_64, and macOS arm64. The installer chooses the asset,
+For the native mode removal, temporal precision adapter, and replay-version
+boundary, see [libhegel 0.36 migration](docs/LIBHEGEL-036-MIGRATION.md).
+
+jolt-hegel uses libhegel 0.36.3. Prebuilt upstream libraries are available for
+Linux x86_64/arm64, Windows x86_64/arm64, and macOS arm64; the supported CI
+matrix remains Linux x86_64, Windows x86_64, and macOS arm64. The installer chooses the asset,
 verifies its pinned SHA-256, and caches it. The same SHA-pinned Git dependency
 can be used by each host:
 

@@ -92,7 +92,7 @@ The ordinary Linux asset is required; the static Linux asset has neither
 dynamic-library loading nor the libffi route required by libhegel aggregates.
 The standalone
 `babashka/ffi` JVM dependency matches the source embedded by that Babashka
-release at `aacb153618bc39ca1e4c397b8f30fb81c76d0c4c`. libhegel 0.33.3
+release at `aacb153618bc39ca1e4c397b8f30fb81c76d0c4c`. libhegel 0.36.3
 release hashes are pinned in `hegel.install`. The JVM lane uses JDK 25 and
 retains a JDK 22 minimum-version compatibility gate. Experimental CLR CI pins
 ClojureCLR 1.12.2 and .NET 8. The release workflow also rejects a tag that does

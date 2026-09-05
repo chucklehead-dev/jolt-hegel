@@ -1,8 +1,10 @@
 (ns hegel.suites.stateful
   "Stateful contract scenarios, loaded only when their suite is selected."
-  (:require [hegel.core :as h]
+  (:require [clojure.test :as t]
+            [hegel.core :as h]
             [hegel.ffi :as hffi]
             [hegel.generator :as g]
+            [hegel.libhegel-upgrade-test]
             [hegel.stateful :as hs]
             [hegel.test-support :as support]))
 
@@ -485,7 +487,11 @@
     (support/check! context "latest stateful step count controls successful rule steps"
            (and (:passed? result)
                 (seq @states)
-                (every? #(= 7 %) @states)))
+                ;; Native 0.36.1 fixes continuation draws: 7 is an upper
+                ;; bound, not a promise that every generated trace is full.
+                ;; The upgrade suite separately requires shorter and full
+                ;; traces with seeded positive coverage controls.
+                (every? #(<= 1 % 7) @states)))
     (support/check! context "rejected stateful rules are reported without consuming steps"
            (pos? (:rule-rejected @counts)))
     (support/check! context "latest opaque collection handles are freed exactly once"
@@ -512,39 +518,11 @@
             error))]
     (support/check! context "stateful step count rejects zero before a native run"
            (= ::h/invalid-option (:type (ex-data error)))))
-  ;; This is a fixed 51-step failure blob produced by libhegel 0.32.3. The
-  ;; 0.32.3 regression was that blob replay ignored :stateful-step-count and
-  ;; stopped at the old default of 50, so the invariant never failed.
-  (let [ctx (hffi/context-new!)]
-    (try
-      (let [settings (hffi/settings-new! ctx)]
-        (try
-          (hffi/settings-set-stateful-step-count! ctx settings 52)
-          (let [handle
-                (hffi/test-case-from-blob!
-                 ctx settings
-                 "AXic7cihDQAACAPBr2V/xbRgCKobVDS9fAOC2nGnL2FoOU7+Az0=")
-                test-case (h/->TestCase ctx handle true :quiet)]
-            (try
-              (let [error
-                    (binding [h/*test-case* test-case]
-                      (try
-                        (hs/run!
-                         {:initial-state {:count 0}
-                          :rules [(hs/rule :inc #(update % :count inc))]
-                          :invariants
-                          [(hs/invariant :below-fifty-one
-                                         #(< (:count %) 51))]})
-                        nil
-                        (catch Throwable error
-                          error)))]
-                (support/check! context "stateful blobs replay failures beyond fifty steps"
-                       (and error
-                            (= 51
-                               (count (::hs/trace (ex-data error)))))))
-              (finally
-                (hffi/test-case-free! ctx handle))))
-          (finally
-            (hffi/settings-free! ctx settings))))
-      (finally
-        (hffi/context-free! ctx)))))
+  ;; Exact-version replay and the fixed-50 negative control now live in
+  ;; libhegel-upgrade-test. The old blob is retained under fixtures/hegel-0.32.3.
+  nil)
+
+(defn libhegel-upgrade-contract [context]
+  (let [result (t/run-tests 'hegel.libhegel-upgrade-test)]
+    (support/check! context "libhegel upgrade contract suite"
+                    (zero? (+ (:fail result) (:error result))))))

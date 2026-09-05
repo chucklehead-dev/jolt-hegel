@@ -43,12 +43,13 @@
 
 (defn upstream-babashka-ffi-adapter [context]
   (let [report (abi/backend-report)
+        function-count (count (abi/functions))
         expected-route (case (host/runtime)
                          :bb #{:bb/trampoline :bb/libffi :bb/ffm}
                          :jvm #{:jvm/ffm}
                          nil)]
     (support/check! context "selected backend covers every canonical ABI function"
-           (= {:supported 77 :unsupported 0 :total 77}
+           (= {:supported function-count :unsupported 0 :total function-count}
               (:summary report)))
     (when expected-route
       (support/check! context "babashka.ffi bindings report exact host call routes"
@@ -57,7 +58,7 @@
   (when (contains? #{:bb :jvm} (host/runtime))
     (let [layout (ffi-backend/layout :hegel/datetime)
           value {:date {:year 2024 :month 2 :day 29}
-                 :time {:hour 1 :minute 2 :second 3 :microsecond 4}}
+                 :time {:hour 1 :minute 2 :second 3 :nanosecond 4}}
           escaped (atom nil)]
       (support/check! context "upstream babashka.ffi uses canonical nested struct maps"
              (= value
@@ -73,7 +74,7 @@
                               [[:time :hour] 1]
                               [[:time :minute] 2]
                               [[:time :second] 3]
-                              [[:time :microsecond] 4]]]
+                              [[:time :nanosecond] 4]]]
                        (ffi-backend/write-field pointer layout path field-value))
                      (ffi-backend/by-value pointer layout))))))
       (support/check! context "length-delimited UTF-8 preserves embedded NUL bytes"

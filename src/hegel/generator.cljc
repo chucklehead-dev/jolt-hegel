@@ -6,6 +6,7 @@
             [hegel.core :as h]
             [hegel.ffi :as hffi]
             [hegel.host :as host]
+            [hegel.temporal :as temporal]
             [hegel.validation :as validation]))
 
 (def ^:private min-int64 -9223372036854775808N)
@@ -391,11 +392,13 @@
    (let [minimum (if (contains? opts :min) (:min opts) minimum-time)
          maximum (if (contains? opts :max) (:max opts) maximum-time)]
      (validate-bounds! "time" valid-time? ordered-times? minimum maximum)
-     (composite-fn
-      (fn [test-case]
-        (format-time
-         (hffi/generate-time! (:context test-case) (:handle test-case)
-                              minimum maximum))))))
+     (let [[native-min native-max] (temporal/native-time-bounds minimum maximum)]
+       (composite-fn
+        (fn [test-case]
+          (format-time
+           (temporal/public-time
+            (hffi/generate-time! (:context test-case) (:handle test-case)
+                                native-min native-max))))))))
   ([minimum maximum]
    (time {:min minimum :max maximum})))
 
@@ -412,12 +415,14 @@
          maximum (if (contains? opts :max) (:max opts) maximum-datetime)]
      (validate-bounds!
       "datetime" valid-datetime? ordered-datetimes? minimum maximum)
-     (composite-fn
-      (fn [test-case]
-        (let [{:keys [date time]}
-              (hffi/generate-datetime!
-               (:context test-case) (:handle test-case) minimum maximum)]
-          (str (format-date date) "T" (format-time time)))))))
+     (let [[native-min native-max] (temporal/native-datetime-bounds minimum maximum)]
+       (composite-fn
+        (fn [test-case]
+          (let [{:keys [date time]}
+                (temporal/public-datetime
+                 (hffi/generate-datetime!
+                  (:context test-case) (:handle test-case) native-min native-max))]
+            (str (format-date date) "T" (format-time time))))))))
   ([minimum maximum]
    (datetime {:min minimum :max maximum})))
 

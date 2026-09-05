@@ -34,7 +34,6 @@
 (def c-context-last-error (backend/function :context-last-error))
 (def c-settings-new (backend/function :settings-new))
 (def c-settings-free (backend/function :settings-free))
-(def c-settings-set-mode (backend/function :settings-set-mode))
 (def c-settings-set-backend (backend/function :settings-set-backend))
 (def c-settings-set-test-cases (backend/function :settings-set-test-cases))
 (def c-settings-set-stateful-step-count (backend/function :settings-set-stateful-step-count))
@@ -123,6 +122,7 @@
 (def label-flat-map 11)
 (def label-filter 12)
 (def label-mapped 13)
+(def label-stateful-rule 31)
 (def label-recursive 35)
 
 (def state-machine-done
@@ -297,10 +297,6 @@
   (c-settings-free ctx settings)
   nil)
 
-(defn settings-set-mode! [ctx settings value]
-  (check! ctx :settings-set-mode
-          (c-settings-set-mode ctx settings value)))
-
 (defn settings-set-backend! [ctx settings value]
   (check! ctx :settings-set-backend
           (c-settings-set-backend ctx settings value)))
@@ -452,14 +448,14 @@
              [:year :month :day])))
 
 (defn- write-time! [ptr layout prefix value]
-  (doseq [field [:hour :minute :second :microsecond]]
+  (doseq [field [:hour :minute :second :nanosecond]]
     (backend/write-field ptr layout (conj prefix field) (get value field))))
 
 (defn- read-time [ptr layout prefix]
   (into {}
         (map (fn [field]
                [field (backend/read-field ptr layout (conj prefix field))])
-             [:hour :minute :second :microsecond])))
+             [:hour :minute :second :nanosecond])))
 
 (defn- write-datetime! [ptr value]
   (write-date! ptr datetime-layout [:date] (:date value))

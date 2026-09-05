@@ -55,10 +55,6 @@
 (def ^:private max-int64 9223372036854775807)
 (def ^:private max-uint64 18446744073709551615N)
 
-(def ^:private mode-values
-  {:test-run 0
-   :single-test-case 1})
-
 (def ^:private backend-values
   {:auto 0
    :default 1
@@ -246,7 +242,10 @@
     (validation/usage-error! ::invalid-option "run-test! case-fn must be a function"
                              {:case-fn case-fn}))
   (when (contains? opts :mode)
-    (enum-value! :mode mode-values (:mode opts)))
+    (validation/usage-error!
+     ::removed-mode
+     "libhegel removed :mode; omit it for normal runs. :test-cases 1 sets a valid-case budget, not the former no-shrink single-test-case mode."
+     {:mode (:mode opts)}))
   (when (contains? opts :backend)
     (enum-value! :backend backend-values (:backend opts)))
   (when (contains? opts :verbosity)
@@ -351,9 +350,6 @@
           observed)))))
 
 (defn- configure-settings! [ctx settings opts]
-  (when (contains? opts :mode)
-    (hffi/settings-set-mode!
-     ctx settings (enum-value! :mode mode-values (:mode opts))))
   (when (contains? opts :backend)
     (hffi/settings-set-backend!
      ctx settings (enum-value! :backend backend-values (:backend opts))))
@@ -477,7 +473,7 @@
   exceptions. Use a stable `:hegel/origin` in ex-data when distinct assertion
   sites need distinct failure identities.
 
-  Supported options are :mode, :backend, :test-cases, :stateful-step-count,
+  Supported options are :backend, :test-cases, :stateful-step-count,
   :verbosity, :seed,
   :derandomize?, :report-multiple-failures?, :database, :database-key/:name,
   :phases, and :suppress-health-checks. The C ABI does not expose an
