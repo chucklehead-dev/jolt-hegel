@@ -47,6 +47,30 @@ jobs:
       - name: Validate descriptor and JVM coverage without loading libhegel
         run: clojure -J--enable-native-access=ALL-UNNAMED -M:jvm:abi-test
 
+  header-audit:
+    name: Pinned C header / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-14, windows-2022]
+    env:
+      HEGEL_ABI_CC: clang
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: DeLaGuardo/setup-clojure@13.5
+        with:
+          cli: latest
+      - name: Compare pinned header, compiler layouts, constants, units and mutants
+        run: clojure -M:header-audit
+
   bb-native-image:
     # Preserve the historical required-check names while verifying the
     # released Babashka runtime that replaced our temporary native-image fork.

@@ -6,6 +6,9 @@ for v0.1.0 through v0.4.0, see the tag and release history in that repository.
 
 ## Unreleased
 
+- Audit the canonical ABI against the byte-pinned C header, compiler-measured
+  layouts and constants, source option/status/span values, and explicit
+  temporal units. Add offline development commands and three-platform CI.
 - Give native installers invocation-owned staging files and publish verified
   bytes without deleting the previous cache entry first. Concurrent installers
   accept only checksum-matching winners; unsupported atomic replacement fails

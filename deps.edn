@@ -16,6 +16,8 @@
    :setup-native {:main-opts ["-m" "hegel.install"]}
    :abi-test {:extra-paths ["script"]
               :main-opts ["-m" "hegel.abi-check"]}
+   :header-audit {:extra-paths ["script"]
+                  :main-opts ["-m" "hegel.header-audit"]}
    :jank-codegen {:extra-paths ["script"]
                   :main-opts ["-m" "hegel.generate-jank-bindings"]}
    :clr-codegen {:extra-paths ["script"]
