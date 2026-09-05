@@ -406,6 +406,19 @@ Environment overrides:
 Checksum verification is never skipped. A user-supplied library path controls
 where libhegel is loaded from; its ABI version is still checked at run startup.
 
+Concurrent installs use unique staging files beside the destination. The
+installer verifies its own download before publication and never deletes an
+existing cache entry to make room. Publication is an atomic same-filesystem
+rename, not a copy/delete fallback. When a host refuses to replace an existing
+destination, a checksum-matching concurrent winner is accepted; otherwise the
+install fails and preserves the destination. In particular, Jolt on Windows
+does not replace an existing mismatching entry automatically. Resolve such a
+cache conflict explicitly, or select another cache directory. This contract
+covers cooperating installers for the pinned release, not unrelated processes
+that modify cache contents, and does not promise crash durability via fsync.
+Each invocation cleans up only its own staging files. Explicit library-path
+overrides do not download or publish cache files.
+
 ## Backend diagnostics
 
 The native ABI is data, so it can be inspected without loading libhegel:

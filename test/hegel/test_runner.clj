@@ -12,6 +12,7 @@
             [hegel.host :as host]
             [hegel.install :as install]
             [hegel.install.backend :as install-backend]
+            [hegel.install-publication-test]
             [hegel.malli :as hm]
             [hegel.native :as native]
             [hegel.report :as report]
@@ -3189,6 +3190,10 @@
       (scenario "installer source identity" installer-source-identity)
       (scenario "portable path contracts" portable-path-contracts)
       (scenario "installer checksum contract" installer-checksum-contract)
+      (scenario "installer publication ownership"
+                #(let [result (t/run-tests 'hegel.install-publication-test)]
+                   (check "installer publication contract suite"
+                          (zero? (+ (:fail result) (:error result))))))
       (scenario "generated seed" generated-seed)
       (scenario "controls and sample" controls-and-sample)
       (scenario "primitive generators" primitive-generators)
