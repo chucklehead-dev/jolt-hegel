@@ -658,6 +658,54 @@
   (count (re-seq #"(?s)." value)))
 
 (defn primitive-generators []
+  (doseq [[description min-value max-value]
+          [["rejects fractional integer bounds" 1.5 1.5]
+           ["rejects integral double integer bounds" 1.0 1.0]
+           ["rejects ratio integer bounds" 3/2 3/2]
+           ["rejects nil integer bounds" nil 0]
+           ["rejects non-numeric integer bounds" :minimum 0]
+           ["rejects integer bounds below int64" -9223372036854775809N 0]
+           ["rejects integer bounds above int64" 0 9223372036854775808N]]]
+    (let [error (try
+                  (g/integer min-value max-value)
+                  nil
+                  (catch Throwable error error))]
+      (check description
+             (and (= {:type ::g/invalid-bounds
+                      :min min-value
+                      :max max-value}
+                     (select-keys (ex-data error) [:type :min :max]))
+                  (true? (:hegel/usage-error? (ex-data error)))))))
+  (check "accepts in-range BigInt integer bounds"
+         (g/generator? (g/integer 1N 1N)))
+  (check "accepts exact signed int64 endpoints"
+         (g/generator? (g/integer -9223372036854775808N
+                                    9223372036854775807)))
+  (let [error (try
+                (g/integer 1 0)
+                nil
+                (catch Throwable error error))]
+    (check "inverted integer bounds retain their message and abort classification"
+           (and (= "integer generator minimum exceeds maximum"
+                   (ex-message error))
+                (= ::g/invalid-bounds (:type (ex-data error)))
+                (true? (:hegel/usage-error? (ex-data error))))))
+  (let [native-draw? (atom false)
+        error (try
+                (with-redefs [hffi/generate-integer!
+                              (fn [& _]
+                                (reset! native-draw? true)
+                                0)]
+                  (h/run-test!
+                   {:test-cases 1 :seed 1 :database "" :verbosity :quiet}
+                   (fn [_]
+                     (h/draw! (g/integer 1.5 1.5)))))
+                nil
+                (catch Throwable error error))]
+    (check "invalid integer bounds abort a property before a native draw"
+           (and (= ::g/invalid-bounds (:type (ex-data error)))
+                (true? (:hegel/usage-error? (ex-data error)))
+                (false? @native-draw?))))
   (let [values (atom {:true [] :false [] :octets [] :doubles [] :bytes []
                       :empty-bytes [] :uuids [] :ipv4 [] :ipv6 []})
         result
