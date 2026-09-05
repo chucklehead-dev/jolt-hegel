@@ -1,7 +1,6 @@
 # Compiler-aspect join-point contract
 
-Status: experimental pending issue #23 acceptance. This document describes the
-current tested surface and the proposed compatibility boundary; it does not
+Status: accepted declaration contract for the next release (#23). This does not
 declare that an aspect-enabled compiler is part of the supported Jolt release.
 Normal BB/JVM/Jolt property use never requires compiler aspects or a provider.
 
@@ -41,7 +40,14 @@ Advice must preserve their behavior; instrumentation errors are not reliable
 test verdicts. Current tests exercise successful stateful execution and a
 stateful usage exception propagating through both boundaries unchanged.
 
-## Proposed compatibility policy
+## Compatibility policy
+
+The maintained local top-level Jolt repository scan found no external consumer
+of this Hegel manifest or its two advice roles. In particular, the current
+aspect-packs history/event-profile consumers do not select these compiler
+entries; their operation-event revision is unaffected. The fixture in this
+repository supplies the explicit consuming provider and stale-revision control.
+This inventory does not claim to discover downstream/private consumers.
 
 Retain existing identifiers and roles while these entry meanings and arities
 remain unchanged. A selector, role, arity or semantic-boundary change requires
@@ -85,6 +91,19 @@ Compiler manifest generation loads Hegel namespaces and therefore requires
 libhegel; do not advertise that command as native-free. The bundled fixture
 is a consumer, not a production instrumentation package. The report validator
 checks ten malformed-report controls; stale provider rejection exercises the
-compiler itself. Full #23 acceptance still requires reviewed compatibility
-policy, CI/integration
-evidence and coordinated documentation updates.
+compiler itself.
+
+At Hegel `6cf5c37d063d61995525b56b56af45ee646e055a`, the
+[compiler CI gate](https://github.com/chucklehead-dev/jolt-hegel/actions/runs/33989695854)
+built the pinned Chez and compiler sources and passed the complete staged gate,
+including both runtime modes and exception preservation. The
+[supported matrix](https://github.com/chucklehead-dev/jolt-hegel/actions/runs/33989695818)
+passed all 18 jobs; the pure manifest scenario ran in all ten runtime rows.
+Root and independent local Claude reviewed the fixture, runner, report
+controls, compatibility policy and provisioning workflow. Final-head review
+and merge evidence are recorded on
+[PR90](https://github.com/chucklehead-dev/jolt-hegel/pull/90).
+
+The compiler execution gate is Linux-specific; resource portability does not
+prove weaving on every host. jank/CLR promotion, a general-purpose Hegel
+instrumentation pack, and a release of compiler aspects are separate work.

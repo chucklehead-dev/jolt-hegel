@@ -631,7 +631,12 @@ runtime. Capturing events from Jolt compiler aspects currently requires an
 aspect-enabled Jolt fork; explicit journals and other event producers work on
 an unmodified supported runtime. `hegel.trace` and `hegel.history` have supported
 contracts on BB/JVM/Jolt; their intentionally different acceptance domains are
-recorded in ADR0007. Compiler-aspect join-point metadata remains experimental.
+recorded in ADR0007. Optional compiler-aspect declarations follow
+`docs/JOINPOINTS.md`: independently pin the source and provider's manifest
+revision, and do not treat artifact-specific site IDs as stable Hegel IDs.
+The actual compiler execution gate is Linux-specific and uses an explicit
+aspect-capable fork; ordinary BB/JVM/Jolt properties require neither aspects
+nor a provider. Event-profile validation does not validate compiler metadata.
 
 ```clojure
 (require '[hegel.trace :as ht])

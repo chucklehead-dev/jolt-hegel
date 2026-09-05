@@ -82,8 +82,8 @@ Trace is absent unless explicitly supplied:
 
 The optional redactor runs before trace validation; its failure propagates and
 never falls back to raw data. Events must be portable maps. This envelope does
-not perform trace/history semantic validation or settle experimental compiler
-join-point metadata (#23). Use `hegel.event-contract/check-envelope!` for an
+not perform trace/history semantic validation or validate compiler
+join-point metadata (see `JOINPOINTS.md`). Use `hegel.event-contract/check-envelope!` for an
 explicit `hegel.operation-events` revision 1 claim, then apply the domain model;
 generic producer contracts continue to use their appropriate trace rules.
 

@@ -537,8 +537,10 @@ tests and real aspect-packs producer/consumer evidence. Profile validity does
 not establish domain-model correctness or linearizability.
 
 The optional compiler-aspect manifest, join-point identifiers, and advice-role
-metadata remain experimental (#23). Instrumentation may rely on them only with
-an exact jolt-hegel source pin until that producer contract is stabilized.
+metadata follow the [join-point compatibility contract](docs/JOINPOINTS.md).
+Pin the Hegel source and independently match the manifest revision in the
+provider. The compiler execution gate is Linux-specific and requires the
+explicitly selected aspect-capable fork; ordinary properties need neither.
 
 ### Trace rules for aspect and event journals
 
