@@ -462,6 +462,30 @@ Babashka's compiled trampoline or libffi fallback, upstream-library JVM FFM, gen
 interop, or generated CLR P/Invoke. Ordinary property code does not need to
 select a backend.
 
+### Standalone Jolt resources
+
+Standalone Jolt packaging must embed the resource directory explicitly. Resource
+names remain classpath-relative and are rooted at `hegel/abi.edn`:
+
+```clojure
+{:jolt/build {:embed ["path/to/hegel/resources"]}}
+```
+
+Stage that directory from the checked-out dependency or release contents; do
+not hardcode a Git cache path. Embedding the descriptor does not package
+`libhegel`: deploy the native library separately and verify its ABI/version and
+checksum through the normal installer or explicit-library-path contract.
+
+Embedded resources take precedence. For filesystem resources on Windows, the
+host seam retains direct source-root paths to avoid Jolt 0.8.1's file-URL
+drive-path rebasing bug; read errors are not swallowed to try a different copy.
+
+The Linux Jolt CI gate runs `bash script/check-standalone-resources.sh`: it builds
+from a disposable copy, moves those inputs out of their compiled paths, then
+runs a native property from a separate consumer directory. Source-root listings
+alone do not package resources. The standalone gate is Linux-specific; ordinary
+resource lookup is also tested in the supported-host harness matrix.
+
 ## Experimental additional features
 
 The trace and history APIs below are portable library code and run on supported

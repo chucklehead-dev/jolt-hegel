@@ -11,6 +11,10 @@ for v0.1.0 through v0.4.0, see the tag and release history in that repository.
   replacement samples keep an unbounded default maximum size for nonempty
   inputs. Full permutations intentionally use `O(n²)` positional removal to
   preserve native choice shrinking.
+- Make Jolt resource lookup prefer classpath and standalone embedded resources,
+  while retaining the source-root fallback. Standalone consumers must embed
+  the staged resources directory (with names rooted at `hegel/abi.edn`) and
+  deploy and verify the native library separately.
 - Preserve the original generator exception when owned span, collection,
   recursion, string, or context cleanup also fails. A cleanup-only failure
   still surfaces; native-discarded recursive retry spans are not closed during

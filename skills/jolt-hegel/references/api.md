@@ -96,6 +96,15 @@ by the pinned release SHA. The installer retains a Jolt-only source/AOT identity
 check and verifies SHA-256 on every downloaded asset. All hosts verify the
 loaded libhegel ABI version before a run.
 
+For standalone Jolt consumers, stage the dependency's `resources` directory
+and explicitly include that directory in `:jolt/build {:embed [...]}`. Embed
+the classpath root so the canonical descriptor retains the resource name
+`hegel/abi.edn`; listing a source/resource path alone does not package it.
+Use normal resource resolution, not manual filesystem lookup, so embedded data
+remains available after deployment. The native library is still a separately
+deployed, version-checked asset. Test a relocated binary with its build inputs
+unavailable; a source-only test can conceal missing packaging.
+
 ### Host status
 
 | Host | Status and current evidence |

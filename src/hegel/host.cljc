@@ -1,6 +1,7 @@
 (ns hegel.host
   "Small host seam for resources and process identity."
   (:require [clojure.string :as str]
+            #?(:jolt [clojure.java.io :as io])
             #?(:jolt [jolt.host :as jolt-host]
                :bb [clojure.java.io :as io]
                :jank [hegel.host.jank-host :as jank-host]
@@ -111,15 +112,40 @@
      :default (System/currentTimeMillis)))
 
 #?(:jolt
-   (defn- jolt-resource-path [resource-name]
-     (some (fn [root]
-             (let [direct (join-path root resource-name)
-                   nested (join-path (join-path root "resources") resource-name)]
-               (cond
-                 (.isFile (java.io.File. direct)) direct
-                 (.isFile (java.io.File. nested)) nested
-                 :else nil)))
-           (jolt-host/source-roots))))
+   (defn- jolt-resource-path
+     ([resource-name] (jolt-resource-path resource-name true))
+     ([resource-name include-nested?]
+      (some (fn [root]
+              (let [direct (join-path root resource-name)
+                    nested (join-path (join-path root "resources") resource-name)]
+                (cond
+                  (.isFile (java.io.File. direct)) direct
+                  (and include-nested? (.isFile (java.io.File. nested))) nested
+                  :else nil)))
+            (jolt-host/source-roots)))))
+
+#?(:jolt
+   (defn- jolt-resource [resource-name]
+     (let [resource (io/resource resource-name)]
+       ;; Jolt 0.8.1 absolutizes source resources into file: URLs, but its URL
+       ;; reader prefixes Windows drive paths with user.dir a second time.
+       ;; For file resources only, retain the direct source path in resolver
+       ;; order. Never replace an embedded (jar:) hit with a filesystem copy,
+       ;; and never catch read errors to fall back to a different resource.
+       (if (and resource
+                (str/starts-with? (os-name) "Windows")
+                (= "file" (.getProtocol resource)))
+         (or (jolt-resource-path resource-name false) resource)
+         resource))))
+
+(defn- resource-text* [resource-name resolver fallback]
+  (if-let [resource (resolver resource-name)]
+    (slurp resource)
+    (if-let [path (and fallback (fallback resource-name))]
+      (slurp path)
+      (throw (ex-info (str "resource not found: " resource-name)
+                      {:type ::resource-not-found
+                       :resource resource-name})))))
 
 (defn resource-text
   "Read a classpath/source-root resource as text, or throw without loading any
@@ -133,18 +159,10 @@
                         :resource resource-name})))
 
      :jolt
-     (if-let [path (jolt-resource-path resource-name)]
-       (slurp path)
-       (throw (ex-info (str "resource not found: " resource-name)
-                       {:type ::resource-not-found
-                        :resource resource-name})))
+     (resource-text* resource-name jolt-resource jolt-resource-path)
 
      :bb
-     (if-let [resource (io/resource resource-name)]
-       (slurp resource)
-       (throw (ex-info (str "resource not found: " resource-name)
-                       {:type ::resource-not-found
-                        :resource resource-name})))
+     (resource-text* resource-name io/resource nil)
 
      :jank
      (throw (ex-info (str "resource lookup is not available on jank: " resource-name)
@@ -152,8 +170,4 @@
                       :resource resource-name}))
 
      :clj
-     (if-let [resource (io/resource resource-name)]
-       (slurp resource)
-       (throw (ex-info (str "resource not found: " resource-name)
-                       {:type ::resource-not-found
-                        :resource resource-name})))))
+     (resource-text* resource-name io/resource nil)))
