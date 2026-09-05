@@ -630,7 +630,52 @@
     (check "sample returns generated values"
            (and (seq values)
                 (<= (count values) 5)
-                (every? #{7} values)))))
+                (every? #{7} values))))
+  (let [error
+        (try
+          (h/sample
+           5
+           (g/composite-fn
+            (fn [_]
+              (throw
+               (ex-info "sample generator failed"
+                        {:hegel/origin "hegel.test-runner:sample-failure"
+                         :sample :original-cause})))))
+          nil
+          (catch Throwable error
+            error))
+        data (ex-data error)
+        run (:run data)]
+    (check "sample throws instead of returning a partial failed sample"
+           (and (= ::h/sample-failed (:type data))
+                (not (:passed? run))
+                (= :failed (:status run))
+                (= 1 (:n-failures run))))
+    (check "sample failure retains the original cause data"
+           (= {:message "sample generator failed"
+               :data {:hegel/origin "hegel.test-runner:sample-failure"
+                      :sample :original-cause}}
+              (select-keys (:cause data) [:message :data]))))
+  (let [run {:passed? false
+             :status :error
+             :flaky? true
+             :error "Flaky test detected: sample"
+             :failures []
+             :final []}
+        error (try
+                (with-redefs [h/run-test! (fn [& _] run)]
+                  (h/sample 5 (g/just :never-returned)))
+                nil
+                (catch Throwable error
+                  error))
+        data (ex-data error)]
+    (check "sample rejects a flaky run without returning values"
+           (and (= ::h/sample-failed (:type data))
+                (= run (:run data))
+                (not (:passed? (:run data)))
+                (true? (:flaky? (:run data)))
+                (= "Flaky test detected: sample"
+                   (-> data :run :error))))))
 
 (defn- valid-ipv4? [value]
   (let [parts (str/split value #"\.")]
@@ -2584,6 +2629,28 @@
   ;; These classic single-register fixtures have the same shape used by
   ;; Knossos and Porcupine examples, but this portable suite has no dependency
   ;; on either implementation.
+  (let [always-legal (fn [state _] {:state state})
+        events-for (fn [first-id second-id]
+                     [{:seq 0 :operation-id first-id :phase :invoke
+                       :operation :first}
+                      {:seq 1 :operation-id first-id :phase :return
+                       :value :ok}
+                      {:seq 2 :operation-id second-id :phase :invoke
+                       :operation :second}
+                      {:seq 3 :operation-id second-id :phase :return
+                       :value :ok}])
+        original (hhistory/linearization
+                  nil always-legal (events-for false :second))
+        renamed (hhistory/linearization
+                 nil always-legal (events-for :first :second))]
+    (check "false operation IDs preserve non-overlapping precedence"
+           (and (= [false :second] (:order original))
+                (= [:first :second] (:order renamed))))
+    (check "history membership survives a bijective ID renaming"
+           (and (hhistory/linearizable? nil always-legal
+                                        (events-for false :second))
+                (hhistory/linearizable? nil always-legal
+                                        (events-for :first :second)))))
   (let [overlap [{:seq 0 :operation-id :write :phase :invoke
                   :operation :write :input 1}
                  {:seq 1 :operation-id :read :phase :invoke
@@ -2653,7 +2720,9 @@
          [{:seq 0 :operation-id :x :phase :invoke :operation :read}
           {:seq 1 :operation-id :x :phase :invoke :operation :read}]
          [{:seq 0 :operation-id :x :phase :invoke :operation :read}
-          {:seq 2 :operation-id :x :phase :return :value 0}]]
+          {:seq 2 :operation-id :x :phase :return :value 0}]
+         [{:seq 0 :operation-id nil :phase :invoke :operation :read}
+          {:seq 1 :operation-id nil :phase :return :value 0}]]
         failures
         (mapv (fn [events]
                 (try
