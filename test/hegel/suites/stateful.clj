@@ -4,6 +4,7 @@
             [hegel.core :as h]
             [hegel.ffi :as hffi]
             [hegel.generator :as g]
+            [hegel.host :as host]
             [hegel.libhegel-upgrade-test]
             [hegel.stateful.concurrent :as concurrent]
             [hegel.stateful :as hs]
@@ -541,11 +542,11 @@
          (true? (:hegel/usage-error? (ex-data error))))))
 
 (defn concurrent-api-declarations
-  "Pure declaration/validation coverage for the future concurrent executor.
+  "Declaration, capability, and finalization-seam coverage for concurrency.
 
-  This scenario intentionally calls only the new native-free namespace.  The
-  stateful suite itself loads the existing native suite, but no native function
-  is entered by this scenario."
+  Capability checks qualify only the Jolt route/version preflight; the
+  finalization tests inject every operation and enter no real worker or state
+  machine lifecycle."
   [context]
   (let [rule (concurrent/rule :put :z (fn [_] :applied))
         invariant (concurrent/invariant :consistent (fn [_] true))
@@ -695,7 +696,389 @@
                  :invariants [same-invariant same-string-invariant]}]]]
         (support/check! context (str "concurrent config rejects " label)
                (concurrent-usage-error? ::concurrent/invalid-argument
-                                         #(validate-config config)))))))
+                                         #(validate-config config))))))
+    (let [loads (atom 0)
+          load-native (concurrent-private 'load-native-capability)
+          results
+          (mapv (fn [runtime]
+                  (with-redefs-fn
+                    {#'host/runtime (constantly runtime)
+                     load-native (fn [] (swap! loads inc))}
+                    concurrent/capability))
+                [:bb :jvm :jank :clr])]
+      (support/check! context
+                      "concurrent capability fails closed before FFI lookup on unsupported hosts"
+                      (and (zero? @loads)
+                           (= [:bb :jvm :jank :clr] (mapv :runtime results))
+                           (every? #(= :unsupported (:status %)) results)
+                           (every? #(= :executor-unqualified (:reason %)) results)
+                           (every? #(= {:executor false
+                                       :collect-safe-routes false
+                                       :libhegel-compatible false}
+                                      (:checks %))
+                                   results))))
+    (let [load-native (concurrent-private 'load-native-capability)
+          result (with-redefs-fn
+                   {#'host/runtime (constantly :jolt)
+                    load-native
+                    (fn [] {:routes-supported? (constantly true)
+                            :ensure-compatible! (fn [] true)})}
+                   concurrent/capability)]
+      (support/check! context "concurrent capability reports supported Jolt ABI"
+                      (= {:status :supported
+                          :runtime :jolt
+                          :contract-revision 1
+                          :checks {:executor true
+                                   :collect-safe-routes true
+                                   :libhegel-compatible true}}
+                         result)))
+    (let [load-native (concurrent-private 'load-native-capability)
+          version-checks (atom 0)
+          result (with-redefs-fn
+                   {#'host/runtime (constantly :jolt)
+                    load-native
+                    (fn [] {:routes-supported? (constantly false)
+                            :ensure-compatible!
+                            (fn [] (swap! version-checks inc))})}
+                   concurrent/capability)]
+      (support/check! context "concurrent capability rejects missing collect-safe routes"
+                      (and (= :unsupported (:status result))
+                           (= :collect-safe-routes-unavailable (:reason result))
+                           (zero? @version-checks))))
+    (let [load-native (concurrent-private 'load-native-capability)
+          version-checks (atom 0)
+          result (with-redefs-fn
+                   {#'host/runtime (constantly :jolt)
+                    load-native
+                    (fn [] {:routes-supported? (constantly :truthy)
+                            :ensure-compatible!
+                            (fn [] (swap! version-checks inc))})}
+                   concurrent/capability)]
+      (support/check! context
+                      "concurrent capability requires exact route qualification"
+                      (and (= :unsupported (:status result))
+                           (= :collect-safe-routes-unavailable (:reason result))
+                           (zero? @version-checks))))
+    (let [load-native (concurrent-private 'load-native-capability)
+          result (with-redefs-fn
+                   {#'host/runtime (constantly :jolt)
+                    load-native
+                    (fn [] {:routes-supported? (constantly true)
+                            :ensure-compatible! nil})}
+                   concurrent/capability)]
+      (support/check! context "concurrent capability rejects a missing version preflight"
+                      (and (= :unsupported (:status result))
+                           (= :libhegel-incompatible (:reason result)))))
+    (let [load-native (concurrent-private 'load-native-capability)
+          result (with-redefs-fn
+                   {#'host/runtime (constantly :jolt)
+                    load-native
+                    (fn []
+                      {:routes-supported? (constantly true)
+                       :ensure-compatible!
+                       (fn []
+                         (throw (ex-info "version mismatch" {:version 0})))})}
+                   concurrent/capability)]
+      (support/check! context "concurrent capability reports incompatible libhegel"
+                      (and (= :unsupported (:status result))
+                           (= :libhegel-incompatible (:reason result))
+                           (string? (get-in result [:error :message])))))
+    (let [load-native (concurrent-private 'load-native-capability)
+          result (with-redefs-fn
+                   {#'host/runtime (constantly :jolt)
+                    load-native
+                    (fn []
+                      (throw (ex-info "missing library"
+                                      {:type ::missing-library})))}
+                   concurrent/capability)]
+      (support/check! context "concurrent capability reports unavailable libhegel"
+                      (and (= :unsupported (:status result))
+                           (= :library-unavailable (:reason result))
+                           (= ::missing-library (get-in result [:error :type])))))
+    (when (= :jolt (host/runtime))
+      (let [run-starts (atom 0)
+            result (with-redefs [hffi/run-start!
+                                 (fn [& _] (swap! run-starts inc))]
+                     (concurrent/capability))]
+        (support/check! context "concurrent capability qualifies without allocating a run"
+                        (and (= :supported (:status result))
+                             (zero? @run-starts)))))
+    (let [finalize (concurrent-private 'finalize-case!)
+          events (atom [])
+          op (fn [event] (fn [& _] (swap! events conj event)))
+          result (finalize {:join-workers! (fn [] (swap! events conj :joined)
+                                             {:joined? true})
+                            :join-invariants! (op :invariants)
+                            :close! (op :close)
+                            :free-clones! (op :clones)
+                            :free-machine! (op :machine)
+                            :mark-complete! (op :marked)
+                            :release-root! (op :released)}
+                           {:status :valid})]
+      (support/check! context "concurrent finalization uses coordinator cleanup order"
+                      (and (= [:joined :invariants :close :clones :machine
+                               :marked :released]
+                              @events)
+                           (= :valid (:status result)))))
+    (let [finalize (concurrent-private 'finalize-case!)
+          events (atom [])
+          primary (ex-info "worker failure" {:origin :worker})
+          close-error (ex-info "close failure" {:origin :close})
+          free-error (ex-info "clone free failure" {:origin :free})
+          marked (atom nil)
+          error (concurrent-error-of
+                 #(finalize
+                   {:join-workers! (fn [] (swap! events conj :joined) true)
+                    :join-invariants! (fn [] (swap! events conj :invariants))
+                    :close! (fn [] (swap! events conj :close)
+                              (throw close-error))
+                    :free-clones! (fn [] (swap! events conj :clones)
+                                    (throw free-error))
+                    :free-machine! (fn [] (swap! events conj :machine))
+                    :mark-complete! (fn [outcome]
+                                      (reset! marked outcome)
+                                      (swap! events conj :marked))
+                    :release-root! (fn [] (swap! events conj :released))}
+                   {:status :interesting
+                    :failure {:phase :worker
+                              :origin "hegel.stateful.concurrent/rule:put"
+                              :exception primary
+                              :secondary []}}))
+          completed (:outcome (ex-data error))]
+      (support/check! context
+                      "concurrent cleanup run errors preserve property evidence"
+                      (and (= ::concurrent/native-cleanup-failed
+                              (:type (ex-data error)))
+                           (identical? primary
+                                       (get-in completed [:failure :exception]))
+                           (identical? close-error
+                                       (get-in completed
+                                               [:failure :secondary 0 :exception]))
+                           (= 1 (count (get-in completed
+                                              [:failure :secondary])))
+                           (identical? free-error
+                                       (get-in (ex-data error)
+                                               [:errors 0 :exception]))
+                           (= :free-clones
+                              (get-in (ex-data error) [:errors 0 :operation]))
+                           (= :interesting (:status @marked))
+                           (= "hegel.stateful.concurrent/rule:put"
+                              (:origin completed)
+                              (:origin @marked))
+                           (= (:failure completed) (:failure @marked))
+                           (= [:joined :invariants :close :clones :machine
+                               :marked :released]
+                              @events))))
+    (let [finalize (concurrent-private 'finalize-case!)
+          events (atom [])
+          invariant-error (ex-info "invariant failure" {})
+          marked (atom nil)
+          result
+          (finalize {:join-workers! (fn [] (swap! events conj :joined) true)
+                     :join-invariants! (fn [] (swap! events conj :invariants)
+                                         (throw invariant-error))
+                     :property-origin
+                     (fn [operation error]
+                       (when (and (= :join-invariants operation)
+                                  (identical? invariant-error error))
+                         "hegel.stateful.concurrent/invariant:consistent"))
+                     :free-clones! (fn [] (swap! events conj :clones))
+                     :free-machine! (fn [] (swap! events conj :machine))
+                     :mark-complete! (fn [outcome]
+                                       (reset! marked outcome)
+                                       (swap! events conj :marked))
+                     :release-root! (fn [] (swap! events conj :released))}
+                    {:status :valid})]
+      (support/check! context
+                      "concurrent invariant failure is marked interesting"
+                      (and (identical? invariant-error
+                                       (get-in result [:failure :exception]))
+                           (= :join-invariant (get-in result [:failure :phase]))
+                           (= :interesting (:status result))
+                           (= :interesting (:status @marked))
+                           (= "hegel.stateful.concurrent/invariant:consistent"
+                              (:origin result)
+                              (:origin @marked)
+                              (get-in result [:failure :origin]))
+                           (empty? (get-in result [:failure :secondary]))
+                           (= (:failure result) (:failure @marked))
+                           (= [:joined :invariants :clones :machine
+                               :marked :released]
+                              @events))))
+    (let [finalize (concurrent-private 'finalize-case!)
+          invariant-error (ex-info "unresolved invariant failure" {})
+          events (atom [])
+          marked (atom nil)
+          error
+          (concurrent-error-of
+           #(finalize {:join-workers! (constantly true)
+                       :join-invariants! (fn [] (throw invariant-error))
+                       :free-clones! (fn [] (swap! events conj :clones))
+                       :free-machine! (fn [] (swap! events conj :machine))
+                       :mark-complete! (fn [outcome]
+                                         (reset! marked outcome)
+                                         (swap! events conj :marked))
+                       :release-root! (fn [] (swap! events conj :released))}
+                      {:status :valid}))]
+      (support/check! context
+                      "concurrent invariant origin resolution fails closed"
+                      (and (= ::concurrent/native-cleanup-failed
+                              (:type (ex-data error)))
+                           (= :valid (:status @marked))
+                           (= :valid (get-in (ex-data error)
+                                             [:outcome :status]))
+                           (nil? (get-in (ex-data error) [:outcome :failure]))
+                           (= :property-origin
+                              (get-in (ex-data error) [:errors 0 :phase]))
+                           (= :missing-resolver
+                              (get-in (ex-data error) [:errors 0 :reason]))
+                           (identical? invariant-error
+                                       (get-in (ex-data error)
+                                               [:errors 0 :exception]))
+                           (= [:clones :machine :marked :released] @events))))
+    (let [finalize (concurrent-private 'finalize-case!)
+          close-error (ex-info "close-only failure" {})
+          marked (atom nil)
+          result (finalize {:join-workers! (constantly true)
+                            :close! (fn [] (throw close-error))
+                            :free-clones! (fn [] nil)
+                            :free-machine! (fn [] nil)
+                            :mark-complete! (fn [outcome]
+                                              (reset! marked outcome))
+                            :release-root! (fn [] nil)}
+                           {:status :valid})]
+      (support/check! context
+                      "concurrent teardown failure is marked interesting"
+                      (and (= :interesting (:status result))
+                           (= :interesting (:status @marked))
+                           (= "hegel.stateful.concurrent/close"
+                              (:origin result)
+                              (:origin @marked)
+                              (get-in result [:failure :origin]))
+                           (= :teardown (get-in result [:failure :phase]))
+                           (= :close (get-in result [:failure :operation]))
+                           (identical? close-error
+                                       (get-in result [:failure :exception])))))
+    (let [finalize (concurrent-private 'finalize-case!)
+          close-error (ex-info "forced-invalid close failure" {})
+          marked (atom nil)
+          error (concurrent-error-of
+                 #(finalize {:join-workers! (constantly true)
+                             :close! (fn [] (throw close-error))
+                             :free-clones! (fn [] nil)
+                             :free-machine! (fn [] nil)
+                             :mark-complete! (fn [outcome]
+                                               (reset! marked outcome))
+                             :release-root! (fn [] nil)}
+                            {:status :invalid}))]
+      (support/check! context
+                      "concurrent flip case remains invalid after close error"
+                      (and (= ::concurrent/native-cleanup-failed
+                              (:type (ex-data error)))
+                           (= :invalid (:status @marked))
+                           (= :invalid (get-in (ex-data error)
+                                               [:outcome :status]))
+                           (nil? (get-in (ex-data error) [:outcome :failure]))
+                           (= :teardown
+                              (get-in (ex-data error) [:errors 0 :phase]))
+                           (identical? close-error
+                                       (get-in (ex-data error)
+                                               [:errors 0 :exception])))))
+    (doseq [failing-operation
+            [:free-clones :free-machine :mark-complete :release-root]]
+      (let [finalize (concurrent-private 'finalize-case!)
+            cleanup-error (ex-info "native cleanup failure"
+                                   {:operation failing-operation})
+            events (atom [])
+            marked (atom nil)
+            op (fn [operation]
+                 (fn [& _]
+                   (swap! events conj operation)
+                   (when (= failing-operation operation)
+                     (throw cleanup-error))))
+            error (concurrent-error-of
+                   #(finalize {:join-workers! (constantly true)
+                               :free-clones! (op :free-clones)
+                               :free-machine! (op :free-machine)
+                               :mark-complete! (fn [outcome]
+                                                 (reset! marked outcome)
+                                                 ((op :mark-complete)))
+                               :release-root! (op :release-root)}
+                              {:status :valid}))]
+        (support/check! context
+                        (str "concurrent cleanup drains "
+                             (name failing-operation))
+                        (and (= ::concurrent/native-cleanup-failed
+                                (:type (ex-data error)))
+                             (= :valid (:status @marked))
+                             (= [:free-clones :free-machine
+                                 :mark-complete :release-root]
+                                @events)
+                             (= failing-operation
+                                (get-in (ex-data error)
+                                        [:errors 0 :operation]))
+                             (identical? cleanup-error
+                                         (get-in (ex-data error)
+                                                 [:errors 0 :exception]))))))
+    (let [finalize (concurrent-private 'finalize-case!)
+          free-error (ex-info "clone free failure" {})
+          mark-error (ex-info "mark failure" {})
+          events (atom [])
+          error
+          (concurrent-error-of
+           #(finalize {:join-workers! (constantly true)
+                       :free-clones! (fn []
+                                       (swap! events conj :free-clones)
+                                       (throw free-error))
+                       :free-machine! (fn []
+                                        (swap! events conj :free-machine))
+                       :mark-complete! (fn [_]
+                                         (swap! events conj :mark-complete)
+                                         (throw mark-error))
+                       :release-root! (fn []
+                                        (swap! events conj :release-root))}
+                      {:status :valid}))]
+      (support/check! context
+                      "concurrent cleanup retains multiple run errors in order"
+                      (and (= [:free-clones :free-machine
+                               :mark-complete :release-root]
+                              @events)
+                           (= [:free-clones :mark-complete]
+                              (mapv :operation (:errors (ex-data error))))
+                           (identical? free-error
+                                       (get-in (ex-data error)
+                                               [:errors 0 :exception]))
+                           (identical? mark-error
+                                       (get-in (ex-data error)
+                                               [:errors 1 :exception])))))
+    (let [finalize (concurrent-private 'finalize-case!)
+          events (atom [])
+          error (concurrent-error-of
+                 #(finalize {:join-workers! (fn [] (swap! events conj :join)
+                                               {:joined? false})
+                             :join-invariants! (fn [] (swap! events conj :invariants))
+                             :free-clones! (fn [] (swap! events conj :clones))
+                             :free-machine! (fn [] (swap! events conj :machine))
+                             :mark-complete! (fn [_] (swap! events conj :marked))
+                             :release-root! (fn [] (swap! events conj :released))}
+                            {:status :valid}))]
+      (support/check! context "concurrent finalization fails closed before free when workers remain live"
+                      (and (= ::concurrent/workers-not-joined (:type (ex-data error)))
+                           (= [:join] @events))))
+    (let [finalize (concurrent-private 'finalize-case!)
+          join-error (ex-info "join failed" {})
+          events (atom [])
+          error (concurrent-error-of
+                 #(finalize {:join-workers! (fn [] (swap! events conj :join)
+                                               (throw join-error))
+                             :free-clones! (fn [] (swap! events conj :clones))
+                             :release-root! (fn [] (swap! events conj :released))}
+                            {:status :valid}))]
+      (support/check! context "concurrent join errors preserve identity before cleanup"
+                      (and (identical? join-error
+                                       (get-in (ex-data error)
+                                               [:join-result :error]))
+                           (= [:join] @events)))))
 
 (defn libhegel-upgrade-contract [context]
   (let [result (t/run-tests 'hegel.libhegel-upgrade-test)]

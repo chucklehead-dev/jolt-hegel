@@ -1,10 +1,14 @@
 (ns hegel.stateful.concurrent
-  "Declarations and pure validation for the opt-in concurrent state-machine API.
+  "Declarations, validation, and capability preflight for concurrent state machines.
 
-  This namespace deliberately contains no native setup or execution.  The
-  executor will consume the validated declaration data in a later slice."
+  The Jolt capability check may load and version-check libhegel, but it never
+  allocates a run or state machine.  The executor will consume the validated
+  declaration data in a later slice."
   (:require [clojure.string :as str]
+            [hegel.host :as host]
             [hegel.validation :as validation]))
+
+(def ^:private capability-contract-revision 1)
 
 (def ^:private max-int64 9223372036854775807)
 (def ^:private max-uint64 18446744073709551615N)
@@ -229,3 +233,223 @@
              :rules rules
              :invariants invariants
              ::group-plan (group-plan rules)))))
+
+(defn- public-runtime
+  "Return the stable runtime labels used by the concurrent capability API."
+  []
+  (host/runtime))
+
+(defn- unsupported-capability [runtime reason checks & [error]]
+  (cond-> {:status :unsupported
+           :runtime runtime
+           :contract-revision capability-contract-revision
+           :reason reason
+           :checks checks}
+    error (assoc :error
+                 (let [data (ex-data error)]
+                   (cond-> {:message (ex-message error)
+                            :type (:type data)}
+                     (seq (select-keys data [:expected :actual :library]))
+                     (assoc :details
+                            (select-keys data
+                                         [:expected :actual :library])))))))
+
+(defn- load-native-capability
+  "Resolve the Jolt-only native preflight after portable host qualification."
+  []
+  #?(:jolt
+     (do
+       (require 'hegel.ffi)
+       {:routes-supported?
+        (ns-resolve 'hegel.ffi
+                    'concurrent-state-machine-routes-supported?)
+        :ensure-compatible!
+        (ns-resolve 'hegel.ffi 'ensure-compatible-version!)})
+     :default
+     (throw
+      (ex-info "concurrent native capability is Jolt-only"
+               {:type ::executor-unqualified}))))
+
+(defn- capability-version-check [ensure-compatible!]
+  (host/try-catch-all
+   (do
+     (ensure-compatible!)
+     {:ok? true})
+   error
+   {:ok? false :error error}))
+
+(defn capability
+  "Report whether the Jolt-only concurrent ABI is available.
+
+  Host detection deliberately precedes the dynamic `hegel.ffi` require:
+  unsupported hosts must remain loadable without looking up libhegel.  On
+  Jolt, the FFI namespace is loaded only for this preflight; no state-machine
+  or test-case allocation is performed here."
+  []
+  (let [runtime (public-runtime)]
+    (if (not= :jolt runtime)
+      (unsupported-capability
+       runtime
+       :executor-unqualified
+       {:executor false
+        :collect-safe-routes false
+        :libhegel-compatible false})
+      (host/try-catch-all
+       (let [{:keys [routes-supported? ensure-compatible!]}
+             (load-native-capability)]
+         (cond
+           (not routes-supported?)
+           (unsupported-capability
+            runtime
+            :collect-safe-routes-unavailable
+            {:executor true
+             :collect-safe-routes false
+             :libhegel-compatible false})
+
+           (not (true? (routes-supported?)))
+           (unsupported-capability
+            runtime
+            :collect-safe-routes-unavailable
+            {:executor true
+             :collect-safe-routes false
+             :libhegel-compatible false})
+
+           (not ensure-compatible!)
+           (unsupported-capability
+            runtime
+            :libhegel-incompatible
+            {:executor true
+             :collect-safe-routes true
+             :libhegel-compatible false})
+
+           :else
+           (let [{:keys [ok? error]}
+                 (capability-version-check ensure-compatible!)]
+             (if ok?
+               {:status :supported
+                :runtime runtime
+                :contract-revision capability-contract-revision
+                :checks {:executor true
+                         :collect-safe-routes true
+                         :libhegel-compatible true}}
+               (unsupported-capability
+                runtime
+                :libhegel-incompatible
+                {:executor true
+                 :collect-safe-routes true
+                 :libhegel-compatible false}
+                error)))))
+       error
+       (unsupported-capability
+        runtime
+        :library-unavailable
+        {:executor true
+         :collect-safe-routes false
+         :libhegel-compatible false}
+        error)))))
+
+#_{:clj-kondo/ignore [:unused-private-var]}
+(defn- finalize-case!
+  "Finalize a mocked concurrent case through one coordinator-owned seam.
+
+  `ops` contains zero-argument cleanup functions except `:mark-complete!`,
+  which receives the final outcome, and `:property-origin`, which resolves an
+  invariant operation/error pair to its stable named origin.  A worker join
+  must return true or `{:joined? true}`; otherwise this function throws before
+  any free, mark, or release operation.  Once joined, every later phase is
+  attempted in order.
+  Join-invariant and close failures on a valid/interesting case become property
+  failures.  Faults during a forced-invalid/overrun close or native cleanup
+  remain run errors, reported only after best-effort finalization with any
+  earlier property outcome preserved in the exception data."
+  [ops outcome]
+  (let [failure (atom (:failure outcome))
+        run-errors (atom [])
+        record-run-error! (fn [phase operation error]
+                            (swap! run-errors conj
+                                   {:phase phase
+                                    :operation operation
+                                    :exception error}))
+        property-origin-resolution
+        (fn [operation error]
+          (if-let [explicit (:hegel/origin (ex-data error))]
+            {:origin explicit}
+            (case operation
+              :close {:origin "hegel.stateful.concurrent/close"}
+              :join-invariants
+              (if-let [resolver (:property-origin ops)]
+                (host/try-catch-all
+                 (let [origin (resolver operation error)]
+                   (if (and (string? origin) (not (str/blank? origin)))
+                     {:origin origin}
+                     {:reason :missing-origin}))
+                 _resolver-error
+                 {:reason :resolver-error})
+                {:reason :missing-resolver})
+              {:reason :unknown-property-operation})))
+        record-property! (fn [phase operation origin error]
+                           (let [entry {:phase phase
+                                        :operation operation
+                                        :origin origin
+                                        :exception error}]
+                             (if @failure
+                               (swap! failure update :secondary
+                                      (fnil conj []) entry)
+                               (reset! failure
+                                       (assoc entry :secondary [])))))
+        property-call! (fn [phase operation f]
+                         (when f
+                           (host/try-catch-all
+                            (f)
+                            error
+                            (if (#{:valid :interesting} (:status outcome))
+                              (let [{:keys [origin reason]}
+                                    (property-origin-resolution operation error)]
+                                (if origin
+                                  (record-property! phase operation origin error)
+                                  (swap! run-errors conj
+                                         {:phase :property-origin
+                                          :operation operation
+                                          :reason reason
+                                          :exception error})))
+                              (record-run-error! phase operation error)))))
+        native-call! (fn [operation f]
+                       (when f
+                         (host/try-catch-all
+                          (f)
+                          error
+                          (record-run-error! :native-cleanup operation error))))
+        final-outcome (fn []
+                        (cond-> outcome
+                          @failure (assoc :failure @failure)
+                          (and @failure (nil? (:origin outcome)))
+                          (assoc :origin (:origin @failure))
+                          (and @failure (= :valid (:status outcome)))
+                          (assoc :status :interesting)))
+        joined (host/try-catch-all
+                ((:join-workers! ops))
+                error
+                {:joined? false :error error})
+        joined? (if (map? joined) (:joined? joined) joined)]
+    (when-not (true? joined?)
+      (throw (ex-info
+              "concurrent workers were not safely joined"
+              {:type ::workers-not-joined
+               :join-result joined})))
+    (property-call! :join-invariant :join-invariants
+                    (:join-invariants! ops))
+    (property-call! :teardown :close (:close! ops))
+    (native-call! :free-clones (:free-clones! ops))
+    (native-call! :free-machine (:free-machine! ops))
+    (native-call! :mark-complete
+                  (when-let [mark-complete! (:mark-complete! ops)]
+                    #(mark-complete! (final-outcome))))
+    (native-call! :release-root (:release-root! ops))
+    (let [completed (final-outcome)]
+      (if (seq @run-errors)
+        (throw
+         (ex-info "concurrent case finalization failed"
+                  {:type ::native-cleanup-failed
+                   :outcome completed
+                   :errors @run-errors}))
+        completed))))
