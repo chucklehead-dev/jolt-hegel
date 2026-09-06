@@ -21,6 +21,8 @@
 
 ;; Requiring jolt.ffi directly makes this script fail closed on any runtime
 ;; where the namespace does not exist (e.g. plain JVM Clojure).
+;; hegel.ffi is required above and loads libhegel first; this subsequent
+;; process-symbol load keeps getpid available without replacing that handle.
 (ffi/load-library)
 
 (def ^:private ordinary-fn (ffi/foreign-fn "getpid" [] :int))
@@ -28,24 +30,21 @@
 
 (def ^:private warmup-calls 2000)
 (def ^:private call-count 20000)
-(def ^:private sample-count 5)
+(def ^:private sample-count 6)
 
 (defn- warm! [f]
   (dotimes [_ warmup-calls] (f)))
 
 (defn- call-n!
-  "Call f exactly n times, returning elapsed nanoseconds, the last return
-  value observed, and the number of calls actually made."
+  "Call f exactly n times, returning elapsed nanoseconds and the last return
+  value observed. Normal return from dotimes establishes completion."
   [f n]
   (let [return* (volatile! nil)
-        calls* (volatile! 0)
         start (System/nanoTime)]
     (dotimes [_ n]
-      (vreset! return* (f))
-      (vswap! calls* inc))
+      (vreset! return* (f)))
     {:elapsed-ns (- (System/nanoTime) start)
-     :return @return*
-     :calls @calls*}))
+     :return @return*}))
 
 (defn- sample
   "Measure one ordinary/blocking pair, alternating call order by index to
@@ -68,22 +67,27 @@
         mid (quot n 2)]
     (if (odd? n)
       (nth sorted mid)
-      (/ (+ (nth sorted (dec mid)) (nth sorted mid)) 2))))
+      (/ (+ (double (nth sorted (dec mid)))
+            (double (nth sorted mid)))
+         2.0))))
 
 (defn- check-samples! [samples]
-  (when-not (every? #(= call-count (get-in % [:ordinary :calls])) samples)
-    (throw (ex-info "ordinary binding did not complete the fixed call count"
-                    {:expected call-count})))
-  (when-not (every? #(= call-count (get-in % [:blocking :calls])) samples)
-    (throw (ex-info "blocking binding did not complete the fixed call count"
-                    {:expected call-count})))
   (let [returns (into #{}
                        (mapcat (fn [s] [(get-in s [:ordinary :return])
                                         (get-in s [:blocking :return])]))
                        samples)]
     (when-not (= 1 (count returns))
       (throw (ex-info "ordinary and blocking bindings returned different values"
-                      {:returns returns})))))
+                      {:returns returns})))
+    (when-not (pos? (first returns))
+      (throw (ex-info "getpid returned a non-positive process id"
+                      {:return (first returns)})))))
+
+(defn- paired-ratios [samples]
+  (mapv (fn [sample]
+          (double (/ (get-in sample [:blocking :elapsed-ns])
+                     (get-in sample [:ordinary :elapsed-ns]))))
+        samples))
 
 (defn collect!
   "Run the bounded measurement and return one EDN-safe report map."
@@ -103,9 +107,11 @@
        :samples samples
        :ordinary-ns-raw ordinary-ns
        :blocking-ns-raw blocking-ns
+       :paired-blocking-ordinary-ratios (paired-ratios samples)
        :ordinary-ns-median ordinary-median
        :blocking-ns-median blocking-median
-       :blocking-ordinary-ratio (double (/ blocking-median ordinary-median))})))
+       :median-blocking-ordinary-ratio
+       (double (/ blocking-median ordinary-median))})))
 
 ;; --- libhegel state-machine-next-rule comparison -------------------------
 ;;
@@ -144,10 +150,15 @@
               state-machine-next-rule-return-type
               :blocking)))
 
+(when (identical? ordinary-state-machine-next-rule
+                  blocking-state-machine-next-rule)
+  (throw (ex-info "ordinary and blocking state-machine bindings are identical"
+                  {:function :state-machine-next-rule})))
+
 (def ^:private state-machine-test-cases 5)
 (def ^:private state-machine-step-count 1000)
 (def ^:private state-machine-seed 424242)
-(def ^:private state-machine-sample-count 5)
+(def ^:private state-machine-sample-count 6)
 
 (def ^:private workload-options
   {:test-cases state-machine-test-cases
@@ -185,7 +196,7 @@
   (select-keys result [:passed? :status :seed :flaky?
                         :test-cases :valid-test-cases :invalid-test-cases
                         :overrun-test-cases :interesting-test-cases
-                        :n-failures :final]))
+                        :n-failures]))
 
 (defn- run-state-machine-route!
   "Run the workload once with raw-fn standing in for
@@ -227,7 +238,9 @@
     (when-not (every? #(get-in % [route :summary :passed?]) samples)
       (throw (ex-info (str "state-machine-next-rule " (name route)
                            " route did not pass")
-                      {:route route :samples samples}))))
+                      {:route route
+                       :passed (mapv #(get-in % [route :summary :passed?])
+                                     samples)}))))
   (let [summaries (into #{}
                          (mapcat (fn [s] [(get-in s [:ordinary :summary])
                                           (get-in s [:blocking :summary])]))
@@ -266,9 +279,15 @@
        :actual-call-count (get-in (first samples) [:ordinary :calls])
        :ordinary-ns-raw ordinary-ns
        :blocking-ns-raw blocking-ns
+       :paired-workload-blocking-ordinary-ratios (paired-ratios samples)
        :ordinary-ns-median ordinary-median
        :blocking-ns-median blocking-median
-       :blocking-ordinary-ratio (double (/ blocking-median ordinary-median))})))
+       :ordinary-workload-ns-per-next-rule-call
+       (double (/ ordinary-median (get-in (first samples) [:ordinary :calls])))
+       :blocking-workload-ns-per-next-rule-call
+       (double (/ blocking-median (get-in (first samples) [:blocking :calls])))
+       :workload-median-blocking-ordinary-ratio
+       (double (/ blocking-median ordinary-median))})))
 
 (defn collect-all!
   "Run both bounded measurements and return one EDN-safe report map."

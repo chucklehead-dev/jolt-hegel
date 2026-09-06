@@ -19,7 +19,7 @@
    ;; Dev-only bounded native boundary cost characterization (Jolt only). Not
    ;; on the default :paths, so ordinary consumers never resolve this script.
    :collect-safe-characterization {:extra-paths ["script"]
-                                    :main-opts ["-m" "hegel.collect-safe-characterization"]}
+                                   :main-opts ["-m" "hegel.collect-safe-characterization"]}
    :header-audit {:extra-paths ["script"]
                   :main-opts ["-m" "hegel.header-audit"]}
    :jank-codegen {:extra-paths ["script"]
