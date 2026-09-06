@@ -256,12 +256,36 @@
                             min-size
                             max-size)))))
 
+(def ^:private lowercase-hex-digits
+  ["0" "1" "2" "3" "4" "5" "6" "7"
+   "8" "9" "a" "b" "c" "d" "e" "f"])
+
+(defn- lowercase-hex-digit [value]
+  ;; jank currently represents quot/mod results as small_real values; nth
+  ;; requires the integral index to be explicit.
+  (nth lowercase-hex-digits (int value)))
+
+(defn- lowercase-hex-word [value]
+  (loop [remaining (bit-and value 0xffff)
+         result ""]
+    (let [digit (lowercase-hex-digit (mod remaining 16))
+          remaining (quot remaining 16)
+          result (str digit result)]
+      (if (zero? remaining)
+        result
+        (recur remaining result)))))
+
+(defn- lowercase-hex-octet [value]
+  (let [value (bit-and value 0xff)]
+    (str (lowercase-hex-digit (quot value 16))
+         (lowercase-hex-digit (mod value 16)))))
+
 (defn- canonical-uuid [data]
   (apply str
          (map-indexed
           (fn [index value]
             (str (when (#{4 6 8 10} index) "-")
-                 (format "%02x" (bit-and value 0xff))))
+                 (lowercase-hex-octet value)))
           (seq data))))
 
 (defn uuid
@@ -287,8 +311,8 @@
 
 (defn- ipv6-groups [data]
   (mapv (fn [index]
-          (bit-or (bit-shift-left (bit-and (aget data (* 2 index)) 0xff) 8)
-                  (bit-and (aget data (inc (* 2 index))) 0xff)))
+          (bit-or (bit-shift-left (bit-and (nth data (* 2 index)) 0xff) 8)
+                  (bit-and (nth data (inc (* 2 index))) 0xff)))
         (range 8)))
 
 (defn- longest-zero-run [groups]
@@ -310,14 +334,12 @@
 (defn- format-ipv6 [data]
   (let [groups (ipv6-groups data)]
     (if-let [[start length] (longest-zero-run groups)]
-      (str (str/join ":" (clojure.core/map (fn [group] (format "%x" group))
+      (str (str/join ":" (clojure.core/map lowercase-hex-word
                                              (subvec groups 0 start)))
            "::"
-           (str/join ":" (clojure.core/map
-                            (fn [group] (format "%x" group))
+           (str/join ":" (clojure.core/map lowercase-hex-word
                             (subvec groups (+ start length)))))
-      (str/join ":" (clojure.core/map (fn [group] (format "%x" group))
-                                       groups)))))
+      (str/join ":" (clojure.core/map lowercase-hex-word groups)))))
 
 (defn ipv4
   "Generate an IPv4 address in dotted-quad form."

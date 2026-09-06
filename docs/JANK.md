@@ -44,6 +44,15 @@ the shared namespace successfully.
 - fixed-width integer, floating-point, pointer, UTF-8, out-parameter, and bulk
   byte operations;
 - `date`, `time`, and nested `datetime` structs passed by value;
+- a focused, deterministic smoke of `g/boolean`, `g/octet`, bounded `g/double`,
+  fixed-size `g/bytes` (with exact-length and non-reused-result identity
+  witnesses over jank's current vector representation), bounded `g/string`,
+  `g/regex-str`, the documented format
+  generators (`g/email`, `g/url-str`, `g/domain`, `g/uuid`, `g/ipv4`,
+  `g/ipv6`), and bounded `g/vector` shapes; this qualifies
+  only narrow deterministic draws, configured bounds, and format-shape
+  witnesses, not the complete value-space or shrink-quality coverage the
+  BB/JVM/Jolt generator suite exercises;
 - the shared property runner, deterministic seeds, shrinking, final replay,
   and failure reproduction;
 - shared temporal generators;
@@ -123,9 +132,17 @@ jank -I generated --module-path src:resources:script \
   is not a practical substitute;
 - run the complete shared semantic suite rather than the focused jank gate,
   which now also covers assumptions, framework-less counting/structured
-  reporting, and a focused `clojure.test` deftest/is/run-test smoke, but still
-  omits arbitrary-precision and exact binary32 generators and broad generator
-  coverage;
+  reporting, a focused `clojure.test` deftest/is/run-test smoke, and a
+  narrow deterministic smoke of `g/boolean`, `g/octet`, bounded `g/double`,
+  fixed-size `g/bytes`, `g/string`, `g/regex-str`, the documented format
+  generators, and bounded `g/vector` shapes (using exact bounds
+  where configured and format-shape witnesses otherwise), but still omits
+  arbitrary-precision and exact binary32 generators, and the broad generator
+  suite's full value-space, option-validation, and shrink-quality coverage
+  (Unicode category/alphabet filters, recursive generators, collection
+  combinator edge cases, and the like);
+- qualify `g/set` and `g/map` once macOS jank can execute their native
+  collection protocols;
 - broaden `clojure.test` integration beyond the focused deftest/is/run-test
   smoke to the complete `hegel.clojure-test` suite, and add Windows coverage
   for it once Windows jank exists;
