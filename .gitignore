@@ -6,6 +6,8 @@ dist/
 target/
 clr/**/bin/
 clr/**/obj/
+test/clr-consumer/bin/
+test/clr-consumer/obj/
 refs/
 .nrepl-port
 *.log

@@ -9,6 +9,8 @@ on:
       - 'resources/hegel/abi.edn'
       - 'script/hegel/**'
       - 'src/hegel/**'
+      - 'test/clr-consumer/**'
+      - 'docs/CLR.md'
   push:
     branches: [main, codex/clr-portable]
   workflow_dispatch:
@@ -124,3 +126,83 @@ jobs:
       - name: Run shared Clojure property semantics
         shell: pwsh
         run: dotnet $env:CLR_MAIN -m hegel.clr-property-smoke
+
+      # This package exercise intentionally keeps ClojureCLR experimental. It
+      # proves only that the bridge and the project's own Clojure source can be
+      # restored from a fresh local feed; it does not add a general deps.edn or
+      # Malli dependency path.
+      - name: Pack experimental CLR bridge and Clojure sources
+        shell: pwsh
+        run: |
+          $feed = Join-Path $env:RUNNER_TEMP 'jolt-hegel-clr-feed'
+          dotnet pack clr/Hegel.Native/Hegel.Native.csproj --configuration Release --no-build `
+            --output $feed -p:PackageVersion=0.0.0-ci
+          $package = Join-Path $feed 'ChuckleheadDev.JoltHegel.CLR.0.0.0-ci.nupkg'
+          if (-not (Test-Path -LiteralPath $package)) {
+            throw "CLR package was not created: $package"
+          }
+          $archive = [System.IO.Compression.ZipFile]::OpenRead($package)
+          try {
+            $names = @($archive.Entries | ForEach-Object FullName)
+            foreach ($required in @(
+              'lib/net8.0/Hegel.Native.dll',
+              'README.md',
+              'contentFiles/any/any/hegel/core.cljc',
+              'contentFiles/any/any/hegel/abi.edn')) {
+              if ($names -notcontains $required) {
+                throw "CLR package is missing required payload entry: $required"
+              }
+            }
+            if ($names | Where-Object { $_ -match '(^|/)libhegel(_c)?\.(so|dll|dylib)$' }) {
+              throw 'CLR package must not contain a native libhegel artifact'
+            }
+            if ($names | Where-Object { $_ -match '\.(clj|jank)$' }) {
+              throw 'CLR package must not contain Jolt, Babashka, or jank-only source'
+            }
+            if ($names -contains 'contentFiles/any/any/META-INF/jolt/aspects/hegel.edn') {
+              throw 'CLR package must not contain Jolt aspect metadata'
+            }
+          } finally {
+            $archive.Dispose()
+          }
+          "HEGEL_CLR_PACKAGE_FEED=$feed" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Restore clean local-feed CLR consumer
+        shell: pwsh
+        run: |
+          $project = 'test/clr-consumer/Hegel.Native.Package.Consumer.csproj'
+          # Do not let a runner-global NuGet cache satisfy the package reference.
+          $env:NUGET_PACKAGES = Join-Path $env:RUNNER_TEMP 'jolt-hegel-clr-consumer-packages'
+          dotnet restore $project --source $env:HEGEL_CLR_PACKAGE_FEED
+          dotnet build $project --configuration Release --no-restore
+          $output = Join-Path $env:GITHUB_WORKSPACE 'test/clr-consumer/bin/Release/net8.0'
+          $bridge = (& dotnet run --project $project --configuration Release --no-build).Trim()
+          $expectedBridge = Join-Path $output 'Hegel.Native.dll'
+          if ($bridge -ne $expectedBridge) {
+            throw "consumer did not resolve the packaged bridge: expected $expectedBridge, got $bridge"
+          }
+          "HEGEL_CLR_CONSUMER_OUTPUT=$output" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Prove a clean consumer cannot fall back to checkout bridge
+        shell: pwsh
+        run: |
+          $bridge = Join-Path $env:HEGEL_CLR_CONSUMER_OUTPUT 'Hegel.Native.dll'
+          $hidden = "$bridge.missing-control"
+          Move-Item -LiteralPath $bridge -Destination $hidden
+          try {
+            Remove-Item Env:HEGEL_CLR_BRIDGE_ASSEMBLY -ErrorAction SilentlyContinue
+            $env:CLOJURE_LOAD_PATH = $env:HEGEL_CLR_CONSUMER_OUTPUT
+            dotnet $env:CLR_MAIN -m clr.package-bridge-missing $env:HEGEL_LIBHEGEL_LIBRARY
+            if ($LASTEXITCODE -ne 0) {
+              throw "missing-bridge control failed with exit code $LASTEXITCODE"
+            }
+          } finally {
+            Move-Item -LiteralPath $hidden -Destination $bridge
+          }
+
+      - name: Run clean local-feed CLR consumer
+        shell: pwsh
+        run: |
+          Remove-Item Env:HEGEL_CLR_BRIDGE_ASSEMBLY -ErrorAction SilentlyContinue
+          $env:CLOJURE_LOAD_PATH = $env:HEGEL_CLR_CONSUMER_OUTPUT
+          dotnet $env:CLR_MAIN -m clr.package-consumer-smoke $env:HEGEL_CLR_CONSUMER_OUTPUT

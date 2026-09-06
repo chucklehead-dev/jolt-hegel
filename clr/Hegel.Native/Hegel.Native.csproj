@@ -5,5 +5,36 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Deterministic>true</Deterministic>
+    <PackageId>ChuckleheadDev.JoltHegel.CLR</PackageId>
+    <Title>jolt-hegel ClojureCLR bridge</Title>
+    <Description>Experimental ClojureCLR bridge and Clojure source payload for jolt-hegel.</Description>
+    <Authors>chucklehead-dev</Authors>
+    <PackageLicenseExpression>EPL-2.0</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/chucklehead-dev/jolt-hegel</PackageProjectUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <RepositoryUrl>https://github.com/chucklehead-dev/jolt-hegel</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
   </PropertyGroup>
+
+  <!--
+    ClojureCLR resolves namespaces from CLOJURE_LOAD_PATH rather than from the
+    assembly.  Copy the shared source and resources into a consuming project's
+    output directory so its load path can be that directory alone.  libhegel is
+    intentionally absent: hegel.install remains the checksum-verifying native
+    acquisition boundary.
+  -->
+  <ItemGroup>
+    <None Include="../../src/hegel/**/*.cljc;../../src/hegel/**/*.cljr"
+          Pack="true"
+          PackagePath="contentFiles/any/any/hegel/"
+          PackageCopyToOutput="true" />
+    <None Include="../../resources/hegel/**/*.*"
+          Pack="true"
+          PackagePath="contentFiles/any/any/hegel/"
+          PackageCopyToOutput="true" />
+    <None Include="../../docs/CLR.md"
+          Pack="true"
+          PackagePath="README.md" />
+  </ItemGroup>
 </Project>

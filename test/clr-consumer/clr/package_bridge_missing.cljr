@@ -1,0 +1,19 @@
+(ns clr.package-bridge-missing
+  "Negative package-consumer control: source remains present, bridge absent."
+  (:require [hegel.ffi.clr :as clr]))
+
+(defn- require! [description condition data]
+  (when-not condition
+    (throw (ex-info (str "CLR package bridge control failed: " description) data)))
+  (println "PASS" description))
+
+(defn -main [library-path]
+  (let [error (try
+                (clr/load! library-path)
+                nil
+                (catch System.Exception error error))]
+    (require! "missing package bridge fails before native loading"
+              (= :hegel.ffi.clr/missing-bridge-assembly
+                 (:type (ex-data error)))
+              {:error error})
+    (println "PASS CLR package missing-bridge control")))

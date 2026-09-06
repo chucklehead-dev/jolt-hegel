@@ -1,0 +1,59 @@
+(ns clr.package-consumer-smoke
+  "Clean local-feed consumer smoke. This namespace is not part of the package."
+  (:require [clojure.string :as str]
+            [hegel.abi :as abi]
+            [hegel.core :as h]
+            [hegel.generator :as g]
+            [hegel.install :as install]
+            [hegel.version :as version]))
+
+(defn- require! [description condition data]
+  (when-not condition
+    (throw (ex-info (str "CLR package consumer failed: " description) data)))
+  (println "PASS" description))
+
+(defn- normalized-path [path]
+  (System.IO.Path/GetFullPath path))
+
+(defn- bridge-location []
+  (let [bridge-type (System.Type/GetType "Hegel.Native.Bridge, Hegel.Native")]
+    (when-not bridge-type
+      (throw (ex-info "packaged Hegel.Native bridge type did not resolve" {})))
+    (.Location (.Assembly bridge-type))))
+
+(defn -main [consumer-output]
+  (let [expected-output (normalized-path consumer-output)
+        expected-bridge (normalized-path
+                         (System.IO.Path/Combine expected-output "Hegel.Native.dll"))
+        configured-load-path (System.Environment/GetEnvironmentVariable
+                              "CLOJURE_LOAD_PATH")
+        result (h/run-test!
+                {:test-cases 8 :seed 8172 :database "" :verbosity :quiet}
+                (fn [_]
+                  (let [value (h/draw! (g/integer 0 10))]
+                    (when-not (<= 0 value 10)
+                      (throw (ex-info "package consumer bound escaped"
+                                      {:hegel/origin "clr/package-consumer"}))))))]
+    (require! "consumer does not override packaged bridge discovery"
+              (str/blank? (System.Environment/GetEnvironmentVariable
+                           "HEGEL_CLR_BRIDGE_ASSEMBLY"))
+              {:bridge-override (System.Environment/GetEnvironmentVariable
+                                 "HEGEL_CLR_BRIDGE_ASSEMBLY")})
+    (require! "consumer load path is only its build output"
+              (= expected-output (normalized-path configured-load-path))
+              {:configured-load-path configured-load-path
+               :expected-output expected-output})
+    (require! "package copied source and resources support a real property"
+              (and (:passed? result)
+                   (= "8172" (:seed result))
+                   (= version/jolt-hegel-version (install/verify-source-version!)))
+              {:result result})
+    (require! "loaded bridge is the package-consumer copy"
+              (= expected-bridge (normalized-path (bridge-location)))
+              {:expected-bridge expected-bridge
+               :actual-bridge (bridge-location)})
+    (require! "package bridge records generated PInvoke coverage"
+              (every? #(= :clr/generated-pinvoke (:route %))
+                      (vals (:functions (abi/backend-report))))
+              {:report (abi/backend-report)})
+    (println "PASS CLR package consumer smoke")))

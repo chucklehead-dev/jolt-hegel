@@ -63,10 +63,59 @@ bb clr-codegen-check
 Never edit `GeneratedBindings.cs` directly. `Bridge.cs` is the small stable
 library-loading and native-memory implementation around the generated calls.
 
-## Running the experiment
+## Packaging and clean consumer contract
 
-Set ClojureCLR's source path using the platform path separator and point the
-backend at the built bridge. Then use the shared installer and semantic smoke:
+The generated `Hegel.Native` bridge can be packed with the project Clojure
+sources and resources for an experimental ClojureCLR consumer. The package does
+not include `libhegel`; continue to use `hegel.install` (or an explicit
+checksum-verified `HEGEL_LIBHEGEL_LIBRARY`) for the native library.
+
+From a checkout, build a local feed artifact:
+
+```bash
+dotnet pack clr/Hegel.Native/Hegel.Native.csproj --configuration Release \
+  --output ./artifacts -p:PackageVersion=0.0.0-local
+```
+
+The package ID is `ChuckleheadDev.JoltHegel.CLR`. A .NET consumer references it
+normally, then runs ClojureCLR with `CLOJURE_LOAD_PATH` set only to its build
+output directory. The package copies `hegel` source/resources and
+`Hegel.Native.dll` there, so the CLR backend discovers the bridge without a
+repository checkout:
+
+```xml
+<PackageReference Include="ChuckleheadDev.JoltHegel.CLR" Version="0.0.0-local" />
+```
+
+```bash
+dotnet restore path/to/consumer.csproj --source ./artifacts
+dotnet build path/to/consumer.csproj --configuration Release --no-restore
+export CLOJURE_LOAD_PATH="$PWD/path/to/consumer/bin/Release/net8.0"
+unset HEGEL_CLR_BRIDGE_ASSEMBLY
+dotnet /path/to/Clojure.Main.dll -m your.consumer.namespace
+```
+
+PowerShell uses the same output-only contract:
+
+```powershell
+$env:CLOJURE_LOAD_PATH = (Resolve-Path path/to/consumer/bin/Release/net8.0).Path
+Remove-Item Env:HEGEL_CLR_BRIDGE_ASSEMBLY -ErrorAction SilentlyContinue
+dotnet C:\path\to\Clojure.Main.dll -m your.consumer.namespace
+```
+
+`HEGEL_CLR_BRIDGE_ASSEMBLY` remains an explicit override for checkout and
+diagnostic use. Without it, the backend accepts only an `Hegel.Native.dll`
+beside a configured `CLOJURE_LOAD_PATH` root; it never searches the repository
+or a global checkout. Hosted CLR CI first removes the packaged bridge and
+requires that lookup to fail, then restores it and runs a real property from a
+local-feed-only consumer. This is package-layout evidence, not a supported
+release or public-feed publication.
+
+## Running the checkout experiment
+
+For a checkout, set ClojureCLR's source path using the platform path separator
+and point the backend at the built bridge. Then use the shared installer and
+semantic smoke:
 
 ```bash
 export CLOJURE_LOAD_PATH="$PWD/src:$PWD/resources:$PWD/script"
@@ -103,7 +152,9 @@ claim.
 ## Remaining release gates
 
 - package the managed bridge and Clojure sources into a practical consumer
-  dependency instead of requiring a repository checkout;
+  dependency instead of requiring a repository checkout; the experimental
+  local-feed package contract exists, but a released consumer artifact remains
+  to be defined and verified;
 - move from the focused CLR semantic smoke to the complete shared suite;
 - validate optional Malli only after a supported ClojureCLR dependency path is
   available;
