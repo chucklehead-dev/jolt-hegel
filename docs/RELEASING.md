@@ -14,12 +14,15 @@ GitHub release must all identify `0.5.0`.
 
 ## Current main and next release
 
-Current `main` raises the Jolt source and CI floor to 0.8.1, as declared by
-`:jolt/min-version` in `deps.edn` and the pinned Jolt assets in the CI and
-release workflows. This is current-main and next-release support; it does not
-change the published `v0.5.0` contract or its historical Jolt 0.7.23 floor.
-The source declaration remains `0.5.0` until a new release is explicitly
-prepared and tagged.
+Current `main` declares Jolt 0.8.1 as its source and compatibility floor in
+`:jolt/min-version`. CI retains a full Linux x86_64 0.8.1 minimum lane, while
+the primary Linux x86_64, Windows x86_64, and macOS arm64 lanes and release
+verification use official Jolt 0.8.3 assets. The Jolt `v0.8.3` release tag
+resolves to `343f730922cf16fafe673b466cedcdcfe0596854`; every primary asset
+is pinned by SHA-256 in the workflows. This is current-main and next-release
+support; it does not change the published `v0.5.0` contract or its historical
+Jolt 0.7.23 floor. The source declaration remains `0.5.0` until a new release is
+explicitly prepared and tagged.
 
 ## Private proving ground
 
@@ -85,9 +88,10 @@ Review these together for each release:
 - `.github/workflows/release.yml`: release verification target matrix
 - `README.md` and `THIRD_PARTY_NOTICES.md`: documented versions and notices
 
-Current-main CI and release workflows pin Jolt 0.8.1. The published v0.5.0
-release used Jolt 0.7.23. FFI-capable Babashka 1.13.220 assets are
-checksum-pinned in CI.
+Current-main CI uses Jolt 0.8.3 as its primary supported matrix and retains a
+full Linux x86_64 Jolt 0.8.1 minimum-version lane; the release workflow uses
+0.8.3. The published v0.5.0 release used Jolt 0.7.23. FFI-capable Babashka
+1.13.220 assets are checksum-pinned in CI.
 The ordinary Linux asset is required; the static Linux asset has neither
 dynamic-library loading nor the libffi route required by libhegel aggregates.
 The standalone

@@ -24,8 +24,9 @@
 ## Install
 
 Use the runtime selected by the consuming project's toolchain contract: Jolt
-0.8.1 or later on current `main` and next-release work (the published `v0.5.0`
-tag retains its historical Jolt 0.7.23+ contract), an FFI-capable Babashka
+0.8.1 or later on current `main` and next-release work, with 0.8.3 as the
+primary qualified release (the published `v0.5.0` tag retains its historical
+Jolt 0.7.23+ contract), an FFI-capable Babashka
 1.13.220 or later build with the official `babashka.ffi`, or JVM Clojure on
 JDK 22 or later. On Linux, use the
 ordinary release asset rather than the `-static` asset and confirm `bb describe`
@@ -53,7 +54,7 @@ From the consuming project, install the verified libhegel release with the host
 that will run the tests:
 
 ```bash
-# Current `main` / next release candidate: Jolt 0.8.1+
+# Current `main` / next release candidate: Jolt 0.8.1+ (0.8.3 primary)
 JOLT_CACHE_DIR=.jolt-cache/jolt-hegel-<jolt-hegel-commit-sha> \
   jolt -A:test -m hegel.install
 
@@ -113,7 +114,7 @@ unavailable; a source-only test can conceal missing packaging.
 
 | Host | Status and current evidence |
 | --- | --- |
-| Jolt 0.8.1+ on current `main` | Supported on Linux x86_64, Windows x86_64, and macOS arm64 |
+| Jolt 0.8.1+ on current `main` | Jolt 0.8.3 is primary on Linux x86_64, Windows x86_64, and macOS arm64; Jolt 0.8.1 retains a full Linux minimum lane |
 | FFI-capable Babashka 1.13.220+ | Supported on the same three-OS native-image matrix; Linux `-static` assets are excluded |
 | JVM Clojure on JDK 22+ | Supported on the same matrix with JDK 25 primary and a Linux JDK 22 minimum gate |
 | jank | Experimental focused Linux and macOS suites; see `docs/JANK.md` |

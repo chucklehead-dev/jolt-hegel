@@ -6,6 +6,13 @@ for v0.1.0 through v0.4.0, see the tag and release history in that repository.
 
 ## Unreleased
 
+- Qualify current `main` with official checksum-pinned Jolt 0.8.3 assets on
+  Linux x86_64, Windows x86_64, and macOS arm64 while retaining a full Jolt
+  0.8.1 Linux compatibility-floor lane. Release verification uses the same
+  0.8.3 pins. The published v0.5.0/Jolt 0.7.23 contract is unchanged, and a
+  current-release arena remeasurement continues to reject a fresh arena per
+  temporary-allocation wrapper.
+
 - Route labelled draws and `note!` through libhegel's caller-owned test-case
   printer, with native speculative rollback for rejected filters, duplicate
   vector/set/map candidates, and recursive retries. Final failures now retain
