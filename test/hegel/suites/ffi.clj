@@ -53,7 +53,183 @@
                   (= 2 (count (filter #(= :read (first %)) @calls)))
                   (= 1 (count (filter #(= :decode (first %)) @calls))))))))
 
+(defn- test-case-clone-pointer-out-contract [context]
+  (let [calls (atom [])
+        frees (atom [])]
+    (with-redefs [ffi-backend/with-native-scope (fn [call] (call))
+                  ffi-backend/sizeof (constantly 8)
+                  ffi-backend/alloc (fn [size]
+                                      (swap! calls conj [:alloc size])
+                                      ::out)
+                  ffi-backend/read-value (fn [pointer type]
+                                           (swap! calls conj [:read pointer type])
+                                           ::cloned)
+                  ffi-backend/free (fn [pointer]
+                                     (swap! frees conj pointer))
+                  hffi/c-test-case-clone (fn [ctx test-case out]
+                                           (swap! calls conj [:call ctx test-case out])
+                                           0)]
+      (support/check! context "test-case-clone! returns the decoded pointer-out value"
+             (= ::cloned (hffi/test-case-clone! ::ctx ::test-case)))
+      (support/check! context "test-case-clone! threads ctx and the source test case to libhegel"
+             (some #{[:call ::ctx ::test-case ::out]} @calls))
+      (support/check! context "test-case-clone! frees the pointer-out buffer exactly once"
+             (= [::out] @frees)))))
+
+(defn- new-state-machine-with-concurrency-contract [context]
+  (let [with-c-string-array-calls (atom [])
+        with-int64-array-calls (atom [])
+        native-calls (atom [])]
+    (with-redefs [hffi/with-c-string-array
+                  (fn [values call]
+                    (swap! with-c-string-array-calls conj values)
+                    (call (keyword (str "rules-ptr-" (count @with-c-string-array-calls)))
+                          (count values)))
+                  hffi/with-int64-array
+                  (fn [values call]
+                    (swap! with-int64-array-calls conj (vec values))
+                    (call ::rule-groups-ptr))
+                  ffi-backend/with-native-scope (fn [call] (call))
+                  ffi-backend/sizeof (constantly 8)
+                  ffi-backend/alloc (fn [_size] ::out)
+                  ffi-backend/free (fn [_pointer] nil)
+                  ffi-backend/read-value (fn [_pointer type]
+                                           (case type
+                                             :pointer ::machine
+                                             :int64 3))
+                  hffi/c-new-state-machine
+                  (fn [& arguments]
+                    (swap! native-calls conj arguments)
+                    0)]
+      (let [result (hffi/new-state-machine-with-concurrency!
+                    ::ctx ::test-case ["r1" "r2"] [5 6] ["inv"]
+                    2 4)]
+        (support/check! context "the configured constructor returns the owned handle and selected concurrency as a map"
+               (= {:state-machine ::machine :concurrency 3} result))
+        (support/check! context "the configured constructor threads rule names and rule groups through unchanged"
+               (and (= [["r1" "r2"] ["inv"]] @with-c-string-array-calls)
+                    (= [[5 6]] @with-int64-array-calls)))
+        (support/check! context "the configured constructor passes every argument to libhegel in order"
+               (= [[::ctx ::test-case :rules-ptr-1 ::rule-groups-ptr 2
+                    :rules-ptr-2 1 2 4 ::out ::out]]
+                  @native-calls))))
+    (let [error (try
+                  (hffi/new-state-machine-with-concurrency!
+                   ::ctx ::test-case ["r1" "r2"] [5] ["inv"] 2 4)
+                  nil
+                  (catch Throwable e e))]
+      (support/check! context "the configured constructor rejects non-parallel rule groups before native access"
+             (and (= ::hffi/invalid-argument (:type (ex-data error)))
+                  (= :rule-groups (:argument (ex-data error)))
+                  (= 2 (:expected (ex-data error)))
+                  (= 1 (:actual (ex-data error))))))))
+
+(defn- new-state-machine-post-creation-cleanup-contract [context]
+  (let [reads (atom 0)
+        frees (atom [])]
+    (with-redefs [hffi/with-c-string-array
+                  (fn [values call] (call ::strings (count values)))
+                  hffi/with-int64-array
+                  (fn [_values call] (call ::groups))
+                  ffi-backend/with-native-scope (fn [call] (call))
+                  ffi-backend/sizeof (constantly 8)
+                  ffi-backend/alloc (constantly ::out)
+                  ffi-backend/free (fn [_pointer] nil)
+                  ffi-backend/read-value
+                  (fn [_pointer type]
+                    (if (and (= :pointer type) (= 1 (swap! reads inc)))
+                      ::machine
+                      (throw (ex-info "mocked concurrency read failure" {}))))
+                  hffi/c-new-state-machine (fn [& _arguments] 0)
+                  hffi/c-state-machine-free
+                  (fn [ctx machine]
+                    (swap! frees conj [ctx machine])
+                    0)]
+      (let [error (try
+                    (hffi/new-state-machine-with-concurrency!
+                     ::ctx ::test-case ["r1"] [0] [] 1 2)
+                    nil
+                    (catch Throwable e e))]
+        (support/check! context "the configured constructor preserves a post-creation read failure"
+               (= "mocked concurrency read failure" (ex-message error)))
+        (support/check! context "the configured constructor frees its owned machine after a post-creation failure"
+               (= [[::ctx ::machine]] @frees)))))
+  (let [allocations (atom 0)
+        frees (atom [])]
+    (with-redefs [hffi/with-c-string-array
+                  (fn [values call] (call ::strings (count values)))
+                  hffi/with-int64-array
+                  (fn [_values call] (call ::groups))
+                  ffi-backend/with-native-scope (fn [call] (call))
+                  ffi-backend/sizeof (constantly 8)
+                  ffi-backend/alloc
+                  (fn [_size]
+                    (if (= 1 (swap! allocations inc))
+                      ::machine-out
+                      (throw (ex-info "mocked second allocation failure" {}))))
+                  ffi-backend/free #(swap! frees conj %)]
+      (let [error (try
+                    (hffi/new-state-machine-with-concurrency!
+                     ::ctx ::test-case ["r1"] [0] [] 1 2)
+                    nil
+                    (catch Throwable e e))]
+        (support/check! context "a second out-buffer allocation failure preserves its cause"
+               (= "mocked second allocation failure" (ex-message error)))
+        (support/check! context "a second out-buffer allocation failure frees the first buffer"
+               (= [::machine-out] @frees))))))
+
+(defn- new-state-machine-sequential-wrapper-cleanup-contract [context]
+  (let [frees (atom [])]
+    (with-redefs [hffi/new-state-machine-with-concurrency!
+                  (fn [_ctx _test-case _rule-names _rule-groups _invariant-names
+                       _min-concurrency _max-concurrency]
+                    {:state-machine ::machine :concurrency 4})
+                  hffi/state-machine-free!
+                  (fn [ctx state-machine]
+                    (swap! frees conj [ctx state-machine])
+                    (throw (ex-info "mocked cleanup failure" {})))]
+      (let [error (try
+                    (hffi/new-state-machine! ::ctx ::test-case ["r1"] ["inv"])
+                    nil
+                    (catch Throwable e e))]
+        (support/check! context "the sequential wrapper preserves unexpected concurrency over cleanup failure"
+               (and (some? error)
+                    (= ::hffi/invalid-state-machine-concurrency (:type (ex-data error)))
+                    (= 4 (:concurrency (ex-data error)))))
+        (support/check! context "the sequential wrapper frees the machine before throwing on unexpected concurrency"
+               (= [[::ctx ::machine]] @frees))))))
+
+(defn- state-machine-worker-index-contract [context]
+  (let [rule-worker-indices (atom [])
+        rejected-worker-indices (atom [])]
+    (with-redefs [ffi-backend/with-native-scope (fn [call] (call))
+                  ffi-backend/sizeof (constantly 8)
+                  ffi-backend/alloc (fn [_size] ::out)
+                  ffi-backend/free (fn [_pointer] nil)
+                  ffi-backend/read-value (fn [_pointer _type] 7)
+                  hffi/c-state-machine-next-rule
+                  (fn [_ctx _test-case _state-machine worker-index _out]
+                    (swap! rule-worker-indices conj worker-index)
+                    0)
+                  hffi/c-state-machine-rule-rejected
+                  (fn [_ctx _test-case _state-machine worker-index]
+                    (swap! rejected-worker-indices conj worker-index)
+                    0)]
+      (hffi/state-machine-next-rule! ::ctx ::test-case ::machine)
+      (hffi/state-machine-next-rule! ::ctx ::test-case ::machine 3)
+      (hffi/state-machine-rule-rejected! ::ctx ::test-case ::machine)
+      (hffi/state-machine-rule-rejected! ::ctx ::test-case ::machine 5)
+      (support/check! context "state-machine-next-rule! defaults worker-index to 0 and threads an explicit index"
+             (= [0 3] @rule-worker-indices))
+      (support/check! context "state-machine-rule-rejected! defaults worker-index to 0 and threads an explicit index"
+             (= [0 5] @rejected-worker-indices)))))
+
 (defn upstream-babashka-ffi-adapter [context]
+  (test-case-clone-pointer-out-contract context)
+  (new-state-machine-with-concurrency-contract context)
+  (new-state-machine-post-creation-cleanup-contract context)
+  (new-state-machine-sequential-wrapper-cleanup-contract context)
+  (state-machine-worker-index-contract context)
   (let [report (abi/backend-report)
         function-count (count (abi/functions))
         expected-route (case (host/runtime)

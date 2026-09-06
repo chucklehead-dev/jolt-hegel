@@ -54,6 +54,7 @@
 (def c-run-free (backend/function :run-free))
 (def c-test-case-from-blob (backend/function :test-case-from-blob))
 (def c-test-case-free (backend/function :test-case-free))
+(def c-test-case-clone (backend/function :test-case-clone))
 (def c-generate-integer (backend/function :generate-integer))
 (def c-generate-integer-big (backend/function :generate-integer-big))
 (def c-generate-boolean (backend/function :generate-boolean))
@@ -412,6 +413,10 @@
   (c-test-case-free ctx test-case)
   nil)
 
+(defn test-case-clone! [ctx test-case]
+  (call-out! ctx :test-case-clone :pointer
+             #(c-test-case-clone ctx test-case %)))
+
 (defn generate-integer! [ctx test-case min-value max-value]
   (backend/with-native-scope
    (fn []
@@ -750,40 +755,94 @@
          (finally
            (backend/free pointer)))))))
 
+(defn- with-out-buffer [type call]
+  (let [out (backend/alloc (backend/sizeof type))]
+    (try
+      (call out)
+      (finally
+        (backend/free out)))))
+
+(defn state-machine-free! [ctx state-machine]
+  (c-state-machine-free ctx state-machine)
+  nil)
+
+(defn new-state-machine-with-concurrency!
+  "Low-level, concurrency-aware state-machine constructor. `rule-groups` is a
+  sequence of int64 group ids parallel to `rule-names`. All arguments are
+  threaded through to libhegel exactly as given.
+  Returns {:state-machine <owned handle> :concurrency <int64>}, where
+  :concurrency is libhegel's selected concurrency, which may differ from
+  `max-concurrency`. The machine is freed rather than leaked if anything
+  fails after a successful native creation."
+  [ctx test-case rule-names rule-groups invariant-names
+   min-concurrency max-concurrency]
+  (let [rule-names (vec rule-names)
+        rule-groups (vec rule-groups)
+        invariant-names (vec invariant-names)]
+    (when-not (= (count rule-names) (count rule-groups))
+      (throw
+       (ex-info
+        "state-machine rule groups must be parallel to rule names"
+        {:type ::invalid-argument
+         :argument :rule-groups
+         :expected (count rule-names)
+         :actual (count rule-groups)})))
+    (with-c-string-array
+      rule-names
+      (fn [rules rule-count]
+        (with-int64-array
+          rule-groups
+          (fn [rule-groups-ptr]
+            (with-c-string-array
+              invariant-names
+              (fn [invariants invariant-count]
+                (backend/with-native-scope
+                 (fn []
+                   (with-out-buffer
+                    :pointer
+                    (fn [machine-out]
+                      (with-out-buffer
+                       :int64
+                       (fn [concurrency-out]
+                       (check-draw!
+                        ctx :new-state-machine
+                        (c-new-state-machine
+                         ctx test-case rules rule-groups-ptr rule-count
+                         invariants invariant-count
+                         min-concurrency max-concurrency
+                         machine-out concurrency-out))
+                       (let [machine (backend/read-value machine-out :pointer)]
+                         (host/try-catch-all
+                          {:state-machine machine
+                           :concurrency (backend/read-value concurrency-out :int64)}
+                          error
+                          (do
+                            (host/try-catch-all
+                             (state-machine-free! ctx machine)
+                             _cleanup nil)
+                            (throw error))))))))))))))))))
+
 (defn new-state-machine!
+  "Sequential compatibility wrapper: zero rule groups, min = max = 1
+  concurrency. Returns only the owned machine handle. If libhegel selects a
+  concurrency other than 1, the machine is freed before throwing."
   [ctx test-case rule-names invariant-names]
-  (with-c-string-array
-    rule-names
-    (fn [rules rule-count]
-      (with-int64-array
-        (repeat rule-count 0)
-        (fn [rule-groups]
-          (with-c-string-array
-            invariant-names
-            (fn [invariants invariant-count]
-              (backend/with-native-scope
-               (fn []
-                 (let [machine-out (backend/alloc (backend/sizeof :pointer))
-                       concurrency-out (backend/alloc (backend/sizeof :int64))]
-                   (try
-                     (check-draw!
-                      ctx :new-state-machine
-                      (c-new-state-machine
-                       ctx test-case rules rule-groups rule-count
-                       invariants invariant-count 1 1
-                       machine-out concurrency-out))
-                     (let [concurrency (backend/read-value concurrency-out :int64)]
-                       (when-not (= 1 concurrency)
-                         (throw
-                          (ex-info
-                           (str "libhegel returned unexpected sequential "
-                                "state-machine concurrency " concurrency)
-                           {:type ::invalid-state-machine-concurrency
-                            :concurrency concurrency})))
-                       (backend/read-value machine-out :pointer))
-                     (finally
-                       (backend/free concurrency-out)
-                       (backend/free machine-out)))))))))))))
+  (let [rule-names (vec rule-names)
+        {:keys [state-machine concurrency]}
+        (new-state-machine-with-concurrency!
+         ctx test-case rule-names (repeat (count rule-names) 0)
+         invariant-names 1 1)]
+    (when-not (= 1 concurrency)
+      (host/try-catch-all
+       (state-machine-free! ctx state-machine)
+       _cleanup nil)
+      (throw
+       (ex-info
+        (str "libhegel returned unexpected sequential "
+             "state-machine concurrency " concurrency)
+        {:type ::invalid-state-machine-concurrency
+         :concurrency concurrency})))
+    state-machine))
 
 (defn state-machine-next-group! [ctx test-case state-machine]
   (let [group
@@ -793,21 +852,23 @@
     (when-not (= state-machine-done group)
       group)))
 
-(defn state-machine-next-rule! [ctx test-case state-machine]
-  (let [index
-        (call-draw-out!
-         ctx :state-machine-next-rule :int64
-         #(c-state-machine-next-rule ctx test-case state-machine 0 %))]
-    (when-not (= state-machine-done index)
-      index)))
+(defn state-machine-next-rule!
+  ([ctx test-case state-machine]
+   (state-machine-next-rule! ctx test-case state-machine 0))
+  ([ctx test-case state-machine worker-index]
+   (let [index
+         (call-draw-out!
+          ctx :state-machine-next-rule :int64
+          #(c-state-machine-next-rule ctx test-case state-machine worker-index %))]
+     (when-not (= state-machine-done index)
+       index))))
 
-(defn state-machine-rule-rejected! [ctx test-case state-machine]
-  (check! ctx :state-machine-rule-rejected
-          (c-state-machine-rule-rejected ctx test-case state-machine 0)))
-
-(defn state-machine-free! [ctx state-machine]
-  (c-state-machine-free ctx state-machine)
-  nil)
+(defn state-machine-rule-rejected!
+  ([ctx test-case state-machine]
+   (state-machine-rule-rejected! ctx test-case state-machine 0))
+  ([ctx test-case state-machine worker-index]
+   (check! ctx :state-machine-rule-rejected
+           (c-state-machine-rule-rejected ctx test-case state-machine worker-index))))
 
 (defn- generate-fixed-bytes! [ctx operation size draw]
   (backend/with-native-scope
