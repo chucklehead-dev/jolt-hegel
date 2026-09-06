@@ -54,6 +54,8 @@
 (def c-run-free (backend/function :run-free))
 (def c-test-case-from-blob (backend/function :test-case-from-blob))
 (def c-test-case-free (backend/function :test-case-free))
+(def c-test-case-is-nondeterministic
+  (backend/function :test-case-is-nondeterministic))
 (def c-test-case-clone (backend/function :test-case-clone))
 (def c-generate-integer (backend/function :generate-integer))
 (def c-generate-integer-big (backend/function :generate-integer-big))
@@ -107,6 +109,8 @@
 (def c-state-machine-next-group (backend/function :state-machine-next-group))
 (def c-state-machine-next-rule (backend/function :state-machine-next-rule))
 (def c-state-machine-rule-rejected (backend/function :state-machine-rule-rejected))
+(def c-state-machine-should-check-invariant
+  (backend/function :state-machine-should-check-invariant))
 (def c-state-machine-next-rule-collect-safe
   #?(:jolt (backend/function :state-machine-next-rule :collect-safe)
      :default c-state-machine-next-rule))
@@ -427,6 +431,13 @@
 (defn test-case-free! [ctx test-case]
   (c-test-case-free ctx test-case)
   nil)
+
+(defn test-case-nondeterministic?
+  "True when TEST-CASE belongs to a run already declared nondeterministic."
+  [ctx test-case]
+  (not (zero?
+        (call-out! ctx :test-case-is-nondeterministic :uint8
+                   #(c-test-case-is-nondeterministic ctx test-case %)))))
 
 (defn test-case-clone! [ctx test-case]
   (call-out! ctx :test-case-clone :pointer
@@ -885,6 +896,15 @@
          #(c-state-machine-next-group ctx test-case state-machine %))]
     (when-not (= state-machine-done group)
       group)))
+
+(defn state-machine-should-check-invariant!
+  "Return libhegel's coordinator-only invariant decision for INVARIANT-INDEX.
+  This is a draw operation and therefore preserves STOP_TEST control flow."
+  [ctx test-case state-machine invariant-index]
+  (not (zero?
+        (call-draw-out! ctx :state-machine-should-check-invariant :uint8
+                        #(c-state-machine-should-check-invariant
+                          ctx test-case state-machine invariant-index %)))))
 
 (defn- state-machine-next-rule-with! [raw ctx test-case state-machine worker-index]
   (let [index

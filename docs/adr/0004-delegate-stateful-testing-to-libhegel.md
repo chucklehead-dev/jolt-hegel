@@ -16,7 +16,7 @@ Use libhegel's state-machine and pool APIs directly. Present rules as named
 immutable state transitions and invariants as named predicates. Keep arbitrary
 host values in a Clojure map keyed by libhegel pool variable identities. Treat false
 preconditions and rule assumptions as skipped attempts; run invariants initially
-and after successful rules. Drive libhegel 0.33's round protocol at fixed
+and after successful rules. Drive the pinned libhegel round protocol at fixed
 concurrency one until a separate public contract covers concurrent state.
 
 Do not add a separate public swarm combinator.

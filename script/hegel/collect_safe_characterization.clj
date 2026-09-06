@@ -504,12 +504,267 @@
                        (every? complete-round? @reports))}))
   ([] (collect-two-worker-contention! :collect-safe)))
 
+;; --- worker-body exception and cancellation characterization --------------
+;;
+;; This is the #24 prerequisite that the successful native-contention probe
+;; above intentionally does not cover. A user-shaped worker body throws only
+;; after both workers have entered it. The other worker waits for the published
+;; cancellation rather than taking another native pull. There is deliberately
+;; no worker timeout: this code runs only in --child mode, where the parent
+;; process owns liveness if a native call or worker body never returns.
+
+(def ^:private worker-body-error-type
+  ::expected-worker-body-error)
+
+(defn- worker-body-error
+  [worker-index]
+  (ex-info "expected concurrent worker-body failure"
+           {:type worker-body-error-type
+            :hegel/origin "hegel.collect-safe-characterization/worker-body"
+            :worker-index worker-index}))
+
+(defn- exception-worker-result
+  [helpers worker-index expected-error start entered release-body cancelled
+   clone state-machine pool]
+  (let [calls (atom {:state-machine-next-rule 0
+                     :pool-add 0
+                     :pool-generate 0})]
+    (try
+      (let [ctx (hffi/context-new!)]
+        (try
+          (if (= ::abort @start)
+            {:status :aborted :worker-index worker-index :calls @calls}
+            (do
+              (when-not (some? ((:state-machine-next-rule helpers)
+                                ctx clone state-machine worker-index))
+                (throw (ex-info "worker body probe stopped before selecting a rule"
+                                {:worker-index worker-index})))
+              (swap! calls update :state-machine-next-rule inc)
+              ((:pool-add helpers) ctx clone pool)
+              (swap! calls update :pool-add inc)
+              ((:pool-generate helpers) ctx clone pool false)
+              (swap! calls update :pool-generate inc)
+              ;; Both workers have now entered their real host-language body.
+              ;; Scheduling can still choose which native instruction ran last;
+              ;; the barrier proves entry, not simultaneous lock ownership.
+              (deliver entered worker-index)
+              @release-body
+              (if (zero? worker-index)
+                (throw expected-error)
+                ;; Do not take a second native selection after cancellation.
+                ;; This promise is deliberately a cooperative protocol model,
+                ;; not a claim that an executor cancellation primitive exists.
+                ;; The error worker publishes it in its catch path.
+                (let [reason @cancelled]
+                  {:status :cancelled
+                   :worker-index worker-index
+                   :cancelled-by (:worker-index reason)
+                   :calls @calls}))))
+          (finally
+            (hffi/context-free! ctx))))
+      (catch Throwable error
+        (let [failure {:worker-index worker-index
+                       :type (or (:type (ex-data error))
+                                 :unclassified-worker-error)
+                       :origin (:hegel/origin (ex-data error))
+                       :message (ex-message error)}]
+          ;; A caught setup/native/body error means this worker is no longer
+          ;; live. Release the coordinator's entry barrier so it can join both
+          ;; completed futures, validate the unexpected result, and clean up
+          ;; instead of waiting for the external watchdog.
+          (deliver entered worker-index)
+          ;; A promise is a first-writer-wins cancellation record. This probe
+          ;; deliberately has one expected throwing worker (index zero), but
+          ;; preserving an unexpected worker's identity keeps the harness
+          ;; fail-closed if that invariant changes.
+          (deliver cancelled failure)
+          {:status :error
+           :worker-index worker-index
+           :failure failure
+           :error error
+           :calls @calls})))))
+
+(defn- start-exception-worker!
+  [helpers worker-index expected-error ready start entered release-body cancelled
+   clone state-machine pool]
+  (future
+    (deliver ready worker-index)
+    (exception-worker-result helpers worker-index expected-error start entered
+                             release-body cancelled clone state-machine pool)))
+
+(defn- run-two-worker-exception-round! [reports]
+  (let [test-case (h/current-test-case!)
+        root-context (:context test-case)
+        root-handle (:handle test-case)
+        events (atom [])
+        helpers (route-helpers :collect-safe)
+        {:keys [state-machine concurrency]}
+        (hffi/new-state-machine-with-concurrency!
+         root-context root-handle ["left" "right"] [0 0] [] 2 2)]
+    (when-not (= 2 concurrency)
+      (hffi/state-machine-free! root-context state-machine)
+      (throw (ex-info "worker-body probe did not receive concurrency two"
+                      {:concurrency concurrency})))
+    ;; The first concurrent construction is an assumed-away flip case. A
+    ;; successful construction must therefore be on a case that libhegel has
+    ;; already stamped nondeterministic, which is the non-replayable result
+    ;; path this probe expects below.
+    (when-not (hffi/test-case-nondeterministic? root-context root-handle)
+      (hffi/state-machine-free! root-context state-machine)
+      (throw (ex-info "worker-body probe reached a concurrent machine on a deterministic case"
+                      {})))
+    (let [pool (atom nil)
+          left-clone (atom nil)
+          right-clone (atom nil)
+          cleanup-safe? (atom true)
+          joined? (atom false)
+          completed (atom nil)]
+      (try
+        (reset! pool (hffi/new-pool! root-context root-handle))
+        (reset! left-clone (hffi/test-case-clone! root-context root-handle))
+        (reset! right-clone (hffi/test-case-clone! root-context root-handle))
+        ;; Coordinator-only and ordinary. On the error path it is never called
+        ;; again: a cancelled round is not a completed join point.
+        (when-not (some? (hffi/state-machine-next-group!
+                          root-context root-handle state-machine))
+          (throw (ex-info "worker-body probe stopped before its first group" {})))
+        (let [start (promise)
+              left-ready (promise)
+              right-ready (promise)
+              left-entered (promise)
+              right-entered (promise)
+              release-body (promise)
+              cancelled (promise)
+              expected-error (worker-body-error 0)]
+          (reset! cleanup-safe? false)
+          (let [left (start-exception-worker! helpers 0 expected-error left-ready start
+                                              left-entered release-body cancelled
+                                              @left-clone state-machine @pool)
+                right (start-exception-worker! helpers 1 expected-error right-ready start
+                                               right-entered release-body cancelled
+                                               @right-clone state-machine @pool)]
+            ;; These waits are intentionally unbounded in the watched child.
+            @left-ready
+            @right-ready
+            (deliver start :go)
+            @left-entered
+            @right-entered
+            (deliver release-body :throw-worker-zero)
+            (let [left-result (await-worker! left)
+                  right-result (await-worker! right)]
+              (reset! joined? true)
+              (reset! cleanup-safe? true)
+              (swap! events conj :workers-joined)
+              (when-not (and (= :error (:status left-result))
+                             (identical? expected-error (:error left-result))
+                             (= worker-body-error-type
+                                (get-in left-result [:failure :type]))
+                             (= "hegel.collect-safe-characterization/worker-body"
+                                (get-in left-result [:failure :origin]))
+                             (= :cancelled (:status right-result))
+                             (= 0 (:cancelled-by right-result))
+                             (= {:state-machine-next-rule 1
+                                 :pool-add 1
+                                 :pool-generate 1}
+                                (:calls left-result)
+                                (:calls right-result)))
+                (throw (ex-info "worker-body exception probe did not cancel and join as required"
+                                {:left left-result :right right-result})))
+              (reset! completed {:left (dissoc left-result :error)
+                                 :right right-result
+                                 :route :collect-safe
+                                 :test-case-nondeterministic? true})
+              ;; Throw only after every worker has returned. run-test! records
+              ;; the user-shaped failure; libhegel subsequently reports its
+              ;; expected non-replayable concurrent-run status.
+              (throw (:error left-result)))))
+        (finally
+          ;; Never re-enter ordinary Hegel cleanup while a worker may still be
+          ;; live. The false branch deliberately parks the child for its parent
+          ;; watchdog rather than freeing the root test case/run underneath it.
+          (if @cleanup-safe?
+            (do
+              (when-let [clone @left-clone]
+                (hffi/test-case-free! root-context clone))
+              (when-let [clone @right-clone]
+                (hffi/test-case-free! root-context clone))
+              (when @joined?
+                (swap! events conj :clones-freed))
+              (when-let [pool-handle @pool]
+                (hffi/pool-free! root-context pool-handle))
+              (when @joined?
+                (swap! events conj :pool-freed))
+              (hffi/state-machine-free! root-context state-machine)
+              (when @joined?
+                (swap! events conj :state-machine-freed)
+                (when-let [report @completed]
+                  (swap! reports conj (assoc report :events @events)))))
+            @(promise)))))))
+
+(defn collect-two-worker-worker-error!
+  "Run the expected worker-body failure probe in an externally watched child.
+  It models cooperative peer cancellation and checks exception containment and
+  cleanup for that protocol; it does not claim an executor cancellation API.
+  The current public run result deliberately rejects concurrent failures."
+  []
+  (let [reports (atom [])
+        run-error
+        (try
+          (h/run-test!
+           {;; The budget counts accepted cases. libhegel's initial
+            ;; concurrency flip is assumed away as an extra invalid case, then
+            ;; this one accepted case reaches the worker-error body.
+            :test-cases 1
+            :stateful-step-count 1
+            :seed 880106
+            :database ""
+            :verbosity :quiet
+            :report-multiple-failures? false
+            :suppress-health-checks [:too-slow]}
+           (fn [_] (run-two-worker-exception-round! reports)))
+          nil
+          (catch Throwable error error))
+        expected-events [:workers-joined :clones-freed :pool-freed
+                         :state-machine-freed]
+        complete?
+        (fn [{:keys [left right route events test-case-nondeterministic?]}]
+          (and (= :collect-safe route)
+               test-case-nondeterministic?
+               (= expected-events events)
+               (= :error (:status left))
+               (= worker-body-error-type (get-in left [:failure :type]))
+               (= "hegel.collect-safe-characterization/worker-body"
+                  (get-in left [:failure :origin]))
+               (= "expected concurrent worker-body failure"
+                  (get-in left [:failure :message]))
+               (= :cancelled (:status right))
+               (= 0 (:cancelled-by right))
+               (= {:state-machine-next-rule 1
+                   :pool-add 1
+                   :pool-generate 1}
+                  (:calls left)
+                  (:calls right))))]
+    (when-not (and (= :hegel.core/unsupported-concurrent-state-machine
+                      (:type (ex-data run-error)))
+                   (= 1 (count @reports))
+                   (every? complete? @reports))
+      (throw (ex-info "worker-body exception characterization did not fail closed"
+                      {:run-error (when run-error
+                                    {:type (:type (ex-data run-error))
+                                     :message (ex-message run-error)})
+                       :reports @reports})))
+    {:status :expected-nonpublic-concurrent-failure
+     :run-error {:type (:type (ex-data run-error))
+                 :message (ex-message run-error)}
+     :completed-rounds @reports}))
+
 (defn collect-all!
   "Run both bounded measurements and return one EDN-safe report map."
   []
   {:getpid (collect!)
    :state-machine-next-rule (collect-state-machine-next-rule!)
-   :two-worker-contention (collect-two-worker-contention!)})
+   :two-worker-contention (collect-two-worker-contention!)
+   :two-worker-worker-error (collect-two-worker-worker-error!)})
 
 (defn- watchdog-guidance []
   {:status :external-watchdog-required

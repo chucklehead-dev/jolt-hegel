@@ -944,7 +944,7 @@ Concurrent engine safety has not been verified by jolt-hegel's test suite, so
 concurrent native runs remain unsupported until that contract has a dedicated
 integration test.
 
-libhegel 0.33's concurrent state-machine protocol is not exposed. The current
+libhegel 0.36.3's concurrent state-machine protocol is not exposed. The current
 `hegel.stateful/run!` implementation drives the round protocol with fixed
 concurrency one so deterministic shrinking and final replay keep their
 existing contract. Upstream machines declared with maximum concurrency above

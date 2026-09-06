@@ -224,6 +224,40 @@
       (support/check! context "state-machine-rule-rejected! defaults worker-index to 0 and threads an explicit index"
              (= [0 5] @rejected-worker-indices)))))
 
+(defn- state-machine-coordinator-only-contract [context]
+  (let [calls (atom [])
+        values (atom [1 0])]
+    (with-redefs [ffi-backend/with-native-scope (fn [call] (call))
+                  ffi-backend/sizeof (constantly 8)
+                  ffi-backend/alloc (fn [_size] ::out)
+                  ffi-backend/free (fn [_pointer] nil)
+                  ffi-backend/read-value (fn [_pointer type]
+                                           (when-not (= :uint8 type)
+                                             (throw (ex-info "unexpected coordinator out type"
+                                                             {:type type})))
+                                           (let [value (first @values)]
+                                             (swap! values subvec 1)
+                                             value))
+                  hffi/c-test-case-is-nondeterministic
+                  (fn [ctx test-case out]
+                    (swap! calls conj [:test-case-is-nondeterministic ctx test-case out])
+                    0)
+                  hffi/c-state-machine-should-check-invariant
+                  (fn [ctx test-case state-machine invariant-index out]
+                    (swap! calls conj [:state-machine-should-check-invariant
+                                       ctx test-case state-machine invariant-index out])
+                    0)]
+      (support/check! context "the nondeterministic case marker decodes the canonical boolean out value"
+             (true? (hffi/test-case-nondeterministic? ::ctx ::root-case)))
+      (support/check! context "the invariant decision remains a coordinator draw with no alternate route"
+             (false? (hffi/state-machine-should-check-invariant!
+                      ::ctx ::root-case ::machine 4)))
+      (support/check! context "coordinator-only wrappers preserve their canonical native arguments"
+             (= [[:test-case-is-nondeterministic ::ctx ::root-case ::out]
+                 [:state-machine-should-check-invariant
+                  ::ctx ::root-case ::machine 4 ::out]]
+                @calls)))))
+
 (defn- collect-safe-wrapper-selection-contract [context]
   (let [calls (atom [])]
     (with-redefs [ffi-backend/with-native-scope (fn [call] (call))
@@ -267,6 +301,7 @@
   (new-state-machine-post-creation-cleanup-contract context)
   (new-state-machine-sequential-wrapper-cleanup-contract context)
   (state-machine-worker-index-contract context)
+  (state-machine-coordinator-only-contract context)
   (collect-safe-wrapper-selection-contract context)
   (let [report (abi/backend-report)
         function-count (count (abi/functions))

@@ -149,7 +149,8 @@ Rule names and order must remain unchanged between generation and replay.
 Mutable systems under test must be constructed inside the property body so each
 generated case and final replay begins from fresh external state.
 
-libhegel 0.33 uses one round protocol for sequential and concurrent machines.
+The pinned libhegel 0.36.3 uses one round protocol for sequential and
+concurrent machines.
 jolt-hegel fixes concurrency to one, advances the all-zero rule group at each
 join point, and exposes `:stateful-step-count` as the round budget. Concurrent
 machines remain outside the public contract because they require explicit
