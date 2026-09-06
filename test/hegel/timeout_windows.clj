@@ -32,9 +32,8 @@
        (powershell-literal output-file)
        " -RedirectStandardError " (powershell-literal error-file) ";"
        ;; Start-Process can otherwise leave ExitCode null after a
-       ;; successful wait. Force the Process handle to be opened
-       ;; while the child is still alive, and keep it referenced
-       ;; through the subsequent wait and exit-code read.
+       ;; successful wait. Touch Handle while the child is still alive so
+       ;; .NET opens the process handle needed for later exit-code reads.
        "$ownedHandle=$p.Handle;"
        "if(-not $p.WaitForExit(" wait-ms ")){"
        ;; Windows PowerShell 5.1 only supports Kill(), unlike
@@ -44,9 +43,9 @@
        "exit 124};"
        ;; Observed on hosted Windows PowerShell 5.1: WaitForExit(timeout) can
        ;; return true while ExitCode is still null. Refresh the cached
-       ;; process state, then give .NET one more bounded chance (the same
-       ;; reap budget, not an unbounded wait) to finish synchronizing the
-       ;; exited state before reading ExitCode again.
+       ;; process state. If that first completion signal was premature, give
+       ;; the same process one more bounded wait (the existing reap budget,
+       ;; never an unbounded wait), then refresh again before the final read.
        "$p.Refresh();"
        "if($null -eq $p.ExitCode){"
        "if(-not $p.WaitForExit(" reap-ms ")){exit 126};"
