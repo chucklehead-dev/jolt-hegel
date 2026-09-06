@@ -6,8 +6,9 @@ minimal failure. Verbose and debug runs also emit one document for every
 exploration case; quiet runs create no printer and return no counterexample
 snapshot.
 
-`g/let` supplies stable labels automatically. A direct two-argument `draw!`
-does the same explicitly; the one-argument form remains silent:
+`g/let` supplies stable labels derived from the printed binding form. A direct
+two-argument `draw!` supplies an explicit label; the one-argument form remains
+silent. This example uses a keyword label, matching the result shape below:
 
 ```clojure
 (require '[hegel.core :as h]
@@ -24,7 +25,7 @@ does the same explicitly; the one-argument form remains silent:
    :max-output-units 65536
    :max-width 79}}
  (fn [_]
-   (g/let [request (request-generator)]
+   (let [request (h/draw! (request-generator) :request)]
      (h/note! "checking decoded request")
      (assert (= request (decode (encode request)))))))
 ```
@@ -45,7 +46,9 @@ Invalid configuration is a usage error before native setup. Rendering,
 redaction, or native-printer failures are different: they are bounded
 diagnostics and never become shrinkable property failures. A safe fixed
 placeholder is used when possible, and the original property exception and
-origin remain authoritative.
+origin remain authoritative. If a native append fails, bounded `:entries`
+continue recording while native `:text` may be incomplete; consult `:errors`
+before treating the two representations as equivalent.
 
 ## Result shape and bounds
 
@@ -93,4 +96,3 @@ the desired redaction policy again when running a property directly.
 
 This API is sequential. Native printer regions do not imply support for
 concurrent property replay or the separate concurrent state-machine design.
-

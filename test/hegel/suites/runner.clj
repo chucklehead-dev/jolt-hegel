@@ -620,7 +620,12 @@
                    (:origin failure))
                 (= "native-safe failure" (ex-message (:exception failure)))
                 (some #(= :native-error (:kind %))
-                      (-> failure :counterexample :errors)))))
+                      (-> failure :counterexample :errors))))
+    (support/check! context "bounded entries remain authoritative when native text becomes incomplete"
+           (let [{:keys [text entries]} (:counterexample failure)]
+             (and (= "" text)
+                  (= [{:kind :draw :label ":x" :text ":x 0\n"}]
+                     entries)))))
   (let [[result _output]
         (capture-err
          #(with-redefs [hffi/printer-value!
