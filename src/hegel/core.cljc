@@ -5,6 +5,7 @@
             [hegel.host :as host]
             [hegel.internal.observation-policy :as observation-policy]
             [hegel.internal.observations :as observations]
+            [hegel.internal.render :as render]
             [hegel.replay-bundle :as replay-bundle]
             [hegel.validation :as validation]
             [hegel.version :as version]))
@@ -55,9 +56,23 @@
   (assoc (->TestCase ctx handle final? verbosity)
          :native-cleanups (atom [])))
 
-(defn- observed-test-case [ctx handle final? verbosity run-observations]
-  (cond-> (test-case ctx handle final? verbosity)
-    run-observations (assoc :observations (atom (observations/empty-case)))))
+(defn- should-log? [verbosity final?]
+  (case verbosity
+    :quiet false
+    :normal final?
+    :verbose true
+    :debug true
+    final?))
+
+(defn- observed-test-case [ctx handle final? verbosity run-observations render-opts]
+  (let [render-state (render/start! ctx handle (should-log? verbosity final?) render-opts)
+        tc (cond-> (test-case ctx handle final? verbosity)
+             run-observations (assoc :observations (atom (observations/empty-case)))
+             true (assoc :render render-state))]
+    (when (render/printer-handle render-state)
+      (register-native-cleanup!
+       tc #(hffi/printer-free! ctx (render/printer-handle render-state))))
+    tc))
 
 (defn- record-observations! [run-observations test-case outcome]
   (when run-observations
@@ -155,21 +170,11 @@
      (binding [*out* *err*]
        (prn ~@values))))
 
-(defn- should-log? [test-case]
-  (case (:verbosity test-case)
-    :quiet false
-    :normal (:final? test-case)
-    :verbose true
-    :debug true
-    (:final? test-case)))
-
 (defn note!
-  "Print a diagnostic on final replay (or every case at verbose/debug levels)."
+  "Record a diagnostic into the active render state (emitted once on final
+  replay, or every case at verbose/debug levels)."
   [message & more]
-  (let [test-case (current-test-case!)]
-    (when (should-log? test-case)
-      (binding [*out* *err*]
-        (println (str/join " " (map str (cons message more)))))))
+  (render/record-note! (:render (current-test-case!)) message more)
   nil)
 
 (defn draw!
@@ -187,9 +192,7 @@
                               {:generator generator}))
    (let [test-case (current-test-case!)
          value (generator test-case)]
-     (when (should-log? test-case)
-       (binding [*out* *err*]
-         (prn label value)))
+     (render/record-draw! (:render test-case) label value)
      value)))
 
 (defn assume!
@@ -264,7 +267,8 @@
 (def ^:private run-option-keys
   #{:mode :backend :test-cases :stateful-step-count :verbosity :seed
     :derandomize? :report-multiple-failures? :database :database-key :name
-    :phases :suppress-health-checks :show-statistics? :observations? :coverage})
+    :phases :suppress-health-checks :show-statistics? :observations? :coverage
+    :counterexample})
 
 (defn- require-string! [option value]
   (when-not (string? value)
@@ -317,7 +321,11 @@
     (require-option-keywords! :suppress-health-checks
                               (:suppress-health-checks opts)
                               health-check-values))
-  (observation-policy/validate-coverage! opts))
+  (observation-policy/validate-coverage! opts)
+  ;; Validated before native setup, purely for its usage-error effect: the
+  ;; resolved map is recomputed where it is actually needed.
+  (render/resolve-options (:counterexample opts))
+  opts)
 
 (defn- run-body [test-case case-fn]
   (host/try-catch-all
@@ -437,7 +445,7 @@
                  (:suppress-health-checks opts))))
   nil)
 
-(defn- drive-run! [ctx run verbosity case-fn run-observations]
+(defn- drive-run! [ctx run verbosity case-fn run-observations render-opts]
   (loop [counts {:test-cases 0
                  :valid-test-cases 0
                  :invalid-test-cases 0
@@ -445,11 +453,16 @@
                  :interesting-test-cases 0}
          observed []]
     (if-let [handle (hffi/next-test-case! ctx run)]
-      (let [test-case (observed-test-case ctx handle false verbosity run-observations)
+      (let [test-case (observed-test-case ctx handle false verbosity run-observations
+                                          render-opts)
             {next-counts :counts next-observed :observed}
             (try
               (let [outcome (run-body test-case case-fn)]
                 (mark-outcome! test-case outcome)
+                ;; Non-final verbose/debug diagnostics are emitted once here
+                ;; and then discarded; only the final replay snapshot below
+                ;; is preserved in the aggregate result.
+                (render/emit! (render/finish! (:render test-case)))
                 (record-observations! run-observations test-case outcome)
                 {:counts (count-outcome counts outcome)
                  :observed (record-observed-failure observed outcome)})
@@ -471,29 +484,37 @@
     (mapv #(snapshot-failure! ctx result %) (range n))))
 
 (defn- replay-failure!
-  ([ctx settings verbosity case-fn failure]
-   (replay-failure! ctx settings verbosity case-fn failure nil))
-  ([ctx settings verbosity case-fn failure run-observations]
+  ([ctx settings verbosity case-fn failure render-opts]
+   (replay-failure! ctx settings verbosity case-fn failure render-opts nil))
+  ([ctx settings verbosity case-fn failure render-opts run-observations]
   (if-let [blob (:reproduction-blob failure)]
     (let [handle (hffi/test-case-from-blob! ctx settings blob)
-          test-case (observed-test-case ctx handle true verbosity run-observations)]
+          test-case (observed-test-case ctx handle true verbosity run-observations
+                                        render-opts)]
       (try
         (let [outcome (run-body test-case case-fn)
               expected-origin (:origin failure)
               replay-origin (:origin outcome)]
           (mark-outcome! test-case outcome)
-          (record-observations! run-observations test-case outcome)
-          (merge failure
-                 outcome
-                 {:origin expected-origin
-                  :replay-origin replay-origin
-                  :reproduced? (and (= :interesting (:status outcome))
-                                    (= expected-origin replay-origin))}))
+          ;; Seal/read the printer document after mark-complete! and before
+          ;; cleanup frees it; copy the snapshot into the failure so it
+          ;; survives release-test-case!.
+          (let [snapshot (render/finish! (:render test-case))]
+            (render/emit! snapshot)
+            (record-observations! run-observations test-case outcome)
+            (merge failure
+                   outcome
+                   {:origin expected-origin
+                    :replay-origin replay-origin
+                    :reproduced? (and (= :interesting (:status outcome))
+                                      (= expected-origin replay-origin))
+                    :counterexample snapshot})))
         (finally
           (release-test-case! test-case))))
     (assoc failure
            :status :missing-reproduction-blob
-           :reproduced? false))))
+           :reproduced? false
+           :counterexample nil))))
 
 (defn- run-status [native]
   (case native
@@ -513,7 +534,8 @@
             "Your data generation is non-deterministic:"))))
 
 (defn- public-final [replayed]
-  (mapv #(select-keys % [:status :value :origin :replay-origin :exception])
+  (mapv #(select-keys % [:status :value :origin :replay-origin :exception
+                         :counterexample])
         replayed))
 
 (defn- capture-replay-options [opts]
@@ -567,14 +589,15 @@
       {:status :incompatible :reproduced? false :mismatches mismatches}
       (do
         (hffi/ensure-compatible-version!)
-        (let [ctx (hffi/context-new!)]
+        (let [ctx (hffi/context-new!)
+              render-opts (render/resolve-options (:counterexample opts))]
           (try
             (let [settings (hffi/settings-new! ctx)]
               (try
                 (configure-settings! ctx settings opts)
                 (let [failures (mapv #(replay-failure!
                                       ctx settings (or (:verbosity opts) :normal)
-                                      case-fn %)
+                                      case-fn % render-opts)
                                     (:failures bundle))
                       reproduced? (every? :reproduced? failures)]
                   {:status (if reproduced? :reproduced :not-reproduced)
@@ -603,21 +626,25 @@
   Supported options are :backend, :test-cases, :stateful-step-count,
   :verbosity, :seed,
   :derandomize?, :report-multiple-failures?, :database, :database-key/:name,
-  :phases, :suppress-health-checks, :show-statistics?, :observations?, and
-  :coverage. Coverage names its scope and categorical requirements explicitly;
-  it uses completed valid exploration cases, never final replay. A missed
-  requirement changes an otherwise passing result to :coverage-failed without
-  inventing a native failure blob. The C ABI does not expose an
-  automatically chosen seed, so this wrapper always chooses and supplies one.
-  When :derandomize? is true and no seed was supplied, it derives a stable seed
-  from :database-key/:name. Property verdicts and libhegel-detected
-  nondeterminism return result maps; the latter has :status :error, :flaky?
-  true, and an :error explanation. Setup, health-check, and unexpected engine
-  errors throw."
+  :phases, :suppress-health-checks, :show-statistics?, :observations?,
+  :coverage, and :counterexample. Coverage names its scope and categorical
+  requirements explicitly; it uses completed valid exploration cases, never
+  final replay. A missed requirement changes an otherwise passing result to
+  :coverage-failed without inventing a native failure blob. :counterexample
+  is a diagnostic-only closed map of :render-fn, :redact-fn,
+  :max-output-units, and :max-width that controls note!/labelled-draw!
+  output; it is never captured into :replay-options. The C ABI does not
+  expose an automatically chosen seed, so this wrapper always chooses and
+  supplies one. When :derandomize? is true and no seed was supplied, it
+  derives a stable seed from :database-key/:name. Property verdicts and
+  libhegel-detected nondeterminism return result maps; the latter has
+  :status :error, :flaky? true, and an :error explanation. Setup,
+  health-check, and unexpected engine errors throw."
   [opts case-fn]
   (let [opts (validate-run-options! opts case-fn)
         opts (assoc opts :seed (resolve-seed opts))
         replay-options (capture-replay-options opts)
+        render-opts (render/resolve-options (:counterexample opts))
         run-observations (some-> (observation-policy/initial opts) atom)]
     (hffi/ensure-compatible-version!)
     (let [ctx (hffi/context-new!)]
@@ -628,7 +655,7 @@
             (let [run (hffi/run-start! ctx settings)]
               (try
                 (let [counts (drive-run! ctx run (or (:verbosity opts) :normal)
-                                         case-fn run-observations)
+                                         case-fn run-observations render-opts)
                       result (hffi/run-result! ctx run)]
                 (try
                   (let [status (run-status (hffi/run-result-status! ctx result))
@@ -675,7 +702,7 @@
                               replayed (mapv #(replay-failure!
                                               ctx settings
                                               (or (:verbosity opts) :normal)
-                                              case-fn % run-observations)
+                                              case-fn % render-opts run-observations)
                                              failures)]
                           (observation-policy/finish
                            (merge

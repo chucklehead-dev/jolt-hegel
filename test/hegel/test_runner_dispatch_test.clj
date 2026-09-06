@@ -59,7 +59,8 @@
    {:id :canonical-events :suite :trace-history :description "canonical operation-event profile" :entrypoint 'hegel.suites.trace-history/canonical-event-contract}
    {:id :joinpoint-manifest :suite :trace-history :description "pure compiler join-point manifest contract" :entrypoint 'hegel.suites.trace-history/joinpoint-manifest-contract}
    {:id :history-oracle :suite :trace-history :description "independent exhaustive history oracle" :entrypoint 'hegel.suites.trace-history/exhaustive-history-oracle}
-   {:id :clojure-test :suite :clojure-test :description "clojure.test integration" :entrypoint 'hegel.suites.clojure-test/clojure-test-integration}])
+   {:id :clojure-test :suite :clojure-test :description "clojure.test integration" :entrypoint 'hegel.suites.clojure-test/clojure-test-integration}
+   {:id :counterexample-printing :suite :runner :description "structured counterexample printing" :entrypoint 'hegel.suites.runner/counterexample-printing}])
 
 (defn pass! [_] nil)
 (defn fail! [_] (throw (ex-info "expected scenario failure" {})))
