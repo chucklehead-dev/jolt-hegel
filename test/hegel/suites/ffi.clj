@@ -224,12 +224,50 @@
       (support/check! context "state-machine-rule-rejected! defaults worker-index to 0 and threads an explicit index"
              (= [0 5] @rejected-worker-indices)))))
 
+(defn- collect-safe-wrapper-selection-contract [context]
+  (let [calls (atom [])]
+    (with-redefs [ffi-backend/with-native-scope (fn [call] (call))
+                  ffi-backend/sizeof (constantly 8)
+                  ffi-backend/alloc (fn [_size] ::out)
+                  ffi-backend/free (fn [_pointer] nil)
+                  ffi-backend/read-value (fn [_pointer _type] 7)
+                  hffi/c-pool-add (fn [& _] (swap! calls conj :pool-add/ordinary) 0)
+                  hffi/c-pool-add-collect-safe (fn [& _] (swap! calls conj :pool-add/collect-safe) 0)
+                  hffi/c-pool-generate (fn [& _] (swap! calls conj :pool-generate/ordinary) 0)
+                  hffi/c-pool-generate-collect-safe (fn [& _] (swap! calls conj :pool-generate/collect-safe) 0)
+                  hffi/c-state-machine-next-rule (fn [& _] (swap! calls conj :next-rule/ordinary) 0)
+                  hffi/c-state-machine-next-rule-collect-safe (fn [& _] (swap! calls conj :next-rule/collect-safe) 0)
+                  hffi/c-state-machine-rule-rejected (fn [& _] (swap! calls conj :rejected/ordinary) 0)
+                  hffi/c-state-machine-rule-rejected-collect-safe (fn [& _] (swap! calls conj :rejected/collect-safe) 0)]
+      ;; Existing public wrappers must retain the ordinary route.
+      (hffi/pool-add! ::ctx ::test-case ::pool)
+      (hffi/pool-generate! ::ctx ::test-case ::pool false)
+      (hffi/state-machine-next-rule! ::ctx ::test-case ::machine 1)
+      (hffi/state-machine-rule-rejected! ::ctx ::test-case ::machine 1)
+      ;; The future concurrent executor has explicit helpers; it cannot
+      ;; accidentally select a route by changing worker-index alone.
+      (hffi/pool-add-collect-safe! ::ctx ::test-case ::pool)
+      (hffi/pool-generate-collect-safe! ::ctx ::test-case ::pool true)
+      (hffi/state-machine-next-rule-collect-safe! ::ctx ::test-case ::machine 1)
+      (hffi/state-machine-rule-rejected-collect-safe! ::ctx ::test-case ::machine 1)
+      (support/check! context "ordinary and collect-safe wrappers select distinct raw bindings"
+                      (= [:pool-add/ordinary
+                          :pool-generate/ordinary
+                          :next-rule/ordinary
+                          :rejected/ordinary
+                          :pool-add/collect-safe
+                          :pool-generate/collect-safe
+                          :next-rule/collect-safe
+                          :rejected/collect-safe]
+                         @calls)))))
+
 (defn upstream-babashka-ffi-adapter [context]
   (test-case-clone-pointer-out-contract context)
   (new-state-machine-with-concurrency-contract context)
   (new-state-machine-post-creation-cleanup-contract context)
   (new-state-machine-sequential-wrapper-cleanup-contract context)
   (state-machine-worker-index-contract context)
+  (collect-safe-wrapper-selection-contract context)
   (let [report (abi/backend-report)
         function-count (count (abi/functions))
         expected-route (case (host/runtime)

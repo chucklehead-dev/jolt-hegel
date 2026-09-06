@@ -38,6 +38,21 @@
               (and (= 15 (count (get-in functions [:string-generator-text :args])))
                    (= [:by-value :hegel/datetime]
                       (nth (get-in functions [:generate-datetime :args]) 2))))
+    (require! "descriptor declares collect-safe alternates for exactly the contended operations"
+              (= #{:state-machine-next-rule
+                   :state-machine-rule-rejected
+                   :pool-add
+                   :pool-generate}
+                 (into #{}
+                       (keep (fn [[function-id function]]
+                               (when (:collect-safe? function) function-id)))
+                       functions)))
+    (require! "collect-safe alternates do not change the existing always-blocking policy"
+              (= #{:next-test-case :run-free :mark-complete}
+                 (into #{}
+                       (keep (fn [[function-id function]]
+                               (when (:blocking? function) function-id)))
+                       functions)))
     (require! "descriptor contains no host-specific vocabulary"
               (not-any? (fn [word] (str/includes? descriptor-text word))
                         ["jolt.ffi" "babashka.ffi" "java.lang.foreign"]))
@@ -62,6 +77,18 @@
                  (update-in descriptor
                             [:functions :context-last-error :ownership :return]
                             dissoc :owner))))
+    (require! "descriptor rejects a non-boolean collect-safe marker"
+              (rejected?
+               #(abi/validate!
+                 (assoc-in descriptor
+                           [:functions :pool-add :collect-safe?]
+                           :yes))))
+    (require! "descriptor rejects an optional collect-safe marker on an always-blocking function"
+              (rejected?
+               #(abi/validate!
+                 (assoc-in descriptor
+                           [:functions :next-test-case :collect-safe?]
+                           true))))
     #?(:jolt
        (let [report (abi/check-backend selected-backend/backend descriptor)]
          (require! "Jolt backend supports every descriptor signature"

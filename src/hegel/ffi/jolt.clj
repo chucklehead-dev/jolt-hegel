@@ -78,9 +78,19 @@
 
 (defonce ^:private functions* (atom nil))
 
-(defn- make-foreign-function [{:keys [symbol blocking?] :as function} descriptor]
+(defn- binding-routes
+  "Return the routes declared for one canonical function. `:ordinary` retains
+  the function's historical binding (including the existing always-blocking
+  entries); `:collect-safe` is an opt-in Jolt alternate, never a fallback."
+  [{:keys [collect-safe?]}]
+  (cond-> [:ordinary]
+    collect-safe? (conj :collect-safe)))
+
+(defn- make-foreign-function
+  [{:keys [symbol blocking?] :as function} descriptor route]
   (let [{:keys [args return]} (signature function descriptor)
-        form (if blocking?
+        collect-safe? (or blocking? (= :collect-safe route))
+        form (if collect-safe?
                (list 'jolt.ffi/foreign-fn symbol args return :blocking)
                (list 'jolt.ffi/foreign-fn symbol args return))]
     (eval form)))
@@ -101,16 +111,28 @@
                     (into {}
                           (map (fn [[function-id function]]
                                  [function-id
-                                  (make-foreign-function function descriptor)]))
+                                  (into {}
+                                        (map (fn [route]
+                                               [route
+                                                (make-foreign-function
+                                                 function descriptor route)]))
+                                        (binding-routes function))]))
                           (:functions descriptor))]
                 (reset! functions* bindings)
                 (abi/register-backend-report! coverage)
                 bindings))))))
 
-(defn function [function-id]
-  (or (get @functions* function-id)
-      (throw (ex-info "Jolt libhegel bindings are not loaded"
-                      {:function function-id}))))
+(defn function
+  ([function-id] (function function-id :ordinary))
+  ([function-id route]
+   (let [bindings (or (get @functions* function-id)
+                      (throw (ex-info "Jolt libhegel bindings are not loaded"
+                                      {:function function-id :route route})))]
+     (or (get bindings route)
+         (throw (ex-info "Jolt libhegel function has no requested call route"
+                         {:function function-id
+                          :route route
+                          :available-routes (vec (keys bindings))}))))))
 
 ;; Memory operations deliberately mirror only what the shared libhegel wrapper
 ;; needs. Allocation remains explicitly paired with free.

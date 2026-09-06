@@ -14,7 +14,8 @@
   intentional Jolt/babashka.ffi deltas -- including the ones that propagate
   into derived struct layouts -- are asserted as data on every host even
   though only the selected host's adapter is loaded."
-  (:require [clojure.test :refer [deftest is]]
+  (:require [clojure.set :as set]
+            [clojure.test :refer [deftest is]]
             [hegel.abi :as abi]
             [hegel.host :as host]
             #?(:jolt [hegel.ffi.jolt :as adapter]
@@ -66,6 +67,12 @@
               :c/string :pointer}})
 
 (def ^:private carriers (get carrier-policy target))
+
+(def ^:private collect-safe-functions
+  #{:state-machine-next-rule
+    :state-machine-rule-rejected
+    :pool-add
+    :pool-generate})
 
 (defn- by-value-form
   "Jolt tags a by-value aggregate argument and the caller passes a storage
@@ -154,6 +161,44 @@
         "twelve scalar carriers, excluding void and string")
     (is (= (count functions) (count (set (map :symbol (vals functions)))))
         "symbols are unique, so no second hand-maintained list can drift")))
+
+(deftest collect-safe-route-policy-is-an-exact-canonical-set
+  (let [functions (abi/functions)
+        declared (into #{}
+                       (keep (fn [[function-id function]]
+                               (when (:collect-safe? function) function-id)))
+                       functions)
+        always-blocking (into #{}
+                              (keep (fn [[function-id function]]
+                                      (when (:blocking? function) function-id)))
+                              functions)]
+    (is (= collect-safe-functions declared)
+        "only internally synchronized operations receive optional routes")
+    (is (= #{:next-test-case :run-free :mark-complete} always-blocking)
+        "the legacy always-blocking policy is unchanged")
+    (is (empty? (set/intersection declared always-blocking))
+        "an optional collect-safe route is never an alias for always-blocking")
+    #?(:jolt
+       (let [routes (ns-resolve adapter-namespace 'binding-routes)]
+         (is (some? routes))
+         (doseq [[function-id function] functions]
+           (let [ordinary (adapter/function function-id)
+                 declared-routes (routes function)]
+             (is (= :ordinary (first declared-routes))
+                 (str function-id " retains an ordinary selection"))
+             (if (contains? collect-safe-functions function-id)
+               (let [collect-safe (adapter/function function-id :collect-safe)]
+                 (is (= [:ordinary :collect-safe] declared-routes)
+                     (str function-id " has both descriptor-derived routes"))
+                 (is (not (identical? ordinary collect-safe))
+                     (str function-id " uses a distinct collect-safe binding")))
+               (is (thrown-with-msg?
+                    clojure.lang.ExceptionInfo
+                    #"no requested call route"
+                    (adapter/function function-id :collect-safe))
+                   (str function-id " fails closed for collect-safe selection"))))))
+       :default
+       (is true "non-Jolt backends do not expose an alternate route selector"))))
 
 (deftest canonical-argument-and-return-forms-have-an-exact-census
   (let [types (abi/types)

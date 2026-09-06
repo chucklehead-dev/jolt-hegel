@@ -224,6 +224,7 @@
     [:pointer :hegel/test-case]
     [:pointer :hegel/pool]
     [:pointer :c/int64]],
+   :collect-safe? true,
    :return :c/int32,
    :symbol "hegel_pool_add"},
   :pool-free
@@ -237,6 +238,7 @@
     [:pointer :hegel/pool]
     :c/bool
     [:pointer :c/int64]],
+   :collect-safe? true,
    :return :c/int32,
    :symbol "hegel_pool_generate"},
   :printer-abort-speculative
@@ -483,6 +485,7 @@
     [:pointer :hegel/state-machine]
     :c/int64
     [:pointer :c/int64]],
+   :collect-safe? true,
    :return :c/int32,
    :symbol "hegel_state_machine_next_rule"},
   :state-machine-rule-rejected
@@ -491,6 +494,7 @@
     [:pointer :hegel/test-case]
     [:pointer :hegel/state-machine]
     :c/int64],
+   :collect-safe? true,
    :return :c/int32,
    :symbol "hegel_state_machine_rule_rejected"},
   :state-machine-should-check-invariant
