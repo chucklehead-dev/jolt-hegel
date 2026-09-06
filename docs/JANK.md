@@ -42,10 +42,26 @@ the shared namespace successfully.
 - the shared property runner, deterministic seeds, shrinking, final replay,
   and failure reproduction;
 - shared temporal generators;
-- shared stateful/swarm execution and reusable or consumed pools; and
+- shared stateful/swarm execution and reusable or consumed pools;
 - qualified assumption-rejection accounting (`h/assume!`) and framework-less
   counting/structured reporting via `hegel.report`, including run and failure
-  counts and event typing across a pass, a property failure, and a setup error.
+  counts and event typing across a pass, a property failure, and a setup error;
+  and
+- a focused `clojure.test` integration smoke: `hegel.clojure-test/with` hosts
+  a passing property with an independent execution-count witness, a
+  deliberately failing shrinking/replaying property, and a bounded
+  plain-exception control that exercises the jank fallback in
+  `throwable-details` (no `Throwable->map` or `class`), all inside real
+  `deftest` bodies; the pass and property-failure controls also exercise `is`.
+  `clojure.test/run-test` is the public call surface
+  exercised here -- it always calls `test-var` internally, so this is not a
+  claim that `test-var` itself goes unexercised, only that the smoke never
+  calls it directly -- and it also exercises the dynamic `report` rebinding
+  `hegel.clojure-test/with` relies on internally, with exact
+  pass/fail/error summary and event-type accounting and a bounded, stable
+  shrunk counterexample. The hosted Linux and macOS jank jobs confirm this
+  slice; it qualifies only that narrow slice, not the complete
+  `hegel.clojure-test` suite, and it does not run on Windows.
 
 The EDN descriptor remains the source of truth. Because the current jank reader
 cannot load that resource during compilation, the development generator emits:
@@ -89,11 +105,13 @@ jank -I generated --module-path src:resources:script \
 - add a jank-native installer backend; current CI deliberately installs
   checksum-verified libhegel through Babashka before starting jank;
 - run the complete shared semantic suite rather than the focused jank gate,
-  which now also covers assumptions and framework-less counting/structured
-  reporting but still omits `clojure.test` integration, arbitrary-precision
-  and exact binary32 generators, and broad generator coverage;
-- determine whether `clojure.test` integration is implementable on the current
-  jank standard library;
+  which now also covers assumptions, framework-less counting/structured
+  reporting, and a focused `clojure.test` deftest/is/run-test smoke, but still
+  omits arbitrary-precision and exact binary32 generators and broad generator
+  coverage;
+- broaden `clojure.test` integration beyond the focused deftest/is/run-test
+  smoke to the complete `hegel.clojure-test` suite, and add Windows coverage
+  for it once Windows jank exists;
 - evaluate the optional Malli adapter only after Malli itself is usable on
   jank; and
 - produce consumer packaging and installation evidence, since the current gate

@@ -36,11 +36,23 @@
     (when-not (str/blank? text)
       text)))
 
+(defn- throwable-via-map
+  "Structured JVM/CLR/Babashka cause chain, or nil where unavailable.
+
+  jank has no `Throwable->map`; callers fall back to ex-data/type/message."
+  [error]
+  #?(:jank nil
+     :default (host/try-catch-all
+               (Throwable->map error)
+               _
+               nil)))
+
+(defn- exception-type [error]
+  #?(:jank (or (:type (ex-data error)) :jank/error)
+     :default (class error)))
+
 (defn- throwable-details [error]
-  (let [throwable (host/try-catch-all
-                    (Throwable->map error)
-                    _
-                    nil)
+  (let [throwable (throwable-via-map error)
         error-data (ex-data error)
         wrapped-body-error? (and (= ::body-error (:type error-data))
                                  (contains? error-data ::cause-type))
@@ -50,7 +62,7 @@
         cause-type (or (when wrapped-body-error?
                          (::cause-type error-data))
                        (some-> throwable :via last :type)
-                       (class error))
+                       (exception-type error))
         summary (or (nonblank-text (ex-message error))
                     (nonblank-text (:cause throwable))
                     (nonblank-text (some-> throwable :via last :message))
