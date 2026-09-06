@@ -48,7 +48,7 @@
    {:id :stateful-shrinking :suite :stateful :description "stateful shrink quality" :entrypoint 'hegel.suites.stateful/stateful-shrink-quality}
    {:id :stateful-swarm :suite :stateful :description "stateful swarm and control flow" :entrypoint 'hegel.suites.stateful/stateful-swarm-and-control-flow}
    {:id :stateful-abi :suite :stateful :description "latest stateful ABI and owned handles" :entrypoint 'hegel.suites.stateful/latest-stateful-abi}
-   {:id :concurrent-api-declarations :suite :stateful :description "concurrent declarations, capability, and lifecycle seams" :entrypoint 'hegel.suites.stateful/concurrent-api-declarations}
+   {:id :concurrent-api-declarations :suite :stateful :description "concurrent declarations, capability, lifecycle, and mocked protocol seams" :entrypoint 'hegel.suites.stateful/concurrent-api-declarations}
    {:id :libhegel-upgrade :suite :stateful :description "libhegel upgrade and versioned replay contracts" :entrypoint 'hegel.suites.stateful/libhegel-upgrade-contract}
    {:id :trace-rules :suite :trace-history :description "bounded semantic trace rules" :entrypoint 'hegel.suites.trace-history/semantic-trace-rules}
    {:id :linearizability :suite :trace-history :description "bounded linearizability" :entrypoint 'hegel.suites.trace-history/bounded-linearizability}
