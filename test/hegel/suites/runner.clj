@@ -601,7 +601,50 @@
                 (= "hegel.test-runner:counterexample-render-error" (:origin failure))
                 (= "real failure" (ex-message (:exception failure)))))
     (support/check! context "a renderer failure is recorded as a bounded diagnostic, not a crash"
-           (some #(= :render-error (:kind %)) (-> failure :counterexample :errors)))))
+           (some #(= :render-error (:kind %)) (-> failure :counterexample :errors))))
+  (let [[result _output]
+        (capture-err
+         #(with-redefs [hffi/note! (fn [& _]
+                                     (throw (ex-info "mocked native append failure" {})))]
+            (h/run-test!
+             {:test-cases 1 :seed 19 :database "" :verbosity :normal}
+             (fn [_]
+               (h/draw! (g/integer 0 0) :x)
+               (throw
+                (ex-info "native-safe failure"
+                         {:hegel/origin
+                          "hegel.test-runner:counterexample-native-error"}))))))
+        failure (first (:failures result))]
+    (support/check! context "a native printer failure cannot conceal the property failure"
+           (and (= "hegel.test-runner:counterexample-native-error"
+                   (:origin failure))
+                (= "native-safe failure" (ex-message (:exception failure)))
+                (some #(= :native-error (:kind %))
+                      (-> failure :counterexample :errors)))))
+  (let [[result _output]
+        (capture-err
+         #(with-redefs [hffi/printer-value!
+                        (fn [& _]
+                          (throw (ex-info "mocked native read failure" {})))]
+            (h/run-test!
+             {:test-cases 1
+              :seed 23
+              :database ""
+              :verbosity :normal
+              :counterexample
+              {:render-fn (fn [_] (throw (ex-info "render failure" {})))}}
+             (fn [_]
+               (dotimes [i 20]
+                 (h/draw! (g/just i) :x))
+               (throw
+                (ex-info "bounded diagnostics"
+                         {:hegel/origin
+                          "hegel.test-runner:bounded-counterexample-errors"}))))))
+        failure (first (:failures result))]
+    (support/check! context "counterexample diagnostics remain capped when final native extraction also fails"
+           (and (= "hegel.test-runner:bounded-counterexample-errors"
+                   (:origin failure))
+                (= 16 (count (-> failure :counterexample :errors)))))))
 
 (defn- counterexample-cleanup-order [context]
   (let [events (atom [])
@@ -655,6 +698,72 @@
       (support/check! context "matched begin/commit and begin/abort leave no dangling checkpoints"
              (empty? @(:checkpoints state))))))
 
+(defn- rollback-snapshot [origin body]
+  (let [[result _output]
+        (capture-err
+         #(h/run-test!
+           {:test-cases 1
+            :seed 29
+            :database ""
+            :report-multiple-failures? false
+            :verbosity :normal}
+           (fn [test-case]
+             (body test-case)
+             (throw (ex-info "rollback witness" {:hegel/origin origin})))))]
+    (-> result :failures first :counterexample)))
+
+(defn- counterexample-rejected-attempt-rollback [context]
+  (let [snapshot
+        (rollback-snapshot
+         "hegel.test-runner:filter-render-rollback"
+         (fn [_]
+           (let [attempt (atom 0)
+                 source (g/composite-fn
+                         (fn [_]
+                           (let [n (swap! attempt inc)]
+                             (h/note! "filter-attempt" n)
+                             n)))]
+             (h/draw! (g/filter #(= 3 %) source) :filtered))))
+        notes (mapv :text (filter #(= :note (:kind %)) (:entries snapshot)))]
+    (support/check! context "filter rendering retains only the accepted attempt"
+           (= ["filter-attempt 3\n"] notes)))
+  (doseq [[kind build]
+          [[:vector (fn [source] (g/vector {:size 2 :unique? true} source))]
+           [:set (fn [source] (g/set {:size 2} source))]]]
+    (let [snapshot
+          (rollback-snapshot
+           (str "hegel.test-runner:" (name kind) "-render-rollback")
+           (fn [_]
+             (let [attempt (atom 0)
+                   source (g/composite-fn
+                           (fn [_]
+                             (let [n (swap! attempt inc)
+                                   value (nth [1 1 2] (dec n))]
+                               (h/note! (str (name kind) "-attempt") n)
+                               value)))]
+               (h/draw! (build source) kind))))
+          notes (mapv :text (filter #(= :note (:kind %)) (:entries snapshot)))]
+      (support/check! context
+                      (str (name kind) " rendering retracts its duplicate candidate")
+             (= [(str (name kind) "-attempt 1\n")
+                 (str (name kind) "-attempt 3\n")]
+                notes))))
+  (let [snapshot
+        (rollback-snapshot
+         "hegel.test-runner:map-render-rollback"
+         (fn [_]
+           (let [attempt (atom 0)
+                 keys (g/composite-fn
+                       (fn [_]
+                         (let [n (swap! attempt inc)
+                               value (nth [:a :a :b] (dec n))]
+                           (h/note! "map-key-attempt" n)
+                           value)))]
+             (h/draw! (g/map {:size 2} keys (g/just 0)) :map))))
+        notes (mapv :text (filter #(= :note (:kind %)) (:entries snapshot)))]
+    (support/check! context "map rendering retracts its duplicate-key candidate"
+           (= ["map-key-attempt 1\n" "map-key-attempt 3\n"] notes))))
+
 (defn counterexample-printing
   "Structured counterexample printing (Stage 1): should-log?-gated native
   test-case printers, redact-before-render, bounded output with whole-entry
@@ -668,4 +777,5 @@
   (counterexample-oversize-rejection context)
   (counterexample-renderer-error-safety context)
   (counterexample-cleanup-order context)
-  (counterexample-checkpoint-rollback context))
+  (counterexample-checkpoint-rollback context)
+  (counterexample-rejected-attempt-rollback context))

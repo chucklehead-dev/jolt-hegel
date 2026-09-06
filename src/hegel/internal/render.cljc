@@ -42,20 +42,20 @@
     default-options
     (do
       (validation/reject-unknown-keys!
-       :hegel.counterexample/invalid-option "counterexample" option-keys opts)
+       :hegel.core/invalid-option "counterexample" option-keys opts)
       (when (contains? opts :render-fn)
         (validation/require-callable!
-         :hegel.counterexample/invalid-option :render-fn (:render-fn opts)))
+         :hegel.core/invalid-option :render-fn (:render-fn opts)))
       (when (contains? opts :redact-fn)
         (validation/require-callable!
-         :hegel.counterexample/invalid-option :redact-fn (:redact-fn opts)))
+         :hegel.core/invalid-option :redact-fn (:redact-fn opts)))
       (when (contains? opts :max-output-units)
         (validation/require-integer-range!
-         :hegel.counterexample/invalid-option :max-output-units
+         :hegel.core/invalid-option :max-output-units
          (:max-output-units opts) 1 max-output-units-hard-max))
       (when (contains? opts :max-width)
         (validation/require-integer-range!
-         :hegel.counterexample/invalid-option :max-width
+         :hegel.core/invalid-option :max-width
          (:max-width opts) 1 max-width-hard-max))
       (merge default-options opts))))
 
@@ -211,10 +211,12 @@
           :truncated? @(:truncated? state)
           :errors @(:errors state)}
          error
-         {:text nil
-          :entries @(:entries state)
-          :truncated? @(:truncated? state)
-          :errors (conj @(:errors state) {:kind :native-error})})))))
+         (do
+           (record-error! state :native-error)
+           {:text nil
+            :entries @(:entries state)
+            :truncated? @(:truncated? state)
+            :errors @(:errors state)}))))))
 
 (defn emit!
   "Print a snapshot's rendered text to *err* once. `snapshot` may be nil."
@@ -236,7 +238,8 @@
   Checkpoints and native speculative regions nest. Generator code must call
   exactly one matching commit-attempt! or abort-attempt!."
   [state]
-  (let [native? (and (:enabled? state)
+  (when (and state (:enabled? state))
+    (let [native? (and (:enabled? state)
                      (:printer state)
                      (not @(:native-disabled? state))
                      (host/try-catch-all
@@ -247,12 +250,13 @@
                       (do (record-error! state :native-error)
                           (reset! (:native-disabled? state) true)
                           false)))]
-    (swap! (:checkpoints state) conj
-           {:units @(:units state)
-            :entries @(:entries state)
-            :truncated? @(:truncated? state)
-            :errors @(:errors state)
-            :native? native?}))
+      (swap! (:checkpoints state) conj
+             {:units @(:units state)
+              :entries @(:entries state)
+              :truncated? @(:truncated? state)
+              :errors @(:errors state)
+              :native-disabled? @(:native-disabled? state)
+              :native? native?})))
   nil)
 
 (defn- pop-checkpoint! [state operation]
@@ -266,27 +270,36 @@
   "Discard the innermost checkpoint, keeping every change recorded since the
   matching begin-attempt!."
   [state]
-  (let [checkpoint (pop-checkpoint! state 'commit-attempt!)]
-    (when (:native? checkpoint)
-      (host/try-catch-all
-       (hffi/printer-commit-speculative! (:ctx state) (:printer state))
-       error
-       (do (record-error! state :native-error)
-           (reset! (:native-disabled? state) true)))))
+  (when (and state (:enabled? state))
+    (let [checkpoint (pop-checkpoint! state 'commit-attempt!)]
+      (when (:native? checkpoint)
+        (host/try-catch-all
+         (hffi/printer-commit-speculative! (:ctx state) (:printer state))
+         error
+         (do (record-error! state :native-error)
+             (reset! (:native-disabled? state) true))))))
   nil)
 
 (defn abort-attempt!
   "Roll units, entries, truncation, and errors back to the innermost
   begin-attempt! checkpoint."
   [state]
-  (let [checkpoint (pop-checkpoint! state 'abort-attempt!)]
-    (when (:native? checkpoint)
-      (host/try-catch-all
-       (hffi/printer-abort-speculative! (:ctx state) (:printer state))
-       error
-       (reset! (:native-disabled? state) true)))
-    (reset! (:units state) (:units checkpoint))
-    (reset! (:entries state) (:entries checkpoint))
-    (reset! (:truncated? state) (:truncated? checkpoint))
-    (reset! (:errors state) (:errors checkpoint)))
+  (when (and state (:enabled? state))
+    (let [checkpoint (pop-checkpoint! state 'abort-attempt!)
+          native-error? (atom false)]
+      (when (:native? checkpoint)
+        (host/try-catch-all
+         (hffi/printer-abort-speculative! (:ctx state) (:printer state))
+         error
+         (do (reset! native-error? true)
+             (reset! (:native-disabled? state) true))))
+      (when (and (not (:native-disabled? checkpoint))
+                 @(:native-disabled? state))
+        (reset! native-error? true))
+      (reset! (:units state) (:units checkpoint))
+      (reset! (:entries state) (:entries checkpoint))
+      (reset! (:truncated? state) (:truncated? checkpoint))
+      (reset! (:errors state) (:errors checkpoint))
+      (when @native-error?
+        (record-error! state :native-error))))
   nil)

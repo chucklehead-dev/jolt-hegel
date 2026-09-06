@@ -10,6 +10,7 @@
             [hegel.ffi :as hffi]
             [hegel.generator :as g]
             [hegel.generator-cleanup-test]
+            [hegel.internal.render :as render]
             [hegel.sequence-generators-test]
             [hegel.temporal-test]
             [hegel.test-support :as support]))
@@ -746,6 +747,58 @@
     (support/check! context "finish retry restarts directly without recursion-retry"
            (and (= :leaf value)
                 (= [:start :retry :start :ok :stop :free] @events))))
+  (let [render-events (atom [])
+        leaf-results (atom [:retry :ok])
+        retry-count (atom 0)
+        generator (g/recursive (g/just :leaf) identity)
+        value
+        (with-redefs
+         [hffi/new-recursion! (fn [& _] :recursion)
+          hffi/start-span! (fn [& _] nil)
+          hffi/stop-span! (fn [& _] nil)
+          hffi/recursion-branch! (fn [& _] false)
+          hffi/recursion-leaf!
+          (fn [& _]
+            (let [result (first @leaf-results)]
+              (swap! leaf-results subvec 1)
+              result))
+          hffi/recursion-retry! (fn [& _] (swap! retry-count inc))
+          hffi/recursion-finish! (fn [& _] :ok)
+          hffi/recursion-free! (fn [& _] nil)
+          render/begin-attempt! (fn [_] (swap! render-events conj :begin))
+          render/commit-attempt! (fn [_] (swap! render-events conj :commit))
+          render/abort-attempt! (fn [_] (swap! render-events conj :abort))]
+         (generator {:context :context :handle :test-case :render :render-state}))]
+    (support/check! context "leaf-budget retry aborts its render region before retry and commits the accepted attempt"
+           (and (= :leaf value)
+                (= 1 @retry-count)
+                (= [:begin :abort :begin :commit] @render-events))))
+  (let [render-events (atom [])
+        finish-results (atom [:retry :ok])
+        retry-count (atom 0)
+        generator (g/recursive (g/just :leaf) identity)
+        value
+        (with-redefs
+         [hffi/new-recursion! (fn [& _] :recursion)
+          hffi/start-span! (fn [& _] nil)
+          hffi/stop-span! (fn [& _] nil)
+          hffi/recursion-branch! (fn [& _] false)
+          hffi/recursion-leaf! (fn [& _] :ok)
+          hffi/recursion-retry! (fn [& _] (swap! retry-count inc))
+          hffi/recursion-finish!
+          (fn [& _]
+            (let [result (first @finish-results)]
+              (swap! finish-results subvec 1)
+              result))
+          hffi/recursion-free! (fn [& _] nil)
+          render/begin-attempt! (fn [_] (swap! render-events conj :begin))
+          render/commit-attempt! (fn [_] (swap! render-events conj :commit))
+          render/abort-attempt! (fn [_] (swap! render-events conj :abort))]
+         (generator {:context :context :handle :test-case :render :render-state}))]
+    (support/check! context "finish retry aborts its render region without recursion-retry and commits the accepted attempt"
+           (and (= :leaf value)
+                (zero? @retry-count)
+                (= [:begin :abort :begin :commit] @render-events))))
   (let [events (atom [])
         generator (g/recursive (g/just :leaf) (fn [_] :not-a-generator))]
     (support/check! context "recursive user errors close their span and free their scope"

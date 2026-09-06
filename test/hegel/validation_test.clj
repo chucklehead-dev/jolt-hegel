@@ -89,7 +89,18 @@
            ["seed below uint64" {:seed -1}] ["seed above uint64" {:seed (inc max-uint64)}]
            ["boolean" {:derandomize? :yes}] ["string" {:database 1}]
            ["phase collection" {:phases :generate}] ["phase member" {:phases [:missing]}]
-           ["health member" {:suppress-health-checks [:missing]}]]]
+           ["health member" {:suppress-health-checks [:missing]}]
+           ["counterexample map" {:counterexample []}]
+           ["counterexample key" {:counterexample {:unknown true}}]
+           ["counterexample renderer" {:counterexample {:render-fn 1}}]
+           ["counterexample redactor" {:counterexample {:redact-fn 1}}]
+           ["counterexample output lower bound"
+            {:counterexample {:max-output-units 0}}]
+           ["counterexample output upper bound"
+            {:counterexample {:max-output-units 1048577}}]
+           ["counterexample width lower bound" {:counterexample {:max-width 0}}]
+           ["counterexample width upper bound"
+            {:counterexample {:max-width (inc max-uint64)}}]]]
     (let [native-entered? (atom false)]
       (testing label
         (with-redefs [hffi/ensure-compatible-version! #(reset! native-entered? true)
