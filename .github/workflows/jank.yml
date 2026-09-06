@@ -64,9 +64,9 @@ jobs:
         if: runner.os == 'Linux'
         env:
           # The PPA publishes continuous builds at this stable URL. This digest
-          # was verified against its 2026-09-05 signed noble package index
+          # was verified against its 2026-09-06 signed noble package index
           # (signing fingerprint 3914A6761EC1FF9C8F735BBABB90C586E7196C2B).
-          JANK_DEB_SHA256: 456943593e15e5a779e146ce267c27c9bc83474ac91a38171326631a9e55944a
+          JANK_DEB_SHA256: 93024e81e8f3ab2b29b3480f5cc5ae5da2a5e6361d411fd79f7450a5db1c6a66
         run: |
           curl -fsSLo "$RUNNER_TEMP/jank.deb" \
             https://ppa.jank-lang.org/pool/main/j/jank/jank_0.1-noble_amd64.deb
