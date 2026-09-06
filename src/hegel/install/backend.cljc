@@ -1,6 +1,7 @@
 (ns hegel.install.backend
   "Selected host mechanics for the portable native installer."
   (:require #?(:cljr [hegel.install.clr :as impl]
+               :jank [hegel.install.jank :as impl]
                :jolt [hegel.install.jolt :as impl]
                :bb [hegel.install.jvm :as impl]
                :clj [hegel.install.jvm :as impl])))
