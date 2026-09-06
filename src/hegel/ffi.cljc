@@ -117,6 +117,20 @@
 (def c-state-machine-rule-rejected-collect-safe
   #?(:jolt (backend/function :state-machine-rule-rejected :collect-safe)
      :default c-state-machine-rule-rejected))
+
+(defn concurrent-state-machine-routes-supported?
+  "Return whether the concurrent worker routes have distinct collect-safe ABI bindings.
+
+  This is a native-free shape check used by the concurrent capability
+  preflight.  Calling it does not allocate a context, state machine, or test
+  case; the actual route wrappers remain below and are still Jolt-only at
+  runtime."
+  []
+  #?(:jolt (and (not (identical? c-state-machine-next-rule
+                                c-state-machine-next-rule-collect-safe))
+                (not (identical? c-state-machine-rule-rejected
+                                c-state-machine-rule-rejected-collect-safe)))
+     :default false))
 (def c-state-machine-free (backend/function :state-machine-free))
 (def c-mark-complete (backend/function :mark-complete))
 (def c-run-result-status (backend/function :run-result-status))

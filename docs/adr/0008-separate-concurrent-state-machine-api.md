@@ -1,6 +1,6 @@
 # ADR 0008: A separate concurrent state-machine API
 
-- Status: Accepted; declarations and pure validation implemented, executor pending
+- Status: Accepted; declarations, validation, and capability/lifecycle seams implemented; executor pending
 - Date: 2026-09-06
 
 ## Context
@@ -495,8 +495,9 @@ evidence, not a public concurrent executor":
    controls as prerequisite ABI coverage, not as claimed v1 surface coverage.
 
 Each stage stays a *characterization* until the prior stage's evidence is in.
-The declaration and pure input-validation portion of stage 1 is implemented;
-its mocked protocol/lifecycle portion and all later stages remain pending.
+The declaration, pure input-validation, capability, and case-finalization
+ordering portions of stage 1 are implemented; its mocked native protocol and
+all later stages remain pending.
 
 ## Rejected alternatives
 
@@ -538,8 +539,9 @@ its mocked protocol/lifecycle portion and all later stages remain pending.
 
 ## Consequences
 
-- The declarations and pure-validation slice adds `hegel.stateful.concurrent`;
-  its executor remains pending. `hegel.stateful/run!` is unchanged.
+- The declarations, pure-validation, capability, and case-finalization seams
+  live in `hegel.stateful.concurrent`; its executor remains pending.
+  `hegel.stateful/run!` is unchanged.
 - The initial contract is intentionally narrow: Jolt only, fixed worker count
   of at least two, caller-owned shared-state synchronization, coordinator-only
   invariants, cooperative cancellation, and discovery-time diagnostics.
