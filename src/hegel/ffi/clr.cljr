@@ -31,13 +31,31 @@
 (defn- nonblank [value]
   (when-not (str/blank? value) value))
 
+(defn- clojure-load-path-roots []
+  (let [load-path (System.Environment/GetEnvironmentVariable "CLOJURE_LOAD_PATH")]
+    (if (str/blank? load-path)
+      []
+      (->> (.Split load-path
+                   (into-array System.Char [System.IO.Path/PathSeparator]))
+           (map str/trim)
+           (remove str/blank?)))))
+
+(defn- packaged-bridge-path []
+  (some (fn [root]
+          (let [candidate (System.IO.Path/GetFullPath
+                           (System.IO.Path/Combine root "Hegel.Native.dll"))]
+            (when (System.IO.File/Exists candidate) candidate)))
+        (clojure-load-path-roots)))
+
 (defn- bridge-assembly-path []
   (or (nonblank (System.Environment/GetEnvironmentVariable
                  "HEGEL_CLR_BRIDGE_ASSEMBLY"))
+      (packaged-bridge-path)
       (throw
        (ex-info
-        "HEGEL_CLR_BRIDGE_ASSEMBLY must name the generated Hegel.Native.dll"
-        {:type ::missing-bridge-assembly}))))
+        "set HEGEL_CLR_BRIDGE_ASSEMBLY or put Hegel.Native.dll beside a CLOJURE_LOAD_PATH root"
+        {:type ::missing-bridge-assembly
+         :load-path-roots (clojure-load-path-roots)}))))
 
 (defonce ^:private bridge-type*
   (delay
