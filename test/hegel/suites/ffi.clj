@@ -234,14 +234,14 @@
                    (hffi/printer-text! ctx printer "kept")
                    (hffi/printer-commit-speculative! ctx printer)
                    (hffi/printer-end-group! ctx printer "close")
-                   (let [live-before (hffi/printer-is-live! ctx printer)]
-                     (let [first-value (hffi/printer-value! ctx printer)
-                           live-after (hffi/printer-is-live! ctx printer)
-                           second-value (hffi/printer-value! ctx printer)]
-                       (and live-before
-                            (not live-after)
-                            (= "open keptclose" first-value)
-                            (= first-value second-value))))))
+                   (let [live-before (hffi/printer-is-live! ctx printer)
+                         first-value (hffi/printer-value! ctx printer)
+                         live-after (hffi/printer-is-live! ctx printer)
+                         second-value (hffi/printer-value! ctx printer)]
+                     (and live-before
+                          (not live-after)
+                          (= "open keptclose" first-value)
+                          (= first-value second-value)))))
                 (attempt-check!
                  context
                  "a resolved deferred printer merges its content into the parent's value"

@@ -69,13 +69,13 @@
 (defn- safe-pr-str [state value]
   (host/try-catch-all
    (pr-str value)
-   error
+   _error
    (do (record-error! state :render-error) placeholder-text)))
 
 (defn- redact [state value]
   (host/try-catch-all
    {:ok? true :value ((:redact-fn state) value)}
-   error
+   _error
    (do (record-error! state :redact-error) {:ok? false})))
 
 (defn- render-redacted [state value]
@@ -85,7 +85,7 @@
        rendered
        (do (record-error! state :invalid-render-output)
            placeholder-text)))
-   error
+   _error
    (do (record-error! state :render-error) placeholder-text)))
 
 (defn- render-value
@@ -102,7 +102,7 @@
   (when-not @(:native-disabled? state)
     (host/try-catch-all
      (hffi/note! (:ctx state) (:handle state) line)
-     error
+     _error
      (do (record-error! state :native-error)
          (reset! (:native-disabled? state) true)))))
 
@@ -136,7 +136,7 @@
   (when (and (:enabled? state) (not @(:truncated? state)))
     (let [text (host/try-catch-all
                 (str/join " " (map str (cons message more)))
-                error
+                _error
                 (do (record-error! state :render-error) placeholder-text))]
       (append! state :note text nil))))
 
@@ -169,7 +169,7 @@
                (hffi/test-case-printer! ctx handle printer-options)
                (finally
                  (hffi/printer-options-free! ctx printer-options))))
-           error
+           _error
            (do (swap! errors conj {:kind :native-error}) nil)))]
     {:ctx ctx
      :handle handle
@@ -210,7 +210,7 @@
           :entries @(:entries state)
           :truncated? @(:truncated? state)
           :errors @(:errors state)}
-         error
+         _error
          (do
            (record-error! state :native-error)
            {:text nil
@@ -246,7 +246,7 @@
                       (do (hffi/printer-begin-speculative!
                            (:ctx state) (:printer state))
                           true)
-                      error
+                      _error
                       (do (record-error! state :native-error)
                           (reset! (:native-disabled? state) true)
                           false)))]
@@ -275,7 +275,7 @@
       (when (:native? checkpoint)
         (host/try-catch-all
          (hffi/printer-commit-speculative! (:ctx state) (:printer state))
-         error
+         _error
          (do (record-error! state :native-error)
              (reset! (:native-disabled? state) true))))))
   nil)
@@ -290,7 +290,7 @@
       (when (:native? checkpoint)
         (host/try-catch-all
          (hffi/printer-abort-speculative! (:ctx state) (:printer state))
-         error
+         _error
          (do (reset! native-error? true)
              (reset! (:native-disabled? state) true))))
       (when (and (not (:native-disabled? checkpoint))
