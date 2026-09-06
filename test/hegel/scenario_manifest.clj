@@ -15,6 +15,7 @@
    {:id :ffi-adapter :suite :ffi :description "upstream babashka.ffi adapter" :entrypoint 'hegel.suites.ffi/upstream-babashka-ffi-adapter}
    {:id :ffi-write-order :suite :ffi :description "Jolt 0.8 FFI write order" :entrypoint 'hegel.suites.ffi/jolt-ffi-write-order-contract}
    {:id :ffi-signature-policy :suite :ffi :description "canonical ABI signature policy" :entrypoint 'hegel.suites.ffi/signature-policy-contract}
+   {:id :ffi-printer-protocol :suite :ffi :description "standalone printer protocol: layout, speculative, deferred, cleanup" :entrypoint 'hegel.suites.ffi/printer-protocol-contract}
    {:id :installer-source :suite :install :description "installer source identity" :entrypoint 'hegel.suites.install/installer-source-identity}
    {:id :portable-paths :suite :install :description "portable path contracts" :entrypoint 'hegel.suites.install/portable-path-contracts}
    {:id :installer-checksum :suite :install :description "installer checksum contract" :entrypoint 'hegel.suites.install/installer-checksum-contract}
