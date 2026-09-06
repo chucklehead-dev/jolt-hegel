@@ -105,8 +105,37 @@ per open/close cycle, 190.83ms median (3.41x raw). In the separate Hegel
 prototype, temporary roundtrips changed from 45.40ms to 541.28ms and integer
 draws from 59.08ms to 276.53ms. These are baseline-to-arena median changes,
 not ranges. This is diagnostic evidence from one Linux release build only —
-it is not a portable threshold, not validated against current upstream Jolt,
-and not a profiled root-cause proof.
+it is not a portable threshold or a profiled root-cause proof.
+
+Released Jolt 0.8.3 includes the confined-arena optimization from
+`3c76997e6546fe3e1059f528208f48c549cdd12c` and its sibling-fiber publication
+correction `d04b286106aea03c19cc8b20e6bbb0e67e3f1042`. Repeating the upstream-only
+30,000-operation workload on exact release commit
+`343f730922cf16fafe673b466cedcdcfe0596854` measured raw allocation/free at
+49.62ms median, a fresh arena per operation at 267.16ms (5.38x raw), and one
+arena per 100 operations at 180.53ms (3.64x raw). Upstream's release gates
+established the optimization's improvement; this within-release run does not
+quantify a before/after change. It does show that the Hegel decision remains:
+wrapper-scale arenas are too expensive, while a genuine multi-allocation
+lexical batch remains eligible for its own measured experiment.
+
+The 0.8.3 run used the official Linux executable (SHA-256
+`77e2edfc89508e3818a4c715d1b58bcfa3c46d267d457056fb83c288427ef0b8`),
+threaded Chez 10.4.1 (`ta6le`), and the release benchmark
+`bench/ffi_arenas.clj` at Git blob
+`d8bcfa0a2cf2d3216ba0b9a2c468ec26a157630a`. It ran source mode with
+`-Srepro` and an isolated Jolt cache on WSL2 Linux, Intel i7-1185G7, with five
+retained alternating-order samples after the benchmark's fixed warmup:
+
+```clojure
+{:raw [49615282 51362157 54876624 42696252 38562697]
+ :arena-per-allocation [267163447 254200287 237840042 290933688 267839706]
+ :arena-per-100 [181353234 171757931 180527397 216738884 153992248]}
+```
+
+Values are nanoseconds and the reported median is the third sorted sample.
+This was one non-CPU-affinitized sitting, not an A/B/A comparison or a portable
+performance threshold.
 
 **Inference (source-grounded, not measured directly).** Reading the observed
 multiplier pattern against Jolt's arena implementation: each arena groups
@@ -125,14 +154,13 @@ never be dereferenced.
 
 **Follow-up.** Upstream tracking issue:
 [jolt-aspect-packs #100](https://github.com/chucklehead-dev/jolt-aspect-packs/issues/100).
-After the released-build measurement above, that issue reproduced the result
-against then-current Jolt `023285d283493fbfe121db58246118d57d7ed3e4`:
+After the original released-build measurement above, that issue reproduced the
+result against then-current Jolt `023285d283493fbfe121db58246118d57d7ed3e4`:
 fresh confined arenas measured 8.54x raw allocation and batches of 100 measured
 3.38x raw. Its phase decomposition points to close/bookkeeping as the dominant
-diagnostic cost and records precommitted source/AOT improvement gates before an
-upstream implementation. This newer evidence reinforces the decision not to
-adopt arenas in Hegel yet; it does not turn an unmerged optimization hypothesis
-into a supported runtime capability.
+diagnostic cost and records precommitted source/AOT improvement gates. The
+resulting optimization and fiber-safety correction are now released in 0.8.3;
+the current-release remeasurement above still rejects per-wrapper adoption.
 
 ## Local test evidence (honest state)
 
@@ -177,7 +205,7 @@ independent of this new test:
 | Int32/uint32 carrier and by-value convention differences documented | Met — see Adapter comparison above |
 | Shared walker/scalar-helper abstraction | Rejected — differences are material, not incidental (see Decision) |
 | Jolt runtime function binder shared with babashka.ffi | Rejected/unsupported — Jolt's `foreign-fn` needs literal forms; Jolt uses macro-style `eval` generation while babashka.ffi's `cfn` is a runtime function |
-| Per-wrapper arena adoption for Jolt | Rejected — 3.4x–8.7x overhead measured locally; explicit alloc/free retained; follow-up filed |
+| Per-wrapper arena adoption for Jolt | Rejected — 0.8.3 remeasurement remains 3.64x–5.38x raw; explicit alloc/free retained; upstream optimization is released |
 | New signature-policy test passes on all three supported hosts | Met locally (9 `deftest`s / 687 assertions on each; selected FFI suite and full aggregate on each); not yet run in CI |
 | Existing aggregate-argument and cleanup-precedence coverage preserved | Met — cited tests above, unmodified by this work |
 | Aggregate/callback/pointer census stability | Met — asserted by fixed-count tests, guards against silent drift |

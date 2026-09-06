@@ -9,10 +9,14 @@ Use jolt-hegel to write property-based and model-based tests on Jolt,
 Babashka, or JVM Clojure. The public API and behavioral contract are shared;
 runtime choice affects installation and native diagnostics, not property code.
 
-The base runtime guidance was verified on 2026-09-04 against source revision
-`42ad76538e8824bd774a3c71bfa41723ce9e07c2`. Current `main` requires Jolt
-0.8.1; the published `v0.5.0` release retains its historical Jolt 0.7.23+
-contract. The supported FFI-capable Babashka floor is 1.13.220 with libffi.
+The public API guidance was verified on 2026-09-05 against production source
+revision `116d4c4126db6ffd461ab41158c12b0abf5b49f5`; the runtime guidance was
+additionally checked against released Jolt v0.8.3 at
+`343f730922cf16fafe673b466cedcdcfe0596854`. Current `main` has a Jolt 0.8.1
+compatibility floor and qualifies 0.8.3 as its primary Linux x86_64, Windows
+x86_64, and macOS arm64 release; the published `v0.5.0` release retains its
+historical Jolt 0.7.23+ contract. The supported FFI-capable Babashka floor is
+1.13.220 with libffi.
 
 API additions below follow the accompanying source, not the published v0.5.0
 API. Check `hegel.version/libhegel-version` when migrating native dependencies;
@@ -51,7 +55,7 @@ aliases to the consuming project, so activate the alias that contains the
 dependency when running the installer.
 
 ```bash
-# Current `main` / next release candidate: Jolt 0.8.1+
+# Current `main` / next release candidate: Jolt 0.8.1+ (0.8.3 is the primary CI release)
 jolt -A:test -m hegel.install
 
 # Babashka 1.13.220+ with libffi (on Linux, do not use the -static asset)
@@ -95,11 +99,12 @@ code must not branch on it.
 
 Do not replace jolt-hegel's scoped temporary allocation with a fresh Jolt arena
 per wrapper or per FFI call. The landed evaluation measured that strategy as
-substantially slower for the adapter-scale workload; it did not directly prove
-which arena phase dominates. Treat upstream close/bookkeeping attribution as an
-optimization lead, not a supported capability. Consider arenas only for a real
-lexical batch that amortizes one close across many allocations, and require a
-`System/nanoTime` gate with an above-noise-floor workload and a bounded,
+substantially slower for the adapter-scale workload. Jolt 0.8.3 includes the
+confined-arena optimization and sibling-fiber publication fix, but an exact
+release remeasurement still found a fresh arena 5.38x raw allocation and a
+100-allocation batch 3.64x raw. Consider arenas only for a real lexical batch
+that amortizes one close across many allocations, and require a
+`System/nanoTime` gate with an above-noise-floor workload plus a bounded,
 regression-sensitive negative control before changing ownership.
 
 ## Write reliable properties
