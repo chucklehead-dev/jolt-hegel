@@ -118,7 +118,7 @@ unsupported call to fail during a property:
 (abi/check-backend backend (abi/descriptor))
 ;; => {:backend :jvm
 ;;     :supported? true
-;;     :summary {:supported 77 :unsupported 0 :total 77}
+;;     :summary {:supported 103 :unsupported 0 :total 103}
 ;;     :functions {:generate-date
 ;;                 {:status :supported :route :jvm/ffm}
 ;;                 ...}}
@@ -188,6 +188,13 @@ its child modes under an external process watchdog: an in-process timeout must
 not return into cleanup while a native worker may still be live. On the initial
 Linux characterization both collect-safe and ordinary routes completed, so the
 ordinary run is a negative control rather than evidence of an observed stall.
+
+The same watched child also reaches a real host-body failure after both workers
+enter, preserves the original throwable, publishes cooperative peer
+cancellation, forbids a second native pull, and joins before cleanup. The
+stable public runner still rejects that non-replayable concurrent failure with
+`:hegel.core/unsupported-concurrent-state-machine`; this is prerequisite
+evidence, not a public concurrent executor or cancellation API.
 
 `state-machine-next-group!` remains coordinator-only and ordinary. The
 coordinator advances only after both workers join, then releases clones, the

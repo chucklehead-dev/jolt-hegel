@@ -16,7 +16,7 @@ confined to resource/process discovery and a narrow native boundary.
                      /       /       |       \       \
              jolt.ffi   babashka.ffi (BB/JVM)   jank C++  CLR P/Invoke
                      \       \       |       /       /
-                                libhegel 0.33
+                                libhegel 0.36.3
 ```
 
 ## Source layers
