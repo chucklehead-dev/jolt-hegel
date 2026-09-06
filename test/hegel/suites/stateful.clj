@@ -5,6 +5,7 @@
             [hegel.ffi :as hffi]
             [hegel.generator :as g]
             [hegel.libhegel-upgrade-test]
+            [hegel.stateful.concurrent :as concurrent]
             [hegel.stateful :as hs]
             [hegel.test-support :as support]))
 
@@ -521,6 +522,180 @@
   ;; Exact-version replay and the fixed-50 negative control now live in
   ;; libhegel-upgrade-test. The old blob is retained under fixtures/hegel-0.32.3.
   nil)
+
+(defn- concurrent-private [name]
+  (or (ns-resolve 'hegel.stateful.concurrent name)
+      (throw (ex-info "concurrent validation helper is missing"
+                      {:name name}))))
+
+(defn- concurrent-error-of [thunk]
+  (try
+    (thunk)
+    nil
+    (catch Throwable error error)))
+
+(defn- concurrent-usage-error? [expected-type thunk]
+  (let [error (concurrent-error-of thunk)]
+    (and error
+         (= expected-type (:type (ex-data error)))
+         (true? (:hegel/usage-error? (ex-data error))))))
+
+(defn concurrent-api-declarations
+  "Pure declaration/validation coverage for the future concurrent executor.
+
+  This scenario intentionally calls only the new native-free namespace.  The
+  stateful suite itself loads the existing native suite, but no native function
+  is entered by this scenario."
+  [context]
+  (let [rule (concurrent/rule :put :z (fn [_] :applied))
+        invariant (concurrent/invariant :consistent (fn [_] true))
+        group-plan (concurrent-private 'group-plan)
+        validate-options (concurrent-private 'validate-options!)
+        validate-config (concurrent-private 'validate-config!)
+        callback-contract (get rule ::concurrent/callback-contract)]
+    (support/check! context "concurrent rule and invariant predicates identify declarations"
+           (and (concurrent/rule? rule)
+                (concurrent/invariant? invariant)
+                (not (concurrent/rule? invariant))
+                (not (concurrent/invariant? rule))))
+    (support/check! context "concurrent worker callback contract is explicit"
+           (= {:context-keys #{:shared :worker-index :round :group :cancelled?}
+               :result-values #{:applied :rejected}}
+              callback-contract))
+    (let [rules [(concurrent/rule :write :z identity)
+                 (concurrent/rule "read" :a identity)
+                 (concurrent/rule 'delete 'z identity)]
+          plan (group-plan rules)]
+      (support/check! context "concurrent groups normalize, sort, and collide deterministically"
+             (and (= ["a" "z"] (:names plan))
+                  (= {"a" 0 "z" 1} (:ids plan))
+                  (= [1 0 1] (:rule-groups plan))
+                  (every? #(and (integer? %) (<= 0 %)) (:rule-groups plan)))))
+    (let [options (validate-options {:workers 3})
+          complete (validate-options
+                    {:workers 3
+                     :test-cases 4
+                     :stateful-step-count 5
+                     :seed 6
+                     :verbosity :quiet
+                     :derandomize? true
+                     :suppress-health-checks [:too-slow]
+                     :max-diagnostic-events 7})]
+      (support/check! context "concurrent options default the diagnostic bound"
+             (= 1024 (:max-diagnostic-events options)))
+      (support/check! context "concurrent options accept the complete v1 surface"
+             (= complete
+                {:workers 3
+                 :test-cases 4
+                 :stateful-step-count 5
+                 :seed 6
+                 :verbosity :quiet
+                 :derandomize? true
+                 :suppress-health-checks [:too-slow]
+                 :max-diagnostic-events 7})))
+    (doseq [[label options]
+            [["non-map" []]
+             ["missing workers" {}]
+             ["workers below two" {:workers 1}]
+             ["workers fractional" {:workers 2.0}]
+             ["workers above int64" {:workers 9223372036854775808N}]
+             ["test cases below one" {:workers 2 :test-cases 0}]
+             ["test cases above uint64"
+              {:workers 2 :test-cases 18446744073709551616N}]
+             ["stateful steps below one" {:workers 2 :stateful-step-count 0}]
+             ["stateful steps above int64"
+              {:workers 2 :stateful-step-count 9223372036854775808N}]
+             ["seed below zero" {:workers 2 :seed -1}]
+             ["seed above uint64"
+              {:workers 2 :seed 18446744073709551616N}]
+             ["diagnostic bound below one" {:workers 2 :max-diagnostic-events 0}]
+             ["diagnostic bound above int64"
+              {:workers 2 :max-diagnostic-events 9223372036854775808N}]
+             ["verbosity type" {:workers 2 :verbosity :missing}]
+             ["derandomize type" {:workers 2 :derandomize? :yes}]
+             ["health collection type" {:workers 2 :suppress-health-checks :too-slow}]
+             ["health member" {:workers 2 :suppress-health-checks [:missing]}]
+             ["unknown option" {:workers 2 :unknown true}]
+             ["forbidden backend" {:workers 2 :backend :default}]
+             ["forbidden database" {:workers 2 :database ""}]
+             ["forbidden database key" {:workers 2 :database-key "x"}]
+             ["forbidden name" {:workers 2 :name "x"}]
+             ["forbidden phases" {:workers 2 :phases [:generate]}]
+             ["forbidden multiple failures"
+              {:workers 2 :report-multiple-failures? false}]
+             ["forbidden statistics" {:workers 2 :show-statistics? false}]
+             ["forbidden observations" {:workers 2 :observations? false}]
+             ["forbidden coverage" {:workers 2 :coverage {}}]
+             ["forbidden counterexample" {:workers 2 :counterexample {}}]
+             ["forbidden targeting" {:workers 2 :targeting true}]]]
+      (support/check! context (str "concurrent option rejects " label)
+             (concurrent-usage-error? ::concurrent/invalid-option
+                                       #(validate-options options))))
+    (doseq [[label thunk]
+            [["rule NUL name" #(concurrent/rule "bad\u0000" :group identity)]
+             ["rule name type" #(concurrent/rule 42 :group identity)]
+             ["rule blank group" #(concurrent/rule :rule "  " identity)]
+             ["rule group type" #(concurrent/rule :rule {} identity)]
+             ["rule callback" #(concurrent/rule :rule :group :not-callable)]
+             ["invariant NUL name"
+              #(concurrent/invariant (str "bad" (char 0)) (constantly true))]
+             ["invariant name type"
+              #(concurrent/invariant [:bad] (constantly true))]
+             ["invariant callback" #(concurrent/invariant :bad true)]]]
+      (support/check! context (str "concurrent declaration rejects " label)
+             (concurrent-usage-error? ::concurrent/invalid-argument thunk)))
+    (let [error (concurrent-error-of #(concurrent/rule 42 :group identity))]
+      (support/check! context "concurrent name errors preserve the rejected value"
+             (= 42 (:name (ex-data error)))))
+    (let [same-rule (concurrent/rule :same :group identity)
+          same-string-rule (concurrent/rule "same" :other identity)
+          same-invariant (concurrent/invariant :same (constantly true))
+          same-string-invariant (concurrent/invariant "same" (constantly true))
+          valid-config (validate-config
+                        {:shared nil
+                         :rules [(concurrent/rule :write :z identity)
+                                 (concurrent/rule :read :a identity)]
+                         :invariants [(concurrent/invariant :ok (constantly true))]
+                         :close! (fn [_] nil)})]
+      (support/check! context "concurrent config accepts shared state and close callback"
+             (and (= ["a" "z"] (get-in valid-config [::concurrent/group-plan :names]))
+                  (= [1 0] (get-in valid-config [::concurrent/group-plan :rule-groups]))))
+      (support/check! context "concurrent rule and invariant names are unique within kind"
+             (map? (validate-config
+                    {:shared nil
+                     :rules [(concurrent/rule :same :group identity)]
+                     :invariants [(concurrent/invariant :same
+                                                       (constantly true))]})))
+      (doseq [[label config]
+              [["non-map" []]
+               ["missing shared" {:rules [same-rule]}]
+               ["missing rules" {:shared nil}]
+               ["empty rules" {:shared nil :rules []}]
+               ["rules type" {:shared nil :rules :rules}]
+               ["unordered rules" {:shared nil :rules #{same-rule}}]
+               ["wrong rule declaration"
+                {:shared nil :rules [same-invariant]}]
+               ["invariants type" {:shared nil :rules [same-rule]
+                                    :invariants :invariants}]
+               ["false invariants" {:shared nil :rules [same-rule]
+                                    :invariants false}]
+               ["nil invariants" {:shared nil :rules [same-rule]
+                                  :invariants nil}]
+               ["unordered invariants" {:shared nil :rules [same-rule]
+                                        :invariants #{same-invariant}}]
+               ["wrong invariant declaration"
+                {:shared nil :rules [same-rule] :invariants [same-rule]}]
+               ["nil close callback" {:shared nil :rules [same-rule] :close! nil}]
+               ["close callback" {:shared nil :rules [same-rule] :close! false}]
+               ["unknown key" {:shared nil :rules [same-rule] :unknown true}]
+               ["duplicate normalized rules"
+                {:shared nil :rules [same-rule same-string-rule]}]
+               ["duplicate normalized invariants"
+                {:shared nil :rules [same-rule]
+                 :invariants [same-invariant same-string-invariant]}]]]
+        (support/check! context (str "concurrent config rejects " label)
+               (concurrent-usage-error? ::concurrent/invalid-argument
+                                         #(validate-config config)))))))
 
 (defn libhegel-upgrade-contract [context]
   (let [result (t/run-tests 'hegel.libhegel-upgrade-test)]
