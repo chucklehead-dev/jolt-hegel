@@ -63,6 +63,10 @@ bb -m hegel.install
 
 # JVM Clojure, JDK 22+
 clojure -J--enable-native-access=ALL-UNNAMED -M:test -m hegel.install
+
+# Experimental jank 0.1-alpha on Linux/macOS; curl must be on PATH.
+jank -I generated --module-path src:resources:script \
+  run-main hegel.install -- setup
 ```
 
 The direct Babashka command assumes the pin is in top-level `:deps` in

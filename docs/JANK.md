@@ -24,7 +24,12 @@ Hosted Linux CI downloads the current noble package directly and verifies its
 pinned SHA-256 before installation. Hosted macOS CI uses the official
 `jank-lang/setup-jank` action at an immutable action commit on macOS 26, the
 minimum OS targeted by its current binary. Both jobs record the installed binary
-identity as runtime provenance.
+identity as runtime provenance. The macOS action installs jank's rolling main
+build rather than a versioned artifact, so that experimental cell is a live
+compatibility canary, not a reproducible compiler pin. This matters because the
+installer currently consumes jank's bundled, non-public SHA-256 helper; hosted
+compilation detects upstream API drift. After installation, both cells also
+verify the resulting libhegel bytes with an independent host digest command.
 
 ## What works
 
@@ -81,9 +86,23 @@ bb jank-codegen-check
 
 ## Running the spike
 
-Install libhegel 0.36.3 with one of the supported host installers, or point jank
-at an existing compatible library. Then run the native and shared semantic
-gates:
+Install libhegel 0.36.3 with jank's native installer, or point jank at an
+existing compatible library. The native installer uses jank's C++ interop for
+filesystem, SHA-256, and staged rename-publication mechanics. Because current
+jank does not expose a portable consumer HTTP/process API, downloads use `curl`
+with shell-quoted URL and destination arguments; Linux and macOS users must
+have `curl` on `PATH`. It downloads to a staging path, verifies the pinned
+release digest, and publishes only the verified file:
+
+```bash
+HEGEL_CACHE_DIR="$PWD/.hegel-lib" \
+jank -I generated --module-path src:resources:script \
+  run-main hegel.install -- setup
+```
+
+The same installer can be used with a pre-existing compatible library by
+setting `HEGEL_LIBHEGEL_LIBRARY`; that path is checked for existence and is
+not downloaded or rehashed. Then run the native and shared semantic gates:
 
 ```bash
 export HEGEL_LIBHEGEL_LIBRARY=/absolute/path/to/libhegel_c.so
@@ -102,8 +121,6 @@ jank -I generated --module-path src:resources:script \
 - provide Windows coverage once upstream offers a consumable setup action or
   pinned binary; building jank's custom LLVM/Clang toolchain in every Hegel PR
   is not a practical substitute;
-- add a jank-native installer backend; current CI deliberately installs
-  checksum-verified libhegel through Babashka before starting jank;
 - run the complete shared semantic suite rather than the focused jank gate,
   which now also covers assumptions, framework-less counting/structured
   reporting, and a focused `clojure.test` deftest/is/run-test smoke, but still

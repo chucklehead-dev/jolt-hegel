@@ -46,9 +46,11 @@ jobs:
           - name: Linux x86_64
             runner: ubuntu-24.04
             library-name: libhegel_c.so
+            library-sha256: 12d804f8767f926f8ec22a733e57af265f0b79f383ce78cc8d9fcbae2a8a3ad7
           - name: macOS arm64
             runner: macos-26
             library-name: libhegel_c.dylib
+            library-sha256: ac3939a523ca5d98ed741e5894c3b44d0c7b0fa8baaa3deabc5653bb1d754df9
 
     env:
       HEGEL_CACHE_DIR: ${{ github.workspace }}/.hegel-lib
@@ -80,8 +82,21 @@ jobs:
         run: |
           jank print-binary-version
           jank check-health
-      - name: Install checksum-verified libhegel
-        run: bb setup-native
+      - name: Install checksum-verified libhegel through jank
+        run: >-
+          jank -I generated --module-path src:resources:script
+          run-main hegel.install -- setup
+      - name: Independently verify installed libhegel digest
+        env:
+          LIBHEGEL_SHA256: ${{ matrix.library-sha256 }}
+        run: |
+          library="$GITHUB_WORKSPACE/.hegel-lib/${{ matrix.library-name }}"
+          if [[ "$RUNNER_OS" == 'Linux' ]]; then
+            actual=$(sha256sum "$library" | cut -d ' ' -f 1)
+          else
+            actual=$(shasum -a 256 "$library" | cut -d ' ' -f 1)
+          fi
+          test "$actual" = "$LIBHEGEL_SHA256"
       - name: Run direct ABI backend smoke
         env:
           HEGEL_LIBHEGEL_LIBRARY: ${{ github.workspace }}/.hegel-lib/${{ matrix.library-name }}

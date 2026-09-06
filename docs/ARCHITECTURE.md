@@ -121,11 +121,12 @@ verification orchestration calls the narrow `hegel.install.backend` seam;
 filesystem, process, download, and digest mechanics live in host-specific
 installer namespaces. Jolt retains its source/AOT identity check because cached
 compiled namespaces can otherwise point at a different Git checkout. JVM
-Clojure and Babashka use their normal download and digest facilities.
-
-jank does not yet have a native installer backend. Its CI uses Babashka to
-download and verify the same pinned artifact before jank loads it through an
-explicit path.
+Clojure and Babashka use their normal download and digest facilities. jank
+uses a native C++-interop backend for filesystem operations and SHA-256, and
+uses shell-quoted `curl` arguments for downloads because current jank does not
+provide a portable consumer HTTP/process API. The experimental jank CI lane
+therefore installs libhegel through jank itself on Linux and macOS; `curl` must
+be available on `PATH`.
 
 The runtime verifies libhegel's reported version before executing a property,
 including when the library path was supplied by the user.

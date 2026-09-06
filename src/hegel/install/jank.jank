@@ -1,0 +1,161 @@
+(ns hegel.install.jank
+  "jank filesystem, download, and checksum mechanics for hegel.install.
+
+  jank does not currently expose a portable Clojure HTTP or process API. The
+  native boundary uses the C++ standard filesystem and jank's own runtime
+  SHA-256 helper, and invokes curl with shell-quoted arguments for release
+  downloads. The supported jank CI targets provide curl on Linux and macOS."
+  (:require [hegel.host.jank-host :as jank-host])
+  (:include "filesystem"
+            "fstream"
+            "sstream"
+            "cstdlib"
+            "string"
+            "jank/util/sha256.hpp"))
+
+(cpp/raw
+ "inline bool hegel_jank_path_exists(std::string const &path)
+  {
+    std::error_code error;
+    return std::filesystem::exists(path, error) && !error;
+  }
+
+  inline bool hegel_jank_directory(std::string const &path)
+  {
+    std::error_code error;
+    return std::filesystem::is_directory(path, error) && !error;
+  }
+
+  inline bool hegel_jank_mkdirs(std::string const &path)
+  {
+    std::error_code error;
+    if(std::filesystem::is_directory(path, error) && !error)
+      return true;
+    error.clear();
+    std::filesystem::create_directories(path, error);
+    return !error && std::filesystem::is_directory(path, error) && !error;
+  }
+
+  inline bool hegel_jank_delete_file(std::string const &path)
+  {
+    std::error_code error;
+    std::filesystem::remove(path, error);
+    return !error && !std::filesystem::exists(path, error);
+  }
+
+  inline bool hegel_jank_rename_file(std::string const &source,
+                                     std::string const &target)
+  {
+    std::error_code error;
+    std::filesystem::rename(source, target, error);
+    return !error && std::filesystem::exists(target, error) &&
+           !std::filesystem::exists(source, error);
+  }
+
+  inline std::string hegel_jank_read_text(std::string const &path)
+  {
+    std::ifstream input(path);
+    if(!input)
+      return {};
+    std::ostringstream contents;
+    contents << input.rdbuf();
+    return contents.str();
+  }
+
+  inline std::string hegel_jank_architecture()
+  {
+  #if defined(__aarch64__) || defined(__arm64__) || defined(_M_ARM64)
+    return \"arm64\";
+  #elif defined(__x86_64__) || defined(_M_X64)
+    return \"amd64\";
+  #else
+    return {};
+  #endif
+  }
+
+  inline std::string hegel_jank_sha256_file(std::string const &path)
+  {
+    std::ifstream input(path, std::ios::binary);
+    if(!input)
+      return {};
+    std::ostringstream contents;
+    contents << input.rdbuf();
+    auto const bytes = contents.str();
+    auto const digest = jank::util::sha256(
+      jtl::immutable_string{bytes.data(), bytes.size()});
+    return {digest.c_str(), digest.size()};
+  }
+
+  inline std::string hegel_jank_shell_quote(std::string const &value)
+  {
+    std::string quoted{\"'\"};
+    for(auto const character : value)
+    {
+      if(character == '\\'')
+        quoted += \"'\\\\''\";
+      else
+        quoted += character;
+    }
+    quoted += '\\'';
+    return quoted;
+  }
+
+  inline int hegel_jank_download(std::string const &url,
+                                 std::string const &path)
+  {
+    auto const command = std::string{\"curl --fail --location --silent \"
+                                     \"--show-error --output \"} +
+                         hegel_jank_shell_quote(path) + \" -- \" +
+                         hegel_jank_shell_quote(url);
+    return std::system(command.c_str());
+  }")
+
+(defn property [name]
+  (case name
+    "os.name" (jank-host/os-name)
+    "os.arch" (cpp/hegel_jank_architecture)
+    nil))
+
+(defn uname-machine []
+  (cpp/hegel_jank_architecture))
+
+(defn path-exists? [path]
+  (cpp/hegel_jank_path_exists path))
+
+(defn directory? [path]
+  (cpp/hegel_jank_directory path))
+
+(defn mkdirs! [path]
+  (cpp/hegel_jank_mkdirs path))
+
+(defn delete-file! [path]
+  (cpp/hegel_jank_delete_file path))
+
+(defn rename-file! [source target]
+  (cpp/hegel_jank_rename_file source target))
+
+(defn read-text [path]
+  (cpp/hegel_jank_read_text path))
+
+(defn download! [os url path]
+  ;; std::system delegates to the host command processor. The quoting above is
+  ;; deliberately POSIX-shell syntax, so fail closed if a future jank build
+  ;; reaches this backend on Windows instead of feeding it to cmd.exe.
+  (when-not (or (= :linux os) (= :darwin os))
+    (throw (ex-info (str "jank native downloads require a POSIX shell, not "
+                         (name os))
+                    {:type ::unsupported-download-host
+                     :os os
+                     :url url
+                     :path path})))
+  (let [exit (cpp/hegel_jank_download url path)]
+    (when-not (zero? exit)
+      (throw (ex-info (str "curl download failed with system status " exit)
+                      {:type ::download-failed
+                       :url url
+                       :path path
+                       :system-status exit})))
+    true))
+
+(defn sha256 [_os path]
+  (cpp/hegel_jank_sha256_file path))

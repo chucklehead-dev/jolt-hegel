@@ -111,8 +111,10 @@
 (defn- source-jolt-hegel-version []
   (let [path (require-file! "jolt-hegel version source"
                             (version-source-path))
+        ;; The declaration is single-line; avoid inline DOTALL syntax, which
+        ;; current jank irregex rejects while compiling this shared namespace.
         match (re-find
-               #"(?s)\(def\s+jolt-hegel-version\s+\"[^\"]*\"\s+\"([^\"]+)\"\s*\)"
+               #"\(def\s+jolt-hegel-version\s+\"[^\"]*\"\s+\"([^\"]+)\"\s*\)"
                (install-backend/read-text path))]
     (or (second match)
         (throw

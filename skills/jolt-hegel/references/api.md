@@ -63,6 +63,10 @@ bb -m hegel.install
 
 # JVM Clojure
 clojure -J--enable-native-access=ALL-UNNAMED -M:test -m hegel.install
+
+# Experimental jank 0.1-alpha on Linux/macOS; curl must be on PATH.
+jank -I generated --module-path src:resources:script \
+  run-main hegel.install -- setup
 ```
 
 The direct Babashka command assumes the SHA-pinned dependency is in top-level
@@ -965,6 +969,10 @@ bb test
 # JVM Clojure
 clojure -J--enable-native-access=ALL-UNNAMED -M:jvm:test -m hegel.install
 clojure -J--enable-native-access=ALL-UNNAMED -M:jvm:test
+
+# Experimental jank 0.1-alpha on Linux/macOS; curl must be on PATH.
+jank -I generated --module-path src:resources:script \
+  run-main hegel.install -- setup
 ```
 
 Use the consuming project's established test command and selected executable
