@@ -16,6 +16,10 @@
    :setup-native {:main-opts ["-m" "hegel.install"]}
    :abi-test {:extra-paths ["script"]
               :main-opts ["-m" "hegel.abi-check"]}
+   ;; Dev-only bounded native boundary cost characterization (Jolt only). Not
+   ;; on the default :paths, so ordinary consumers never resolve this script.
+   :collect-safe-characterization {:extra-paths ["script"]
+                                    :main-opts ["-m" "hegel.collect-safe-characterization"]}
    :header-audit {:extra-paths ["script"]
                   :main-opts ["-m" "hegel.header-audit"]}
    :jank-codegen {:extra-paths ["script"]
@@ -41,6 +45,7 @@
  :tasks
  {setup-native "jolt -M:setup-native"
   abi-test "jolt -M:abi-test"
+  collect-safe-characterization "jolt -M:collect-safe-characterization"
   fetch-libhegel "jolt -M:fetch-libhegel"
   test "jolt -M:test"
   harness-test "jolt -M:harness-test"}}
