@@ -124,6 +124,23 @@
                 (= {:detail :present}
                    (::ht/cause-data failure-data)))))
   (let [events (atom [])
+        result
+        (with-redefs [t/report #(swap! events conj %)]
+          (ht/with {:test-cases 1
+                    :seed 4246
+                    :database ""
+                    :verbosity :quiet
+                    :suppress-health-checks [:large-initial-test-case]}
+            []
+            (throw (ex-info "" {}))))
+        event (first @events)]
+    (support/check! context
+           "a plain blank-message exception without ex-data still reports a stable, non-blank cause"
+           (and (not (:passed? result))
+                (= [:fail] (mapv :type @events))
+                (not (str/blank? (:actual event)))
+                (not (str/includes? (:actual event) "ex-data:")))))
+  (let [events (atom [])
         calls (atom 0)
         result
         (with-redefs [t/report #(swap! events conj %)]

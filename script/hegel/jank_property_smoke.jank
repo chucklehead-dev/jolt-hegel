@@ -1,9 +1,61 @@
 (ns hegel.jank-property-smoke
-  (:require [hegel.core :as h]
+  (:require [clojure.string :as str]
+            [clojure.test :as ct]
+            [hegel.clojure-test :as ht]
+            [hegel.core :as h]
             [hegel.generator :as g]
             [hegel.native :as native]
             [hegel.report :as report]
             [hegel.stateful :as hs]))
+
+;; Bounded evidence for the deliberately failing control below: only the
+;; final shrunk value is kept, never the full Hegel result or exception.
+(def ^:private jank-clojure-test-fail-final-values (atom []))
+
+;; Independent witness that the passing property's body actually executed,
+;; so a vacuous synthetic pass (one clojure.test/with never runs its body,
+;; or short-circuits before drawing) cannot qualify this integration. The
+;; count asserted below is exact, not merely positive.
+(def ^:private jank-clojure-test-pass-witness (atom 0))
+
+(ct/deftest jank-clojure-test-embedded-pass
+  (ht/with {:test-cases 8
+            :seed 20260905
+            :database ""
+            :verbosity :quiet}
+    [x (g/integer 0 10)]
+    (swap! jank-clojure-test-pass-witness inc)
+    (ct/is (<= 0 x 10))))
+
+;; Deliberately failing control: value >= 500 always fails, so shrinking must
+;; converge on the same minimal counterexample (500) already established by
+;; the direct h/run-test! threshold smoke below, using the same seed/bounds.
+(ct/deftest jank-clojure-test-embedded-fail
+  (ht/with {:test-cases 200
+            :seed 1777986545686
+            :database ""
+            :report-multiple-failures? false
+            :verbosity :quiet}
+    [x (g/integer 0 1000)]
+    (when (h/final?)
+      (swap! jank-clojure-test-fail-final-values conj x))
+    (ct/is (< x 500))))
+
+;; Deliberately throwing control, bounded to a single fixed case: the body
+;; raises a plain blank-message exception (never wrapped with :hegel/origin
+;; or routed through hffi), so it exercises hegel.clojure-test's
+;; throwable-details fallback -- on jank that is the ex-data/type/message/
+;; string fallback added because jank has no Throwable->map or class. Below,
+;; only a bounded :type keyword and a derived boolean are kept per event,
+;; never the message string, the exception, or the Hegel result.
+(ct/deftest jank-clojure-test-embedded-body-exception
+  (ht/with {:test-cases 1
+            :seed 20260906
+            :database ""
+            :verbosity :quiet
+            :suppress-health-checks [:large-initial-test-case]}
+    []
+    (throw (ex-info "" {:jank/control :body-exception}))))
 
 (defn -main [& _]
   (when-not (and (native/absolute-path? "/tmp/jolt-hegel")
@@ -216,4 +268,63 @@
                        :counts counts
                        :failure-origin failure-origin})))
     (println "PASS shared counting runner sees pass, property failure, and setup error")
-    (println "PASS run-count 3 failure-count 2 with event types [:pass :fail :error]")))
+    (println "PASS run-count 3 failure-count 2 with event types [:pass :fail :error]"))
+  ;; Qualify hegel.clojure-test itself using only the clojure.test surface
+  ;; upstream jank's own self-test exercises: deftest/is/run-test, plus the
+  ;; dynamic `report` rebinding hegel.clojure-test/with itself relies on
+  ;; internally. `run-test` is the public call surface exercised here -- it
+  ;; always calls test-var internally, so this is not a claim that test-var
+  ;; itself goes unexercised, only that this smoke never calls it directly.
+  ;; Never anything JVM-only.
+  (reset! jank-clojure-test-fail-final-values [])
+  (reset! jank-clojure-test-pass-witness 0)
+  (let [pass-summary (select-keys (ct/run-test jank-clojure-test-embedded-pass)
+                                   [:test :pass :fail :error])
+        fail-summary (select-keys (ct/run-test jank-clojure-test-embedded-fail)
+                                   [:test :pass :fail :error])]
+    (when-not (= {:test 1 :pass 1 :fail 0 :error 0} pass-summary)
+      (throw (ex-info "jank clojure.test embedded pass summary mismatch"
+                      {:summary pass-summary})))
+    (when-not (= 8 @jank-clojure-test-pass-witness)
+      (throw (ex-info "jank clojure.test embedded pass control did not execute its body the expected number of times"
+                      {:witness @jank-clojure-test-pass-witness})))
+    (when-not (= {:test 1 :pass 0 :fail 1 :error 0} fail-summary)
+      (throw (ex-info "jank clojure.test embedded fail summary mismatch"
+                      {:summary fail-summary})))
+    (when-not (= [500] @jank-clojure-test-fail-final-values)
+      (throw (ex-info "jank clojure.test expected-fail control did not shrink to its known minimum"
+                      {:final-values @jank-clojure-test-fail-final-values})))
+    (println "PASS jank clojure.test deftest/is/run-test host hegel.clojure-test/with")
+    (println "PASS embedded pass control executed its body exactly 8 times")
+    (println "PASS run-test summary accounting: exactly one expected failure, no errors"))
+  ;; The body-exception control's expected failure must never fail this
+  ;; script; only mismatched summary/event semantics do.
+  (let [events (atom [])
+        original-report ct/report
+        body-exception-summary
+        (binding [ct/report
+                  (fn [event]
+                    (swap! events conj
+                           {:type (:type event)
+                            :has-ex-data?
+                            (boolean
+                             (some #(and (string? %)
+                                         (str/includes? % "ex-data:"))
+                                   [(:message event) (:actual event)]))})
+                    (original-report event))]
+          (select-keys (ct/run-test jank-clojure-test-embedded-body-exception)
+                       [:test :pass :fail :error]))
+        reported (into []
+                       (filter #(#{:pass :fail :error} (:type %)))
+                       @events)]
+    (when-not (= {:test 1 :pass 0 :fail 1 :error 0} body-exception-summary)
+      (throw (ex-info "jank clojure.test body-exception summary mismatch"
+                      {:summary body-exception-summary})))
+    (when-not (= [:fail] (mapv :type reported))
+      (throw (ex-info "jank clojure.test body-exception event types mismatch"
+                      {:events reported})))
+    (when-not (true? (:has-ex-data? (first reported)))
+      (throw (ex-info "jank clojure.test body-exception fallback lost its ex-data detail"
+                      {:events reported})))
+    (println "PASS jank clojure.test body-exception control exercises the jank throwable-details fallback")
+    (println "PASS body-exception summary accounting: exactly one expected failure, no errors")))
