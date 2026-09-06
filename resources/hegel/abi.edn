@@ -188,9 +188,11 @@
   {:symbol "hegel_new_pool" :args [[:pointer :hegel/context] [:pointer :hegel/test-case] [:pointer [:pointer :hegel/pool]]] :return :c/int32
    :ownership {:out {:kind :owned :release :pool-free}}}
   :pool-add
-  {:symbol "hegel_pool_add" :args [[:pointer :hegel/context] [:pointer :hegel/test-case] [:pointer :hegel/pool] [:pointer :c/int64]] :return :c/int32}
+  {:symbol "hegel_pool_add" :args [[:pointer :hegel/context] [:pointer :hegel/test-case] [:pointer :hegel/pool] [:pointer :c/int64]] :return :c/int32
+   :collect-safe? true}
   :pool-generate
-  {:symbol "hegel_pool_generate" :args [[:pointer :hegel/context] [:pointer :hegel/test-case] [:pointer :hegel/pool] :c/bool [:pointer :c/int64]] :return :c/int32}
+  {:symbol "hegel_pool_generate" :args [[:pointer :hegel/context] [:pointer :hegel/test-case] [:pointer :hegel/pool] :c/bool [:pointer :c/int64]] :return :c/int32
+   :collect-safe? true}
   :pool-free
   {:symbol "hegel_pool_free" :args [[:pointer :hegel/context] [:pointer :hegel/pool]] :return :c/int32}
   :new-state-machine
@@ -203,9 +205,11 @@
   :state-machine-next-group
   {:symbol "hegel_state_machine_next_group" :args [[:pointer :hegel/context] [:pointer :hegel/test-case] [:pointer :hegel/state-machine] [:pointer :c/int64]] :return :c/int32}
   :state-machine-next-rule
-  {:symbol "hegel_state_machine_next_rule" :args [[:pointer :hegel/context] [:pointer :hegel/test-case] [:pointer :hegel/state-machine] :c/int64 [:pointer :c/int64]] :return :c/int32}
+  {:symbol "hegel_state_machine_next_rule" :args [[:pointer :hegel/context] [:pointer :hegel/test-case] [:pointer :hegel/state-machine] :c/int64 [:pointer :c/int64]] :return :c/int32
+   :collect-safe? true}
   :state-machine-rule-rejected
-  {:symbol "hegel_state_machine_rule_rejected" :args [[:pointer :hegel/context] [:pointer :hegel/test-case] [:pointer :hegel/state-machine] :c/int64] :return :c/int32}
+  {:symbol "hegel_state_machine_rule_rejected" :args [[:pointer :hegel/context] [:pointer :hegel/test-case] [:pointer :hegel/state-machine] :c/int64] :return :c/int32
+   :collect-safe? true}
   :state-machine-should-check-invariant
   {:symbol "hegel_state_machine_should_check_invariant" :args [[:pointer :hegel/context] [:pointer :hegel/test-case] [:pointer :hegel/state-machine] :c/int64 [:pointer :c/bool]] :return :c/int32}
   :state-machine-free

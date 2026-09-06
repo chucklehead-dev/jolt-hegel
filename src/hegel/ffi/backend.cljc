@@ -7,7 +7,12 @@
                :clj [hegel.ffi.babashka :as impl])))
 
 (defn load! [library-path] (impl/load! library-path))
-(defn function [function-id] (impl/function function-id))
+(defn function
+  ([function-id] (impl/function function-id))
+  ([function-id route]
+   #?(:jolt (impl/function function-id route)
+      :default (throw (ex-info "the selected native backend has no alternate call routes"
+                               {:function function-id :route route})))))
 (defn layout [type-id] (impl/layout type-id))
 (defn with-native-scope [call] (impl/with-native-scope call))
 

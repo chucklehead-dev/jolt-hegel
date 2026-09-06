@@ -160,7 +160,7 @@
      (let [symbols (mapv :symbol (vals all-functions))]
        (when-not (= (count symbols) (count (set symbols)))
          (throw (ex-info "function symbols must be unique" {:symbols symbols}))))
-     (doseq [[function-id {:keys [symbol args return blocking? ownership]}]
+     (doseq [[function-id {:keys [symbol args return blocking? collect-safe? ownership]}]
              all-functions]
        (when-not (and (keyword? function-id)
                       (string? symbol)
@@ -177,6 +177,12 @@
        (when-not (or (nil? blocking?) (boolean? blocking?))
          (throw (ex-info "invalid :blocking? metadata"
                          {:function function-id :blocking? blocking?})))
+       (when-not (or (nil? collect-safe?) (boolean? collect-safe?))
+         (throw (ex-info "invalid :collect-safe? metadata"
+                         {:function function-id :collect-safe? collect-safe?})))
+       (when (and blocking? collect-safe?)
+         (throw (ex-info "an always-blocking function cannot request an optional collect-safe route"
+                         {:function function-id})))
        (validate-ownership! all-functions function-id ownership))
      abi)))
 

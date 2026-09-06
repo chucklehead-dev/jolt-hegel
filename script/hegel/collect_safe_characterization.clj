@@ -12,10 +12,8 @@
      hegel.core/run-test! + hegel.stateful/run! workload through an ordinary
      versus a :blocking binding of that one function, with everything else
      about the workload held fixed."
-  (:require [hegel.abi :as abi]
-            [hegel.core :as h]
+  (:require [hegel.core :as h]
             [hegel.ffi :as hffi]
-            [hegel.ffi.jolt :as hffi-jolt]
             [hegel.stateful :as stateful]
             [jolt.ffi :as ffi]))
 
@@ -115,40 +113,12 @@
 
 ;; --- libhegel state-machine-next-rule comparison -------------------------
 ;;
-;; This is the only section that touches libhegel. It routes exactly one
-;; canonical function -- :state-machine-next-rule -- through an ordinary
-;; versus a :blocking binding, both derived from the canonical hegel.abi
-;; descriptor via hegel.ffi.jolt's own native-type constructor rather than a
-;; hand-copied argument/return signature. The workload driving both routes is
-;; hegel.core/run-test! wrapping a single hegel.stateful/run! state machine
-;; with one always-applicable rule, run to a fixed :stateful-step-count with a
-;; fixed seed so both routes see the identical deterministic, successful run.
-
-(def ^:private state-machine-next-rule-descriptor
-  (get (abi/functions) :state-machine-next-rule))
-
-(def ^:private state-machine-next-rule-arg-types
-  (mapv #(hffi-jolt/native-type % (abi/descriptor))
-        (:args state-machine-next-rule-descriptor)))
-
-(def ^:private state-machine-next-rule-return-type
-  (hffi-jolt/native-type (:return state-machine-next-rule-descriptor)
-                          (abi/descriptor)))
-
-;; The library is already loaded (requiring hegel.ffi loads it), so this is
-;; the same underlying symbol as hffi/c-state-machine-next-rule, bound a
-;; second time with :blocking. Built the same way hegel.ffi.jolt's own
-;; constructor builds every binding: jolt.ffi/foreign-fn needs literal
-;; argument-type/return forms, so the derived signature is spliced into a
-;; quoted form and evaluated once.
+;; This section reuses the production route selector. The alternate is not
+;; rebound here: production owns descriptor validation, signature derivation,
+;; and Jolt's literal-form `foreign-fn` construction.
 (def ^:private ordinary-state-machine-next-rule hffi/c-state-machine-next-rule)
-
 (def ^:private blocking-state-machine-next-rule
-  (eval (list 'jolt.ffi/foreign-fn
-              (:symbol state-machine-next-rule-descriptor)
-              state-machine-next-rule-arg-types
-              state-machine-next-rule-return-type
-              :blocking)))
+  hffi/c-state-machine-next-rule-collect-safe)
 
 (when (identical? ordinary-state-machine-next-rule
                   blocking-state-machine-next-rule)
@@ -289,12 +259,275 @@
        :workload-median-blocking-ordinary-ratio
        (double (/ blocking-median ordinary-median))})))
 
+;; --- two-worker native contention characterization -----------------------
+;;
+;; This is intentionally a development characterization, not the #24 public
+;; API. Jolt futures run on distinct host threads; each gets a clone and its
+;; own libhegel context because contexts themselves are not thread-safe. The
+;; root handle stays on the coordinator for next-group. Workers use only the
+;; four production collect-safe helpers and report each selected rule as
+;; rejected, avoiding a user rule body while still driving libhegel's native
+;; per-worker protocol.
+
+(def ^:private process-watchdog-timeout-ms 30000)
+(def ^:private configured-contention-rounds 4)
+(def ^:private worker-round-limit 2048)
+
+(defn- route-helpers [route]
+  (case route
+    :collect-safe
+    {:state-machine-next-rule hffi/state-machine-next-rule-collect-safe!
+     :state-machine-rule-rejected hffi/state-machine-rule-rejected-collect-safe!
+     :pool-add hffi/pool-add-collect-safe!
+     :pool-generate hffi/pool-generate-collect-safe!}
+
+    :ordinary
+    {:state-machine-next-rule hffi/state-machine-next-rule!
+     :state-machine-rule-rejected hffi/state-machine-rule-rejected!
+     :pool-add hffi/pool-add!
+     :pool-generate hffi/pool-generate!}
+
+    (throw (ex-info "unknown two-worker characterization route"
+                    {:route route
+                     :supported-routes [:collect-safe :ordinary]}))))
+
+(defn- worker-result [route helpers worker-index start entered clone state-machine pool]
+  (let [ctx (hffi/context-new!)]
+    (try
+      (if (= ::abort @start)
+        {:status :aborted :worker-index worker-index}
+        (do
+          ;; This signal is emitted immediately before the first selected-route
+          ;; call. The coordinator starts its GC probe only after both workers
+          ;; have reached this point; OS scheduling can still run GC before a
+          ;; particular native instruction, so this is progress evidence, not
+          ;; proof of simultaneous lock ownership.
+          (deliver entered worker-index)
+          (loop [calls {:state-machine-next-rule 0
+                        :state-machine-rule-rejected 0
+                        :pool-add 0
+                        :pool-generate 0}]
+            (when (>= (:state-machine-next-rule calls) worker-round-limit)
+              (throw (ex-info "two-worker characterization exceeded its bounded rule loop"
+                              {:worker-index worker-index
+                               :calls calls
+                               :limit worker-round-limit})))
+            (if-some [_rule-index
+                      ((:state-machine-next-rule helpers)
+                       ctx clone state-machine worker-index)]
+              (do
+                ((:pool-add helpers) ctx clone pool)
+                ((:pool-generate helpers) ctx clone pool false)
+                ((:state-machine-rule-rejected helpers)
+                 ctx clone state-machine worker-index)
+                (recur (-> calls
+                           (update :state-machine-next-rule inc)
+                           (update :pool-add inc)
+                           (update :pool-generate inc)
+                           (update :state-machine-rule-rejected inc))))
+              {:status :ok :route route :worker-index worker-index :calls calls}))))
+      (finally
+        (hffi/context-free! ctx)))))
+
+(defn- start-worker! [route helpers worker-index ready start entered clone state-machine pool]
+  (future
+    (try
+      (deliver ready worker-index)
+      (worker-result route helpers worker-index start entered clone state-machine pool)
+      (catch Throwable error
+        {:status :error
+         :worker-index worker-index
+         :message (ex-message error)
+         :data (ex-data error)}))))
+
+(defn- await-worker! [worker]
+  ;; This runs only in the explicit --child mode. Never turn a possibly live
+  ;; native worker into a throwable inside h/run-test!: its outer cleanup owns
+  ;; the root test-case and run. A process parent supplies the timeout instead.
+  @worker)
+
+(defn- run-two-worker-round! [route reports]
+  (let [test-case (h/current-test-case!)
+        root-context (:context test-case)
+        root-handle (:handle test-case)
+        events (atom [])
+        helpers (route-helpers route)
+        {:keys [state-machine concurrency]}
+        (hffi/new-state-machine-with-concurrency!
+         root-context root-handle ["left" "right"] [0 0] [] 2 2)]
+    (when-not (= 2 concurrency)
+      (hffi/state-machine-free! root-context state-machine)
+      (throw (ex-info "two-worker characterization did not receive concurrency two"
+                      {:concurrency concurrency})))
+    (let [pool (atom nil)
+          left-clone (atom nil)
+          right-clone (atom nil)
+          cleanup-safe? (atom true)
+          joined? (atom false)
+          completed (atom nil)]
+      (try
+        ;; Stage ownership under this try so a pre-worker allocation or
+        ;; coordinator failure releases every handle acquired so far.
+        (reset! pool (hffi/new-pool! root-context root-handle))
+        (reset! left-clone (hffi/test-case-clone! root-context root-handle))
+        (reset! right-clone (hffi/test-case-clone! root-context root-handle))
+        ;; Coordinator-only, ordinary route: no worker may call next-group.
+        (when-not (some? (hffi/state-machine-next-group!
+                          root-context root-handle state-machine))
+          (throw (ex-info "two-worker characterization stopped before its first group"
+                          {})))
+        (let [start (promise)
+              left-ready (promise)
+              right-ready (promise)
+              left-entered (promise)
+              right-entered (promise)]
+          ;; From the first launch attempt until both futures return, native
+          ;; liveness is ambiguous. An exception in this interval must stay in
+          ;; the watched child instead of releasing shared handles underneath a
+          ;; possibly live worker.
+          (reset! cleanup-safe? false)
+          (let [left (start-worker! route helpers 0 left-ready start left-entered
+                                    @left-clone state-machine @pool)
+                right (start-worker! route helpers 1 right-ready start right-entered
+                                     @right-clone state-machine @pool)]
+            ;; In child mode these waits are deliberately unbounded. A
+            ;; host-thread stall leaves the child inside its body, so
+            ;; h/run-test! never gets a chance to release a root/run still
+            ;; referenced by a worker.
+            @left-ready
+            @right-ready
+            (deliver start :go)
+            @left-entered
+            @right-entered
+            ;; Launch GC only after both workers have crossed the start barrier
+            ;; and entered their contended loops. Completion remains evidence
+            ;; of progress, not a timing threshold.
+            (let [gc (future (System/gc) :gc-completed)
+                  left-result (await-worker! left)
+                  right-result (await-worker! right)]
+              ;; Both futures have returned, so release is now safe. Never free
+              ;; a pool or machine after a timeout, where native work may remain.
+              (reset! joined? true)
+              (reset! cleanup-safe? true)
+              (swap! events conj :workers-joined)
+              ;; stateful-step-count one bounds this probe to one round; a
+              ;; second coordinator call must report completion after both
+              ;; workers join.
+              (when (some? (hffi/state-machine-next-group!
+                            root-context root-handle state-machine))
+                (throw (ex-info "bounded two-worker probe unexpectedly opened a second group"
+                                {:left left-result :right right-result})))
+              (swap! events conj :coordinator-next-group)
+              (when-not (and (= :ok (:status left-result))
+                             (= :ok (:status right-result))
+                             (every? pos?
+                                     (mapcat (comp vals :calls)
+                                             [left-result right-result])))
+                (throw (ex-info "two-worker selected route did not exercise every native operation"
+                                {:left left-result :right right-result})))
+              (reset! completed
+                      {:left left-result
+                       :right right-result
+                       :route route
+                       :gc-result @gc}))))
+        (finally
+          ;; Join-before-free is a protocol rule, not a collect-safe route.
+          ;; Pre-launch failures are safe to clean. After launch, cleanup is
+          ;; re-enabled only once both workers return; otherwise remain inside
+          ;; the child until its process watchdog intervenes.
+          (if @cleanup-safe?
+            (do
+              (when-let [clone @left-clone]
+                (hffi/test-case-free! root-context clone))
+              (when-let [clone @right-clone]
+                (hffi/test-case-free! root-context clone))
+              (when @joined?
+                (swap! events conj :clones-freed))
+              (when-let [pool-handle @pool]
+                (hffi/pool-free! root-context pool-handle))
+              (when @joined?
+                (swap! events conj :pool-freed))
+              (hffi/state-machine-free! root-context state-machine)
+              (when @joined?
+                (swap! events conj :state-machine-freed)
+                (when-let [report @completed]
+                  (swap! reports conj (assoc report :events @events)))))
+            @(promise)))))))
+
+(defn collect-two-worker-contention!
+  "Exercise ROUTE through two real Jolt futures. This function never applies a
+  worker timeout: invoke it only from an externally watched child process."
+  ([route]
+   (route-helpers route)
+   (let [reports (atom [])
+         result (h/run-test!
+                 {:test-cases configured-contention-rounds
+                  :stateful-step-count 1
+                  :seed 880105
+                  :database ""
+                  :verbosity :quiet
+                  :report-multiple-failures? false
+                  :suppress-health-checks [:too-slow]}
+                 (fn [_] (run-two-worker-round! route reports)))
+         expected-events [:workers-joined :coordinator-next-group
+                          :clones-freed :pool-freed :state-machine-freed]
+         complete-round?
+         (fn [{:keys [left right gc-result events]}]
+           (and (= :gc-completed gc-result)
+                (= expected-events events)
+                (= :ok (:status left))
+                (= :ok (:status right))
+                (every? pos? (mapcat (comp vals :calls) [left right]))))]
+     ;; Collect-safe is the production claim and must fail closed. The
+     ;; ordinary child reports its actual completed result; a parent timeout
+     ;; is the equally valid observation when it cannot complete.
+     (when (and (= :collect-safe route)
+                (not (and (:passed? result)
+                          (= configured-contention-rounds (count @reports))
+                          (= configured-contention-rounds (:valid-test-cases result))
+                          (every? complete-round? @reports))))
+       (throw (ex-info "two-worker collect-safe characterization did not complete every required round"
+                       {:result (semantic-summary result)
+                        :round-count (count @reports)
+                        :expected-rounds configured-contention-rounds
+                        :reports @reports})))
+     {:route route
+      :function-set ["hegel_state_machine_next_rule"
+                     "hegel_state_machine_rule_rejected"
+                     "hegel_pool_add"
+                     "hegel_pool_generate"]
+      :completed-rounds @reports
+      :run-summary (semantic-summary result)
+      :completed? (and (:passed? result)
+                       (= configured-contention-rounds (count @reports))
+                       (= configured-contention-rounds (:valid-test-cases result))
+                       (every? complete-round? @reports))}))
+  ([] (collect-two-worker-contention! :collect-safe)))
+
 (defn collect-all!
   "Run both bounded measurements and return one EDN-safe report map."
   []
   {:getpid (collect!)
-   :state-machine-next-rule (collect-state-machine-next-rule!)})
+   :state-machine-next-rule (collect-state-machine-next-rule!)
+   :two-worker-contention (collect-two-worker-contention!)})
 
-(defn -main [& _]
-  (prn (collect-all!))
+(defn- watchdog-guidance []
+  {:status :external-watchdog-required
+   :timeout-ms process-watchdog-timeout-ms
+   :child-arguments ["--child"]
+   :reason "run the child under a parent-process timeout; do not bound native workers inside h/run-test!"
+   :ordinary-negative-control
+   {:status :not-run
+    :timeout-ms process-watchdog-timeout-ms
+    :child-arguments ["--ordinary-negative-control"]
+    :reason "ordinary-route liveness is a watchdog observation; run the explicit child under the parent watchdog"}})
+
+(defn -main [& args]
+  (case (vec args)
+    [] (prn (watchdog-guidance))
+    ["--child"] (prn (collect-all!))
+    ["--ordinary-negative-control"]
+    (prn (collect-two-worker-contention! :ordinary))
+    (throw (ex-info "usage: collect-safe-characterization [--child|--ordinary-negative-control]"
+                    {:args args})))
   (flush))

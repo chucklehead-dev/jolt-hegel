@@ -168,6 +168,33 @@ Experimental generated hosts also consume this model. `bb jank-codegen-check`
 and `bb clr-codegen-check` fail when their checked-in build artifacts differ
 from the descriptor.
 
+### Jolt collect-safe routes
+
+Four internally synchronized operations declare `:collect-safe? true` in the
+canonical descriptor: `:state-machine-next-rule`,
+`:state-machine-rule-rejected`, `:pool-add`, and `:pool-generate`. The Jolt
+adapter derives both an ordinary binding and a `jolt.ffi` `:blocking` binding
+from that one signature. Route selection fails closed for every unmarked or
+unknown function. Babashka, JVM Clojure, jank, and ClojureCLR retain their
+existing bindings; the metadata does not create an alternate route there.
+
+The current sequential wrappers deliberately select the ordinary route. The
+collect-safe helpers are reserved for the concurrent state-machine executor,
+where a worker may park on a libhegel lock and must not prevent another host
+thread or GC from progressing. The bounded development characterization in
+`hegel.collect-safe-characterization` runs two Jolt futures with distinct
+contexts and test-case clones through all four shared-handle operations. Run
+its child modes under an external process watchdog: an in-process timeout must
+not return into cleanup while a native worker may still be live. On the initial
+Linux characterization both collect-safe and ordinary routes completed, so the
+ordinary run is a negative control rather than evidence of an observed stall.
+
+`state-machine-next-group!` remains coordinator-only and ordinary. The
+coordinator advances only after both workers join, then releases clones, the
+shared pool, and the state machine in that order. Invariant checks and all free
+operations remain coordinator-owned because the concurrent protocol has no
+reason to issue them while workers may still hold shared native handles.
+
 ## Adding or updating a binding
 
 1. Pin the intended libhegel release and authoritative header commit.

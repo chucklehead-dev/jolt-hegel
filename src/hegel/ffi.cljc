@@ -93,11 +93,26 @@
 (def c-new-pool (backend/function :new-pool))
 (def c-pool-add (backend/function :pool-add))
 (def c-pool-generate (backend/function :pool-generate))
+;; These four alternates are deliberately Jolt-only selections. On every other
+;; host they alias the established binding and are not selected by the current
+;; sequential API; the future concurrent executor owns their use.
+(def c-pool-add-collect-safe
+  #?(:jolt (backend/function :pool-add :collect-safe)
+     :default c-pool-add))
+(def c-pool-generate-collect-safe
+  #?(:jolt (backend/function :pool-generate :collect-safe)
+     :default c-pool-generate))
 (def c-pool-free (backend/function :pool-free))
 (def c-new-state-machine (backend/function :new-state-machine))
 (def c-state-machine-next-group (backend/function :state-machine-next-group))
 (def c-state-machine-next-rule (backend/function :state-machine-next-rule))
 (def c-state-machine-rule-rejected (backend/function :state-machine-rule-rejected))
+(def c-state-machine-next-rule-collect-safe
+  #?(:jolt (backend/function :state-machine-next-rule :collect-safe)
+     :default c-state-machine-next-rule))
+(def c-state-machine-rule-rejected-collect-safe
+  #?(:jolt (backend/function :state-machine-rule-rejected :collect-safe)
+     :default c-state-machine-rule-rejected))
 (def c-state-machine-free (backend/function :state-machine-free))
 (def c-mark-complete (backend/function :mark-complete))
 (def c-run-result-status (backend/function :run-result-status))
@@ -729,14 +744,33 @@
   (call-draw-out! ctx :new-pool :pointer
                   #(c-new-pool ctx test-case %)))
 
-(defn pool-add! [ctx test-case pool]
+(defn- pool-add-with! [raw ctx test-case pool]
   (call-draw-out! ctx :pool-add :int64
-                  #(c-pool-add ctx test-case pool %)))
+                  #(raw ctx test-case pool %)))
+
+(defn pool-add! [ctx test-case pool]
+  (pool-add-with! c-pool-add ctx test-case pool))
+
+(defn pool-add-collect-safe!
+  "Concurrent-executor-only Jolt route. Existing sequential callers use
+  pool-add!, which remains ordinary."
+  [ctx test-case pool]
+  (pool-add-with! c-pool-add-collect-safe ctx test-case pool))
+
+(defn- pool-generate-with! [raw ctx test-case pool consume?]
+  (call-draw-out! ctx :pool-generate :int64
+                  #(raw
+                    ctx test-case pool (if consume? 1 0) %)))
 
 (defn pool-generate! [ctx test-case pool consume?]
-  (call-draw-out! ctx :pool-generate :int64
-                  #(c-pool-generate
-                    ctx test-case pool (if consume? 1 0) %)))
+  (pool-generate-with! c-pool-generate ctx test-case pool consume?))
+
+(defn pool-generate-collect-safe!
+  "Concurrent-executor-only Jolt route. Existing sequential callers use
+  pool-generate!, which remains ordinary."
+  [ctx test-case pool consume?]
+  (pool-generate-with! c-pool-generate-collect-safe
+                       ctx test-case pool consume?))
 
 (defn pool-free! [ctx pool]
   (c-pool-free ctx pool)
@@ -852,23 +886,46 @@
     (when-not (= state-machine-done group)
       group)))
 
+(defn- state-machine-next-rule-with! [raw ctx test-case state-machine worker-index]
+  (let [index
+        (call-draw-out!
+         ctx :state-machine-next-rule :int64
+         #(raw ctx test-case state-machine worker-index %))]
+    (when-not (= state-machine-done index)
+      index)))
+
 (defn state-machine-next-rule!
   ([ctx test-case state-machine]
    (state-machine-next-rule! ctx test-case state-machine 0))
   ([ctx test-case state-machine worker-index]
-   (let [index
-         (call-draw-out!
-          ctx :state-machine-next-rule :int64
-          #(c-state-machine-next-rule ctx test-case state-machine worker-index %))]
-     (when-not (= state-machine-done index)
-       index))))
+   (state-machine-next-rule-with! c-state-machine-next-rule
+                                  ctx test-case state-machine worker-index)))
+
+(defn state-machine-next-rule-collect-safe!
+  "Concurrent-executor-only Jolt route. `state-machine-next-rule!` is the
+  ordinary sequential hot path."
+  [ctx test-case state-machine worker-index]
+  (state-machine-next-rule-with! c-state-machine-next-rule-collect-safe
+                                 ctx test-case state-machine worker-index))
+
+(defn- state-machine-rule-rejected-with! [raw ctx test-case state-machine worker-index]
+  (check! ctx :state-machine-rule-rejected
+          (raw ctx test-case state-machine worker-index)))
 
 (defn state-machine-rule-rejected!
   ([ctx test-case state-machine]
    (state-machine-rule-rejected! ctx test-case state-machine 0))
   ([ctx test-case state-machine worker-index]
-   (check! ctx :state-machine-rule-rejected
-           (c-state-machine-rule-rejected ctx test-case state-machine worker-index))))
+   (state-machine-rule-rejected-with! c-state-machine-rule-rejected
+                                      ctx test-case state-machine worker-index)))
+
+(defn state-machine-rule-rejected-collect-safe!
+  "Concurrent-executor-only Jolt route. Existing sequential rejection
+  reporting remains ordinary."
+  [ctx test-case state-machine worker-index]
+  (state-machine-rule-rejected-with!
+   c-state-machine-rule-rejected-collect-safe
+   ctx test-case state-machine worker-index))
 
 (defn- generate-fixed-bytes! [ctx operation size draw]
   (backend/with-native-scope
