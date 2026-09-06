@@ -20,31 +20,46 @@
                       arguments))
        "\""))
 
+(defn child-script
+  "Build the PowerShell script that launches, bounds, and reaps the child.
+  Pure and side-effect free so the sentinel/recovery contract is testable
+  without a Windows host."
+  [arguments output-file error-file wait-ms reap-ms]
+  (str "$ErrorActionPreference='Stop';"
+       "$p=Start-Process -FilePath " (powershell-literal (first arguments))
+       " -ArgumentList @(" (str/join "," (map powershell-literal (rest arguments))) ")"
+       " -PassThru -NoNewWindow -RedirectStandardOutput "
+       (powershell-literal output-file)
+       " -RedirectStandardError " (powershell-literal error-file) ";"
+       ;; Start-Process can otherwise leave ExitCode null after a
+       ;; successful wait. Touch Handle while the child is still alive so
+       ;; .NET opens the process handle needed for later exit-code reads.
+       "$ownedHandle=$p.Handle;"
+       "if(-not $p.WaitForExit(" wait-ms ")){"
+       ;; Windows PowerShell 5.1 only supports Kill(), unlike
+       ;; newer pwsh's Kill(bool). jolt.exe is the direct child.
+       "$p.Kill();"
+       "if(-not $p.WaitForExit(" reap-ms ")){exit 125};"
+       "exit 124};"
+       ;; Observed on hosted Windows PowerShell 5.1: WaitForExit(timeout) can
+       ;; return true while ExitCode is still null. Refresh the cached
+       ;; process state. If that first completion signal was premature, give
+       ;; the same process one more bounded wait (the existing reap budget,
+       ;; never an unbounded wait), then refresh again before the final read.
+       "$p.Refresh();"
+       "if($null -eq $p.ExitCode){"
+       "if(-not $p.WaitForExit(" reap-ms ")){exit 126};"
+       "$p.Refresh()};"
+       "if($null -eq $p.ExitCode){exit 126};"
+       "exit [int]$p.ExitCode"))
+
 (defn run-child!
   "Run the released jolt.exe through PowerShell, with bounded wait and forced
   reap. `output-file` is deliberately relative: Jolt's Windows File shim does
   not safely consume drive-rooted paths after the child exits."
   [arguments output-file wait-ms reap-ms]
   (let [error-file (str output-file ".stderr")
-        script (str "$ErrorActionPreference='Stop';"
-                    "$p=Start-Process -FilePath " (powershell-literal (first arguments))
-                    " -ArgumentList @(" (str/join "," (map powershell-literal (rest arguments))) ")"
-                    " -PassThru -NoNewWindow -RedirectStandardOutput "
-                    (powershell-literal output-file)
-                    " -RedirectStandardError " (powershell-literal error-file) ";"
-                    ;; Start-Process can otherwise leave ExitCode null after a
-                    ;; successful wait. Force the Process handle to be opened
-                    ;; while the child is still alive, and keep it referenced
-                    ;; through the subsequent wait and exit-code read.
-                    "$ownedHandle=$p.Handle;"
-                    "if(-not $p.WaitForExit(" wait-ms ")){"
-                    ;; Windows PowerShell 5.1 only supports Kill(), unlike
-                    ;; newer pwsh's Kill(bool). jolt.exe is the direct child.
-                    "$p.Kill();"
-                    "if(-not $p.WaitForExit(" reap-ms ")){exit 125};"
-                    "exit 124};"
-                    "if($null -eq $p.ExitCode){exit 126};"
-                    "exit [int]$p.ExitCode")
+        script (child-script arguments output-file error-file wait-ms reap-ms)
         exit (c-system (windows-command ["powershell.exe" "-NoLogo" "-NoProfile"
                                          "-NonInteractive" "-Command" script]))]
     {:command ["powershell.exe" "-NoLogo" "-NoProfile" "-NonInteractive"

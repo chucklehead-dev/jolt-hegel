@@ -59,6 +59,46 @@
   (and (= :jolt (host/runtime))
        (= :windows (:os (native/platform)))))
 
+(defn- windows-recovery-script-checks
+  "Deterministic coverage for the generated PowerShell command, exercised
+  wherever jolt.ffi can load (any jolt-runtime host). `child-script` is pure
+  string construction, so this proves the bounded-recovery contract without
+  needing an actual Windows host or a real child process."
+  [context]
+  (when (= :jolt (host/runtime))
+    (let [child-script (requiring-resolve 'hegel.timeout-windows/child-script)
+          script (child-script ["jolt.exe" "-M:test" "--progress-identity-child"]
+                                "out.log" "out.log.stderr" 15000 5000)
+          exit-124-at (or (str/index-of script "exit 124") -1)
+          after-timeout-branch (subs script (max 0 (+ exit-124-at
+                                                        (count "exit 124"))))]
+      (support/check! context "windows child script retains bounded initial wait, kill, and bounded reap"
+             (and (str/includes? script "WaitForExit(15000)")
+                  (str/includes? script "$p.Kill()")
+                  (str/includes? script "WaitForExit(5000)")
+                  (str/includes? script "exit 125")
+                  (pos? exit-124-at)))
+      (support/check! context "windows child script preserves redirected stdout/stderr as separate files"
+             (and (str/includes? script "-RedirectStandardOutput 'out.log'")
+                  (str/includes? script "-RedirectStandardError 'out.log.stderr'")))
+      (support/check! context "completed-fast-child path refreshes state and bounds exit-code recovery"
+             (and (str/includes? after-timeout-branch "$p.Refresh()")
+                  (= 2 (count (re-seq #"\$p\.Refresh\(\)"
+                                      after-timeout-branch)))
+                  (str/includes? after-timeout-branch
+                                 "if(-not $p.WaitForExit(5000)){exit 126}")
+                  (str/includes? after-timeout-branch "exit 126")
+                  (str/includes? after-timeout-branch "[int]$p.ExitCode")
+                  ;; Recovery must reuse the bounded reap budget, never the
+                  ;; unbounded parameterless overload.
+                  (not (re-find #"WaitForExit\(\)" script))
+                  (not (re-find #"(?i)sleep" script))))
+      (support/check! context "windows child script sentinel set is unchanged: 124, 125, 126, and the real exit code"
+             (and (str/includes? script "exit 124")
+                  (str/includes? script "exit 125")
+                  (str/includes? script "exit 126")
+                  (str/includes? script "exit [int]$p.ExitCode"))))))
+
 (defn- windows-jolt-child-run! [mode deadline output-file]
   ;; The released Jolt 0.8.1 ProcessBuilder host shim invokes /bin/sh even on
   ;; Windows, so ProcessBuilder cannot supervise a nested Jolt there. Keep the
@@ -143,6 +183,7 @@
         (catch Throwable _ nil)))))
 
 (defn terminal-timeout-regression [context]
+  (windows-recovery-script-checks context)
   ;; Bound the entire regression rather than each child independently, using a
   ;; monotonic deadline: a launch failure must not turn three 15s+5s child
   ;; paths into a minute-long suite stall or be distorted by a wall-clock jump.
