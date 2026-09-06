@@ -119,6 +119,14 @@ regression-sensitive negative control before changing ownership.
   `(bigint (:seed result))`; uint64 seeds can exceed `parse-long`'s range.
 - Treat every `:flaky? true` result as a failed, untrusted counterexample until
   shared state, timing, or generation nondeterminism is fixed.
+- Prefer `g/let` or the labelled `h/draw!` arity when a copyable failure
+  diagnostic matters. Labelled draws and `h/note!` use the bounded native
+  test-case document; rejected filters, duplicate collection candidates, and
+  recursive retries roll their speculative output back.
+- Put secret-bearing drawn values behind `:counterexample {:redact-fn ...}`.
+  Redaction runs before `:render-fn`, and only rendered strings enter the
+  result snapshot. It does not sanitize text already passed to `h/note!`.
+  These presentation hooks are deliberately absent from replay bundles.
 
 ## Choose generators that shrink structurally
 

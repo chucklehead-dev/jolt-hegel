@@ -162,6 +162,13 @@ observed failure summaries, and flakiness. A result with `:flaky? true` means
 the same generated choices did not reproduce the same outcome; fix shared
 state, timing, or other nondeterminism before trusting its counterexample.
 
+Labelled `h/draw!` calls (including bindings produced by `g/let`) and
+`h/note!` use libhegel's bounded test-case document. Rejected filter,
+duplicate collection, and recursive retry output is rolled back with the draw.
+Final failures expose a redacted, rendered `:counterexample` snapshot; quiet
+runs remain silent. See [structured counterexample diagnostics](docs/COUNTEREXAMPLES.md)
+for custom rendering, redaction, output bounds, and replay limitations.
+
 ### Portable counterexample bundles
 
 Use `hegel.replay-bundle/from-result` and `hegel.replay-bundle.codec` to export
@@ -698,8 +705,9 @@ Maintainer details live in:
 - [experimental jank host status](docs/JANK.md);
 - [experimental ClojureCLR host status](docs/CLR.md);
 - [architecture decisions](docs/adr/README.md);
-- [release process](docs/RELEASING.md); and
-- [dev-only Typed Clojure pilot](docs/TYPED_CLOJURE.md) (`clojure -M:typed-check`).
+- [release process](docs/RELEASING.md);
+- [dev-only Typed Clojure pilot](docs/TYPED_CLOJURE.md) (`clojure -M:typed-check`); and
+- [structured counterexample diagnostics](docs/COUNTEREXAMPLES.md).
 
 The repository also ships an [Agent Skill](skills/jolt-hegel/SKILL.md) for
 adding evidence-backed property and stateful tests to another project.
