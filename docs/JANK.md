@@ -41,8 +41,11 @@ the shared namespace successfully.
 - `date`, `time`, and nested `datetime` structs passed by value;
 - the shared property runner, deterministic seeds, shrinking, final replay,
   and failure reproduction;
-- shared temporal generators; and
-- shared stateful/swarm execution and reusable or consumed pools.
+- shared temporal generators;
+- shared stateful/swarm execution and reusable or consumed pools; and
+- qualified assumption-rejection accounting (`h/assume!`) and framework-less
+  counting/structured reporting via `hegel.report`, including run and failure
+  counts and event typing across a pass, a property failure, and a setup error.
 
 The EDN descriptor remains the source of truth. Because the current jank reader
 cannot load that resource during compilation, the development generator emits:
@@ -85,7 +88,10 @@ jank -I generated --module-path src:resources:script \
   is not a practical substitute;
 - add a jank-native installer backend; current CI deliberately installs
   checksum-verified libhegel through Babashka before starting jank;
-- run the complete shared semantic suite rather than the focused jank gate;
+- run the complete shared semantic suite rather than the focused jank gate,
+  which now also covers assumptions and framework-less counting/structured
+  reporting but still omits `clojure.test` integration, arbitrary-precision
+  and exact binary32 generators, and broad generator coverage;
 - determine whether `clojure.test` integration is implementable on the current
   jank standard library;
 - evaluate the optional Malli adapter only after Malli itself is usable on
