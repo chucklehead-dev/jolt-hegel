@@ -2,6 +2,7 @@
   (:require [hegel.core :as h]
             [hegel.generator :as g]
             [hegel.native :as native]
+            [hegel.report :as report]
             [hegel.stateful :as hs]))
 
 (defn -main [& _]
@@ -167,4 +168,52 @@
     (when-not (and (:passed? result) (pos? @steps))
       (throw (ex-info "jank stateful/swarm smoke failed"
                       {:result result :steps @steps})))
-    (println "PASS shared stateful/swarm run preserved its model invariant")))
+    (println "PASS shared stateful/swarm run preserved its model invariant"))
+  (let [calls (atom 0)
+        assumption-result
+        (h/run-test!
+         {:test-cases 1 :seed 27 :database "" :verbosity :quiet}
+         (fn [_]
+           (h/assume! (> (swap! calls inc) 1))))]
+    (when-not (and (:passed? assumption-result)
+                   (= 1 (:invalid-test-cases assumption-result))
+                   (= 0 (:valid-test-cases assumption-result))
+                   (= 1 @calls))
+      (throw (ex-info "jank assumption smoke failed"
+                      {:result assumption-result :calls @calls})))
+    (println "PASS shared assumption rejects one deterministic invalid case"))
+  (let [events (atom [])
+        runner (report/counting-runner {:reporter #(swap! events conj %)})
+        pass-result
+        (report/run!
+         runner "pass"
+         #(h/run-test! {:test-cases 1 :seed 31 :database "" :verbosity :quiet}
+                       (fn [_] nil)))
+        fail-result
+        (report/run!
+         runner "fail"
+         #(h/run-test!
+           {:test-cases 1 :seed 37 :database "" :verbosity :quiet}
+           (fn [_]
+             (throw (ex-info "expected"
+                             {:hegel/origin "hegel.jank-property-smoke:report"})))))
+        error-result
+        (report/run! runner "error"
+                     #(throw (ex-info "expected setup error" {:phase :setup})))
+        failure (first (:failures fail-result))
+        event-types (mapv :type @events)
+        counts {:runs (report/run-count runner)
+                :failures (report/failure-count runner)}
+        failure-origin (:origin failure)]
+    (when-not (and (:passed? pass-result)
+                   (not (:passed? fail-result))
+                   (nil? error-result)
+                   (= {:runs 3 :failures 2} counts)
+                   (= [:pass :fail :error] event-types)
+                   (= "hegel.jank-property-smoke:report" failure-origin))
+      (throw (ex-info "jank counting/reporting smoke failed"
+                      {:event-types event-types
+                       :counts counts
+                       :failure-origin failure-origin})))
+    (println "PASS shared counting runner sees pass, property failure, and setup error")
+    (println "PASS run-count 3 failure-count 2 with event types [:pass :fail :error]")))
