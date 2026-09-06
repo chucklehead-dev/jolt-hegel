@@ -140,6 +140,18 @@
                                   value))
                           (= value (str (java.util.UUID/fromString value)))))
                    (:uuids @values)))
+    (support/check! context "UUID formatting is portable across byte representations"
+           (let [expected "00010203-0405-0607-0809-0a0bffa5807f"
+                 formatted (fn [data]
+                             (with-redefs [hffi/generate-uuid!
+                                           (fn [& _] data)]
+                               ((g/uuid) {:context nil :handle nil})))]
+             (and (= expected
+                     (formatted (byte-array [0 1 2 3 4 5 6 7
+                                             8 9 10 11 -1 -91 -128 127])))
+                  (= expected
+                     (formatted [0 1 2 3 4 5 6 7
+                                 8 9 10 11 255 165 128 127])))))
     (support/check! context "IPv4 draws use valid dotted-quad text"
            (every? valid-ipv4? (:ipv4 @values)))
     (support/check! context "IPv6 draws use valid canonical colon-hex text"
@@ -147,12 +159,24 @@
     (let [formatted
           (fn [data]
             (with-redefs [hffi/generate-ipv6! (fn [& _] (byte-array data))]
+              ((g/ipv6) {:context nil :handle nil})))
+          formatted-vector
+          (fn [data]
+            (with-redefs [hffi/generate-ipv6! (fn [& _] (vec data))]
               ((g/ipv6) {:context nil :handle nil})))]
       (support/check! context "IPv6 formatting compresses the longest zero run"
              (and (= "2001:db8::1"
                      (formatted [0x20 0x01 0x0d 0xb8 0 0 0 0
                                  0 0 0 0 0 0 0 1]))
-                  (= "::" (formatted (repeat 16 0))))))))
+                  (= "::" (formatted (repeat 16 0)))
+                  (= "2001:db8::1"
+                     (formatted-vector [0x20 0x01 0x0d 0xb8 0 0 0 0
+                                        0 0 0 0 0 0 0 1]))
+                  (= "::" (formatted-vector (repeat 16 0)))
+                  (= "ffff::" (formatted (concat [-1 -1] (repeat 14 0))))
+                  (= "ffff::"
+                     (formatted-vector (concat [255 255]
+                                               (repeat 14 0)))))))))
 
 (defn temporal-generators [context]
   (let [fixed-date {:year 2024 :month 2 :day 29}
