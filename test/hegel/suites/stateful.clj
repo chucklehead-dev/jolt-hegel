@@ -697,6 +697,339 @@
         (support/check! context (str "concurrent config rejects " label)
                (concurrent-usage-error? ::concurrent/invalid-argument
                                          #(validate-config config))))))
+    (let [run-mocked-case (concurrent-private 'run-mocked-case!)
+          allocations (atom [])
+          error (concurrent-error-of
+                 #(run-mocked-case
+                   {:new-machine! (fn [& _] (swap! allocations conj :machine))
+                    :new-worker-context! (fn [& _] (swap! allocations conj :context))
+                    :clone-test-case! (fn [& _] (swap! allocations conj :clone))
+                    :run-workers! (fn [& _] (swap! allocations conj :worker))
+                    :join-workers! (constantly true)
+                    :join-invariants! (constantly nil)
+                    :free-clones! (constantly nil)
+                    :free-worker-contexts! (constantly nil)
+                    :free-machine! (constantly nil)}
+                   {:workers 2}
+                   (fn [] {:shared {}
+                           :rules []})))]
+      (support/check! context
+                      "concurrent mocked protocol validates factory output before allocation"
+                      (and (= ::concurrent/invalid-argument (:type (ex-data error)))
+                           (empty? @allocations))))
+    (let [run-mocked-case (concurrent-private 'run-mocked-case!)
+          entered (atom [])
+          error (concurrent-error-of
+                 #(run-mocked-case
+                   {:new-machine! (fn [& _] (swap! entered conj :machine))
+                    :new-worker-context! (fn [& _] (swap! entered conj :context))
+                    :clone-test-case! (fn [& _] (swap! entered conj :clone))
+                    :run-workers! (fn [& _] (swap! entered conj :workers))}
+                   {:workers 1}
+                   (fn []
+                     (swap! entered conj :machine-fn)
+                     {:shared nil
+                      :rules [(concurrent/rule :ok :group (constantly :applied))]})))]
+      (support/check! context "concurrent invalid options do not enter factory or allocation"
+                      (and (= ::concurrent/invalid-option (:type (ex-data error)))
+                           (empty? @entered))))
+    (let [invoke-worker-rule (concurrent-private 'invoke-worker-rule!)
+          seen-contexts (atom [])
+          applied (concurrent/rule :applied :group
+                                   (fn [worker-context]
+                                     (swap! seen-contexts conj worker-context)
+                                     :applied))
+          rejected (concurrent/rule :rejected :group (constantly :rejected))
+          invalid (concurrent/rule :invalid :group (constantly :other))
+          worker-context {:shared :shared
+                          :worker-index 2
+                          :round 3
+                          :group :group
+                          :cancelled? (constantly false)}
+          invalid-error (concurrent-error-of
+                         #(invoke-worker-rule invalid worker-context))]
+      (support/check! context "concurrent worker callbacks accept only applied or rejected"
+                      (and (= :applied (invoke-worker-rule applied worker-context))
+                           (= :rejected (invoke-worker-rule rejected worker-context))
+                           (= worker-context (first @seen-contexts))
+                           (= ::concurrent/invalid-argument
+                              (:type (ex-data invalid-error)))
+                           (= :other (:result (ex-data invalid-error))))))
+    (let [collect-worker-reports (concurrent-private 'collect-worker-reports!)
+          invalid-reports [[{:worker-index 0 :status :unknown :diagnostic-events []}
+                            {:worker-index 1 :status :completed}]
+                           [{:worker-index 0 :status :applied}
+                            {:worker-index 1 :status :completed}]
+                           [{:worker-index 0 :status :completed}
+                            {:worker-index 0 :status :completed}]
+                           [{:worker-index 0 :status :completed}]
+                           [{:worker-index 0 :status :completed :extra true}
+                            {:worker-index 1 :status :completed}]]]
+      (support/check! context "concurrent mocked reports fail closed on shape and coverage"
+                      (every? #(concurrent-usage-error?
+                                 ::concurrent/invalid-argument
+                                 (fn [] (collect-worker-reports 2 %)))
+                              invalid-reports)))
+    (let [run-mocked-case (concurrent-private 'run-mocked-case!)
+          cleaned (atom [])
+          marked (atom nil)
+          error (concurrent-error-of
+                 #(run-mocked-case
+                   {:new-machine! (fn [& _] :machine)
+                    :new-worker-context! (fn [index] [:context index])
+                    :clone-test-case! (fn [index] [:clone index])
+                    :run-workers! (fn [_] [{:worker-index 1 :status :completed}
+                                            {:worker-index 0 :status :applied}])
+                    :join-workers! (constantly true)
+                    :join-invariants! (constantly nil)
+                    :free-clones! (fn [_] (swap! cleaned conj :clones))
+                    :free-worker-contexts! (fn [_] (swap! cleaned conj :contexts))
+                    :free-machine! (fn [_] (swap! cleaned conj :machine))
+                    :mark-complete! (fn [outcome] (reset! marked outcome))
+                    :release-root! (fn [] (swap! cleaned conj :root))}
+                   {:workers 2}
+                   (constantly {:shared nil
+                               :rules [(concurrent/rule :ok :group (constantly :applied))]})))]
+      (support/check! context "concurrent non-completed report cleans up without marking a verdict"
+                      (and (= ::concurrent/invalid-argument (:type (ex-data error)))
+                           (= [:clones :contexts :machine :root] @cleaned)
+                           (nil? @marked))))
+    (let [run-mocked-case (concurrent-private 'run-mocked-case!)
+          events (atom [])
+          worker-inputs (atom [])
+          callback-contexts (atom [])
+          reported-order (atom [])
+          marked (atom nil)
+          config {:shared {:resource :shared}
+                  :close! (fn [shared] (swap! events conj [:close shared]))
+                  :rules [(concurrent/rule :put :writes
+                                           (fn [worker-context]
+                                             (swap! callback-contexts conj worker-context)
+                                             :applied))
+                          (concurrent/rule :skip :writes
+                                           (fn [worker-context]
+                                             (swap! callback-contexts conj worker-context)
+                                             :rejected))]
+                  :invariants [(concurrent/invariant :consistent (constantly true))]}
+          result
+          (run-mocked-case
+           {:new-machine! (fn [validated workers]
+                            (swap! events conj [:machine workers
+                                                (get-in validated [::concurrent/group-plan
+                                                                   :rule-groups])])
+                            :machine)
+            :new-worker-context! (fn [worker-index]
+                                   (swap! events conj [:context worker-index])
+                                   [:context worker-index])
+            :clone-test-case! (fn [worker-index]
+                                (swap! events conj [:clone worker-index])
+                                [:clone worker-index])
+            :run-workers! (fn [workers]
+                            (let [reports
+                                  (mapv (fn [{:keys [worker-index context clone rules invoke-rule!
+                                                     record-diagnostic!]
+                                              :as worker}]
+                                          (swap! worker-inputs conj worker)
+                                          (swap! events conj [:worker worker-index context clone])
+                                          (invoke-rule! (nth rules worker-index) 4)
+                                          (doseq [event (if (zero? worker-index)
+                                                          [:zero-a :zero-b :zero-c]
+                                                          [:one-a :one-b])]
+                                            (record-diagnostic! event))
+                                          {:worker-index worker-index :status :completed})
+                                        workers)
+                                  completion-order (vec (reverse reports))]
+                              (reset! reported-order (mapv :worker-index completion-order))
+                              completion-order))
+            :join-workers! (fn [workers]
+                             (swap! events conj [:join (mapv :worker-index workers)])
+                             true)
+            :join-invariants! (fn [validated]
+                                (swap! events conj [:invariants (:shared validated)]))
+            :free-clones! (fn [workers]
+                            (swap! events conj [:free-clones
+                                                (mapv :clone workers)]))
+            :free-worker-contexts! (fn [workers]
+                                     (swap! events conj [:free-contexts
+                                                         (mapv :context workers)]))
+            :free-machine! (fn [machine] (swap! events conj [:free-machine machine]))
+            :mark-complete! (fn [outcome]
+                              (reset! marked outcome)
+                              (swap! events conj [:mark (:status outcome)]))
+            :release-root! (fn [] (swap! events conj :release-root))}
+           {:workers 2 :max-diagnostic-events 3}
+           (constantly config))]
+      (support/check! context
+                      "concurrent mocked protocol bounds diagnostics and owns coordinator finalization"
+                      (and (= [{:worker-index 0 :status :completed}
+                               {:worker-index 1 :status :completed}]
+                              (:worker-results result))
+                           (= {:events [:zero-a :zero-b :zero-c]
+                               :total-events 5
+                               :dropped-events 2}
+                              (:diagnostics result))
+                           (= result @marked)
+                           (every? #(= #{:shared :worker-index :round :group :cancelled?}
+                                        (set (keys %)))
+                                   @callback-contexts)
+                           (= [0 1] (mapv :worker-index @worker-inputs))
+                           (= [1 0] @reported-order)
+                           (every? false? (map #((:cancelled? %)) @callback-contexts))
+                           (= [[:machine 2 [0 0]]
+                               [:context 0] [:clone 0]
+                               [:context 1] [:clone 1]
+                               [:worker 0 [:context 0] [:clone 0]]
+                               [:worker 1 [:context 1] [:clone 1]]
+                               [:join [0 1]]
+                               [:invariants {:resource :shared}]
+                               [:close {:resource :shared}]
+                               [:free-clones [[:clone 0] [:clone 1]]]
+                               [:free-contexts [[:context 0] [:context 1]]]
+                               [:free-machine :machine]
+                               [:mark :valid]
+                               :release-root]
+                              @events))))
+    (let [run-mocked-case (concurrent-private 'run-mocked-case!)
+          events (atom [])
+          setup-error (ex-info "machine setup" {:marker :machine-setup})
+          error (concurrent-error-of
+                 #(run-mocked-case
+                   {:release-root! (fn [] (swap! events conj :release-root))}
+                   {:workers 2}
+                   (fn [] (throw setup-error))))]
+      (support/check! context "concurrent machine setup releases only the root and preserves identity"
+                      (and (identical? setup-error error)
+                           (= [:release-root] @events))))
+    (let [run-mocked-case (concurrent-private 'run-mocked-case!)
+          events (atom [])
+          config-error (concurrent-error-of
+                        #(run-mocked-case
+                          {:release-root! (fn [] (swap! events conj :release-root))}
+                          {:workers 2}
+                          (constantly {:shared :shared
+                                      :close! (fn [shared] (swap! events conj [:close shared]))
+                                      :rules []})))]
+      (support/check! context "concurrent invalid factory config closes before root release"
+                      (and (= ::concurrent/invalid-argument (:type (ex-data config-error)))
+                           (= [[:close :shared] :release-root] @events))))
+    (let [run-mocked-case (concurrent-private 'run-mocked-case!)
+          events (atom [])
+          worker-error (ex-info "worker callback" {:marker :worker-callback})
+          config {:shared :shared
+                  :close! (fn [shared] (swap! events conj [:close shared]))
+                  :rules [(concurrent/rule :throwing :group
+                                           (fn [_] (throw worker-error)))]}
+          error (concurrent-error-of
+                 #(run-mocked-case
+                   {:new-machine! (fn [& _] (swap! events conj :machine) :machine)
+                    :new-worker-context! (fn [index]
+                                           (swap! events conj [:context index])
+                                           [:context index])
+                    :clone-test-case! (fn [index]
+                                        (swap! events conj [:clone index])
+                                        [:clone index])
+                    :run-workers! (fn [workers]
+                                    (swap! events conj :run-workers)
+                                    ((:invoke-rule! (first workers))
+                                     (first (:rules (first workers))) 0))
+                    :join-workers! (fn [_] (swap! events conj :join) true)
+                    :join-invariants! (fn [_] (swap! events conj :invariants))
+                    :free-clones! (fn [workers]
+                                    (swap! events conj [:free-clones (mapv :clone workers)]))
+                    :free-worker-contexts! (fn [workers]
+                                             (swap! events conj [:free-contexts
+                                                                 (mapv :context workers)]))
+                    :free-machine! (fn [_] (swap! events conj :free-machine))
+                    :mark-complete! (fn [outcome]
+                                      (swap! events conj [:mark (:status outcome)]))
+                    :release-root! (fn [] (swap! events conj :release-root))}
+                   {:workers 2}
+                   (constantly config)))]
+      (support/check! context "concurrent worker errors preserve identity and drain allocated resources"
+                      (and (identical? worker-error error)
+                           (= [:machine
+                               [:context 0] [:clone 0]
+                               [:context 1] [:clone 1]
+                               :run-workers
+                               :join
+                               [:close :shared]
+                               [:free-clones [[:clone 0] [:clone 1]]]
+                               [:free-contexts [[:context 0] [:context 1]]]
+                               :free-machine
+                               :release-root]
+                              @events))))
+    (let [run-mocked-case (concurrent-private 'run-mocked-case!)
+          events (atom [])
+          clone-error (ex-info "clone allocation" {:marker :clone-allocation})
+          config {:shared :shared
+                  :close! (fn [shared] (swap! events conj [:close shared]))
+                  :rules [(concurrent/rule :ok :group (constantly :applied))]}
+          error (concurrent-error-of
+                 #(run-mocked-case
+                   {:new-machine! (fn [& _] (swap! events conj :machine) :machine)
+                    :new-worker-context! (fn [index]
+                                           (swap! events conj [:context index])
+                                           [:context index])
+                    :clone-test-case! (fn [index]
+                                        (swap! events conj [:clone index])
+                                        (if (= 1 index)
+                                          (throw clone-error)
+                                          [:clone index]))
+                    :run-workers! (fn [& _] (swap! events conj :run-workers) [])
+                    :join-workers! (fn [_] (swap! events conj :join) true)
+                    :join-invariants! (fn [_] (swap! events conj :invariants))
+                    :free-clones! (fn [workers]
+                                    (swap! events conj [:free-clones (mapv :clone workers)]))
+                    :free-worker-contexts! (fn [workers]
+                                             (swap! events conj [:free-contexts
+                                                                 (mapv :context workers)]))
+                    :free-machine! (fn [_] (swap! events conj :free-machine))
+                    :mark-complete! (fn [outcome]
+                                      (swap! events conj [:mark (:status outcome)]))
+                    :release-root! (fn [] (swap! events conj :release-root))}
+                   {:workers 2}
+                   (constantly config)))]
+      (support/check! context "concurrent partial allocation frees only already-owned handles"
+                      (and (identical? clone-error error)
+                           (= [:machine
+                               [:context 0] [:clone 0]
+                               [:context 1] [:clone 1]
+                               :join
+                               [:close :shared]
+                               [:free-clones [[:clone 0]]]
+                               [:free-contexts [[:context 0] [:context 1]]]
+                               :free-machine
+                               :release-root]
+                              @events))))
+    (let [run-mocked-case (concurrent-private 'run-mocked-case!)
+          events (atom [])
+          invariant-error (ex-info "invariant" {:marker :invariant})
+          result
+          (run-mocked-case
+           {:new-machine! (fn [& _] :machine)
+            :new-worker-context! (fn [index] [:context index])
+            :clone-test-case! (fn [index] [:clone index])
+            :run-workers! (fn [_] [{:worker-index 1 :status :completed}
+                                    {:worker-index 0 :status :completed}])
+            :join-workers! (fn [_] (swap! events conj :join) true)
+            :join-invariants! (fn [_] (swap! events conj :invariants) (throw invariant-error))
+            :free-clones! (fn [_] (swap! events conj :free-clones))
+            :free-worker-contexts! (fn [_] (swap! events conj :free-contexts))
+            :free-machine! (fn [_] (swap! events conj :free-machine))
+            :mark-complete! (fn [outcome] (swap! events conj [:mark (:status outcome)]))
+            :release-root! (fn [] (swap! events conj :release-root))
+            :property-origin (fn [_ error]
+                               (when (identical? invariant-error error) "invariant:checked"))}
+           {:workers 2}
+           (constantly {:shared :shared
+                       :close! (fn [shared] (swap! events conj [:close shared]))
+                       :rules [(concurrent/rule :ok :group (constantly :applied))]}))]
+      (support/check! context "concurrent invariant failures retain identity through finalization"
+                      (and (= :interesting (:status result))
+                           (identical? invariant-error (get-in result [:failure :exception]))
+                           (= [:join :invariants [:close :shared] :free-clones :free-contexts
+                               :free-machine [:mark :interesting] :release-root]
+                              @events))))
     (let [loads (atom 0)
           load-native (concurrent-private 'load-native-capability)
           results
@@ -811,12 +1144,13 @@
                             :join-invariants! (op :invariants)
                             :close! (op :close)
                             :free-clones! (op :clones)
+                            :free-worker-contexts! (op :contexts)
                             :free-machine! (op :machine)
                             :mark-complete! (op :marked)
                             :release-root! (op :released)}
                            {:status :valid})]
       (support/check! context "concurrent finalization uses coordinator cleanup order"
-                      (and (= [:joined :invariants :close :clones :machine
+                      (and (= [:joined :invariants :close :clones :contexts :machine
                                :marked :released]
                               @events)
                            (= :valid (:status result)))))
@@ -834,6 +1168,7 @@
                               (throw close-error))
                     :free-clones! (fn [] (swap! events conj :clones)
                                     (throw free-error))
+                    :free-worker-contexts! (fn [] (swap! events conj :contexts))
                     :free-machine! (fn [] (swap! events conj :machine))
                     :mark-complete! (fn [outcome]
                                       (reset! marked outcome)
@@ -866,7 +1201,7 @@
                               (:origin completed)
                               (:origin @marked))
                            (= (:failure completed) (:failure @marked))
-                           (= [:joined :invariants :close :clones :machine
+                           (= [:joined :invariants :close :clones :contexts :machine
                                :marked :released]
                               @events))))
     (let [finalize (concurrent-private 'finalize-case!)
@@ -883,6 +1218,7 @@
                                   (identical? invariant-error error))
                          "hegel.stateful.concurrent/invariant:consistent"))
                      :free-clones! (fn [] (swap! events conj :clones))
+                     :free-worker-contexts! (fn [] (swap! events conj :contexts))
                      :free-machine! (fn [] (swap! events conj :machine))
                      :mark-complete! (fn [outcome]
                                        (reset! marked outcome)
@@ -902,7 +1238,7 @@
                               (get-in result [:failure :origin]))
                            (empty? (get-in result [:failure :secondary]))
                            (= (:failure result) (:failure @marked))
-                           (= [:joined :invariants :clones :machine
+                           (= [:joined :invariants :clones :contexts :machine
                                :marked :released]
                               @events))))
     (let [finalize (concurrent-private 'finalize-case!)
@@ -914,6 +1250,7 @@
            #(finalize {:join-workers! (constantly true)
                        :join-invariants! (fn [] (throw invariant-error))
                        :free-clones! (fn [] (swap! events conj :clones))
+                       :free-worker-contexts! (fn [] (swap! events conj :contexts))
                        :free-machine! (fn [] (swap! events conj :machine))
                        :mark-complete! (fn [outcome]
                                          (reset! marked outcome)
@@ -935,13 +1272,14 @@
                            (identical? invariant-error
                                        (get-in (ex-data error)
                                                [:errors 0 :exception]))
-                           (= [:clones :machine :marked :released] @events))))
+                           (= [:clones :contexts :machine :marked :released] @events))))
     (let [finalize (concurrent-private 'finalize-case!)
           close-error (ex-info "close-only failure" {})
           marked (atom nil)
           result (finalize {:join-workers! (constantly true)
                             :close! (fn [] (throw close-error))
                             :free-clones! (fn [] nil)
+                            :free-worker-contexts! (fn [] nil)
                             :free-machine! (fn [] nil)
                             :mark-complete! (fn [outcome]
                                               (reset! marked outcome))
@@ -966,6 +1304,7 @@
                  #(finalize {:join-workers! (constantly true)
                              :close! (fn [] (throw close-error))
                              :free-clones! (fn [] nil)
+                             :free-worker-contexts! (fn [] nil)
                              :free-machine! (fn [] nil)
                              :mark-complete! (fn [outcome]
                                                (reset! marked outcome))
@@ -985,7 +1324,7 @@
                                        (get-in (ex-data error)
                                                [:errors 0 :exception])))))
     (doseq [failing-operation
-            [:free-clones :free-machine :mark-complete :release-root]]
+            [:free-clones :free-worker-contexts :free-machine :mark-complete :release-root]]
       (let [finalize (concurrent-private 'finalize-case!)
             cleanup-error (ex-info "native cleanup failure"
                                    {:operation failing-operation})
@@ -999,6 +1338,7 @@
             error (concurrent-error-of
                    #(finalize {:join-workers! (constantly true)
                                :free-clones! (op :free-clones)
+                               :free-worker-contexts! (op :free-worker-contexts)
                                :free-machine! (op :free-machine)
                                :mark-complete! (fn [outcome]
                                                  (reset! marked outcome)
@@ -1011,7 +1351,7 @@
                         (and (= ::concurrent/native-cleanup-failed
                                 (:type (ex-data error)))
                              (= :valid (:status @marked))
-                             (= [:free-clones :free-machine
+                             (= [:free-clones :free-worker-contexts :free-machine
                                  :mark-complete :release-root]
                                 @events)
                              (= failing-operation
@@ -1030,6 +1370,8 @@
                        :free-clones! (fn []
                                        (swap! events conj :free-clones)
                                        (throw free-error))
+                       :free-worker-contexts! (fn []
+                                                (swap! events conj :free-worker-contexts))
                        :free-machine! (fn []
                                         (swap! events conj :free-machine))
                        :mark-complete! (fn [_]
@@ -1040,7 +1382,7 @@
                       {:status :valid}))]
       (support/check! context
                       "concurrent cleanup retains multiple run errors in order"
-                      (and (= [:free-clones :free-machine
+                      (and (= [:free-clones :free-worker-contexts :free-machine
                                :mark-complete :release-root]
                               @events)
                            (= [:free-clones :mark-complete]
@@ -1058,6 +1400,7 @@
                                                {:joined? false})
                              :join-invariants! (fn [] (swap! events conj :invariants))
                              :free-clones! (fn [] (swap! events conj :clones))
+                             :free-worker-contexts! (fn [] (swap! events conj :contexts))
                              :free-machine! (fn [] (swap! events conj :machine))
                              :mark-complete! (fn [_] (swap! events conj :marked))
                              :release-root! (fn [] (swap! events conj :released))}
@@ -1072,6 +1415,7 @@
                  #(finalize {:join-workers! (fn [] (swap! events conj :join)
                                                (throw join-error))
                              :free-clones! (fn [] (swap! events conj :clones))
+                             :free-worker-contexts! (fn [] (swap! events conj :contexts))
                              :release-root! (fn [] (swap! events conj :released))}
                             {:status :valid}))]
       (support/check! context "concurrent join errors preserve identity before cleanup"

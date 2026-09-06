@@ -1,6 +1,6 @@
 # ADR 0008: A separate concurrent state-machine API
 
-- Status: Accepted; declarations, validation, and capability/lifecycle seams implemented; executor pending
+- Status: Accepted; declarations, validation, capability/lifecycle, and injected mocked-protocol seams implemented; executor pending
 - Date: 2026-09-06
 
 ## Context
@@ -116,7 +116,7 @@ invokes it in a `finally` path even when later validation fails or the native
 concurrency-flip case is rejected. An exception thrown by `machine-fn` itself
 is a setup error, not a property counterexample: no concurrent machine has yet
 declared the run nondeterministic, so the runner cleans up what it owns and
-propagates that error rather than fabricating concurrent failure semantics.
+propagates that error without marking a concurrent property verdict.
 The factory remains responsible for resources it acquires before it can return
 a valid `:close!` contract.
 `rule` and `invariant` are
@@ -393,11 +393,12 @@ behavior:
   machinery — those are host/caller concerns, not this API's.
 - **Cleanup and verdict order.** The coordinator joins every worker, completes
   applicable join-point invariants, calls `:close!`, frees clones and the
-  state machine, marks the root test-case outcome, then releases the root
-  case. A `:close!` exception is a `:teardown` property failure if there was
-  no earlier failure and secondary otherwise. Native cleanup failures remain
-  run errors, but cleanup is best-effort and cannot replace an earlier error.
-  No mark or free may occur while a worker is live.
+  per-worker contexts, then the state machine, marks the root test-case
+  outcome, then releases the root case. A `:close!` exception is a `:teardown`
+  property failure if there was no earlier failure and secondary otherwise.
+  Native cleanup failures remain run errors, but cleanup is best-effort and
+  cannot replace an earlier error. No mark or free may occur while a worker is
+  live.
 - **Cancellation record.** The executor owns one first-writer-wins promise per
   case. Every worker checks it before every native pull. The first failure
   delivers its structured identity; peers already inside a rule finish that
@@ -461,11 +462,12 @@ evidence, not a public concurrent executor":
 1. **Pure validation and mocked protocol.** Reject an unsupported host and
    unknown/incompatible run options before run allocation. After a root case
    exists and `machine-fn` has made any coordinator draws, reject
-   missing/duplicate names, invalid groups, callback return
-   values other than `:applied`/`:rejected`, and malformed factory results
-   before machine/clone/worker allocation. Mocked lifecycle tests require one
-   context/clone per worker, coordinator-only join/invariant/free calls, sorted
-   worker records, bounded diagnostic retention/counters, and exact cleanup.
+   missing/duplicate names, invalid groups, and malformed factory results
+   before machine/clone/worker allocation. The mocked protocol rejects worker
+   callback return values other than `:applied`/`:rejected`, and its lifecycle
+   tests require one context/clone per worker, coordinator-only
+   join/invariant/free calls, sorted worker records, bounded diagnostic
+   retention/counters, and exact cleanup.
 2. **Nondeterminism flip observation.** Confirm the first
    `max_concurrency > 1` creation on a fresh run is reported
    `HEGEL_STATUS_INVALID` / case-invalid as specified, and that the
@@ -495,9 +497,9 @@ evidence, not a public concurrent executor":
    controls as prerequisite ABI coverage, not as claimed v1 surface coverage.
 
 Each stage stays a *characterization* until the prior stage's evidence is in.
-The declaration, pure input-validation, capability, and case-finalization
-ordering portions of stage 1 are implemented; its mocked native protocol and
-all later stages remain pending.
+The declaration, pure input-validation, capability, case-finalization ordering,
+and injected mocked-protocol portions of stage 1 are implemented.  The real
+native protocol and all later stages remain pending.
 
 ## Rejected alternatives
 
@@ -539,8 +541,9 @@ all later stages remain pending.
 
 ## Consequences
 
-- The declarations, pure-validation, capability, and case-finalization seams
-  live in `hegel.stateful.concurrent`; its executor remains pending.
+- The declarations, pure-validation, capability, case-finalization, and
+  injected mocked-protocol seams live in `hegel.stateful.concurrent`; its
+  executor remains pending.
   `hegel.stateful/run!` is unchanged.
 - The initial contract is intentionally narrow: Jolt only, fixed worker count
   of at least two, caller-owned shared-state synchronization, coordinator-only

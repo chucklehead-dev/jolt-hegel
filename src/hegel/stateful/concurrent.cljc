@@ -39,6 +39,10 @@
   "The only values a concurrent worker callback may return."
   #{:applied :rejected})
 
+(def ^:private worker-report-status-values
+  "The closed status vocabulary for an injected worker completion report."
+  #{:completed})
+
 (defn- invalid-argument [message data]
   (validation/usage-error! ::invalid-argument message data))
 
@@ -233,6 +237,107 @@
              :rules rules
              :invariants invariants
              ::group-plan (group-plan rules)))))
+
+(defn- invoke-worker-rule!
+  "Invoke one declared worker rule and reject values outside its closed result set.
+
+  This is deliberately native-free: the later executor will decide when a
+  worker may pull a rule, while this helper owns only the Clojure callback
+  contract."
+  [rule context]
+  (let [result ((::step rule) context)]
+    (when-not (contains? worker-result-values result)
+      (invalid-argument
+       "concurrent worker callback must return :applied or :rejected"
+       {:rule (:name rule)
+        :worker-index (:worker-index context)
+        :result result
+        :allowed (vec (sort worker-result-values))}))
+    result))
+
+(defn- empty-diagnostics [limit]
+  {:limit limit :events [] :total-events 0 :dropped-events 0})
+
+(defn- record-diagnostic!
+  "Record one event while retaining no more than the configured prefix."
+  [diagnostics event]
+  (swap! diagnostics
+         (fn [{:keys [limit events] :as state}]
+           (let [room? (< (count events) limit)]
+             (cond-> (update state :total-events inc)
+               room? (update :events conj event)
+               (not room?) (update :dropped-events inc))))))
+
+(defn- public-diagnostics [{:keys [events total-events dropped-events]}]
+  {:events events
+   :total-events total-events
+   :dropped-events dropped-events})
+
+(defn- validate-worker-report! [worker-count report]
+  (validation/require-map! ::invalid-argument "mocked concurrent worker report" report)
+  (validation/reject-unknown-keys!
+   ::invalid-argument
+   "mocked concurrent worker report"
+   #{:worker-index :status}
+   report)
+  (let [missing (vec (remove #(contains? report %)
+                             [:worker-index :status]))]
+    (when (seq missing)
+      (invalid-argument "mocked concurrent worker report is missing required keys"
+                        {:missing-keys missing :report report})))
+  (validation/require-integer-range! ::invalid-argument :worker-index
+                                     (:worker-index report) 0 (dec worker-count))
+  (when-not (contains? worker-report-status-values (:status report))
+    (invalid-argument "mocked concurrent worker report has an unknown status"
+                      {:worker-index (:worker-index report)
+                       :status (:status report)
+                       :allowed (vec (sort worker-report-status-values))}))
+  report)
+
+(defn- collect-worker-reports!
+  "Validate completion reports without carrying diagnostic payloads."
+  [worker-count reports]
+  (require-sequence! "mocked concurrent worker reports" reports)
+  (let [{:keys [report-count worker-indexes worker-results]}
+        (reduce (fn [{:keys [worker-indexes] :as state} report]
+                  (let [report (validate-worker-report! worker-count report)
+                        worker-index (:worker-index report)]
+                    (when (contains? worker-indexes worker-index)
+                      (invalid-argument
+                       "mocked concurrent worker reports contain a duplicate worker"
+                       {:worker-index worker-index}))
+                    (-> state
+                        (update :report-count inc)
+                        (update :worker-indexes conj worker-index)
+                        (update :worker-results conj report))))
+                {:report-count 0
+                 :worker-indexes #{}
+                 :worker-results []}
+                reports)]
+    (when-not (= worker-count report-count)
+      (invalid-argument "mocked concurrent worker reports must contain one report per worker"
+                        {:workers worker-count :report-count report-count}))
+    (when-not (= worker-count (count worker-indexes))
+      ;; This is redundant with the duplicate check, but keeps the exact-cover
+      ;; invariant explicit at the boundary that later changes may extend.
+      (invalid-argument "mocked concurrent worker reports must cover each worker exactly once"
+                        {:workers worker-count :worker-indexes worker-indexes}))
+    (vec (sort-by :worker-index worker-results))))
+
+(defn- attempt-cleanup! [f]
+  (when f
+    (host/try-catch-all (f) _error nil)))
+
+(defn- cleanup-setup!
+  "Best-effort cleanup for errors before a validated concurrent machine exists.
+
+  A callable close hook is already an ownership commitment even if another
+  factory field is invalid.  A factory exception has no returned config, so it
+  receives only root release.  Cleanup errors never replace the setup error."
+  [ops raw-config]
+  (when (and (map? raw-config) (ifn? (:close! raw-config)))
+    (attempt-cleanup! #((:close! raw-config) (:shared raw-config))))
+  (attempt-cleanup! (:release-root! ops)))
 
 (defn- public-runtime
   "Return the stable runtime labels used by the concurrent capability API."
@@ -440,6 +545,7 @@
                     (:join-invariants! ops))
     (property-call! :teardown :close (:close! ops))
     (native-call! :free-clones (:free-clones! ops))
+    (native-call! :free-worker-contexts (:free-worker-contexts! ops))
     (native-call! :free-machine (:free-machine! ops))
     (native-call! :mark-complete
                   (when-let [mark-complete! (:mark-complete! ops)]
@@ -447,9 +553,107 @@
     (native-call! :release-root (:release-root! ops))
     (let [completed (final-outcome)]
       (if (seq @run-errors)
-        (throw
-         (ex-info "concurrent case finalization failed"
-                  {:type ::native-cleanup-failed
-                   :outcome completed
-                   :errors @run-errors}))
-        completed))))
+          (throw
+           (ex-info "concurrent case finalization failed"
+                    {:type ::native-cleanup-failed
+                     :outcome completed
+                     :errors @run-errors}))
+          completed))))
+
+#_{:clj-kondo/ignore [:unused-private-var]}
+(defn- run-mocked-case!
+  "Characterize the stage-one concurrent protocol without native allocation.
+
+  Every operation in OPS is injected.  Validation of OPTS and the map returned
+  by MACHINE-FN completes before `:new-machine!`, `:new-worker-context!`,
+  `:clone-test-case!`, or `:run-workers!` is reached.  Worker execution is
+  injected and mocked: it establishes only data ownership,
+  callback-result, coordinator-order, and result-shaping obligations for a
+  future executor; it is not a public entry point or a threading primitive."
+  [ops opts machine-fn]
+  (let [opts (validate-options! opts)
+        raw-config (host/try-catch-all
+                    (machine-fn)
+                    error
+                    (do
+                      (cleanup-setup! ops nil)
+                      (throw error)))
+        config (host/try-catch-all
+                (validate-config! raw-config)
+                error
+                (do
+                  (cleanup-setup! ops raw-config)
+                  (throw error)))
+        worker-count (:workers opts)
+        machine (atom nil)
+        workers (atom [])
+        phase-error (atom nil)
+        diagnostics (atom (empty-diagnostics (:max-diagnostic-events opts)))
+        worker-inputs
+        (fn []
+          (mapv
+           (fn [{:keys [worker-index] :as worker}]
+             (assoc worker
+                    :shared (:shared config)
+                    :rules (:rules config)
+                    :record-diagnostic!
+                    (fn [event] (record-diagnostic! diagnostics event))
+                    :invoke-rule!
+                    (fn [rule round]
+                      (invoke-worker-rule!
+                       rule
+                       {:shared (:shared config)
+                        :worker-index worker-index
+                        :round round
+                        :group (:group rule)
+                        :cancelled? (constantly false)}))))
+           @workers))
+        outcome
+        (host/try-catch-all
+         (do
+           (reset! machine ((:new-machine! ops) config worker-count))
+           (doseq [worker-index (range worker-count)]
+             (let [context ((:new-worker-context! ops) worker-index)]
+               (swap! workers conj {:worker-index worker-index :context context})
+               (let [clone ((:clone-test-case! ops) worker-index)]
+                 (swap! workers update (dec (count @workers)) assoc :clone clone))))
+           (let [worker-results
+                 (collect-worker-reports! worker-count
+                                          ((:run-workers! ops) (worker-inputs)))]
+             {:status :valid
+              :worker-results worker-results
+              :diagnostics (public-diagnostics @diagnostics)}))
+         error
+         (do
+           (reset! phase-error error)
+           ;; `:invalid` is reserved for libhegel's native concurrency flip.
+           ;; A mock allocation/protocol error has no property verdict.
+           {:status :aborted}))
+        final-ops
+        {:join-workers! (fn []
+                          ((:join-workers! ops) @workers))
+         :join-invariants! (when-not @phase-error
+                             (fn [] ((:join-invariants! ops) config)))
+         :close! (when-let [close! (:close! config)]
+                   #(close! (:shared config)))
+         :free-clones! (when (seq @workers)
+                         (fn []
+                           ((:free-clones! ops)
+                            (filterv #(contains? % :clone) @workers))))
+         :free-worker-contexts! (when (seq @workers)
+                                  (fn []
+                                    ((:free-worker-contexts! ops)
+                                     (filterv #(contains? % :context) @workers))))
+         :free-machine! (when (some? @machine)
+                          (fn [] ((:free-machine! ops) @machine)))
+         :mark-complete! (when-not @phase-error (:mark-complete! ops))
+         :release-root! (:release-root! ops)
+         :property-origin (:property-origin ops)}]
+    (if-let [error @phase-error]
+      (do
+        ;; Cleanup is observable but must not replace the original setup or
+        ;; worker throwable.  `finalize-case!` still enforces join-before-free.
+        (host/try-catch-all (finalize-case! final-ops outcome)
+                            _cleanup-error nil)
+        (throw error))
+      (finalize-case! final-ops outcome))))
