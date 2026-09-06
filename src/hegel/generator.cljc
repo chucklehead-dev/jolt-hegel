@@ -7,6 +7,7 @@
             [hegel.ffi :as hffi]
             [hegel.host :as host]
             [hegel.internal.binary32 :as binary32]
+            [hegel.internal.render :as render]
             [hegel.temporal :as temporal]
             [hegel.validation :as validation]))
 
@@ -848,6 +849,7 @@
                          #(hffi/stop-span! current-context current-handle)
                          (complement recursion-retry-control?))))]
               (loop []
+                (render/begin-attempt! (:render test-case))
                 (let [attempt
                       (host/try-catch-all
                         {:status :accepted
@@ -858,14 +860,21 @@
                           {:status :leaf-budget-retry}
                           ::finish-retry
                           {:status :finish-retry}
-                          (throw error)))]
+                          (do (render/abort-attempt! (:render test-case))
+                              (throw error))))]
                   (case (:status attempt)
-                    :accepted (:value attempt)
+                    :accepted
+                    (do (render/commit-attempt! (:render test-case))
+                        (:value attempt))
                     :leaf-budget-retry
                     (do
+                      (render/abort-attempt! (:render test-case))
                       (hffi/recursion-retry! context handle recursion)
                       (recur))
-                    :finish-retry (recur))))))
+                    :finish-retry
+                    (do
+                      (render/abort-attempt! (:render test-case))
+                      (recur)))))))
            #(hffi/recursion-free! context recursion)
            (constantly true))))))))
 
@@ -880,22 +889,30 @@
      (loop [attempt 0]
        (hffi/start-span! (:context test-case) (:handle test-case)
                          hffi/label-filter)
+       (render/begin-attempt! (:render test-case))
        (let [discard? (atom false)
              [accepted? value]
-             (with-cleanup
-               (fn []
-                 (let [value (generator test-case)
-                       accepted? (clojure.core/boolean (pred value))]
-                   (reset! discard? (not accepted?))
-                   [accepted? value]))
-               #(hffi/stop-span! (:context test-case) (:handle test-case)
-                                @discard?)
-               (complement recursion-retry-control?))]
+             (host/try-catch-all
+              (with-cleanup
+                (fn []
+                  (let [value (generator test-case)
+                        accepted? (clojure.core/boolean (pred value))]
+                    (reset! discard? (not accepted?))
+                    [accepted? value]))
+                #(hffi/stop-span! (:context test-case) (:handle test-case)
+                                 @discard?)
+                (complement recursion-retry-control?))
+              error
+              (do (render/abort-attempt! (:render test-case))
+                  (throw error)))]
          (if accepted?
-           value
-           (if (< attempt 2)
-             (recur (inc attempt))
-             (h/assume! test-case false))))))))
+           (do (render/commit-attempt! (:render test-case))
+               value)
+           (do
+             (render/abort-attempt! (:render test-case))
+             (if (< attempt 2)
+               (recur (inc attempt))
+               (h/assume! test-case false)))))))))
 
 (defn just
   "Return a generator which always produces value without making a draw."
@@ -982,6 +999,10 @@
     [min-size max-size]))
 
 (defn- draw-collection
+  "step is a candidate step: (fn [collection result] [accepted? next-result]).
+  Each call is one begin-attempt!/commit-attempt!/abort-attempt! region:
+  accepted? true commits, false (after the step's own native reject/discard
+  call) aborts, and an unexpected throwable aborts before propagating."
   [test-case label min-size max-size initial-value step]
   (in-span
    test-case label
@@ -994,7 +1015,18 @@
          (fn []
            (loop [result initial-value]
              (if (hffi/collection-more! context handle collection)
-               (recur (step collection result))
+               (do
+                 (render/begin-attempt! (:render test-case))
+                 (let [[accepted? next-result]
+                       (host/try-catch-all
+                        (step collection result)
+                        error
+                        (do (render/abort-attempt! (:render test-case))
+                            (throw error)))]
+                   (if accepted?
+                     (render/commit-attempt! (:render test-case))
+                     (render/abort-attempt! (:render test-case)))
+                   (recur next-result)))
                result)))
          #(hffi/collection-free! context collection)
          (constantly true))))))
@@ -1057,7 +1089,7 @@
                      0 (dec (count available)))
              index (nth available choice)]
          (reset! remaining (remove-index available choice))
-         (conj selected index))))))
+         [true (conj selected index)])))))
 
 (defn permutations
   "Generate every input element in a native-choice-selected order.
@@ -1130,7 +1162,7 @@
                (let [index (hffi/generate-integer!
                             (:context test-case) (:handle test-case)
                             0 (dec element-count))]
-                 (conj selected (nth values index)))))
+                 [true (conj selected (nth values index))])))
             (mapv #(nth values %)
                   (draw-without-replacement
                    test-case min-size max-size element-count)))))))))
@@ -1159,8 +1191,8 @@
                  (hffi/collection-reject!
                   (:context test-case) (:handle test-case)
                   collection "duplicate element")
-                 result)
-               (conj result value))))))))))
+                 [false result])
+               [true (conj result value)])))))))))
 
 (defn- split-by-sizes [payload sizes]
   (loop [remaining (vec payload)
@@ -1217,8 +1249,8 @@
                  (hffi/collection-reject!
                   (:context test-case) (:handle test-case)
                   collection "duplicate element")
-                 result)
-               (conj result value))))))))))
+                 [false result])
+               [true (conj result value)])))))))))
 
 (defn sorted-set
   "Generate a sorted set. Accepts the same options as set."
@@ -1249,8 +1281,8 @@
                  (hffi/collection-reject!
                   (:context test-case) (:handle test-case)
                   collection "duplicate key")
-                 result)
-               (assoc result key (values test-case)))))))))))
+                 [false result])
+               [true (assoc result key (values test-case))])))))))))
 
 (defn sorted-map
   "Generate a sorted map. Accepts the same options as map."

@@ -6,6 +6,14 @@ for v0.1.0 through v0.4.0, see the tag and release history in that repository.
 
 ## Unreleased
 
+- Route labelled draws and `note!` through libhegel's caller-owned test-case
+  printer, with native speculative rollback for rejected filters, duplicate
+  vector/set/map candidates, and recursive retries. Final failures now retain
+  a bounded structured `:counterexample` snapshot. Redaction precedes custom
+  rendering; raw drawn values are not retained, whole entries are bounded
+  before native append, and diagnostic failures cannot change the property
+  verdict. See [structured counterexample diagnostics](docs/COUNTEREXAMPLES.md).
+
 - Documented the Jolt and babashka.ffi backend tradeoffs, retained the two
   explicit adapters and Jolt's explicit temporary-pointer ownership, and added
   a cross-runtime contract that checks every canonical ABI signature and

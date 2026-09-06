@@ -5,6 +5,8 @@
             [hegel.ffi :as hffi]
             [hegel.generator :as g]
             [hegel.host :as host]
+            [hegel.internal.portable-data :as portable-data]
+            [hegel.internal.render :as render]
             [hegel.report :as report]
             [hegel.test-support :as support]))
 
@@ -450,3 +452,335 @@
                 (= "hegel.test-runner:original-origin" (:origin failure))
                 (= "hegel.test-runner:replay-origin"
                    (:replay-origin failure))))))
+
+(defn- capture-err [thunk]
+  (let [value (atom nil)
+        output (with-out-str
+                 (binding [*err* *out*]
+                   (reset! value (thunk))))]
+    [@value output]))
+
+(defn- counterexample-normal-only-final-replay [context]
+  (let [[result output]
+        (capture-err
+         #(h/run-test!
+                  {:test-cases 200
+                   :seed 1777986545686
+                   :database ""
+                   :report-multiple-failures? false
+                   :verbosity :normal}
+                  (fn [_]
+                    (let [x (h/draw! (g/integer 0 1000) :x)]
+                      (h/note! "checking" x)
+                      (when (>= x 500)
+                        (throw
+                         (ex-info "threshold violated"
+                                  {:hegel/origin "hegel.test-runner:counterexample-normal"
+                                   :x x})))))))
+        failure (first (:failures result))]
+    (support/check! context "normal verbosity emits only the final-replay counterexample text"
+           (and (not (:passed? result))
+                (str/includes? output ":x 500")
+                (str/includes? output "checking 500")))
+    (support/check! context "the final replay snapshot is attached to the failure and to public-final"
+           (and (map? (:counterexample failure))
+                (string? (:text (:counterexample failure)))
+                (str/includes? (:text (:counterexample failure)) "checking 500")
+                (= (:counterexample failure)
+                   (:counterexample (first (:final result))))))))
+
+(defn- counterexample-quiet-emits-nothing [context]
+  (let [[result output]
+        (capture-err
+         #(h/run-test!
+                  {:test-cases 50
+                   :seed 1777986545686
+                   :database ""
+                   :report-multiple-failures? false
+                   :verbosity :quiet}
+                  (fn [_]
+                    (let [x (h/draw! (g/integer 0 1000) :x)]
+                      (h/note! "checking" x)
+                      (when (>= x 500)
+                        (throw
+                         (ex-info "threshold violated"
+                                  {:hegel/origin "hegel.test-runner:counterexample-quiet"
+                                   :x x})))))))]
+    (support/check! context "quiet verbosity emits nothing to stderr"
+           (= "" output))
+    (support/check! context "quiet verbosity produces no counterexample snapshot"
+           (nil? (:counterexample (first (:failures result)))))))
+
+(defn- counterexample-draw-and-note-ordering [context]
+  (let [result (h/run-test!
+                {:test-cases 1
+                 :seed 5
+                 :database ""
+                 :verbosity :normal}
+                (fn [_]
+                  (h/draw! (g/integer 1 1) :first)
+                  (h/note! "middle")
+                  (h/draw! (g/integer 2 2) :second)
+                  (throw
+                   (ex-info "ordering failure"
+                            {:hegel/origin "hegel.test-runner:counterexample-ordering"}))))
+        entries (-> result :failures first :counterexample :entries)]
+    (support/check! context "labelled draw and note entries preserve call order and bounded shape"
+           (= [{:kind :draw :label ":first" :text ":first 1\n"}
+               {:kind :note :text "middle\n"}
+               {:kind :draw :label ":second" :text ":second 2\n"}]
+              entries))))
+
+(defn- counterexample-custom-redaction [context]
+  (let [secret "s3cr3t-value"
+        result (h/run-test!
+                {:test-cases 1
+                 :seed 7
+                 :database ""
+                 :verbosity :normal
+                 :counterexample {:redact-fn (fn [_] :REDACTED)}}
+                (fn [_]
+                  (h/draw! (g/just secret) :password)
+                  (throw
+                   (ex-info "secret drawn"
+                            {:hegel/origin "hegel.test-runner:counterexample-redaction"}))))
+        snapshot (-> result :failures first :counterexample)]
+    (support/check! context "redaction runs before rendering and reaches the rendered text"
+           (str/includes? (:text snapshot) "REDACTED"))
+    (support/check! context "the unredacted secret never reaches the rendered text or stored entries"
+           (and (not (str/includes? (:text snapshot) secret))
+                (not-any? #(str/includes? (:text %) secret) (:entries snapshot))))))
+
+(defn- counterexample-oversize-rejection [context]
+  (let [big (apply str (repeat 100 "x"))
+        result (h/run-test!
+                {:test-cases 1
+                 :seed 9
+                 :database ""
+                 :verbosity :normal
+                 :counterexample {:max-output-units 40}}
+                (fn [_]
+                  (dotimes [i 5]
+                    (h/note! big i))
+                  (throw
+                   (ex-info "oversize"
+                            {:hegel/origin "hegel.test-runner:counterexample-oversize"}))))
+        snapshot (-> result :failures first :counterexample)]
+    (support/check! context "an entry that would exceed the output budget is rejected wholesale"
+           (true? (:truncated? snapshot)))
+    (support/check! context "at most one truncation marker is appended and total output stays bounded"
+           (and (= 1 (count (filter #(= :truncated (:kind %)) (:entries snapshot))))
+                (<= (portable-data/text-size (:text snapshot)) 40)))))
+
+(defn- counterexample-renderer-error-safety [context]
+  (let [result (h/run-test!
+                {:test-cases 5
+                 :seed 13
+                 :database ""
+                 :verbosity :debug
+                 :counterexample {:render-fn (fn [_] (throw (ex-info "boom" {})))}}
+                (fn [_]
+                  (h/draw! (g/integer 0 10) :x)
+                  nil))]
+    (support/check! context "a renderer failure never turns a passing property into a failure"
+           (:passed? result)))
+  (let [result (h/run-test!
+                {:test-cases 5
+                 :seed 17
+                 :database ""
+                 :verbosity :normal
+                 :counterexample {:render-fn (fn [_] (throw (ex-info "boom" {})))}}
+                (fn [_]
+                  (h/draw! (g/integer 0 10) :x)
+                  (throw
+                   (ex-info "real failure"
+                            {:hegel/origin "hegel.test-runner:counterexample-render-error"}))))
+        failure (first (:failures result))]
+    (support/check! context "a renderer failure does not conceal the original property exception"
+           (and (not (:passed? result))
+                (= "hegel.test-runner:counterexample-render-error" (:origin failure))
+                (= "real failure" (ex-message (:exception failure)))))
+    (support/check! context "a renderer failure is recorded as a bounded diagnostic, not a crash"
+           (some #(= :render-error (:kind %)) (-> failure :counterexample :errors))))
+  (let [[result _output]
+        (capture-err
+         #(with-redefs [hffi/note! (fn [& _]
+                                     (throw (ex-info "mocked native append failure" {})))]
+            (h/run-test!
+             {:test-cases 1 :seed 19 :database "" :verbosity :normal}
+             (fn [_]
+               (h/draw! (g/integer 0 0) :x)
+               (throw
+                (ex-info "native-safe failure"
+                         {:hegel/origin
+                          "hegel.test-runner:counterexample-native-error"}))))))
+        failure (first (:failures result))]
+    (support/check! context "a native printer failure cannot conceal the property failure"
+           (and (= "hegel.test-runner:counterexample-native-error"
+                   (:origin failure))
+                (= "native-safe failure" (ex-message (:exception failure)))
+                (some #(= :native-error (:kind %))
+                      (-> failure :counterexample :errors))))
+    (support/check! context "bounded entries remain authoritative when native text becomes incomplete"
+           (let [{:keys [text entries]} (:counterexample failure)]
+             (and (= "" text)
+                  (= [{:kind :draw :label ":x" :text ":x 0\n"}]
+                     entries)))))
+  (let [[result _output]
+        (capture-err
+         #(with-redefs [hffi/printer-value!
+                        (fn [& _]
+                          (throw (ex-info "mocked native read failure" {})))]
+            (h/run-test!
+             {:test-cases 1
+              :seed 23
+              :database ""
+              :verbosity :normal
+              :counterexample
+              {:render-fn (fn [_] (throw (ex-info "render failure" {})))}}
+             (fn [_]
+               (dotimes [i 20]
+                 (h/draw! (g/just i) :x))
+               (throw
+                (ex-info "bounded diagnostics"
+                         {:hegel/origin
+                          "hegel.test-runner:bounded-counterexample-errors"}))))))
+        failure (first (:failures result))]
+    (support/check! context "counterexample diagnostics remain capped when final native extraction also fails"
+           (and (= "hegel.test-runner:bounded-counterexample-errors"
+                   (:origin failure))
+                (= 16 (count (-> failure :counterexample :errors)))))))
+
+(defn- counterexample-cleanup-order [context]
+  (let [events (atom [])
+        real-printer-free hffi/printer-free!
+        real-test-case-free hffi/test-case-free!]
+    (with-redefs [hffi/printer-free! (fn [ctx printer]
+                                       (swap! events conj :printer-free)
+                                       (real-printer-free ctx printer))
+                  hffi/test-case-free! (fn [ctx handle]
+                                         (swap! events conj :test-case-free)
+                                         (real-test-case-free ctx handle))]
+      (h/run-test!
+       {:test-cases 1
+        :seed 21
+        :database ""
+        :verbosity :normal}
+       (fn [_]
+         (h/draw! (g/integer 0 1) :x)
+         (throw
+          (ex-info "cleanup order"
+                   {:hegel/origin "hegel.test-runner:counterexample-cleanup-order"})))))
+    (support/check! context "the native printer for a case is freed immediately before its test-case handle"
+           (and (= 1 (count (filter #{:printer-free} @events)))
+                (some #(= [:printer-free :test-case-free] (vec %))
+                      (partition 2 1 @events))))))
+
+(defn- counterexample-checkpoint-rollback [context]
+  (with-redefs [hffi/note! (fn [& _] nil)]
+    (let [state {:ctx ::ctx :handle ::handle :printer nil :enabled? true
+                 :native-disabled? (atom true)
+                 :render-fn pr-str :redact-fn identity
+                 :max-output-units 65536
+                 :units (atom 0) :entries (atom []) :truncated? (atom false)
+                 :errors (atom []) :checkpoints (atom [])}]
+      (render/record-note! state "before" [])
+      (render/begin-attempt! state)
+      (render/record-note! state "inside" [])
+      (support/check! context "begin-attempt! precedes entries recorded during the attempt"
+             (= 2 (count @(:entries state))))
+      (render/abort-attempt! state)
+      (support/check! context "abort-attempt! rolls entries and units back to the checkpoint"
+             (and (= 1 (count @(:entries state)))
+                  (= (portable-data/text-size "before\n") @(:units state))
+                  (false? @(:truncated? state))
+                  (empty? @(:errors state))))
+      (render/begin-attempt! state)
+      (render/record-note! state "kept" [])
+      (render/commit-attempt! state)
+      (support/check! context "commit-attempt! keeps entries recorded during the attempt"
+             (= 2 (count @(:entries state))))
+      (support/check! context "matched begin/commit and begin/abort leave no dangling checkpoints"
+             (empty? @(:checkpoints state))))))
+
+(defn- rollback-snapshot [origin body]
+  (let [[result _output]
+        (capture-err
+         #(h/run-test!
+           {:test-cases 1
+            :seed 29
+            :database ""
+            :report-multiple-failures? false
+            :verbosity :normal}
+           (fn [test-case]
+             (body test-case)
+             (throw (ex-info "rollback witness" {:hegel/origin origin})))))]
+    (-> result :failures first :counterexample)))
+
+(defn- counterexample-rejected-attempt-rollback [context]
+  (let [snapshot
+        (rollback-snapshot
+         "hegel.test-runner:filter-render-rollback"
+         (fn [_]
+           (let [attempt (atom 0)
+                 source (g/composite-fn
+                         (fn [_]
+                           (let [n (swap! attempt inc)]
+                             (h/note! "filter-attempt" n)
+                             n)))]
+             (h/draw! (g/filter #(= 3 %) source) :filtered))))
+        notes (mapv :text (filter #(= :note (:kind %)) (:entries snapshot)))]
+    (support/check! context "filter rendering retains only the accepted attempt"
+           (= ["filter-attempt 3\n"] notes)))
+  (doseq [[kind build]
+          [[:vector (fn [source] (g/vector {:size 2 :unique? true} source))]
+           [:set (fn [source] (g/set {:size 2} source))]]]
+    (let [snapshot
+          (rollback-snapshot
+           (str "hegel.test-runner:" (name kind) "-render-rollback")
+           (fn [_]
+             (let [attempt (atom 0)
+                   source (g/composite-fn
+                           (fn [_]
+                             (let [n (swap! attempt inc)
+                                   value (nth [1 1 2] (dec n))]
+                               (h/note! (str (name kind) "-attempt") n)
+                               value)))]
+               (h/draw! (build source) kind))))
+          notes (mapv :text (filter #(= :note (:kind %)) (:entries snapshot)))]
+      (support/check! context
+                      (str (name kind) " rendering retracts its duplicate candidate")
+             (= [(str (name kind) "-attempt 1\n")
+                 (str (name kind) "-attempt 3\n")]
+                notes))))
+  (let [snapshot
+        (rollback-snapshot
+         "hegel.test-runner:map-render-rollback"
+         (fn [_]
+           (let [attempt (atom 0)
+                 keys (g/composite-fn
+                       (fn [_]
+                         (let [n (swap! attempt inc)
+                               value (nth [:a :a :b] (dec n))]
+                           (h/note! "map-key-attempt" n)
+                           value)))]
+             (h/draw! (g/map {:size 2} keys (g/just 0)) :map))))
+        notes (mapv :text (filter #(= :note (:kind %)) (:entries snapshot)))]
+    (support/check! context "map rendering retracts its duplicate-key candidate"
+           (= ["map-key-attempt 1\n" "map-key-attempt 3\n"] notes))))
+
+(defn counterexample-printing
+  "Structured counterexample printing (Stage 1): should-log?-gated native
+  test-case printers, redact-before-render, bounded output with whole-entry
+  truncation, error containment, cleanup ordering, and the internal
+  begin/commit/abort-attempt! checkpoint API."
+  [context]
+  (counterexample-normal-only-final-replay context)
+  (counterexample-quiet-emits-nothing context)
+  (counterexample-draw-and-note-ordering context)
+  (counterexample-custom-redaction context)
+  (counterexample-oversize-rejection context)
+  (counterexample-renderer-error-safety context)
+  (counterexample-cleanup-order context)
+  (counterexample-checkpoint-rollback context)
+  (counterexample-rejected-attempt-rollback context))

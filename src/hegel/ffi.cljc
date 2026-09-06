@@ -107,6 +107,29 @@
 (def c-failure-origin (backend/function :failure-origin))
 (def c-failure-reproduction-blob (backend/function :failure-reproduction-blob))
 (def c-version (backend/function :version))
+(def c-note (backend/function :note))
+(def c-printer-options-new (backend/function :printer-options-new))
+(def c-printer-options-free (backend/function :printer-options-free))
+(def c-printer-options-set-max-width (backend/function :printer-options-set-max-width))
+(def c-printer-new (backend/function :printer-new))
+(def c-printer-free (backend/function :printer-free))
+(def c-printer-if-break (backend/function :printer-if-break))
+(def c-printer-text (backend/function :printer-text))
+(def c-printer-breakable (backend/function :printer-breakable))
+(def c-printer-comment (backend/function :printer-comment))
+(def c-printer-hard-break (backend/function :printer-hard-break))
+(def c-printer-begin-group (backend/function :printer-begin-group))
+(def c-printer-end-group (backend/function :printer-end-group))
+(def c-printer-shift-indent (backend/function :printer-shift-indent))
+(def c-printer-deferred (backend/function :printer-deferred))
+(def c-printer-begin-speculative (backend/function :printer-begin-speculative))
+(def c-printer-commit-speculative (backend/function :printer-commit-speculative))
+(def c-printer-abort-speculative (backend/function :printer-abort-speculative))
+(def c-printer-resolve (backend/function :printer-resolve))
+(def c-printer-is-live (backend/function :printer-is-live))
+(def c-printer-value (backend/function :printer-value))
+(def c-printer-value-result-free (backend/function :printer-value-result-free))
+(def c-test-case-printer (backend/function :test-case-printer))
 
 (def status-valid 0)
 (def status-invalid 1)
@@ -907,6 +930,141 @@
   (call-nullable-string-out!
    ctx :failure-reproduction-blob
    #(c-failure-reproduction-blob ctx failure %)))
+
+(defn note! [ctx test-case text]
+  (with-utf8-buffer
+    text
+    #(check! ctx :note (c-note ctx test-case %1 %2))))
+
+(defn- printer-options-arg [options]
+  (if (nil? options) backend/null options))
+
+(defn printer-options-new! [ctx]
+  (call-out! ctx :printer-options-new :pointer
+             #(c-printer-options-new ctx %)))
+
+(defn printer-options-free! [ctx options]
+  (c-printer-options-free ctx options)
+  nil)
+
+(defn printer-options-set-max-width! [ctx options value]
+  (check! ctx :printer-options-set-max-width
+          (c-printer-options-set-max-width ctx options value)))
+
+(defn printer-new!
+  "Create a standalone printer. `options` may be nil to use engine defaults."
+  [ctx options]
+  (call-out! ctx :printer-new :pointer
+             #(c-printer-new ctx (printer-options-arg options) %)))
+
+(defn printer-free! [ctx printer]
+  (c-printer-free ctx printer)
+  nil)
+
+(defn printer-text! [ctx printer text]
+  (with-utf8-buffer
+    text
+    #(check! ctx :printer-text (c-printer-text ctx printer %1 %2))))
+
+(defn printer-breakable! [ctx printer text]
+  (with-utf8-buffer
+    text
+    #(check! ctx :printer-breakable (c-printer-breakable ctx printer %1 %2))))
+
+(defn printer-if-break! [ctx printer text]
+  (with-utf8-buffer
+    text
+    #(check! ctx :printer-if-break (c-printer-if-break ctx printer %1 %2))))
+
+(defn printer-comment! [ctx printer text]
+  (with-utf8-buffer
+    text
+    #(check! ctx :printer-comment (c-printer-comment ctx printer %1 %2))))
+
+(defn printer-hard-break! [ctx printer]
+  (check! ctx :printer-hard-break (c-printer-hard-break ctx printer)))
+
+(defn printer-begin-group! [ctx printer indent text]
+  (with-utf8-buffer
+    text
+    #(check! ctx :printer-begin-group
+             (c-printer-begin-group ctx printer indent %1 %2))))
+
+(defn printer-end-group! [ctx printer text]
+  (with-utf8-buffer
+    text
+    #(check! ctx :printer-end-group (c-printer-end-group ctx printer %1 %2))))
+
+(defn printer-shift-indent! [ctx printer delta]
+  (check! ctx :printer-shift-indent (c-printer-shift-indent ctx printer delta)))
+
+(defn printer-deferred!
+  "Open a deferred sub-printer. The returned handle is caller-owned like any
+  other printer and must be freed independently; resolving the root does not
+  release the deferred handle."
+  [ctx printer]
+  (call-out! ctx :printer-deferred :pointer
+             #(c-printer-deferred ctx printer %)))
+
+(defn printer-begin-speculative! [ctx printer]
+  (check! ctx :printer-begin-speculative (c-printer-begin-speculative ctx printer)))
+
+(defn printer-commit-speculative! [ctx printer]
+  (check! ctx :printer-commit-speculative (c-printer-commit-speculative ctx printer)))
+
+(defn printer-abort-speculative! [ctx printer]
+  (check! ctx :printer-abort-speculative (c-printer-abort-speculative ctx printer)))
+
+(defn printer-resolve! [ctx printer]
+  (check! ctx :printer-resolve (c-printer-resolve ctx printer)))
+
+(defn printer-is-live! [ctx printer]
+  (not
+   (zero?
+    (call-out! ctx :printer-is-live :uint8
+               #(c-printer-is-live ctx printer %)))))
+
+(def printer-value-result-layout
+  (backend/layout :hegel/printer-value-result))
+
+(defn printer-value!
+  "Resolve `printer` to its rendered UTF-8 text.
+  The result struct starts zeroed to {NULL,0}; its data is decoded before the
+  engine-owned buffer is released, the host result struct is always freed, and
+  a primary call/decode error is preserved over any cleanup failure without a
+  double free."
+  [ctx printer]
+  (backend/with-native-scope
+   (fn []
+     (let [result-size (backend/layout-size printer-value-result-layout)
+           result (backend/alloc result-size)]
+       (zero-memory! result result-size)
+       (try
+         (let [value (host/try-catch-all
+                      (let [rc (c-printer-value ctx printer result)]
+                        (check! ctx :printer-value rc)
+                        (let [data (backend/read-field
+                                    result printer-value-result-layout [:data])
+                              length (backend/read-field
+                                      result printer-value-result-layout [:len])]
+                          (backend/read-utf8 data length)))
+                      error
+                      (do
+                        (host/try-catch-all
+                         (c-printer-value-result-free ctx result)
+                         _cleanup nil)
+                        (throw error)))]
+           (c-printer-value-result-free ctx result)
+           value)
+         (finally
+           (backend/free result)))))))
+
+(defn test-case-printer!
+  "Create a printer bound to `test-case`. `options` may be nil to use engine
+  defaults."
+  [ctx test-case options]
+  (call-out! ctx :test-case-printer :pointer
+             #(c-test-case-printer ctx test-case (printer-options-arg options) %)))
 
 (defn version
   "Return the loaded libhegel version string."

@@ -18,6 +18,7 @@
    {:id :ffi-adapter :suite :ffi :description "upstream babashka.ffi adapter" :entrypoint 'hegel.suites.ffi/upstream-babashka-ffi-adapter}
    {:id :ffi-write-order :suite :ffi :description "Jolt 0.8 FFI write order" :entrypoint 'hegel.suites.ffi/jolt-ffi-write-order-contract}
    {:id :ffi-signature-policy :suite :ffi :description "canonical ABI signature policy" :entrypoint 'hegel.suites.ffi/signature-policy-contract}
+   {:id :ffi-printer-protocol :suite :ffi :description "standalone printer protocol: layout, speculative, deferred, cleanup" :entrypoint 'hegel.suites.ffi/printer-protocol-contract}
    {:id :installer-source :suite :install :description "installer source identity" :entrypoint 'hegel.suites.install/installer-source-identity}
    {:id :portable-paths :suite :install :description "portable path contracts" :entrypoint 'hegel.suites.install/portable-path-contracts}
    {:id :installer-checksum :suite :install :description "installer checksum contract" :entrypoint 'hegel.suites.install/installer-checksum-contract}
@@ -58,7 +59,8 @@
    {:id :canonical-events :suite :trace-history :description "canonical operation-event profile" :entrypoint 'hegel.suites.trace-history/canonical-event-contract}
    {:id :joinpoint-manifest :suite :trace-history :description "pure compiler join-point manifest contract" :entrypoint 'hegel.suites.trace-history/joinpoint-manifest-contract}
    {:id :history-oracle :suite :trace-history :description "independent exhaustive history oracle" :entrypoint 'hegel.suites.trace-history/exhaustive-history-oracle}
-   {:id :clojure-test :suite :clojure-test :description "clojure.test integration" :entrypoint 'hegel.suites.clojure-test/clojure-test-integration}])
+   {:id :clojure-test :suite :clojure-test :description "clojure.test integration" :entrypoint 'hegel.suites.clojure-test/clojure-test-integration}
+   {:id :counterexample-printing :suite :runner :description "structured counterexample printing" :entrypoint 'hegel.suites.runner/counterexample-printing}])
 
 (defn pass! [_] nil)
 (defn fail! [_] (throw (ex-info "expected scenario failure" {})))
