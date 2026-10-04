@@ -6,6 +6,9 @@ for v0.1.0 through v0.4.0, see the tag and release history in that repository.
 
 ## Unreleased
 
+- Move the primary Jolt CI and release-verification matrix to the official,
+  checksum-pinned 0.8.17 release; retain the separate 0.8.1 compatibility lane.
+
 - Qualify current `main` with official checksum-pinned Jolt 0.8.3 assets on
   Linux x86_64, Windows x86_64, and macOS arm64 while retaining a full Jolt
   0.8.1 Linux compatibility-floor lane. Release verification uses the same

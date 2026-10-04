@@ -149,31 +149,31 @@ jobs:
             name: Linux x86_64
             runner: ubuntu-24.04
             shell: bash
-            # Official jolt-lang/jolt v0.8.3, source commit
-            # 343f730922cf16fafe673b466cedcdcfe0596854.
-            jolt-version: 0.8.3
-            jolt-asset: jolt-v0.8.3-x86_64-linux.tar.gz
-            jolt-sha256: e567297a6a840d9988a1aa082beb430aeaa0e6610a82a6f9ee0564e117745147
+            # Official jolt-lang/jolt v0.8.17, source commit
+            # 58980ac9faa6c3c571d1cb251eb7b09799af1b67.
+            jolt-version: 0.8.17
+            jolt-asset: jolt-v0.8.17-x86_64-linux.tar.gz
+            jolt-sha256: d524d6176f94c1a5d2ef46998c6c1bd2c7eaa3e46b130f55c0e3e6f864aca70d
           - runtime: Jolt
             host: jolt
             name: Windows x86_64
             runner: windows-2022
             shell: pwsh
-            # Official jolt-lang/jolt v0.8.3, source commit
-            # 343f730922cf16fafe673b466cedcdcfe0596854.
-            jolt-version: 0.8.3
-            jolt-asset: jolt-v0.8.3-x86_64-windows.zip
-            jolt-sha256: d2a01654d49837f4c22868d75a89c12bdac7ebc003e1df62cba56fb1ded743f6
+            # Official jolt-lang/jolt v0.8.17, source commit
+            # 58980ac9faa6c3c571d1cb251eb7b09799af1b67.
+            jolt-version: 0.8.17
+            jolt-asset: jolt-v0.8.17-x86_64-windows.zip
+            jolt-sha256: fb7463fabb70944cf4ea91d6fccc9a9b4e135a7ee1291cfd9547398ef33451ed
           - runtime: Jolt
             host: jolt
             name: macOS arm64
             runner: macos-14
             shell: bash
-            # Official jolt-lang/jolt v0.8.3, source commit
-            # 343f730922cf16fafe673b466cedcdcfe0596854.
-            jolt-version: 0.8.3
-            jolt-asset: jolt-v0.8.3-aarch64-macos.tar.gz
-            jolt-sha256: ef70f96c238061390e5099ddc188293edb2c5868bbc19e9019a929b038fa2d97
+            # Official jolt-lang/jolt v0.8.17, source commit
+            # 58980ac9faa6c3c571d1cb251eb7b09799af1b67.
+            jolt-version: 0.8.17
+            jolt-asset: jolt-v0.8.17-aarch64-macos.tar.gz
+            jolt-sha256: 5e323df0974244099d57dd36b0f96e04962f14e097d15d579141027183acc2f9
           # Keep the declared compatibility floor executable without making it
           # the primary cross-platform runtime. This row runs every existing
           # Jolt gate below, including the Linux-only relocated consumer.
