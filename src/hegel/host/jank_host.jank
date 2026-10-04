@@ -38,6 +38,15 @@
   {
     return std::chrono::duration_cast<std::chrono::milliseconds>(
       std::chrono::system_clock::now().time_since_epoch()).count();
+  }
+
+  inline std::int64_t hegel_jank_utf8_size(std::string const &value)
+  { return static_cast<std::int64_t>(value.size()); }
+
+  inline std::int64_t hegel_jank_utf8_octet(std::string const &value,
+                                         std::int64_t index)
+  {
+    return static_cast<unsigned char>(value.at(static_cast<std::size_t>(index)));
   }")
 
 (defn getenv [name]
@@ -55,3 +64,10 @@
 
 (defn current-time-millis []
   (cpp/hegel_jank_current_time_millis))
+
+(defn utf8-octets
+  "Copy unsigned UTF-8 octets from jank's native string, without Java interop."
+  [value]
+  (mapv (fn [index]
+          (cpp/hegel_jank_utf8_octet value (cpp/cast cpp/std.int64_t index)))
+        (range (cpp/hegel_jank_utf8_size value))))

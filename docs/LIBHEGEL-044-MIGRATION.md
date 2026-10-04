@@ -193,5 +193,5 @@ slice is also available as `jolt -M:upgrade-test`,
 `clojure -J--enable-native-access=ALL-UNNAMED -M:jvm:upgrade-test`.
 
 Fresh-process environment/TOML/Antithesis controls run with
-`bb --classpath src:resources:script -m hegel.upgrade-env-test` in Babashka CI.
+`bb upgrade-env-test` in Babashka CI.
 They use synthetic data and never print environment variables or credentials.

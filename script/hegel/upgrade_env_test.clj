@@ -22,8 +22,7 @@
                                    (or (str/starts-with? name "HEGEL_")
                                        (= name "ANTITHESIS_OUTPUT_DIR"))))
                        (System/getenv))
-        result (shell/sh "bb" "--classpath" "src:resources:script"
-                         "-m" "hegel.upgrade-env-test" mode
+        result (shell/sh "bb" "upgrade-env-test" mode
                          :env (merge base-env {"HEGEL_LIBHEGEL_LIBRARY" f/library-path} overrides))]
     (when-not (zero? (:exit result))
       (throw (ex-info "upgrade environment child failed" {:mode mode :exit (:exit result)})))

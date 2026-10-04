@@ -28,4 +28,7 @@
         :task (let [args *command-line-args*]
                 (apply (requiring-resolve 'hegel.test-runner/-main) args))}
   harness-test {:extra-paths ["test"]
-                :task ((requiring-resolve 'hegel.harness-test-runner/-main))}}}
+                :task ((requiring-resolve 'hegel.harness-test-runner/-main))}
+  upgrade-env-test {:extra-paths ["script"]
+                    :task (apply (requiring-resolve 'hegel.upgrade-env-test/-main)
+                                 *command-line-args*)}}}

@@ -531,7 +531,10 @@
   (call-draw-out! ctx :test-case-clone :pointer
              #(c-test-case-clone ctx test-case %)))
 
-(defn test-case-block! [ctx test-case indent]
+(defn test-case-block!
+  "Own an indented output handle sharing test-case's choice stream. Drive
+  parent/block serially, free the block, then resolve the root printer."
+  [ctx test-case indent]
   (call-out! ctx :test-case-block :pointer
              #((backend/function :test-case-block) ctx test-case indent %)))
 

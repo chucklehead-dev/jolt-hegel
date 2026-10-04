@@ -346,7 +346,7 @@ jobs:
 
       - name: Check fresh-process profiles, environment precedence and Antithesis output
         if: matrix.host == 'bb'
-        run: bb --classpath src:resources:script -m hegel.upgrade-env-test
+        run: bb upgrade-env-test
 
       - name: Probe bootstrap optional loading (Babashka)
         if: matrix.host == 'bb'
