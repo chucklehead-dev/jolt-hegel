@@ -10,9 +10,9 @@ authoritative header, named types, and named functions:
 ```clojure
 {:schema-version 1
  :library {:name "libhegel"
-           :version "0.36.3"
+           :version "0.44.1"
            :header {:repository "hegeldev/hegel-rust"
-                    :tag "v0.36.3"
+                    :tag "libhegel-v0.44.1"
                     :commit "..."
                     :path "hegel-c/include/hegel.h"}}
  :types {...}
@@ -92,8 +92,9 @@ libhegel 0.33.3 adds one opaque recursion scope and six scalar/pointer calls:
 scope released by `recursion-free`. The leaf-budget retry result requires the
 frontend to unwind and acknowledge it with `recursion-retry`; a finish-time
 mispricing retry has already discarded the attempt and restarts directly.
-Every recursive subvalue uses native label 35 so the shrinker can hoist a
-descendant subtree.
+Every recursive subvalue uses the recursive generator's component-derived
+opaque label so the shrinker can hoist a descendant subtree. Labels are no
+longer predefined enum constants; see [the 0.44 migration](LIBHEGEL-044-MIGRATION.md).
 
 ## Inspection and coverage
 
@@ -118,7 +119,7 @@ unsupported call to fail during a property:
 (abi/check-backend backend (abi/descriptor))
 ;; => {:backend :jvm
 ;;     :supported? true
-;;     :summary {:supported 103 :unsupported 0 :total 103}
+;;     :summary {:supported 128 :unsupported 0 :total 128}
 ;;     :functions {:generate-date
 ;;                 {:status :supported :route :jvm/ffm}
 ;;                 ...}}
@@ -139,8 +140,8 @@ registered by the selected runtime. Current route names are:
 The report is intended for CI, diagnostics, and ABI upgrades. Application code
 should not branch on the route.
 
-The supported Jolt, Babashka, and JVM backends describe all 103 functions in the
-current libhegel 0.36.3 descriptor. The jank and ClojureCLR generators also cover
+The supported Jolt, Babashka, and JVM backends describe all 128 functions in the
+current libhegel 0.44.1 descriptor. The jank and ClojureCLR generators also cover
 the complete descriptor at code-generation time, but those hosts currently run
 focused experimental semantic suites rather than the full supported-host parity
 matrix. Descriptor coverage therefore answers "can this backend express every

@@ -30,3 +30,8 @@ The Jolt 0.7.23 floor above describes the published `v0.5.0` contract. Current
 `deps.edn`, for the next release. CI retains a full Linux 0.8.1 minimum lane
 while its primary three-platform matrix uses Jolt 0.8.3. This does not
 retroactively alter the support contract of `v0.5.0`.
+
+## 2026-10-04 qualification update
+
+The primary three-platform matrix now uses official Jolt 0.8.17. The Linux
+0.8.1 compatibility lane and `v0.5.0`'s historical contract are unchanged.

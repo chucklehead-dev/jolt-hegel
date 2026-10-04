@@ -6,6 +6,25 @@ for v0.1.0 through v0.4.0, see the tag and release history in that repository.
 
 ## Unreleased
 
+- Upgrade the canonical native ABI and checksum-pinned installer to libhegel
+  0.44.1 (128 functions). Expose profiles/resolved settings, weighted rules,
+  per-machine step budgets, unbounded choices, native output blocks/worker
+  attribution, and automatic `clojure.test` Antithesis locations. Keep
+  sequential every-step invariants and supported-host uint64 fidelity.
+- Adopt engine-stamped capture and blob-run replay. `final?` no longer promises
+  one last/minimal invocation; normal diagnostics and assertion publication
+  select the freshest capture per reported origin. Retain native caveats and
+  conservatively reject caveated/unconfirmed failures as stable replay bundles.
+  Exclude confirmations from coverage and derive generator labels from kind
+  and components. These incompatible native/capture changes require the next
+  minor release; see `docs/LIBHEGEL-044-MIGRATION.md`.
+
+- Move the primary Jolt CI and release-verification matrix to the official,
+  checksum-pinned 0.8.17 release; retain the separate 0.8.1 compatibility lane.
+  Keep `g/vector` usable in standalone builds despite a current Scheme-emitter
+  name collision, and test replay settings against the resolved profile rather
+  than assuming development defaults in CI.
+
 - Qualify current `main` with official checksum-pinned Jolt 0.8.3 assets on
   Linux x86_64, Windows x86_64, and macOS arm64 while retaining a full Jolt
   0.8.1 Linux compatibility-floor lane. Release verification uses the same

@@ -57,7 +57,7 @@
                     :seed 20260819
                     :database ""
                     :verbosity :quiet}
-            []
+            [_ (g/integer 0 100)]
             (h/assume! (> (swap! calls inc) 1))))]
     (support/check! context "clojure.test properties preserve assumption control flow"
            (and (:passed? result)
@@ -80,7 +80,7 @@
     (support/check! context "a failing clojure.test assertion is shrunk and reproduced"
            (and (not (:passed? result))
                 (:reproduced? failure)
-                (= [10] @final-values)))
+                (= 10 (last @final-values))))
     (support/check! context "only the final minimal clojure.test failure is reported"
            (and (= [:fail] (mapv :type @events))
                 (str/includes? (pr-str (:actual (first @events))) "10")
@@ -146,6 +146,7 @@
         (with-redefs [t/report #(swap! events conj %)]
           (ht/with {:test-cases 1
                     :seed 17
+                    :nondeterminism-strictness :error
                     :database ""
                     :verbosity :quiet
                     :suppress-health-checks [:large-initial-test-case]}
@@ -158,5 +159,6 @@
            (and (= :error (:status result))
                 (true? (:flaky? result))
                 (= [:fail] (mapv :type @events))
-                (str/starts-with? (:actual event) "Flaky test detected:")
+                (or (str/starts-with? (:actual event) "Flaky test detected:")
+                    (str/starts-with? (:actual event) "Your test is non-deterministic:"))
                 (str/includes? (:message event) "Hegel seed: 17")))))

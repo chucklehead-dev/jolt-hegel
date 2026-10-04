@@ -244,7 +244,7 @@
            (and (not (:passed? result))
                 (:reproduced? failure)
                 (= "hegel.trace/operation-has-one-terminal" (:origin failure))
-                (= [5] @final-values)
+                (= 5 (last @final-values))
                 (= [:enter :return :return]
                    (mapv :phase
                          (-> result :final first :exception ex-data

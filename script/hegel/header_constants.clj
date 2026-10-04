@@ -16,24 +16,14 @@
    :status-interesting ["hegel_status_t" "HEGEL_STATUS_INTERESTING"]
    :run-status-passed ["hegel_run_status_t" "HEGEL_RUN_STATUS_PASSED"]
    :run-status-failed ["hegel_run_status_t" "HEGEL_RUN_STATUS_FAILED"]
-   :run-status-error ["hegel_run_status_t" "HEGEL_RUN_STATUS_ERROR"]
-   :run-status-failed-nondeterministic ["hegel_run_status_t" "HEGEL_RUN_STATUS_FAILED_NONDETERMINISTIC"]
-   :label-list ["hegel_label_t" "HEGEL_LABEL_LIST"]
-   :label-set ["hegel_label_t" "HEGEL_LABEL_SET"]
-   :label-map ["hegel_label_t" "HEGEL_LABEL_MAP"]
-   :label-tuple ["hegel_label_t" "HEGEL_LABEL_TUPLE"]
-   :label-one-of ["hegel_label_t" "HEGEL_LABEL_ONE_OF"]
-   :label-optional ["hegel_label_t" "HEGEL_LABEL_OPTIONAL"]
-   :label-flat-map ["hegel_label_t" "HEGEL_LABEL_FLAT_MAP"]
-   :label-filter ["hegel_label_t" "HEGEL_LABEL_FILTER"]
-   :label-mapped ["hegel_label_t" "HEGEL_LABEL_MAPPED"]
-   :label-stateful-rule ["hegel_label_t" "HEGEL_LABEL_STATEFUL_RULE"]
-   :label-recursive ["hegel_label_t" "HEGEL_LABEL_RECURSIVE"]})
+   :run-status-error ["hegel_run_status_t" "HEGEL_RUN_STATUS_ERROR"]})
 
 (def core-enum-maps
-  {:backend-values {"auto" ["hegel_backend_t" "HEGEL_BACKEND_AUTO"]
-                    "default" ["hegel_backend_t" "HEGEL_BACKEND_DEFAULT"]
+  {:backend-values {"default" ["hegel_backend_t" "HEGEL_BACKEND_DEFAULT"]
                     "urandom" ["hegel_backend_t" "HEGEL_BACKEND_URANDOM"]}
+   :nondeterminism-values {"quiet" ["hegel_nondeterminism_strictness_t" "HEGEL_NONDETERMINISM_QUIET"]
+                           "warn" ["hegel_nondeterminism_strictness_t" "HEGEL_NONDETERMINISM_WARN"]
+                           "error" ["hegel_nondeterminism_strictness_t" "HEGEL_NONDETERMINISM_ERROR"]}
    :verbosity-values {"quiet" ["hegel_verbosity_t" "HEGEL_VERBOSITY_QUIET"]
                       "normal" ["hegel_verbosity_t" "HEGEL_VERBOSITY_NORMAL"]
                       "verbose" ["hegel_verbosity_t" "HEGEL_VERBOSITY_VERBOSE"]

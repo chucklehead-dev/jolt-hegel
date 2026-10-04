@@ -70,15 +70,18 @@ These are case-level observations: a generator retry or discarded draw within
 an eventually valid case does not roll them back. Put final-value coverage
 events after the generator has returned when that is the intended obligation.
 
-libhegel's printed statistics cover **generation-phase** cases. Its C 0.36.3
+libhegel's printed statistics cover **generation-phase** cases. Its C 0.44.1
 ABI does not expose the native subphase of each returned test case. Therefore:
 
 - An explicitly configured `:phases [:generate]` run has frontend scope
-  `:generation-only` (automatic final failure replay is still separate).
+  `:generation-only` (engine-stamped confirmations remain excluded).
 - Other runs have frontend scope `:exploration`: native reuse, generation,
   targeting and shrinking are not individually identifiable. `:phases` records
-  the caller's supplied collection, or `:all` for the native default.
-- `:final-replay` counts the wrapper's explicit minimal-failure replay only.
+  the engine's resolved phase collection, including profile defaults.
+- `:final-replay` retains the freshest selected failing capture per reported
+  origin. Its historical key does not imply an extra frontend replay.
+  Engine-stamped confirmation cases, including passing confirmations, are
+  excluded from `:exploration` and can never satisfy coverage obligations.
   Non-final is **not** a synonym for generation. Direct `replay-bundle!` does
   not collect or assert run coverage.
 

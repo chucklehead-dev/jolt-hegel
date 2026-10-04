@@ -3,7 +3,7 @@
 ClojureCLR support is an active portability experiment, separate from the
 supported Jolt, Babashka, and JVM release matrix. Linux x86_64, Windows x86_64,
 and macOS arm64 CI run the shared property API against the official libhegel
-0.36.3 native artifacts. Ordinary Hegel code does not call a CLR-specific API.
+0.44.1 native artifacts. Ordinary Hegel code does not call a CLR-specific API.
 
 The implementation is merged on `main`. Hosted CI pins ClojureCLR 1.12.2 and
 .NET 8, verifies the ClojureCLR NuGet package checksum, and runs both the
@@ -25,7 +25,7 @@ smokes do not yet qualify arbitrary-precision values, exact binary32 bounds,
 or their complete shrinking/replay contracts. Do not assume parity from loading
 the shared namespace successfully.
 
-- all 103 libhegel symbols are resolved from the exact selected library;
+- all 128 libhegel symbols are resolved from the exact selected library;
 - fixed-width signed and unsigned integers, `size_t`, floating point, pointers,
   strings, out parameters, bulk bytes, and wide mixed signatures;
 - `date`, `time`, and nested `datetime` structs passed by value;

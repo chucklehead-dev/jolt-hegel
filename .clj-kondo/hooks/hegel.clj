@@ -4,9 +4,11 @@
 (defn clojure-test-with
   "Expose hegel.clojure-test/with bindings to clj-kondo as an ordinary let."
   [{:keys [node]}]
-  (let [[_ _options bindings & body] (:children node)]
+  (let [[_ options bindings & body] (:children node)]
     {:node (api/list-node
-            (list* (api/token-node 'let) bindings body))}))
+            [(api/token-node 'do)
+             options
+             (api/list-node (list* (api/token-node 'let) bindings body))])}))
 
 (defn try-catch-all
   "Expose the portable catch binding to clj-kondo as an ordinary catch."

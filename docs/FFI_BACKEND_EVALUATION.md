@@ -15,17 +15,22 @@ and drift controls, not a second signature definition. Citations below name
 `deftest`s rather than line numbers, which drift independently of the facts
 they support as the file is edited:
 
-- 103 functions, 34 types, and the type-kind census -- 1 void, 1 boolean, 9
+- 128 functions (libhegel 0.44.1), 34 types, and the type-kind census -- 1 void, 1 boolean, 9
   integer, 2 float, 1 string, 13 opaque, 6 struct, 1 function-pointer --
   asserted in `the-canonical-abi-is-the-single-definition-of-the-native-surface`.
-- 365 argument forms (277 `:pointer`, 70 scalar, 10 `:c/string`, 6
-  `:by-value`, 2 `:callback`), 103 return forms (101 scalar, 1 pointer, 1
+- 451 argument forms (347 `:pointer`, 77 scalar, 18 `:c/string`, 6
+  `:by-value`, 3 `:callback`), 128 return forms (126 scalar, 1 pointer, 1
   string; zero `:by-value` or aggregate returns), all 6 by-value aggregate
   arguments being date/time bounds (2 each on `:generate-date`,
   `:generate-time`, `:generate-datetime`), and the one callback type
-  `:hegel/output-callback` being used by exactly two functions (`:run-start`
-  and `:test-case-from-blob`) -- all asserted in
+  `:hegel/output-callback` being used by exactly three functions (`:run-start`,
+  `:run-start-blob`, and `:test-case-from-blob`) -- all asserted in
   `canonical-argument-and-return-forms-have-an-exact-census`.
+
+The arena measurements below retain their original Jolt 0.8.1/0.8.3 and
+libhegel 0.36.3 inputs; they are not new performance claims for 0.44.1.
+See [the migration guide](LIBHEGEL-044-MIGRATION.md) for the current runtime
+and unsigned-memory controls.
 
 ## Adapter comparison (`src/hegel/ffi/jolt.clj`, `src/hegel/ffi/babashka.clj`)
 

@@ -41,13 +41,19 @@
 (defn- caught [thunk]
   (try (thunk) nil (catch Throwable e e)))
 
-(deftest actual-result-exports-and-replays-without-starting-a-run
-  (let [result (h/run-test! {:test-cases 1 :seed 1 :database ""
+(deftest actual-result-exports-and-replays-without-starting-generation
+  (let [result (h/run-test! {:profile "base" :test-cases 1 :seed 1 :database ""
                              :name "not-exported" :verbosity :quiet}
                             failing-property)
         exported (codec/decode (codec/encode (bundle/from-result provenance result)))
         calls (atom 0)]
-    (is (= {:test-cases 1 :verbosity :quiet} (:replay-options result)))
+    (is (= {:test-cases 1 :verbosity :quiet :backend :default
+            :stateful-step-count 50 :nondeterminism-strictness :quiet
+            :unbounded-choices? false :derandomize? false
+            :report-multiple-failures? false
+            :phases [:explicit :reuse :generate :target :shrink]
+            :suppress-health-checks []}
+           (:replay-options result)))
     (is (false? (:passed? result)))
     (is (false? (:flaky? result)))
     (is (= 1 (:draw (ex-data (get-in result [:final 0 :exception])))))
@@ -115,6 +121,10 @@
         (is (= [{:path [:libhegel-version] :source :native-binding
                  :expected "0.33.3" :actual version/libhegel-version}]
                (:mismatches (h/replay-bundle! wrong (assoc step-bundle :provenance wrong) property)))))
+      (let [legacy (-> step-bundle
+                       (assoc-in [:provenance :libhegel-version] "0.36.3")
+                       (assoc-in [:options :backend] :auto))]
+        (is (= :incompatible (:status (h/replay-bundle! provenance legacy property)))))
       (is (empty? @calls)))))
 
 (deftest wrong-origin-pass-and-assumption-are-not-reproduction

@@ -46,7 +46,7 @@
   (let [descriptor (edn/read-string (host/resource-text "hegel/abi.edn"))]
     (is (= 1 (:schema-version descriptor)))
     (is (= "libhegel" (get-in descriptor [:library :name])))
-    (is (= "0.36.3" (get-in descriptor [:library :version])))))
+    (is (= "0.44.1" (get-in descriptor [:library :version])))))
 
 (deftest resource-text-missing-classpath-resource-keeps-contract
   (let [error (try

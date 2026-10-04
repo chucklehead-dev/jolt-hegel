@@ -54,6 +54,9 @@
         (h/run-test!
          {:test-cases 1 :seed 27 :database "" :verbosity :quiet}
          (fn [_]
+           ;; Native 0.36.6+ correctly rejects a no-choice assumption as
+           ;; unsatisfiable. Exercise a genuinely drawn rejected case instead.
+           (h/draw! (g/boolean))
            (h/assume! (> (swap! calls inc) 1))))
         events (atom [])
         runner (report/counting-runner {:reporter #(swap! events conj %)})
@@ -120,7 +123,7 @@
     (require! "shared shrinking and final replay"
               (and (not (:passed? result))
                    (= :failed (:status result))
-                   (= [500] @final-values)
+                   (= 500 (last @final-values))
                    (= "hegel.clr-property-smoke/threshold" (:origin failure))
                    (= "AAEAAAAACgIAAAD0AQ==" (:reproduction-blob failure))
                    (:reproduced? failure)
@@ -195,9 +198,9 @@
 
 (defn -main [& _]
   (let [report (abi/backend-report)]
-    (require! "canonical ABI coverage is 103/103"
+    (require! "canonical ABI coverage is 128/128"
               (and (:supported? report)
-                   (= {:supported 103 :unsupported 0 :total 103}
+                   (= {:supported 128 :unsupported 0 :total 128}
                       (:summary report)))
               {:report report}))
   (check-primitive-and-composite-generators!)

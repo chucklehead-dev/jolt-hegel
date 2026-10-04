@@ -5,6 +5,7 @@
             [hegel.ffi :as hffi]
             [hegel.generator :as g]
             [hegel.host :as host]
+            [hegel.latest-native-test]
             [hegel.libhegel-upgrade-test]
             [hegel.stateful.concurrent :as concurrent]
             [hegel.stateful :as hs]
@@ -345,9 +346,9 @@
                    (dotimes [_ 10000]
                      (h/draw! (g/integer))))
                  (inc state)))]})))]
-    (support/check! context "running out of draw data inside a rule remains an overrun"
+    (support/check! context "suppressed size limits permit more than the historical 8192 choices"
            (and (:passed? result)
-                (= 1 (:overrun-test-cases result))
+                (zero? (:overrun-test-cases result))
                 (pos? (:valid-test-cases result)))))
   (let [result
         (h/run-test!
@@ -1425,6 +1426,6 @@
                            (= [:join] @events)))))
 
 (defn libhegel-upgrade-contract [context]
-  (let [result (t/run-tests 'hegel.libhegel-upgrade-test)]
+  (let [result (t/run-tests 'hegel.libhegel-upgrade-test 'hegel.latest-native-test)]
     (support/check! context "libhegel upgrade contract suite"
                     (zero? (+ (:fail result) (:error result))))))

@@ -297,7 +297,7 @@
     (support/check! context "date failures shrink through direct aggregate bindings"
            (not (:passed? result)))
     (support/check! context "date shrinking finds and replays the minimal leap-day failure"
-           (= ["2024-02-29"] @final-dates))
+           (= "2024-02-29" (last @final-dates)))
     (support/check! context "the temporal counterexample is reproduced, not flaky"
            (and (:reproduced? failure) (false? (:flaky? result))))))
 
@@ -543,7 +543,7 @@
                          {:hegel/origin origin
                           :value value}))))))]
     {:result result
-     :value (first @final-values)
+     :value (some-> result :failures first :exception ex-data :value)
      :failure (first (:failures result))}))
 
 (defn combinator-shrink-quality [context]
@@ -735,14 +735,14 @@
                     (> first-stop-index retry-index))))
     (support/check! context "leaf-budget retry preserves nested recursive span order"
            (= [[:new 2 1]
-               [:start hffi/label-recursive]
+               [:start (g/generator-label generator)]
                [:branch 0 true]
-               [:start hffi/label-mapped]
-               [:start hffi/label-recursive]
+               [:start (g/generator-label (g/fmap identity generator))]
+               [:start (g/generator-label generator)]
                [:branch 1 false]
                [:leaf :retry]
                [:retry]
-               [:start hffi/label-recursive]
+               [:start (g/generator-label generator)]
                [:branch 0 false]
                [:leaf :ok]
                [:finish :ok]
