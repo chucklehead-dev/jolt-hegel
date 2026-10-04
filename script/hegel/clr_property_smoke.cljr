@@ -54,6 +54,9 @@
         (h/run-test!
          {:test-cases 1 :seed 27 :database "" :verbosity :quiet}
          (fn [_]
+           ;; Native 0.36.6+ correctly rejects a no-choice assumption as
+           ;; unsatisfiable. Exercise a genuinely drawn rejected case instead.
+           (h/draw! (g/boolean))
            (h/assume! (> (swap! calls inc) 1))))
         events (atom [])
         runner (report/counting-runner {:reporter #(swap! events conj %)})

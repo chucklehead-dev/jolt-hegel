@@ -149,6 +149,20 @@
                           (fn [_] (hs/run! {:initial-state 0 :step-count 0
                                             :rules [(hs/rule :inc inc)]}))))))))
 
+(deftest replay-records-the-resolved-profile-not-development-assumptions
+  (h/register-profile! "jolt_hegel_replay_profile"
+                       {:profile "base" :database "" :test-cases 1
+                        :derandomize? true :suppress-health-checks [:too-slow]})
+  (let [result (h/run-test! {:profile "jolt_hegel_replay_profile"
+                            :seed 1 :verbosity :quiet}
+                           (fn [_] (throw (ex-info "profile failure"
+                                                   {:hegel/origin "upgrade/profile"}))))]
+    (is (false? (:passed? result)))
+    (is (false? (:flaky? result)))
+    (is (= {:derandomize? true :suppress-health-checks [:too-slow]}
+           (select-keys (:replay-options result)
+                        [:derandomize? :suppress-health-checks])))))
+
 (defn threshold-case [_]
   (let [n (h/draw! (g/integer 0 100) :n)]
     (when (>= n 7)

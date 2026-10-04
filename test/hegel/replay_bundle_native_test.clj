@@ -42,7 +42,7 @@
   (try (thunk) nil (catch Throwable e e)))
 
 (deftest actual-result-exports-and-replays-without-starting-generation
-  (let [result (h/run-test! {:test-cases 1 :seed 1 :database ""
+  (let [result (h/run-test! {:profile "base" :test-cases 1 :seed 1 :database ""
                              :name "not-exported" :verbosity :quiet}
                             failing-property)
         exported (codec/decode (codec/encode (bundle/from-result provenance result)))

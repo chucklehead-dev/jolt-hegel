@@ -1207,10 +1207,12 @@
                   (draw-without-replacement
                    test-case min-size max-size element-count)))))))))
 
-(defn vector
-  "Generate a vector. Options: :size, :min-size, :max-size, :unique?."
+(defn- vector-generator
+  ;; Jolt's standalone emitter currently uses a bare Scheme `vector` for map
+  ;; literals. A recursively named `vector` captures that primitive when a
+  ;; validation helper is inlined. Keep the public var but not that local name.
   ([elements]
-   (vector {} elements))
+   (vector-generator {} elements))
   ([opts elements]
    (require-generator! "vector" elements)
    (let [[min-size max-size] (collection-bounds "vector"
@@ -1233,6 +1235,10 @@
                   collection "duplicate element")
                  [false result])
                [true (conj result value)])))))))))
+
+(def ^{:arglists '([elements] [opts elements])} vector
+  "Generate a vector. Options: :size, :min-size, :max-size, :unique?."
+  vector-generator)
 
 (defn- split-by-sizes [payload sizes]
   (loop [remaining (vec payload)

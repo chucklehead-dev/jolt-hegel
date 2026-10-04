@@ -21,6 +21,9 @@ for v0.1.0 through v0.4.0, see the tag and release history in that repository.
 
 - Move the primary Jolt CI and release-verification matrix to the official,
   checksum-pinned 0.8.17 release; retain the separate 0.8.1 compatibility lane.
+  Keep `g/vector` usable in standalone builds despite a current Scheme-emitter
+  name collision, and test replay settings against the resolved profile rather
+  than assuming development defaults in CI.
 
 - Qualify current `main` with official checksum-pinned Jolt 0.8.3 assets on
   Linux x86_64, Windows x86_64, and macOS arm64 while retaining a full Jolt
