@@ -2,6 +2,7 @@
   "Low-level, ownership-aware bindings to libhegel's C ABI."
   (:require [hegel.ffi.backend :as backend]
             [hegel.internal.signed-bytes :as signed-bytes]
+            [hegel.label :as label]
             [hegel.host :as host]
             [hegel.native :as native]
             [hegel.version :as version]))
@@ -37,7 +38,6 @@
 (def c-settings-free (backend/function :settings-free))
 (def c-settings-set-backend (backend/function :settings-set-backend))
 (def c-settings-set-test-cases (backend/function :settings-set-test-cases))
-(def c-settings-set-stateful-step-count (backend/function :settings-set-stateful-step-count))
 (def c-settings-set-verbosity (backend/function :settings-set-verbosity))
 (def c-settings-set-seed (backend/function :settings-set-seed))
 (def c-settings-set-derandomize (backend/function :settings-set-derandomize))
@@ -54,8 +54,8 @@
 (def c-run-free (backend/function :run-free))
 (def c-test-case-from-blob (backend/function :test-case-from-blob))
 (def c-test-case-free (backend/function :test-case-free))
-(def c-test-case-is-nondeterministic
-  (backend/function :test-case-is-nondeterministic))
+(def c-test-case-should-capture
+  (backend/function :test-case-should-capture))
 (def c-test-case-clone (backend/function :test-case-clone))
 (def c-generate-integer (backend/function :generate-integer))
 (def c-generate-integer-big (backend/function :generate-integer-big))
@@ -173,19 +173,18 @@
 (def run-status-passed 0)
 (def run-status-failed 1)
 (def run-status-error 2)
-(def run-status-failed-nondeterministic 3)
 
-(def label-list 1)
-(def label-set 3)
-(def label-map 5)
-(def label-tuple 7)
-(def label-one-of 8)
-(def label-optional 9)
-(def label-flat-map 11)
-(def label-filter 12)
-(def label-mapped 13)
-(def label-stateful-rule 31)
-(def label-recursive 35)
+(def label-list (label/from-name "jolt-hegel.list"))
+(def label-set (label/from-name "jolt-hegel.set"))
+(def label-map (label/from-name "jolt-hegel.map"))
+(def label-tuple (label/from-name "jolt-hegel.tuple"))
+(def label-one-of (label/from-name "jolt-hegel.one-of"))
+(def label-optional (label/from-name "jolt-hegel.optional"))
+(def label-flat-map (label/from-name "jolt-hegel.bind"))
+(def label-filter (label/from-name "jolt-hegel.filter"))
+(def label-mapped (label/from-name "jolt-hegel.fmap"))
+(def label-stateful-rule (label/from-name "jolt-hegel.stateful.rule"))
+(def label-recursive (label/from-name "jolt-hegel.recursive"))
 
 (def state-machine-done
   "Sentinel returned at a state-machine round or machine boundary."
@@ -351,9 +350,80 @@
   (c-context-free ctx)
   nil)
 
-(defn settings-new! [ctx]
-  (call-out! ctx :settings-new :pointer
-             #(c-settings-new ctx %)))
+(defn settings-new!
+  ([ctx]
+   (call-out! ctx :settings-new :pointer #(c-settings-new ctx %)))
+  ([ctx profile]
+   (with-c-string
+    profile
+    (fn [name]
+      (call-out! ctx :settings-new-for-profile :pointer
+                 #((backend/function :settings-new-for-profile) ctx name %))))))
+
+(defn settings-set-nondeterminism-strictness! [ctx settings value]
+  (check! ctx :settings-set-nondeterminism-strictness
+          ((backend/function :settings-set-nondeterminism-strictness) ctx settings value)))
+
+(defn settings-set-unbounded-choices! [ctx settings value]
+  (check! ctx :settings-set-unbounded-choices
+          ((backend/function :settings-set-unbounded-choices) ctx settings (if value 1 0))))
+
+(defn settings-set-print-blob! [ctx settings value]
+  (check! ctx :settings-set-print-blob
+          ((backend/function :settings-set-print-blob) ctx settings (if value 1 0))))
+
+(defn settings-set-test-location! [ctx settings {:keys [file line class-name function]}]
+  (with-c-string file
+    (fn [file-ptr]
+      (with-c-string class-name
+        (fn [class-ptr]
+          (with-c-string function
+            #(check! ctx :settings-set-test-location
+                     ((backend/function :settings-set-test-location)
+                      ctx settings file-ptr line class-ptr %))))))))
+
+(defn settings-register-profile! [ctx name settings]
+  (with-c-string name
+    #(check! ctx :settings-register-profile
+             ((backend/function :settings-register-profile) ctx % settings))))
+
+(defn set-default-profile! [ctx name]
+  (with-c-string name
+    #(check! ctx :set-default-profile
+             ((backend/function :set-default-profile) ctx %))))
+
+(defn settings-snapshot!
+  "Copy resolved settings, including borrowed database text, before release."
+  [ctx settings]
+  (let [scalars {:backend [:settings-get-backend :int]
+                 :test-cases [:settings-get-test-cases :uint64]
+                 :verbosity [:settings-get-verbosity :int]
+                 :nondeterminism-strictness [:settings-get-nondeterminism-strictness :int]
+                 :derandomize? [:settings-get-derandomize :uint8]
+                 :report-multiple-failures? [:settings-get-report-multiple-failures :uint8]
+                 :show-statistics? [:settings-get-show-statistics :uint8]
+                 :unbounded-choices? [:settings-get-unbounded-choices :uint8]
+                 :print-blob? [:settings-get-print-blob :uint8]
+                 :phases [:settings-get-phases :int]
+                 :suppress-health-checks [:settings-get-suppress-health-check :int]}
+        values (into {}
+                     (map (fn [[key [op type]]]
+                            [key (let [value (call-out! ctx op type
+                                                       #((backend/function op) ctx settings %))]
+                                   (if (= :uint8 type) (not (zero? value)) value))]))
+                     scalars)
+        seed (backend/with-native-scope
+              (fn []
+                (let [value (backend/alloc (backend/sizeof :uint64))]
+                  (try
+                    (let [present? (call-out! ctx :settings-get-seed :uint8
+                                             #((backend/function :settings-get-seed)
+                                               ctx settings value %))]
+                      (when-not (zero? present?) (backend/read-value value :uint64)))
+                    (finally (backend/free value))))))]
+    (assoc values :seed seed
+           :database (call-nullable-string-out! ctx :settings-get-database
+                      #((backend/function :settings-get-database) ctx settings %)))))
 
 (defn settings-free! [ctx settings]
   (c-settings-free ctx settings)
@@ -367,9 +437,6 @@
   (check! ctx :settings-set-test-cases
           (c-settings-set-test-cases ctx settings value)))
 
-(defn settings-set-stateful-step-count! [ctx settings value]
-  (check! ctx :settings-set-stateful-step-count
-          (c-settings-set-stateful-step-count ctx settings value)))
 
 (defn settings-set-verbosity! [ctx settings value]
   (check! ctx :settings-set-verbosity
@@ -416,6 +483,13 @@
   (call-out! ctx :run-start :pointer
              #(c-run-start ctx settings backend/null backend/null %)))
 
+(defn run-start-blob! [ctx settings blob]
+  (with-c-string blob
+    (fn [ptr]
+      (call-out! ctx :run-start-blob :pointer
+                 #((backend/function :run-start-blob)
+                   ctx settings ptr backend/null backend/null %)))))
+
 (defn next-test-case! [ctx run]
   (let [handle (call-out! ctx :next-test-case :pointer
                           #(c-next-test-case ctx run %))]
@@ -446,16 +520,24 @@
   (c-test-case-free ctx test-case)
   nil)
 
-(defn test-case-nondeterministic?
-  "True when TEST-CASE belongs to a run already declared nondeterministic."
+(defn test-case-should-capture?
+  "True for an engine-stamped execution whose failure diagnostics should be captured."
   [ctx test-case]
   (not (zero?
-        (call-out! ctx :test-case-is-nondeterministic :uint8
-                   #(c-test-case-is-nondeterministic ctx test-case %)))))
+        (call-out! ctx :test-case-should-capture :uint8
+                   #(c-test-case-should-capture ctx test-case %)))))
 
 (defn test-case-clone! [ctx test-case]
-  (call-out! ctx :test-case-clone :pointer
+  (call-draw-out! ctx :test-case-clone :pointer
              #(c-test-case-clone ctx test-case %)))
+
+(defn test-case-block! [ctx test-case indent]
+  (call-out! ctx :test-case-block :pointer
+             #((backend/function :test-case-block) ctx test-case indent %)))
+
+(defn test-case-set-worker! [ctx test-case worker]
+  (check! ctx :test-case-set-worker
+          ((backend/function :test-case-set-worker) ctx test-case worker)))
 
 (defn generate-integer! [ctx test-case min-value max-value]
   (backend/with-native-scope
@@ -708,6 +790,25 @@
 (defn start-span! [ctx test-case label]
   (check-draw! ctx :start-span (c-start-span ctx test-case label)))
 
+(defn label-from-name! [ctx name]
+  (with-c-string name
+    (fn [ptr]
+      (call-out! ctx :label-from-name :uint64
+                 #((backend/function :label-from-name) ctx ptr %)))))
+
+(defn label-combine! [ctx labels]
+  (backend/with-native-scope
+   (fn []
+     (let [labels (vec labels)
+           width (backend/sizeof :uint64)
+           ptr (backend/alloc (max 1 (* (count labels) width)))]
+       (try
+         (doseq [[index value] (map-indexed vector labels)]
+           (backend/write-value ptr :uint64 (* index width) value))
+         (call-out! ctx :label-combine :uint64
+                    #((backend/function :label-combine) ctx ptr (count labels) %))
+         (finally (backend/free ptr)))))))
+
 (defn stop-span!
   ([ctx test-case]
    (stop-span! ctx test-case false))
@@ -825,83 +926,100 @@
   (c-state-machine-free ctx state-machine)
   nil)
 
+(defn- with-scalar-array [type values call]
+  (backend/with-native-scope
+   (fn []
+     (let [values (vec values)
+           width (backend/sizeof type)
+           pointer (backend/alloc (max 1 (* (count values) width)))]
+       (try
+         (doseq [[index value] (map-indexed vector values)]
+           (backend/write-value pointer type (* index width) value))
+         (call pointer)
+         (finally (backend/free pointer)))))))
+
 (defn new-state-machine-with-concurrency!
-  "Low-level, concurrency-aware state-machine constructor. `rule-groups` is a
-  sequence of int64 group ids parallel to `rule-names`. All arguments are
-  threaded through to libhegel exactly as given.
-  Returns {:state-machine <owned handle> :concurrency <int64>}, where
-  :concurrency is libhegel's selected concurrency, which may differ from
-  `max-concurrency`. The machine is freed rather than leaked if anything
-  fails after a successful native creation."
-  [ctx test-case rule-names rule-groups invariant-names
-   min-concurrency max-concurrency]
-  (let [rule-names (vec rule-names)
-        rule-groups (vec rule-groups)
-        invariant-names (vec invariant-names)]
-    (when-not (= (count rule-names) (count rule-groups))
-      (throw
-       (ex-info
-        "state-machine rule groups must be parallel to rule names"
-        {:type ::invalid-argument
-         :argument :rule-groups
-         :expected (count rule-names)
-         :actual (count rule-groups)})))
-    (with-c-string-array
+  "Create an owned machine and return its engine-selected concurrency.
+  Optional :rule-weights and :invariant-always-check vectors are parallel to
+  their names; :step-count is a per-machine positive budget (default 50)."
+  ([ctx test-case rule-names rule-groups invariant-names min-concurrency max-concurrency]
+   (new-state-machine-with-concurrency!
+    ctx test-case rule-names rule-groups invariant-names
+    min-concurrency max-concurrency {}))
+  ([ctx test-case rule-names rule-groups invariant-names min-concurrency max-concurrency opts]
+   (let [rule-names (vec rule-names)
+         rule-groups (vec rule-groups)
+         invariant-names (vec invariant-names)
+         weights (or (:rule-weights opts) (repeat (count rule-names) 1.0))
+         flags (or (:invariant-always-check opts) (repeat (count invariant-names) false))
+         steps (get opts :step-count 50)]
+     (when-not (= (count rule-names) (count rule-groups))
+       (throw (ex-info "state-machine rule groups must be parallel to rule names"
+                       {:type ::invalid-argument :hegel/usage-error? true
+                        :argument :rule-groups :expected (count rule-names)
+                        :actual (count rule-groups)})))
+     (when-not (and (= (count rule-names) (count rule-groups) (count weights))
+                    (= (count invariant-names) (count flags))
+                    (integer? steps) (<= 1 steps 9223372036854775807)
+                    (every? #(and (number? %) (< 0.0 (double %) ##Inf)) weights)
+                    (every? #(or (= true %) (= false %)) flags))
+       (throw (ex-info "invalid parallel state-machine arguments"
+                       {:type ::invalid-argument :hegel/usage-error? true})))
+     (with-c-string-array
       rule-names
       (fn [rules rule-count]
         (with-int64-array
-          rule-groups
-          (fn [rule-groups-ptr]
-            (with-c-string-array
-              invariant-names
-              (fn [invariants invariant-count]
-                (backend/with-native-scope
-                 (fn []
-                   (with-out-buffer
-                    :pointer
-                    (fn [machine-out]
-                      (with-out-buffer
-                       :int64
-                       (fn [concurrency-out]
-                       (check-draw!
-                        ctx :new-state-machine
-                        (c-new-state-machine
-                         ctx test-case rules rule-groups-ptr rule-count
-                         invariants invariant-count
-                         min-concurrency max-concurrency
-                         machine-out concurrency-out))
-                       (let [machine (backend/read-value machine-out :pointer)]
-                         (host/try-catch-all
-                          {:state-machine machine
-                           :concurrency (backend/read-value concurrency-out :int64)}
-                          error
-                          (do
-                            (host/try-catch-all
-                             (state-machine-free! ctx machine)
-                             _cleanup nil)
-                            (throw error))))))))))))))))))
+         rule-groups
+         (fn [groups]
+           (with-scalar-array
+            :double (map double weights)
+            (fn [weight-ptr]
+              (with-c-string-array
+               invariant-names
+               (fn [invariants invariant-count]
+                 (with-scalar-array
+                  :uint8 (map #(if % 1 0) flags)
+                  (fn [flag-ptr]
+                    (backend/with-native-scope
+                     (fn []
+                       (with-out-buffer
+                        :pointer
+                        (fn [machine-out]
+                          (with-out-buffer
+                           :int64
+                           (fn [concurrency-out]
+                             (check-draw!
+                              ctx :new-state-machine
+                              (c-new-state-machine
+                               ctx test-case rules groups weight-ptr rule-count
+                               invariants flag-ptr invariant-count
+                               min-concurrency max-concurrency steps
+                               machine-out concurrency-out))
+                             (let [machine (backend/read-value machine-out :pointer)]
+                               (host/try-catch-all
+                                {:state-machine machine
+                                 :concurrency (backend/read-value concurrency-out :int64)}
+                                error
+                                (do
+                                  (host/try-catch-all
+                                   (state-machine-free! ctx machine) _cleanup nil)
+                                  (throw error)))))))))))))))))))))))
 
 (defn new-state-machine!
-  "Sequential compatibility wrapper: zero rule groups, min = max = 1
-  concurrency. Returns only the owned machine handle. If libhegel selects a
-  concurrency other than 1, the machine is freed before throwing."
-  [ctx test-case rule-names invariant-names]
-  (let [rule-names (vec rule-names)
-        {:keys [state-machine concurrency]}
-        (new-state-machine-with-concurrency!
-         ctx test-case rule-names (repeat (count rule-names) 0)
-         invariant-names 1 1)]
-    (when-not (= 1 concurrency)
-      (host/try-catch-all
-       (state-machine-free! ctx state-machine)
-       _cleanup nil)
-      (throw
-       (ex-info
-        (str "libhegel returned unexpected sequential "
-             "state-machine concurrency " concurrency)
-        {:type ::invalid-state-machine-concurrency
-         :concurrency concurrency})))
-    state-machine))
+  "Create a sequential machine. Optional settings use the per-machine ABI."
+  ([ctx test-case rule-names invariant-names]
+   (new-state-machine! ctx test-case rule-names invariant-names {}))
+  ([ctx test-case rule-names invariant-names opts]
+   (let [rule-names (vec rule-names)
+         {:keys [state-machine concurrency]}
+         (new-state-machine-with-concurrency!
+          ctx test-case rule-names (repeat (count rule-names) 0)
+          invariant-names 1 1 opts)]
+     (when-not (= 1 concurrency)
+       (host/try-catch-all (state-machine-free! ctx state-machine) _cleanup nil)
+       (throw (ex-info "sequential machine selected unexpected concurrency"
+                       {:type ::invalid-state-machine-concurrency :concurrency concurrency})))
+     state-machine)))
 
 (defn state-machine-next-group! [ctx test-case state-machine]
   (let [group
@@ -1083,6 +1201,10 @@
    ctx :failure-reproduction-blob
    #(c-failure-reproduction-blob ctx failure %)))
 
+(defn failure-caveat! [ctx failure]
+  (call-nullable-string-out! ctx :failure-caveat
+                            #((backend/function :failure-caveat) ctx failure %)))
+
 (defn note! [ctx test-case text]
   (with-utf8-buffer
     text
@@ -1180,7 +1302,8 @@
   (backend/layout :hegel/printer-value-result))
 
 (defn printer-value!
-  "Resolve `printer` to its rendered UTF-8 text.
+  "Read a root printer's rendered UTF-8 text. Block/deferred regions require
+  printer-resolve! after every writer has finished, before reading.
   The result struct starts zeroed to {NULL,0}; its data is decoded before the
   engine-owned buffer is released, the host result struct is always freed, and
   a primary call/decode error is preserved over any cleanup failure without a

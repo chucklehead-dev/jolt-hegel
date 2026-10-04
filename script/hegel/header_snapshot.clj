@@ -5,7 +5,7 @@
             [clojure.string :as str])
   (:import [java.security MessageDigest]))
 
-(def fixture-dir "test/fixtures/hegel-0.36.3")
+(def fixture-dir "test/fixtures/hegel-0.44.1")
 (defn fail! [message data] (throw (ex-info (str "header snapshot parse failed: " message) data)))
 (defn read-utf8 [path] (slurp (io/file path) :encoding "UTF-8"))
 (defn sha256 [bytes]
@@ -70,8 +70,9 @@
       (= s "int32_t") "int32" (= s "uint32_t") "uint32"
       (= s "int64_t") "int64" (= s "uint64_t") "uint64"
       (= s "size_t") "size" (= s "float") "float" (= s "double") "double"
-      (= s "bool *") "bool*"
+      (#{"bool *" "const bool *"} s) "bool*"
       (= s "double *") "double*" (= s "float *") "float*"
+      (= s "const double *") "double*"
       (re-matches #"HegelRecursion \*+" s) s
       (re-matches #"(?:const )?(?:u?int(?:8|16|32|64)_t|size_t) \*" s) s
       (= s "void *") "void*" (= s "hegel_output_callback_t") "output-callback"
@@ -79,6 +80,7 @@
       (= s "const char *const *") "const-char**"
       (= s "const char **") "const-char**"
       (re-matches #"(?:const )?hegel_[a-z0-9_]+_t \*+" s) s
+      (re-matches #"(?:const )?hegel_(?:backend|verbosity|nondeterminism_strictness)_t \*" s) s
       (re-matches #"(?:const )?hegel_[a-z0-9_]+_t" s) s
       :else (fail! (str "unsupported C type " (pr-str s)) {:type s}))))
 (defn parse-field [field]

@@ -83,6 +83,7 @@ using hegel_jank_fn_context_last_error = char const * (*) (hegel_jank_hegel_cont
 using hegel_jank_fn_context_new = hegel_jank_hegel_context * (*) (void); // hegel_context_new
 using hegel_jank_fn_event = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, char const *); // hegel_event
 using hegel_jank_fn_event_value = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, double, char const *); // hegel_event_value
+using hegel_jank_fn_failure_caveat = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_failure *, char const * *); // hegel_failure_caveat
 using hegel_jank_fn_failure_free = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_failure *); // hegel_failure_free
 using hegel_jank_fn_failure_origin = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_failure *, char const * *); // hegel_failure_origin
 using hegel_jank_fn_failure_reproduction_blob = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_failure *, char const * *); // hegel_failure_reproduction_blob
@@ -100,11 +101,13 @@ using hegel_jank_fn_generate_string = std::int32_t (*) (hegel_jank_hegel_context
 using hegel_jank_fn_generate_string_result_free = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_string_result *); // hegel_generate_string_result_free
 using hegel_jank_fn_generate_time = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, hegel_jank_hegel_time, hegel_jank_hegel_time, hegel_jank_hegel_time *); // hegel_generate_time
 using hegel_jank_fn_generate_uuid = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, std::uint8_t, std::uint8_t, std::uint8_t *); // hegel_generate_uuid
+using hegel_jank_fn_label_combine = std::int32_t (*) (hegel_jank_hegel_context *, std::uint64_t *, std::size_t, std::uint64_t *); // hegel_label_combine
+using hegel_jank_fn_label_from_name = std::int32_t (*) (hegel_jank_hegel_context *, char const *, std::uint64_t *); // hegel_label_from_name
 using hegel_jank_fn_mark_complete = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, std::uint32_t, char const *); // hegel_mark_complete
 using hegel_jank_fn_new_collection = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, std::uint64_t, std::uint64_t, hegel_jank_hegel_collection * *); // hegel_new_collection
 using hegel_jank_fn_new_pool = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, hegel_jank_hegel_pool * *); // hegel_new_pool
 using hegel_jank_fn_new_recursion = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, std::uint64_t, std::uint64_t, hegel_jank_hegel_recursion * *); // hegel_new_recursion
-using hegel_jank_fn_new_state_machine = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, char const * *, std::int64_t *, std::size_t, char const * *, std::size_t, std::int64_t, std::int64_t, hegel_jank_hegel_state_machine * *, std::int64_t *); // hegel_new_state_machine
+using hegel_jank_fn_new_state_machine = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, char const * *, std::int64_t *, double *, std::size_t, char const * *, std::uint8_t *, std::size_t, std::int64_t, std::int64_t, std::int64_t, hegel_jank_hegel_state_machine * *, std::int64_t *); // hegel_new_state_machine
 using hegel_jank_fn_next_test_case = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_run *, hegel_jank_hegel_test_case * *); // hegel_next_test_case
 using hegel_jank_fn_note = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, std::uint8_t *, std::size_t); // hegel_note
 using hegel_jank_fn_pool_add = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, hegel_jank_hegel_pool *, std::int64_t *); // hegel_pool_add
@@ -144,19 +147,39 @@ using hegel_jank_fn_run_result_failure_count = std::int32_t (*) (hegel_jank_hege
 using hegel_jank_fn_run_result_free = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_run_result *); // hegel_run_result_free
 using hegel_jank_fn_run_result_status = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_run_result *, std::int32_t *); // hegel_run_result_status
 using hegel_jank_fn_run_start = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, hegel_jank_hegel_output_callback, void *, hegel_jank_hegel_run * *); // hegel_run_start
+using hegel_jank_fn_run_start_blob = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, char const *, hegel_jank_hegel_output_callback, void *, hegel_jank_hegel_run * *); // hegel_run_start_blob
+using hegel_jank_fn_set_default_profile = std::int32_t (*) (hegel_jank_hegel_context *, char const *); // hegel_set_default_profile
 using hegel_jank_fn_settings_free = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *); // hegel_settings_free
+using hegel_jank_fn_settings_get_backend = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, std::uint32_t *); // hegel_settings_get_backend
+using hegel_jank_fn_settings_get_database = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, char const * *); // hegel_settings_get_database
+using hegel_jank_fn_settings_get_derandomize = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, std::uint8_t *); // hegel_settings_get_derandomize
+using hegel_jank_fn_settings_get_nondeterminism_strictness = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, std::uint32_t *); // hegel_settings_get_nondeterminism_strictness
+using hegel_jank_fn_settings_get_phases = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, std::uint32_t *); // hegel_settings_get_phases
+using hegel_jank_fn_settings_get_print_blob = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, std::uint8_t *); // hegel_settings_get_print_blob
+using hegel_jank_fn_settings_get_report_multiple_failures = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, std::uint8_t *); // hegel_settings_get_report_multiple_failures
+using hegel_jank_fn_settings_get_seed = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, std::uint64_t *, std::uint8_t *); // hegel_settings_get_seed
+using hegel_jank_fn_settings_get_show_statistics = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, std::uint8_t *); // hegel_settings_get_show_statistics
+using hegel_jank_fn_settings_get_suppress_health_check = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, std::uint32_t *); // hegel_settings_get_suppress_health_check
+using hegel_jank_fn_settings_get_test_cases = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, std::uint64_t *); // hegel_settings_get_test_cases
+using hegel_jank_fn_settings_get_unbounded_choices = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, std::uint8_t *); // hegel_settings_get_unbounded_choices
+using hegel_jank_fn_settings_get_verbosity = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, std::uint32_t *); // hegel_settings_get_verbosity
 using hegel_jank_fn_settings_new = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings * *); // hegel_settings_new
+using hegel_jank_fn_settings_new_for_profile = std::int32_t (*) (hegel_jank_hegel_context *, char const *, hegel_jank_hegel_settings * *); // hegel_settings_new_for_profile
+using hegel_jank_fn_settings_register_profile = std::int32_t (*) (hegel_jank_hegel_context *, char const *, hegel_jank_hegel_settings *); // hegel_settings_register_profile
 using hegel_jank_fn_settings_set_backend = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, std::uint32_t); // hegel_settings_set_backend
 using hegel_jank_fn_settings_set_database = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, char const *); // hegel_settings_set_database
 using hegel_jank_fn_settings_set_database_key = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, char const *); // hegel_settings_set_database_key
 using hegel_jank_fn_settings_set_derandomize = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, std::uint8_t); // hegel_settings_set_derandomize
+using hegel_jank_fn_settings_set_nondeterminism_strictness = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, std::uint32_t); // hegel_settings_set_nondeterminism_strictness
 using hegel_jank_fn_settings_set_phases = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, std::uint32_t); // hegel_settings_set_phases
+using hegel_jank_fn_settings_set_print_blob = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, std::uint8_t); // hegel_settings_set_print_blob
 using hegel_jank_fn_settings_set_report_multiple_failures = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, std::uint8_t); // hegel_settings_set_report_multiple_failures
 using hegel_jank_fn_settings_set_seed = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, std::uint64_t, std::uint8_t); // hegel_settings_set_seed
 using hegel_jank_fn_settings_set_show_statistics = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, std::uint8_t); // hegel_settings_set_show_statistics
-using hegel_jank_fn_settings_set_stateful_step_count = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, std::int64_t); // hegel_settings_set_stateful_step_count
 using hegel_jank_fn_settings_set_suppress_health_check = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, std::uint32_t); // hegel_settings_set_suppress_health_check
 using hegel_jank_fn_settings_set_test_cases = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, std::uint64_t); // hegel_settings_set_test_cases
+using hegel_jank_fn_settings_set_test_location = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, char const *, std::uint32_t, char const *, char const *); // hegel_settings_set_test_location
+using hegel_jank_fn_settings_set_unbounded_choices = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, std::uint8_t); // hegel_settings_set_unbounded_choices
 using hegel_jank_fn_settings_set_verbosity = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, std::uint32_t); // hegel_settings_set_verbosity
 using hegel_jank_fn_start_span = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, std::uint64_t); // hegel_start_span
 using hegel_jank_fn_state_machine_free = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_state_machine *); // hegel_state_machine_free
@@ -172,11 +195,13 @@ using hegel_jank_fn_string_generator_regex = std::int32_t (*) (hegel_jank_hegel_
 using hegel_jank_fn_string_generator_text = std::int32_t (*) (hegel_jank_hegel_context *, std::uint64_t, std::uint64_t, char const *, std::uint32_t, std::uint32_t, char const * *, std::size_t, char const * *, std::size_t, std::uint8_t *, std::size_t, std::uint8_t *, std::size_t, hegel_jank_hegel_string_generator * *); // hegel_string_generator_text
 using hegel_jank_fn_string_generator_url = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_string_generator * *); // hegel_string_generator_url
 using hegel_jank_fn_target = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, double, char const *); // hegel_target
+using hegel_jank_fn_test_case_block = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, std::uint64_t, hegel_jank_hegel_test_case * *); // hegel_test_case_block
 using hegel_jank_fn_test_case_clone = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, hegel_jank_hegel_test_case * *); // hegel_test_case_clone
 using hegel_jank_fn_test_case_free = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *); // hegel_test_case_free
 using hegel_jank_fn_test_case_from_blob = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, char const *, hegel_jank_hegel_output_callback, void *, hegel_jank_hegel_test_case * *); // hegel_test_case_from_blob
-using hegel_jank_fn_test_case_is_nondeterministic = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, std::uint8_t *); // hegel_test_case_is_nondeterministic
 using hegel_jank_fn_test_case_printer = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, hegel_jank_hegel_printer_options *, hegel_jank_hegel_printer * *); // hegel_test_case_printer
+using hegel_jank_fn_test_case_set_worker = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, std::int64_t); // hegel_test_case_set_worker
+using hegel_jank_fn_test_case_should_capture = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, std::uint8_t *); // hegel_test_case_should_capture
 using hegel_jank_fn_version = std::int32_t (*) (hegel_jank_hegel_context *, char const * *); // hegel_version
 }
 
@@ -191,6 +216,7 @@ struct hegel_jank_bindings
   hegel_jank_fn_context_new context_new{};
   hegel_jank_fn_event event{};
   hegel_jank_fn_event_value event_value{};
+  hegel_jank_fn_failure_caveat failure_caveat{};
   hegel_jank_fn_failure_free failure_free{};
   hegel_jank_fn_failure_origin failure_origin{};
   hegel_jank_fn_failure_reproduction_blob failure_reproduction_blob{};
@@ -208,6 +234,8 @@ struct hegel_jank_bindings
   hegel_jank_fn_generate_string_result_free generate_string_result_free{};
   hegel_jank_fn_generate_time generate_time{};
   hegel_jank_fn_generate_uuid generate_uuid{};
+  hegel_jank_fn_label_combine label_combine{};
+  hegel_jank_fn_label_from_name label_from_name{};
   hegel_jank_fn_mark_complete mark_complete{};
   hegel_jank_fn_new_collection new_collection{};
   hegel_jank_fn_new_pool new_pool{};
@@ -252,19 +280,39 @@ struct hegel_jank_bindings
   hegel_jank_fn_run_result_free run_result_free{};
   hegel_jank_fn_run_result_status run_result_status{};
   hegel_jank_fn_run_start run_start{};
+  hegel_jank_fn_run_start_blob run_start_blob{};
+  hegel_jank_fn_set_default_profile set_default_profile{};
   hegel_jank_fn_settings_free settings_free{};
+  hegel_jank_fn_settings_get_backend settings_get_backend{};
+  hegel_jank_fn_settings_get_database settings_get_database{};
+  hegel_jank_fn_settings_get_derandomize settings_get_derandomize{};
+  hegel_jank_fn_settings_get_nondeterminism_strictness settings_get_nondeterminism_strictness{};
+  hegel_jank_fn_settings_get_phases settings_get_phases{};
+  hegel_jank_fn_settings_get_print_blob settings_get_print_blob{};
+  hegel_jank_fn_settings_get_report_multiple_failures settings_get_report_multiple_failures{};
+  hegel_jank_fn_settings_get_seed settings_get_seed{};
+  hegel_jank_fn_settings_get_show_statistics settings_get_show_statistics{};
+  hegel_jank_fn_settings_get_suppress_health_check settings_get_suppress_health_check{};
+  hegel_jank_fn_settings_get_test_cases settings_get_test_cases{};
+  hegel_jank_fn_settings_get_unbounded_choices settings_get_unbounded_choices{};
+  hegel_jank_fn_settings_get_verbosity settings_get_verbosity{};
   hegel_jank_fn_settings_new settings_new{};
+  hegel_jank_fn_settings_new_for_profile settings_new_for_profile{};
+  hegel_jank_fn_settings_register_profile settings_register_profile{};
   hegel_jank_fn_settings_set_backend settings_set_backend{};
   hegel_jank_fn_settings_set_database settings_set_database{};
   hegel_jank_fn_settings_set_database_key settings_set_database_key{};
   hegel_jank_fn_settings_set_derandomize settings_set_derandomize{};
+  hegel_jank_fn_settings_set_nondeterminism_strictness settings_set_nondeterminism_strictness{};
   hegel_jank_fn_settings_set_phases settings_set_phases{};
+  hegel_jank_fn_settings_set_print_blob settings_set_print_blob{};
   hegel_jank_fn_settings_set_report_multiple_failures settings_set_report_multiple_failures{};
   hegel_jank_fn_settings_set_seed settings_set_seed{};
   hegel_jank_fn_settings_set_show_statistics settings_set_show_statistics{};
-  hegel_jank_fn_settings_set_stateful_step_count settings_set_stateful_step_count{};
   hegel_jank_fn_settings_set_suppress_health_check settings_set_suppress_health_check{};
   hegel_jank_fn_settings_set_test_cases settings_set_test_cases{};
+  hegel_jank_fn_settings_set_test_location settings_set_test_location{};
+  hegel_jank_fn_settings_set_unbounded_choices settings_set_unbounded_choices{};
   hegel_jank_fn_settings_set_verbosity settings_set_verbosity{};
   hegel_jank_fn_start_span start_span{};
   hegel_jank_fn_state_machine_free state_machine_free{};
@@ -280,11 +328,13 @@ struct hegel_jank_bindings
   hegel_jank_fn_string_generator_text string_generator_text{};
   hegel_jank_fn_string_generator_url string_generator_url{};
   hegel_jank_fn_target target{};
+  hegel_jank_fn_test_case_block test_case_block{};
   hegel_jank_fn_test_case_clone test_case_clone{};
   hegel_jank_fn_test_case_free test_case_free{};
   hegel_jank_fn_test_case_from_blob test_case_from_blob{};
-  hegel_jank_fn_test_case_is_nondeterministic test_case_is_nondeterministic{};
   hegel_jank_fn_test_case_printer test_case_printer{};
+  hegel_jank_fn_test_case_set_worker test_case_set_worker{};
+  hegel_jank_fn_test_case_should_capture test_case_should_capture{};
   hegel_jank_fn_version version{};
 };
 
@@ -328,6 +378,7 @@ inline hegel_jank_bindings *hegel_jank_load_bindings(std::string const &path)
   bindings->context_new = reinterpret_cast<hegel_jank_fn_context_new>(hegel_jank_find_symbol(bindings->library, "hegel_context_new"));
   bindings->event = reinterpret_cast<hegel_jank_fn_event>(hegel_jank_find_symbol(bindings->library, "hegel_event"));
   bindings->event_value = reinterpret_cast<hegel_jank_fn_event_value>(hegel_jank_find_symbol(bindings->library, "hegel_event_value"));
+  bindings->failure_caveat = reinterpret_cast<hegel_jank_fn_failure_caveat>(hegel_jank_find_symbol(bindings->library, "hegel_failure_caveat"));
   bindings->failure_free = reinterpret_cast<hegel_jank_fn_failure_free>(hegel_jank_find_symbol(bindings->library, "hegel_failure_free"));
   bindings->failure_origin = reinterpret_cast<hegel_jank_fn_failure_origin>(hegel_jank_find_symbol(bindings->library, "hegel_failure_origin"));
   bindings->failure_reproduction_blob = reinterpret_cast<hegel_jank_fn_failure_reproduction_blob>(hegel_jank_find_symbol(bindings->library, "hegel_failure_reproduction_blob"));
@@ -345,6 +396,8 @@ inline hegel_jank_bindings *hegel_jank_load_bindings(std::string const &path)
   bindings->generate_string_result_free = reinterpret_cast<hegel_jank_fn_generate_string_result_free>(hegel_jank_find_symbol(bindings->library, "hegel_generate_string_result_free"));
   bindings->generate_time = reinterpret_cast<hegel_jank_fn_generate_time>(hegel_jank_find_symbol(bindings->library, "hegel_generate_time"));
   bindings->generate_uuid = reinterpret_cast<hegel_jank_fn_generate_uuid>(hegel_jank_find_symbol(bindings->library, "hegel_generate_uuid"));
+  bindings->label_combine = reinterpret_cast<hegel_jank_fn_label_combine>(hegel_jank_find_symbol(bindings->library, "hegel_label_combine"));
+  bindings->label_from_name = reinterpret_cast<hegel_jank_fn_label_from_name>(hegel_jank_find_symbol(bindings->library, "hegel_label_from_name"));
   bindings->mark_complete = reinterpret_cast<hegel_jank_fn_mark_complete>(hegel_jank_find_symbol(bindings->library, "hegel_mark_complete"));
   bindings->new_collection = reinterpret_cast<hegel_jank_fn_new_collection>(hegel_jank_find_symbol(bindings->library, "hegel_new_collection"));
   bindings->new_pool = reinterpret_cast<hegel_jank_fn_new_pool>(hegel_jank_find_symbol(bindings->library, "hegel_new_pool"));
@@ -389,19 +442,39 @@ inline hegel_jank_bindings *hegel_jank_load_bindings(std::string const &path)
   bindings->run_result_free = reinterpret_cast<hegel_jank_fn_run_result_free>(hegel_jank_find_symbol(bindings->library, "hegel_run_result_free"));
   bindings->run_result_status = reinterpret_cast<hegel_jank_fn_run_result_status>(hegel_jank_find_symbol(bindings->library, "hegel_run_result_status"));
   bindings->run_start = reinterpret_cast<hegel_jank_fn_run_start>(hegel_jank_find_symbol(bindings->library, "hegel_run_start"));
+  bindings->run_start_blob = reinterpret_cast<hegel_jank_fn_run_start_blob>(hegel_jank_find_symbol(bindings->library, "hegel_run_start_blob"));
+  bindings->set_default_profile = reinterpret_cast<hegel_jank_fn_set_default_profile>(hegel_jank_find_symbol(bindings->library, "hegel_set_default_profile"));
   bindings->settings_free = reinterpret_cast<hegel_jank_fn_settings_free>(hegel_jank_find_symbol(bindings->library, "hegel_settings_free"));
+  bindings->settings_get_backend = reinterpret_cast<hegel_jank_fn_settings_get_backend>(hegel_jank_find_symbol(bindings->library, "hegel_settings_get_backend"));
+  bindings->settings_get_database = reinterpret_cast<hegel_jank_fn_settings_get_database>(hegel_jank_find_symbol(bindings->library, "hegel_settings_get_database"));
+  bindings->settings_get_derandomize = reinterpret_cast<hegel_jank_fn_settings_get_derandomize>(hegel_jank_find_symbol(bindings->library, "hegel_settings_get_derandomize"));
+  bindings->settings_get_nondeterminism_strictness = reinterpret_cast<hegel_jank_fn_settings_get_nondeterminism_strictness>(hegel_jank_find_symbol(bindings->library, "hegel_settings_get_nondeterminism_strictness"));
+  bindings->settings_get_phases = reinterpret_cast<hegel_jank_fn_settings_get_phases>(hegel_jank_find_symbol(bindings->library, "hegel_settings_get_phases"));
+  bindings->settings_get_print_blob = reinterpret_cast<hegel_jank_fn_settings_get_print_blob>(hegel_jank_find_symbol(bindings->library, "hegel_settings_get_print_blob"));
+  bindings->settings_get_report_multiple_failures = reinterpret_cast<hegel_jank_fn_settings_get_report_multiple_failures>(hegel_jank_find_symbol(bindings->library, "hegel_settings_get_report_multiple_failures"));
+  bindings->settings_get_seed = reinterpret_cast<hegel_jank_fn_settings_get_seed>(hegel_jank_find_symbol(bindings->library, "hegel_settings_get_seed"));
+  bindings->settings_get_show_statistics = reinterpret_cast<hegel_jank_fn_settings_get_show_statistics>(hegel_jank_find_symbol(bindings->library, "hegel_settings_get_show_statistics"));
+  bindings->settings_get_suppress_health_check = reinterpret_cast<hegel_jank_fn_settings_get_suppress_health_check>(hegel_jank_find_symbol(bindings->library, "hegel_settings_get_suppress_health_check"));
+  bindings->settings_get_test_cases = reinterpret_cast<hegel_jank_fn_settings_get_test_cases>(hegel_jank_find_symbol(bindings->library, "hegel_settings_get_test_cases"));
+  bindings->settings_get_unbounded_choices = reinterpret_cast<hegel_jank_fn_settings_get_unbounded_choices>(hegel_jank_find_symbol(bindings->library, "hegel_settings_get_unbounded_choices"));
+  bindings->settings_get_verbosity = reinterpret_cast<hegel_jank_fn_settings_get_verbosity>(hegel_jank_find_symbol(bindings->library, "hegel_settings_get_verbosity"));
   bindings->settings_new = reinterpret_cast<hegel_jank_fn_settings_new>(hegel_jank_find_symbol(bindings->library, "hegel_settings_new"));
+  bindings->settings_new_for_profile = reinterpret_cast<hegel_jank_fn_settings_new_for_profile>(hegel_jank_find_symbol(bindings->library, "hegel_settings_new_for_profile"));
+  bindings->settings_register_profile = reinterpret_cast<hegel_jank_fn_settings_register_profile>(hegel_jank_find_symbol(bindings->library, "hegel_settings_register_profile"));
   bindings->settings_set_backend = reinterpret_cast<hegel_jank_fn_settings_set_backend>(hegel_jank_find_symbol(bindings->library, "hegel_settings_set_backend"));
   bindings->settings_set_database = reinterpret_cast<hegel_jank_fn_settings_set_database>(hegel_jank_find_symbol(bindings->library, "hegel_settings_set_database"));
   bindings->settings_set_database_key = reinterpret_cast<hegel_jank_fn_settings_set_database_key>(hegel_jank_find_symbol(bindings->library, "hegel_settings_set_database_key"));
   bindings->settings_set_derandomize = reinterpret_cast<hegel_jank_fn_settings_set_derandomize>(hegel_jank_find_symbol(bindings->library, "hegel_settings_set_derandomize"));
+  bindings->settings_set_nondeterminism_strictness = reinterpret_cast<hegel_jank_fn_settings_set_nondeterminism_strictness>(hegel_jank_find_symbol(bindings->library, "hegel_settings_set_nondeterminism_strictness"));
   bindings->settings_set_phases = reinterpret_cast<hegel_jank_fn_settings_set_phases>(hegel_jank_find_symbol(bindings->library, "hegel_settings_set_phases"));
+  bindings->settings_set_print_blob = reinterpret_cast<hegel_jank_fn_settings_set_print_blob>(hegel_jank_find_symbol(bindings->library, "hegel_settings_set_print_blob"));
   bindings->settings_set_report_multiple_failures = reinterpret_cast<hegel_jank_fn_settings_set_report_multiple_failures>(hegel_jank_find_symbol(bindings->library, "hegel_settings_set_report_multiple_failures"));
   bindings->settings_set_seed = reinterpret_cast<hegel_jank_fn_settings_set_seed>(hegel_jank_find_symbol(bindings->library, "hegel_settings_set_seed"));
   bindings->settings_set_show_statistics = reinterpret_cast<hegel_jank_fn_settings_set_show_statistics>(hegel_jank_find_symbol(bindings->library, "hegel_settings_set_show_statistics"));
-  bindings->settings_set_stateful_step_count = reinterpret_cast<hegel_jank_fn_settings_set_stateful_step_count>(hegel_jank_find_symbol(bindings->library, "hegel_settings_set_stateful_step_count"));
   bindings->settings_set_suppress_health_check = reinterpret_cast<hegel_jank_fn_settings_set_suppress_health_check>(hegel_jank_find_symbol(bindings->library, "hegel_settings_set_suppress_health_check"));
   bindings->settings_set_test_cases = reinterpret_cast<hegel_jank_fn_settings_set_test_cases>(hegel_jank_find_symbol(bindings->library, "hegel_settings_set_test_cases"));
+  bindings->settings_set_test_location = reinterpret_cast<hegel_jank_fn_settings_set_test_location>(hegel_jank_find_symbol(bindings->library, "hegel_settings_set_test_location"));
+  bindings->settings_set_unbounded_choices = reinterpret_cast<hegel_jank_fn_settings_set_unbounded_choices>(hegel_jank_find_symbol(bindings->library, "hegel_settings_set_unbounded_choices"));
   bindings->settings_set_verbosity = reinterpret_cast<hegel_jank_fn_settings_set_verbosity>(hegel_jank_find_symbol(bindings->library, "hegel_settings_set_verbosity"));
   bindings->start_span = reinterpret_cast<hegel_jank_fn_start_span>(hegel_jank_find_symbol(bindings->library, "hegel_start_span"));
   bindings->state_machine_free = reinterpret_cast<hegel_jank_fn_state_machine_free>(hegel_jank_find_symbol(bindings->library, "hegel_state_machine_free"));
@@ -417,11 +490,13 @@ inline hegel_jank_bindings *hegel_jank_load_bindings(std::string const &path)
   bindings->string_generator_text = reinterpret_cast<hegel_jank_fn_string_generator_text>(hegel_jank_find_symbol(bindings->library, "hegel_string_generator_text"));
   bindings->string_generator_url = reinterpret_cast<hegel_jank_fn_string_generator_url>(hegel_jank_find_symbol(bindings->library, "hegel_string_generator_url"));
   bindings->target = reinterpret_cast<hegel_jank_fn_target>(hegel_jank_find_symbol(bindings->library, "hegel_target"));
+  bindings->test_case_block = reinterpret_cast<hegel_jank_fn_test_case_block>(hegel_jank_find_symbol(bindings->library, "hegel_test_case_block"));
   bindings->test_case_clone = reinterpret_cast<hegel_jank_fn_test_case_clone>(hegel_jank_find_symbol(bindings->library, "hegel_test_case_clone"));
   bindings->test_case_free = reinterpret_cast<hegel_jank_fn_test_case_free>(hegel_jank_find_symbol(bindings->library, "hegel_test_case_free"));
   bindings->test_case_from_blob = reinterpret_cast<hegel_jank_fn_test_case_from_blob>(hegel_jank_find_symbol(bindings->library, "hegel_test_case_from_blob"));
-  bindings->test_case_is_nondeterministic = reinterpret_cast<hegel_jank_fn_test_case_is_nondeterministic>(hegel_jank_find_symbol(bindings->library, "hegel_test_case_is_nondeterministic"));
   bindings->test_case_printer = reinterpret_cast<hegel_jank_fn_test_case_printer>(hegel_jank_find_symbol(bindings->library, "hegel_test_case_printer"));
+  bindings->test_case_set_worker = reinterpret_cast<hegel_jank_fn_test_case_set_worker>(hegel_jank_find_symbol(bindings->library, "hegel_test_case_set_worker"));
+  bindings->test_case_should_capture = reinterpret_cast<hegel_jank_fn_test_case_should_capture>(hegel_jank_find_symbol(bindings->library, "hegel_test_case_should_capture"));
   bindings->version = reinterpret_cast<hegel_jank_fn_version>(hegel_jank_find_symbol(bindings->library, "hegel_version"));
   hegel_jank_active_bindings = bindings;
   return bindings;
@@ -471,6 +546,11 @@ inline std::int32_t hegel_jank_call_event(hegel_jank_bindings *bindings, hegel_j
 inline std::int32_t hegel_jank_call_event_value(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, double arg2, char const * arg3)
 {
   return bindings->event_value(arg0, arg1, arg2, arg3);
+}
+
+inline std::int32_t hegel_jank_call_failure_caveat(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_failure * arg1, char const * * arg2)
+{
+  return bindings->failure_caveat(arg0, arg1, arg2);
 }
 
 inline std::int32_t hegel_jank_call_failure_free(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_failure * arg1)
@@ -558,6 +638,16 @@ inline std::int32_t hegel_jank_call_generate_uuid(hegel_jank_bindings *bindings,
   return bindings->generate_uuid(arg0, arg1, arg2, arg3, arg4);
 }
 
+inline std::int32_t hegel_jank_call_label_combine(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, std::uint64_t * arg1, std::size_t arg2, std::uint64_t * arg3)
+{
+  return bindings->label_combine(arg0, arg1, arg2, arg3);
+}
+
+inline std::int32_t hegel_jank_call_label_from_name(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, char const * arg1, std::uint64_t * arg2)
+{
+  return bindings->label_from_name(arg0, arg1, arg2);
+}
+
 inline std::int32_t hegel_jank_call_mark_complete(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, std::uint32_t arg2, char const * arg3)
 {
   return bindings->mark_complete(arg0, arg1, arg2, arg3);
@@ -578,9 +668,9 @@ inline std::int32_t hegel_jank_call_new_recursion(hegel_jank_bindings *bindings,
   return bindings->new_recursion(arg0, arg1, arg2, arg3, arg4);
 }
 
-inline std::int32_t hegel_jank_call_new_state_machine(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, char const * * arg2, std::int64_t * arg3, std::size_t arg4, char const * * arg5, std::size_t arg6, std::int64_t arg7, std::int64_t arg8, hegel_jank_hegel_state_machine * * arg9, std::int64_t * arg10)
+inline std::int32_t hegel_jank_call_new_state_machine(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, char const * * arg2, std::int64_t * arg3, double * arg4, std::size_t arg5, char const * * arg6, std::uint8_t * arg7, std::size_t arg8, std::int64_t arg9, std::int64_t arg10, std::int64_t arg11, hegel_jank_hegel_state_machine * * arg12, std::int64_t * arg13)
 {
-  return bindings->new_state_machine(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10);
+  return bindings->new_state_machine(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13);
 }
 
 inline std::int32_t hegel_jank_call_next_test_case(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_run * arg1, hegel_jank_hegel_test_case * * arg2)
@@ -778,14 +868,99 @@ inline std::int32_t hegel_jank_call_run_start(hegel_jank_bindings *bindings, heg
   return bindings->run_start(arg0, arg1, arg2, arg3, arg4);
 }
 
+inline std::int32_t hegel_jank_call_run_start_blob(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_settings * arg1, char const * arg2, hegel_jank_hegel_output_callback arg3, void * arg4, hegel_jank_hegel_run * * arg5)
+{
+  return bindings->run_start_blob(arg0, arg1, arg2, arg3, arg4, arg5);
+}
+
+inline std::int32_t hegel_jank_call_set_default_profile(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, char const * arg1)
+{
+  return bindings->set_default_profile(arg0, arg1);
+}
+
 inline std::int32_t hegel_jank_call_settings_free(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_settings * arg1)
 {
   return bindings->settings_free(arg0, arg1);
 }
 
+inline std::int32_t hegel_jank_call_settings_get_backend(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_settings * arg1, std::uint32_t * arg2)
+{
+  return bindings->settings_get_backend(arg0, arg1, arg2);
+}
+
+inline std::int32_t hegel_jank_call_settings_get_database(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_settings * arg1, char const * * arg2)
+{
+  return bindings->settings_get_database(arg0, arg1, arg2);
+}
+
+inline std::int32_t hegel_jank_call_settings_get_derandomize(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_settings * arg1, std::uint8_t * arg2)
+{
+  return bindings->settings_get_derandomize(arg0, arg1, arg2);
+}
+
+inline std::int32_t hegel_jank_call_settings_get_nondeterminism_strictness(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_settings * arg1, std::uint32_t * arg2)
+{
+  return bindings->settings_get_nondeterminism_strictness(arg0, arg1, arg2);
+}
+
+inline std::int32_t hegel_jank_call_settings_get_phases(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_settings * arg1, std::uint32_t * arg2)
+{
+  return bindings->settings_get_phases(arg0, arg1, arg2);
+}
+
+inline std::int32_t hegel_jank_call_settings_get_print_blob(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_settings * arg1, std::uint8_t * arg2)
+{
+  return bindings->settings_get_print_blob(arg0, arg1, arg2);
+}
+
+inline std::int32_t hegel_jank_call_settings_get_report_multiple_failures(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_settings * arg1, std::uint8_t * arg2)
+{
+  return bindings->settings_get_report_multiple_failures(arg0, arg1, arg2);
+}
+
+inline std::int32_t hegel_jank_call_settings_get_seed(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_settings * arg1, std::uint64_t * arg2, std::uint8_t * arg3)
+{
+  return bindings->settings_get_seed(arg0, arg1, arg2, arg3);
+}
+
+inline std::int32_t hegel_jank_call_settings_get_show_statistics(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_settings * arg1, std::uint8_t * arg2)
+{
+  return bindings->settings_get_show_statistics(arg0, arg1, arg2);
+}
+
+inline std::int32_t hegel_jank_call_settings_get_suppress_health_check(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_settings * arg1, std::uint32_t * arg2)
+{
+  return bindings->settings_get_suppress_health_check(arg0, arg1, arg2);
+}
+
+inline std::int32_t hegel_jank_call_settings_get_test_cases(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_settings * arg1, std::uint64_t * arg2)
+{
+  return bindings->settings_get_test_cases(arg0, arg1, arg2);
+}
+
+inline std::int32_t hegel_jank_call_settings_get_unbounded_choices(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_settings * arg1, std::uint8_t * arg2)
+{
+  return bindings->settings_get_unbounded_choices(arg0, arg1, arg2);
+}
+
+inline std::int32_t hegel_jank_call_settings_get_verbosity(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_settings * arg1, std::uint32_t * arg2)
+{
+  return bindings->settings_get_verbosity(arg0, arg1, arg2);
+}
+
 inline std::int32_t hegel_jank_call_settings_new(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_settings * * arg1)
 {
   return bindings->settings_new(arg0, arg1);
+}
+
+inline std::int32_t hegel_jank_call_settings_new_for_profile(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, char const * arg1, hegel_jank_hegel_settings * * arg2)
+{
+  return bindings->settings_new_for_profile(arg0, arg1, arg2);
+}
+
+inline std::int32_t hegel_jank_call_settings_register_profile(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, char const * arg1, hegel_jank_hegel_settings * arg2)
+{
+  return bindings->settings_register_profile(arg0, arg1, arg2);
 }
 
 inline std::int32_t hegel_jank_call_settings_set_backend(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_settings * arg1, std::uint32_t arg2)
@@ -808,9 +983,19 @@ inline std::int32_t hegel_jank_call_settings_set_derandomize(hegel_jank_bindings
   return bindings->settings_set_derandomize(arg0, arg1, arg2);
 }
 
+inline std::int32_t hegel_jank_call_settings_set_nondeterminism_strictness(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_settings * arg1, std::uint32_t arg2)
+{
+  return bindings->settings_set_nondeterminism_strictness(arg0, arg1, arg2);
+}
+
 inline std::int32_t hegel_jank_call_settings_set_phases(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_settings * arg1, std::uint32_t arg2)
 {
   return bindings->settings_set_phases(arg0, arg1, arg2);
+}
+
+inline std::int32_t hegel_jank_call_settings_set_print_blob(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_settings * arg1, std::uint8_t arg2)
+{
+  return bindings->settings_set_print_blob(arg0, arg1, arg2);
 }
 
 inline std::int32_t hegel_jank_call_settings_set_report_multiple_failures(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_settings * arg1, std::uint8_t arg2)
@@ -828,11 +1013,6 @@ inline std::int32_t hegel_jank_call_settings_set_show_statistics(hegel_jank_bind
   return bindings->settings_set_show_statistics(arg0, arg1, arg2);
 }
 
-inline std::int32_t hegel_jank_call_settings_set_stateful_step_count(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_settings * arg1, std::int64_t arg2)
-{
-  return bindings->settings_set_stateful_step_count(arg0, arg1, arg2);
-}
-
 inline std::int32_t hegel_jank_call_settings_set_suppress_health_check(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_settings * arg1, std::uint32_t arg2)
 {
   return bindings->settings_set_suppress_health_check(arg0, arg1, arg2);
@@ -841,6 +1021,16 @@ inline std::int32_t hegel_jank_call_settings_set_suppress_health_check(hegel_jan
 inline std::int32_t hegel_jank_call_settings_set_test_cases(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_settings * arg1, std::uint64_t arg2)
 {
   return bindings->settings_set_test_cases(arg0, arg1, arg2);
+}
+
+inline std::int32_t hegel_jank_call_settings_set_test_location(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_settings * arg1, char const * arg2, std::uint32_t arg3, char const * arg4, char const * arg5)
+{
+  return bindings->settings_set_test_location(arg0, arg1, arg2, arg3, arg4, arg5);
+}
+
+inline std::int32_t hegel_jank_call_settings_set_unbounded_choices(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_settings * arg1, std::uint8_t arg2)
+{
+  return bindings->settings_set_unbounded_choices(arg0, arg1, arg2);
 }
 
 inline std::int32_t hegel_jank_call_settings_set_verbosity(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_settings * arg1, std::uint32_t arg2)
@@ -918,6 +1108,11 @@ inline std::int32_t hegel_jank_call_target(hegel_jank_bindings *bindings, hegel_
   return bindings->target(arg0, arg1, arg2, arg3);
 }
 
+inline std::int32_t hegel_jank_call_test_case_block(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, std::uint64_t arg2, hegel_jank_hegel_test_case * * arg3)
+{
+  return bindings->test_case_block(arg0, arg1, arg2, arg3);
+}
+
 inline std::int32_t hegel_jank_call_test_case_clone(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, hegel_jank_hegel_test_case * * arg2)
 {
   return bindings->test_case_clone(arg0, arg1, arg2);
@@ -933,14 +1128,19 @@ inline std::int32_t hegel_jank_call_test_case_from_blob(hegel_jank_bindings *bin
   return bindings->test_case_from_blob(arg0, arg1, arg2, arg3, arg4, arg5);
 }
 
-inline std::int32_t hegel_jank_call_test_case_is_nondeterministic(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, std::uint8_t * arg2)
-{
-  return bindings->test_case_is_nondeterministic(arg0, arg1, arg2);
-}
-
 inline std::int32_t hegel_jank_call_test_case_printer(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, hegel_jank_hegel_printer_options * arg2, hegel_jank_hegel_printer * * arg3)
 {
   return bindings->test_case_printer(arg0, arg1, arg2, arg3);
+}
+
+inline std::int32_t hegel_jank_call_test_case_set_worker(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, std::int64_t arg2)
+{
+  return bindings->test_case_set_worker(arg0, arg1, arg2);
+}
+
+inline std::int32_t hegel_jank_call_test_case_should_capture(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, std::uint8_t * arg2)
+{
+  return bindings->test_case_should_capture(arg0, arg1, arg2);
 }
 
 inline std::int32_t hegel_jank_call_version(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, char const * * arg1)

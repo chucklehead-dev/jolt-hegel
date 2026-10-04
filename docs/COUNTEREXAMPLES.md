@@ -1,8 +1,10 @@
 # Structured counterexample diagnostics
 
 Labelled draws and `note!` calls are assembled in libhegel's test-case
-document. At normal verbosity this happens only during the final replay of a
-minimal failure. Verbose and debug runs also emit one document for every
+document. At normal verbosity this happens during engine-stamped capture
+attempts, with only the freshest failing capture per reported origin emitted
+after the run. A stamp is not a promise that this attempt is last or minimal.
+Verbose and debug runs also emit one document for every
 exploration case; quiet runs create no printer and return no counterexample
 snapshot.
 
@@ -75,7 +77,9 @@ never cut at an arbitrary Unicode boundary.
 Labels and notes are caller-authored diagnostic text. Do not derive labels
 from generated data or secrets. In particular, `:redact-fn` applies to drawn
 values; it cannot sanitize a secret already interpolated into `note!`. Redact
-such notes before calling `note!`.
+such notes before calling `note!`. `fprn` records bounded note text during
+stamped captures instead of immediately printing each attempt. Custom side
+effects behind `final?` can still run multiple times; keep them idempotent.
 
 ## Rejection and replay semantics
 
@@ -96,3 +100,6 @@ the desired redaction policy again when running a property directly.
 
 This API is sequential. Native printer regions do not imply support for
 concurrent property replay or the separate concurrent state-machine design.
+The engine's `print_blob` preference is available through settings, but this
+frontend does not automatically print raw blobs. Blobs remain in the result
+and trusted replay bundles; counterexample redaction never rewrites them.

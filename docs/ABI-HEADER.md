@@ -6,7 +6,7 @@ compiler using cc/clang-style flags; `HEGEL_ABI_CC` selects its executable
 (default `cc`). Windows CI uses `clang`, not MSVC command-line syntax.
 
 The complete pinned header and provenance are under
-`test/fixtures/hegel-0.36.3/` (the 0.33.3 fixture is retained as historical
+`test/fixtures/hegel-0.44.1/` (older fixtures are retained as historical
 evidence). The audit checks its SHA-256 before parsing,
 rejects unsupported declarations, and compares all exported signatures,
 callback signatures, opaque handles and ordered struct fields against
@@ -16,7 +16,7 @@ the header snapshot is independent test evidence, not another binding source.
 A generated C11 program measures primitive widths/alignment, enum storage,
 every concrete struct's size/alignment/field offsets, and compiler-evaluated
 constants. The audit compares these with canonical layouts and parsed values.
-Literal wrapper status, span and option constants are read as source data,
+Literal wrapper status and option constants are read as source data,
 without evaluating their namespaces. Temporal fields additionally declare
 their unit and domain; changing microseconds to nanoseconds cannot pass merely
 because both use a 32-bit field. Unsupported source/header shapes fail closed

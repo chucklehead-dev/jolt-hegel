@@ -1,5 +1,5 @@
 (ns hegel.libhegel-upgrade-test
-  "Focused libhegel v0.36.3 regression checks. Run only with the verified
+  "Retained native regression checks on libhegel v0.44.1. Run with the verified
   upgrade asset selected by HEGEL_LIBHEGEL_LIBRARY."
   (:require [clojure.test :refer [deftest is testing]]
             [hegel.core :as h]
@@ -23,10 +23,10 @@
     (try
       (let [settings (hffi/settings-new! context)]
         (try
-          (hffi/settings-set-stateful-step-count! context settings step-count)
           (let [handle (hffi/test-case-from-blob! context settings
                                                   v0363-step-51-blob)
-                test-case (h/->TestCase context handle true :quiet)]
+                test-case (assoc (h/->TestCase context handle true :quiet)
+                                 :stateful-step-count step-count)]
             (try
               (binding [h/*test-case* test-case]
                 (try

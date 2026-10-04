@@ -2,7 +2,7 @@
   "Characterization of the canonical ABI -> selected-host carrier policy.
 
   resources/hegel/abi.edn is the single canonical definition of libhegel's C
-  ABI. Nothing here restates its 103 signatures or its 6 struct layouts:
+  ABI. Nothing here restates its 128 signatures or its 6 struct layouts:
   every traversal, including struct field order, is derived recursively from
   `hegel.abi/functions` and `hegel.abi/types`. What *is* literalized is the
   small per-target scalar carrier policy each adapter applies to that
@@ -148,7 +148,7 @@
         types (abi/types)
         functions (abi/functions)]
     (is (= 1 (:schema-version descriptor)))
-    (is (= 103 (count functions))
+    (is (= 128 (count functions))
         "the canonical descriptor is the only inventory of libhegel functions")
     (is (= 34 (count types)))
     ;; 12 scalar carriers plus void and string, 13 opaque handles, 6 structs
@@ -211,11 +211,11 @@
                                                  (:args function))
                                        function-id))
                                    functions))]
-    (is (= 365 (count argument-forms)))
-    (is (= {:pointer 277 :scalar 70 :string 10 :by-value 6 :callback 2}
+    (is (= 451 (count argument-forms)))
+    (is (= {:pointer 347 :scalar 77 :string 18 :by-value 6 :callback 3}
            (frequencies (map #(form-class types %) argument-forms))))
-    (is (= 103 (count return-forms)))
-    (is (= {:scalar 101 :pointer 1 :string 1}
+    (is (= 128 (count return-forms)))
+    (is (= {:scalar 126 :pointer 1 :string 1}
            (frequencies (map #(form-class types %) return-forms))))
     ;; Every aggregate crosses the boundary through caller-owned storage on
     ;; the way out. No function returns an aggregate by value, which is why no
@@ -230,8 +230,8 @@
                                                      (:args function)))]
                            (when (pos? count*) [function-id count*]))))
                  functions)))
-    (is (= [:run-start :test-case-from-blob] callback-users)
-        "one callback type, used by exactly two functions")
+    (is (= [:run-start :run-start-blob :test-case-from-blob] callback-users)
+        "one callback type, used by exactly three functions")
     (is (= [:hegel/output-callback] (type-ids-of-kind types :function-pointer)))))
 
 (deftest every-declared-carrier-maps-to-the-literal-target-policy
@@ -301,8 +301,8 @@
       (is (= (expected-type types return)
              (adapter/native-type return descriptor))
           (str function-id " return " (pr-str return))))
-    (is (= 468 @translated)
-        "365 argument forms and 103 return forms were each translated")))
+    (is (= 579 @translated)
+        "451 argument forms and 128 return forms were each translated")))
 
 (deftest the-adapter-signature-composition-matches-the-public-translation
   (let [descriptor (abi/descriptor)

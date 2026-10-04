@@ -8,6 +8,7 @@
             [hegel.host :as host]
             [hegel.internal.binary32 :as binary32]
             [hegel.internal.render :as render]
+            [hegel.label :as label]
             [hegel.temporal :as temporal]
             [hegel.validation :as validation]))
 
@@ -42,11 +43,28 @@
   (and (fn? value) (true? (::generator (meta value)))))
 
 (defn composite-fn
-  "Tag `(fn [test-case] value)` as a generator."
-  [f]
-  (when-not (fn? f)
-    (invalid-option "composite-fn requires a function" {:value f}))
-  (with-meta f (assoc (meta f) ::generator true)))
+  "Tag `(fn [test-case] value)` as a generator.
+  Optionally supply a stable NUL-free name or uint64 label first. Use a name
+  for custom generators; function identity and generated values are never
+  used to derive labels. Unnamed functions share the generic composite label."
+  ([f] (composite-fn "jolt-hegel.composite" f))
+  ([name-or-label f]
+   (when-not (fn? f)
+     (invalid-option "composite-fn requires a function" {:value f}))
+   (let [span-label (if (string? name-or-label)
+                      (label/from-name name-or-label)
+                      (uint64! :label name-or-label))]
+     (with-meta f (assoc (meta f) ::generator true ::label span-label)))))
+
+(defn generator-label
+  "Stable structural label for a generator. Untagged legacy functions share
+  the generic composite label; give custom functions a name via composite-fn."
+  [generator]
+  (or (::label (meta generator)) (label/from-name "jolt-hegel.composite")))
+
+(defn- composed-generator [kind components draw]
+  (let [span-label (label/combine (into [kind] (mapv generator-label components)))]
+    (composite-fn span-label (fn [test-case] (draw test-case span-label)))))
 
 (defn boolean
   "Generate a boolean. The optional probability is the chance of true."
@@ -57,7 +75,7 @@
                   (<= 0.0 probability 1.0))
      (invalid-option "boolean probability must be between 0 and 1"
                      {:probability probability}))
-   (composite-fn
+   (composite-fn "jolt-hegel.boolean"
     (fn [test-case]
       (hffi/generate-boolean! (:context test-case)
                               (:handle test-case)
@@ -92,7 +110,7 @@
                       :hegel/usage-error? true
                       :min min-value
                       :max max-value})))
-   (composite-fn
+   (composite-fn "jolt-hegel.integer"
     (fn [test-case]
       (hffi/generate-integer! (:context test-case)
                               (:handle test-case)
@@ -113,7 +131,7 @@
      (validation/usage-error! ::invalid-bounds
        "big-integer requires ordered inclusive integer bounds"
        {:min min-value :max max-value}))
-   (composite-fn
+   (composite-fn "jolt-hegel.big-integer"
      (fn [test-case]
        (hffi/generate-integer-big! (:context test-case) (:handle test-case)
                                  min-value max-value)))))
@@ -172,7 +190,7 @@
        (invalid-option
         "double generator cannot allow infinity with both bounds"
         {:min min-value :max max-value}))
-     (composite-fn
+     (composite-fn "jolt-hegel.double"
       (fn [test-case]
         (hffi/generate-float!
          (:context test-case) (:handle test-case)
@@ -218,7 +236,7 @@
      (when (and allow-infinity? (not (or (= min-value ##-Inf)
                                                        (= max-value ##Inf))))
        (invalid-option "float32 infinity requires an unbounded endpoint" opts))
-     (composite-fn
+     (composite-fn "jolt-hegel.float32"
        (fn [test-case]
          (hffi/generate-float!
            (:context test-case) (:handle test-case)
@@ -249,7 +267,7 @@
      (invalid-option
       "byte generator sizes must be non-negative integers with min <= max"
       {:min-size min-size :max-size max-size}))
-   (composite-fn
+   (composite-fn "jolt-hegel.bytes"
     (fn [test-case]
       (hffi/generate-bytes! (:context test-case)
                             (:handle test-case)
@@ -299,7 +317,7 @@
               (not (and (integer? version) (<= 1 version 5))))
      (invalid-option "UUID version must be an integer from 1 through 5"
                      {:version version}))
-   (composite-fn
+   (composite-fn "jolt-hegel.uuid"
     (fn [test-case]
       (canonical-uuid
        (hffi/generate-uuid! (:context test-case)
@@ -344,7 +362,7 @@
 (defn ipv4
   "Generate an IPv4 address in dotted-quad form."
   []
-  (composite-fn
+  (composite-fn "jolt-hegel.ipv4"
    (fn [test-case]
      (format-ipv4
       (hffi/generate-ipv4! (:context test-case) (:handle test-case))))))
@@ -352,7 +370,7 @@
 (defn ipv6
   "Generate an IPv6 address in canonical lowercase colon-hex form."
   []
-  (composite-fn
+  (composite-fn "jolt-hegel.ipv6"
    (fn [test-case]
      (format-ipv6
       (hffi/generate-ipv6! (:context test-case) (:handle test-case))))))
@@ -460,7 +478,7 @@
    (let [minimum (if (contains? opts :min) (:min opts) minimum-date)
          maximum (if (contains? opts :max) (:max opts) maximum-date)]
      (validate-bounds! "date" valid-date? ordered-dates? minimum maximum)
-     (composite-fn
+     (composite-fn "jolt-hegel.date"
       (fn [test-case]
         (format-date
          (hffi/generate-date! (:context test-case) (:handle test-case)
@@ -481,7 +499,7 @@
          maximum (if (contains? opts :max) (:max opts) maximum-time)]
      (validate-bounds! "time" valid-time? ordered-times? minimum maximum)
      (let [[native-min native-max] (temporal/native-time-bounds minimum maximum)]
-       (composite-fn
+       (composite-fn "jolt-hegel.time"
         (fn [test-case]
           (format-time
            (temporal/public-time
@@ -504,7 +522,7 @@
      (validate-bounds!
       "datetime" valid-datetime? ordered-datetimes? minimum maximum)
      (let [[native-min native-max] (temporal/native-datetime-bounds minimum maximum)]
-       (composite-fn
+       (composite-fn "jolt-hegel.datetime"
         (fn [test-case]
           (let [{:keys [date time]}
                 (temporal/public-datetime
@@ -653,7 +671,7 @@
           (hffi/string-generator-free! validation-context handle)))
       #(hffi/context-free! validation-context)
       (constantly true)))
-  (composite-fn
+  (composite-fn "jolt-hegel.string"
    (fn [test-case]
      (let [context (:context test-case)
            handle (builder context)]
@@ -771,9 +789,9 @@
   (require-generator! "fmap" generator)
   (when-not (fn? f)
     (invalid-option "fmap requires a function" {:value f}))
-  (composite-fn
-   (fn [test-case]
-     (in-span test-case hffi/label-mapped
+  (composed-generator hffi/label-mapped [generator]
+   (fn [test-case span-label]
+     (in-span test-case span-label
               #(f (generator test-case))))))
 
 (defn bind
@@ -782,10 +800,10 @@
   (require-generator! "bind" generator)
   (when-not (fn? f)
     (invalid-option "bind requires a function" {:value f}))
-  (composite-fn
-   (fn [test-case]
+  (composed-generator hffi/label-flat-map [generator]
+   (fn [test-case span-label]
      (in-span
-      test-case hffi/label-flat-map
+      test-case span-label
       #(let [next-generator (f (generator test-case))]
          (require-generator! "bind result" next-generator)
          (next-generator test-case))))))
@@ -817,8 +835,8 @@
      (when-not (fn? branch-fn)
        (invalid-option "recursive requires a branch function"
                        {:value branch-fn}))
-     (composite-fn
-      (fn [test-case]
+     (composed-generator hffi/label-recursive [leaf]
+      (fn [test-case span-label]
         (let [context (:context test-case)
               handle (:handle test-case)
               recursion
@@ -830,7 +848,7 @@
                       (let [current-context (:context current-test-case)
                             current-handle (:handle current-test-case)]
                         (hffi/start-span!
-                         current-context current-handle hffi/label-recursive)
+                         current-context current-handle span-label)
                         (with-cleanup
                          (fn []
                           (let [branch?
@@ -839,7 +857,7 @@
                                 value
                                 (if branch?
                                   (let [subtree
-                                        (composite-fn
+                                        (composite-fn span-label
                                          (fn [child-test-case]
                                            (draw-subtree!
                                             child-test-case (inc depth))))
@@ -906,11 +924,11 @@
   (require-generator! "filter" generator)
   (when-not (fn? pred)
     (invalid-option "filter requires a predicate function" {:value pred}))
-  (composite-fn
-   (fn [test-case]
+  (composed-generator hffi/label-filter [generator]
+   (fn [test-case span-label]
      (loop [attempt 0]
        (hffi/start-span! (:context test-case) (:handle test-case)
-                         hffi/label-filter)
+                         span-label)
        (render/begin-attempt! (:render test-case))
        (let [discard? (atom false)
              [accepted? value]
@@ -939,7 +957,7 @@
 (defn just
   "Return a generator which always produces value without making a draw."
   [value]
-  (composite-fn (fn [_] value)))
+  (composite-fn "jolt-hegel.just" (fn [_] value)))
 
 (defn sampled-from
   "Generate one value from a non-empty collection."
@@ -947,7 +965,7 @@
   (let [values (vec values)]
     (when (empty? values)
       (invalid-option "sampled-from requires at least one value" {}))
-    (composite-fn
+    (composite-fn "jolt-hegel.sampled-from"
      (fn [test-case]
        (let [index (hffi/generate-integer!
                     (:context test-case) (:handle test-case)
@@ -961,10 +979,10 @@
     (when (empty? generators)
       (invalid-option "one-of requires at least one generator" {}))
     (require-generators! "one-of" generators)
-    (composite-fn
-     (fn [test-case]
+    (composed-generator hffi/label-one-of generators
+     (fn [test-case span-label]
        (in-span
-        test-case hffi/label-one-of
+        test-case span-label
         #(let [index (hffi/generate-integer!
                       (:context test-case) (:handle test-case)
                       0 (dec (count generators)))]
@@ -974,10 +992,10 @@
   "Generate nil or a value from generator."
   [generator]
   (require-generator! "optional" generator)
-  (composite-fn
-   (fn [test-case]
+  (composed-generator hffi/label-optional [generator]
+   (fn [test-case span-label]
      (in-span
-      test-case hffi/label-optional
+      test-case span-label
       #(when (hffi/generate-boolean!
               (:context test-case) (:handle test-case) 0.5 false false)
          (generator test-case))))))
@@ -989,9 +1007,9 @@
     (require-generators! "tuple" generators)
     (if (empty? generators)
       (just [])
-      (composite-fn
-       (fn [test-case]
-         (in-span test-case hffi/label-tuple
+      (composed-generator hffi/label-tuple generators
+       (fn [test-case span-label]
+         (in-span test-case span-label
                   #(mapv (fn [generator] (generator test-case))
                          generators)))))))
 
@@ -1202,10 +1220,10 @@
              (validation/require-boolean! ::invalid-option :unique?
                                           (:unique? opts)))
          unique? (clojure.core/boolean (:unique? opts))]
-     (composite-fn
-      (fn [test-case]
+     (composed-generator hffi/label-list [elements]
+      (fn [test-case span-label]
         (draw-collection
-         test-case hffi/label-list min-size max-size []
+         test-case span-label min-size max-size []
          (fn [collection result]
            (let [value (elements test-case)]
              (if (and unique? (some #(= value %) result))
@@ -1260,10 +1278,10 @@
    (let [[min-size max-size] (collection-bounds "set"
                                                 #{:size :min-size :max-size}
                                                 opts)]
-     (composite-fn
-      (fn [test-case]
+     (composed-generator hffi/label-set [elements]
+      (fn [test-case span-label]
         (draw-collection
-         test-case hffi/label-set min-size max-size #{}
+         test-case span-label min-size max-size #{}
          (fn [collection result]
            (let [value (elements test-case)]
              (if (contains? result value)
@@ -1292,10 +1310,10 @@
    (let [[min-size max-size] (collection-bounds "map"
                                                 #{:size :min-size :max-size}
                                                 opts)]
-     (composite-fn
-      (fn [test-case]
+     (composed-generator hffi/label-map [keys values]
+      (fn [test-case span-label]
         (draw-collection
-         test-case hffi/label-map min-size max-size {}
+         test-case span-label min-size max-size {}
          (fn [collection result]
            (let [key (keys test-case)]
              (if (contains? result key)

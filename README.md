@@ -5,12 +5,12 @@ by the [Hegel](https://hegel.dev/) generation and shrinking engine.
 
 Examples are good at confirming cases you already thought of. A Hegel property
 describes a larger truth: values are generated across the input domain, a
-failure is reduced to a small counterexample, and the final case is replayed
-before the result is reported. The seed in every result makes the run
-repeatable.
+failure is reduced to a small counterexample, and the engine checks replay
+before reporting it. Caveats make uncertain reproduction visible. The seed
+in every result makes a pinned deterministic run repeatable.
 
 jolt-hegel exposes one Clojure API on all three hosts. It calls the same
-libhegel 0.36.3 C ABI directly through `jolt.ffi` or the upstream
+libhegel 0.44.1 C ABI directly through `jolt.ffi` or the upstream
 `babashka.ffi` library (which uses the final JDK Foreign Function & Memory API
 on the JVM). There is no service to start and no subprocess protocol.
 
@@ -99,7 +99,7 @@ asserting the contract that matters:
 (deftest user-codec-round-trips
   (with {:test-cases 500 :database "" :verbosity :quiet}
     [user user-record]
-    ;; Printed only for the final, minimized replay.
+    ;; Retained for engine capture; normal output selects the freshest failure.
     (h/fprn :minimal-user user)
     (is (= user (codec/decode (codec/encode user))))))
 ```
@@ -125,9 +125,11 @@ streaming APIs.
 ## Shrinking and replay
 
 When a property throws, jolt-hegel gives the failure a stable identity, lets
-libhegel minimize the choices that produced it, and executes the minimized case
-one final time. Put expensive diagnostics behind `h/final?`, `h/when-final`, or
-`h/fprn` so hundreds of exploratory cases stay quiet.
+libhegel minimize the choices that produced it, and retains the engine's
+freshest failing capture for each reported origin. `h/final?` and `h/when-final`
+identify capture attempts, which can run more than once and are not always
+minimal. `h/fprn` records bounded notes; normal output and `clojure.test`
+publish selected captures after the run.
 
 Every result includes its selected seed as a decimal string. Rerun it with
 the same engine, property contract and settings:
@@ -157,10 +159,12 @@ an exception from `run-test!`, so a custom runner must check it. For a suite
 that should count failures and continue, use `hegel.report/counting-runner`
 with `hegel.report/run!`.
 
-The result map also records case counts, minimal failures, final replay data,
-observed failure summaries, and flakiness. A result with `:flaky? true` means
-the same generated choices did not reproduce the same outcome; fix shared
-state, timing, or other nondeterminism before trusting its counterexample.
+The result map also records case counts, failures, selected captures under
+`:final`, observed failure summaries, and flakiness. `:caveat` explains native
+replay uncertainty; any caveat or missing capture is conservatively
+`:flaky? true` and cannot become a stable replay bundle. Use
+`:nondeterminism-strictness :error` to retain a determinism-lint policy;
+the native default `:quiet` confirms and caveats nondeterministic failures.
 
 Labelled `h/draw!` calls (including bindings produced by `g/let`) and
 `h/note!` use libhegel's bounded test-case document. Rejected filter,
@@ -178,6 +182,17 @@ native blobs; it does not substitute a seed rerun. See
 [replay bundles](docs/REPLAY_BUNDLES.md) for provenance, redaction, result
 variants and the trusted-artifact boundary. Matching provenance and bounded
 EDN do not make untrusted native blobs safe to execute.
+
+### Profiles and new native features
+
+`h/resolved-options` shows effective profile/environment settings without
+starting a property. Use `:profile`, `h/register-profile!`, or `hegel.toml`
+for shared defaults; explicit run options win. Rules accept positive finite
+`:weight`, and `hs/run!` accepts a per-machine `:step-count` override.
+See [libhegel 0.44 migration](docs/LIBHEGEL-044-MIGRATION.md) for examples,
+new settings, Antithesis locations, label derivation, and changed capture
+semantics. Native fixes improve text generation, pools, floats, and shrinking
+without a compiler fork or a second property API.
 
 ### Seeded corpora (unreleased)
 
@@ -250,12 +265,11 @@ might exercise only create/read operations, another create/update/delete, and
 another the full rule set. This explores feature interactions without requiring
 you to hand-author each subset or a second rule-choice loop.
 
-libhegel also defines nondeterministic concurrent state machines. They are not
-exposed by `hs/run!`: declaring concurrency above one disables shrinking,
-replay, targeting, persistence, and flakiness checks upstream, while the
-current Clojure API deliberately models each rule as a deterministic
-`state -> state` transition. A future concurrent API will use a distinct
-shared-state and join-point contract rather than silently weakening this one.
+libhegel also defines concurrent state machines, now with confirmation,
+shrinking, replay blobs, and caveats. They are not exposed by `hs/run!`, which
+keeps deterministic `state -> state` transitions. The separate concurrent
+declarations and lifecycle/mock seams exist, but a production executor is
+still pending; upgrading the native engine does not implement that API.
 
 ### Reusing generated resources with pools
 
@@ -400,10 +414,12 @@ The supported schema contract is listed in the
 
 ## Installation
 
-For the native mode removal, temporal precision adapter, and replay-version
-boundary, see [libhegel 0.36 migration](docs/LIBHEGEL-036-MIGRATION.md).
+For profiles, weighted/per-machine budgets, capture/replay changes, and the
+native-version boundary, see [libhegel 0.44 migration](docs/LIBHEGEL-044-MIGRATION.md).
+The earlier [0.36 migration](docs/LIBHEGEL-036-MIGRATION.md) records mode removal
+and the temporal precision adapter.
 
-jolt-hegel uses libhegel 0.36.3. Prebuilt upstream libraries are available for
+jolt-hegel uses libhegel 0.44.1. Prebuilt upstream libraries are available for
 Linux x86_64/arm64, Windows x86_64/arm64, and macOS arm64; the supported CI
 matrix remains Linux x86_64, Windows x86_64, and macOS arm64. The installer chooses the asset,
 verifies its pinned SHA-256, and caches it. The same SHA-pinned Git dependency

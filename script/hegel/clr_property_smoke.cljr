@@ -120,7 +120,7 @@
     (require! "shared shrinking and final replay"
               (and (not (:passed? result))
                    (= :failed (:status result))
-                   (= [500] @final-values)
+                   (= 500 (last @final-values))
                    (= "hegel.clr-property-smoke/threshold" (:origin failure))
                    (= "AAEAAAAACgIAAAD0AQ==" (:reproduction-blob failure))
                    (:reproduced? failure)
@@ -195,9 +195,9 @@
 
 (defn -main [& _]
   (let [report (abi/backend-report)]
-    (require! "canonical ABI coverage is 103/103"
+    (require! "canonical ABI coverage is 128/128"
               (and (:supported? report)
-                   (= {:supported 103 :unsupported 0 :total 103}
+                   (= {:supported 128 :unsupported 0 :total 128}
                       (:summary report)))
               {:report report}))
   (check-primitive-and-composite-generators!)

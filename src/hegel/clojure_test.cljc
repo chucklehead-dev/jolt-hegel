@@ -76,7 +76,7 @@
      :type cause-type
      :data cause-data}))
 
-(defn- evaluate-case [base final-reports body]
+(defn- evaluate-case [base body]
   (let [reports (atom [])
         outcome
         (host/try-catch-all
@@ -86,8 +86,8 @@
             (body))}
          error
          {:error error})]
-    (when (h/final?)
-      (swap! final-reports into @reports))
+    (when-let [capture (:assertion-reports h/*test-case*)]
+      (reset! capture @reports))
     (if-let [error (:error outcome)]
       (if (or (:hegel/origin (ex-data error))
               (:hegel/usage-error? (ex-data error))
@@ -132,7 +132,11 @@
   (if (= :pass (:type event))
     event
     (let [message (nonblank-text (:message event))
-          seed-message (str "Hegel seed: " (:seed result))]
+          caveats (distinct (keep :caveat (:failures result)))
+          seed-message (str "Hegel seed: " (:seed result)
+                            (when (seq caveats)
+                              (str "; unconfirmed/caveated failure: "
+                                   (str/join "; " caveats))))]
       (assoc event :message (if message
                               (str message "; " seed-message)
                               seed-message)))))
@@ -154,16 +158,16 @@
   "Implementation for `with`; public only so macro expansions can call it."
   [opts base body]
   (let [reporter ct/report
-        final-reports (atom [])
-        opts (if (or (contains? opts :name)
-                     (contains? opts :database-key))
-               opts
-               (assoc opts :name base))
+        opts (if (and (map? opts)
+                      (not (or (contains? opts :name)
+                               (contains? opts :database-key))))
+               (assoc opts :name base)
+               opts)
         result (h/run-test!
                 opts
                 (fn [_]
-                  (evaluate-case base final-reports body)))]
-    (publish-result! reporter base result @final-reports)))
+                  (evaluate-case base body)))]
+    (publish-result! reporter base result (mapcat :reports (:failures result)))))
 
 (defmacro with
   "Run a shrinking Hegel property inside a clojure.test deftest.
@@ -178,7 +182,12 @@
                *file*)
         base (str file ":" line)]
     `(hegel.clojure-test/run-with-reports!
-      ~opts
+      (let [opts# ~opts]
+        (if (and (map? opts#) (not (contains? opts# :test-location)))
+          (assoc opts# :test-location
+                 {:file ~file :line ~line
+                  :class-name ~(str (ns-name *ns*)) :function ~base})
+          opts#))
       ~base
       (fn []
         (hegel.generator/let ~bindings

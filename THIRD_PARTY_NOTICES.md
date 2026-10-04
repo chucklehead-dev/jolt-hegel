@@ -27,7 +27,7 @@ Public License 2.0.
 hegel-clj is not bundled as a runtime dependency; see its source repository for
 its license text and copyright notices.
 
-## libhegel 0.36.3
+## libhegel 0.44.1
 
 Source: <https://github.com/hegeldev/hegel-rust>
 
@@ -53,7 +53,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-## Jolt 0.7.23
+## Jolt (primary CI: 0.8.17)
 
 Source: <https://github.com/jolt-lang/jolt>
 

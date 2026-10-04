@@ -23,15 +23,15 @@
   (let [descriptor (abi/validate!)
         functions (abi/functions)
         descriptor-text (pr-str descriptor)]
-    (require! "descriptor identifies libhegel 0.36.3"
-              (= "0.36.3" (get-in descriptor [:library :version])))
+    (require! "descriptor identifies libhegel 0.44.1"
+              (= "0.44.1" (get-in descriptor [:library :version])))
     ;; Complete equality with the pinned header belongs to header-audit; this
     ;; portable backend gate deliberately retains its native coverage checks.
-    (require! "descriptor retains 103 supported binding entries"
-              (= 103 (count functions)))
+    (require! "descriptor retains 128 supported binding entries"
+              (= 128 (count functions)))
     (require! "descriptor includes formerly unbound header calls"
               (every? (fn [function-id] (contains? functions function-id))
-                      [:test-case-is-nondeterministic
+                      [:test-case-should-capture
                        :test-case-clone
                        :generate-integer-big]))
     (require! "descriptor represents wide and aggregate signatures"
@@ -92,7 +92,7 @@
     #?(:jolt
        (let [report (abi/check-backend selected-backend/backend descriptor)]
          (require! "Jolt backend supports every descriptor signature"
-                   (= {:supported 103 :unsupported 0 :total 103}
+                   (= {:supported 128 :unsupported 0 :total 128}
                       (:summary report)))
          (require! "Jolt backend selects direct FFI for every signature"
                    (every? (fn [entry] (= :jolt/direct (:route entry)))
@@ -101,7 +101,7 @@
        (let [report (abi/check-backend selected-backend/backend descriptor)
              routes (map :route (vals (:functions report)))]
          (require! "Babashka backend supports every descriptor signature"
-                   (= {:supported 103 :unsupported 0 :total 103}
+                   (= {:supported 128 :unsupported 0 :total 128}
                       (:summary report)))
          (require! "Babashka defers exact call routes until bindings exist"
                    (every? #{:bb/runtime-selected} routes))
@@ -113,7 +113,7 @@
        :jank
        (let [report (abi/check-backend selected-backend/backend descriptor)]
          (require! "jank generator covers every descriptor signature"
-                   (= {:supported 103 :unsupported 0 :total 103}
+                   (= {:supported 128 :unsupported 0 :total 128}
                       (:summary report)))
          (require! "jank reports generated C++ downcalls as native-ready"
                    (every? (fn [entry]
@@ -128,7 +128,7 @@
        :clj
        (let [report (abi/check-backend selected-backend/backend descriptor)]
          (require! "JVM backend supports every descriptor signature"
-                   (= {:supported 103 :unsupported 0 :total 103}
+                   (= {:supported 128 :unsupported 0 :total 128}
                       (:summary report)))
          (require! "JVM backend selects direct FFM for every signature"
                    (every? (fn [entry] (= :jvm/ffm (:route entry)))

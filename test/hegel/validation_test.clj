@@ -253,6 +253,7 @@
     (let [first-case? (atom true)
           result (h/run-test! (assoc run-opts :suppress-health-checks [:filter-too-much])
                               (fn [_]
+                                (h/draw! (g/integer 0 100))
                                 (when (compare-and-set! first-case? true false)
                                   (h/assume! false))))]
       (is (:passed? result))

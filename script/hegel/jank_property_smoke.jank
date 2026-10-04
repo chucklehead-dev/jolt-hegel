@@ -255,7 +255,7 @@
                    (= 1 (:n-failures result))
                    (= "hegel.jank-property-smoke:threshold" (:origin failure))
                    (= "AAEAAAAACgIAAAD0AQ==" (:reproduction-blob failure))
-                   (= [500] @final-values)
+                   (= 500 (last @final-values))
                    (= 500 (-> final-outcome :exception ex-data :value))
                    (:reproduced? failure)
                    (false? (:flaky? result)))
@@ -417,7 +417,7 @@
     (when-not (= {:test 1 :pass 0 :fail 1 :error 0} fail-summary)
       (throw (ex-info "jank clojure.test embedded fail summary mismatch"
                       {:summary fail-summary})))
-    (when-not (= [500] @jank-clojure-test-fail-final-values)
+    (when-not (= 500 (last @jank-clojure-test-fail-final-values))
       (throw (ex-info "jank clojure.test expected-fail control did not shrink to its known minimum"
                       {:final-values @jank-clojure-test-fail-final-values})))
     (println "PASS jank clojure.test deftest/is/run-test host hegel.clojure-test/with")

@@ -235,10 +235,18 @@
 (defn read-value
   ([pointer type] (read-value pointer type 0))
   ([pointer type offset]
-   (ffi/read pointer (or (scalar-type type) type) offset)))
+   (let [native-type (or (scalar-type type) type)
+         value (ffi/read pointer native-type offset)]
+     (if (and (= :uint64 native-type) (neg? value))
+       (+ 18446744073709551616N value)
+       value))))
 
 (defn write-value [pointer type offset value]
-  (ffi/write pointer (or (scalar-type type) type) value offset))
+  (let [native-type (or (scalar-type type) type)]
+    (ffi/write pointer native-type
+               (if (= :uint64 native-type)
+                 (coerce-call-argument :c/uint64 value) value)
+               offset)))
 
 (defn read-array [pointer length]
   (if (zero? length)

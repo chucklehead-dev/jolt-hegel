@@ -39,7 +39,7 @@ smokes do not yet qualify arbitrary-precision values, exact binary32 bounds,
 or their complete shrinking/replay contracts. Do not assume parity from loading
 the shared namespace successfully.
 
-- all 103 libhegel 0.36.3 symbols are generated from the canonical ABI descriptor
+- all 128 libhegel 0.44.1 symbols are generated from the canonical ABI descriptor
   and resolved from the selected library;
 - fixed-width integer, floating-point, pointer, UTF-8, out-parameter, and bulk
   byte operations;
@@ -95,7 +95,7 @@ bb jank-codegen-check
 
 ## Running the spike
 
-Install libhegel 0.36.3 with jank's native installer, or point jank at an
+Install libhegel 0.44.1 with jank's native installer, or point jank at an
 existing compatible library. The native installer uses jank's C++ interop for
 filesystem, SHA-256, and staged rename-publication mechanics. Because current
 jank does not expose a portable consumer HTTP/process API, downloads use `curl`

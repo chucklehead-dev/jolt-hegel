@@ -28,9 +28,9 @@
     (is (= :pass (:status (constants/compare-constants (constants/snapshot) a))))
     (is (= :pass (:status (constants/compare-constants (constants/snapshot) b))))))
 
-(deftest same-count-label-mutant-fails
+(deftest same-count-verbosity-mutant-fails
   (let [snapshot (-> (constants/snapshot)
-                     (replace-enum "hegel_label_t" "HEGEL_LABEL_LIST" 2))]
+                     (replace-enum "hegel_verbosity_t" "HEGEL_VERBOSITY_QUIET" 0))]
     (is (thrown? clojure.lang.ExceptionInfo
                  (constants/compare-constants snapshot (constants/source-constants))))))
 
@@ -41,8 +41,8 @@
                  (constants/compare-constants snapshot (constants/source-constants))))))
 
 (deftest missing-mapping-fails
-  (let [snapshot (update-in (constants/snapshot) [:enums "hegel_label_t"]
-                            (fn [entries] (remove #(= "HEGEL_LABEL_LIST" (first %)) entries)))]
+  (let [snapshot (update-in (constants/snapshot) [:enums "hegel_nondeterminism_strictness_t"]
+                            (fn [entries] (remove #(= "HEGEL_NONDETERMINISM_ERROR" (first %)) entries)))]
     (is (thrown? clojure.lang.ExceptionInfo
                  (constants/compare-constants snapshot (constants/source-constants))))))
 

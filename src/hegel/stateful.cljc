@@ -40,14 +40,16 @@
 
   step receives the current state and must return the next state. The optional
   :precondition predicate is checked before step; a false result skips that
-  attempted rule without running invariants."
+  attempted rule without running invariants. :weight is a finite positive
+  relative selection hint among enabled rules, default 1.0."
   ([name step]
    (rule name {} step))
   ([name opts step]
    (when-not (map? opts)
      (invalid-argument "rule options must be a map"
                        {:name name :options opts}))
-   (let [unknown (seq (remove #{:precondition} (keys opts)))
+   (let [unknown (seq (remove #{:precondition :weight} (keys opts)))
+         weight (get opts :weight 1.0)
          precondition (if (contains? opts :precondition)
                         (:precondition opts)
                         (constantly true))]
@@ -60,10 +62,13 @@
      (when-not (fn? step)
        (invalid-argument "rule step must be a function"
                          {:name name :step step}))
+     (when-not (and (number? weight) (< 0.0 (double weight) ##Inf))
+       (invalid-argument "rule weight must be finite and positive" {:name name}))
      {::kind ::rule
       :name name
       ::native-name (normalized-name :rule name)
       ::precondition precondition
+      ::weight (double weight)
       ::step step})))
 
 (defn invariant
@@ -342,7 +347,7 @@
   [config]
   (when-not (map? config)
     (invalid-argument "state machine config must be a map" {:config config}))
-  (let [unknown (seq (remove #{:initial-state :rules :invariants}
+  (let [unknown (seq (remove #{:initial-state :rules :invariants :step-count}
                              (keys config)))]
     (when unknown
       (invalid-argument "unknown state machine options"
@@ -356,12 +361,18 @@
     (when (empty? rules)
       (invalid-argument "cannot run a state machine with no rules" {}))
     (let [test-case (h/current-test-case!)
+          step-count (get config :step-count (get test-case :stateful-step-count 50))
+          _ (when-not (and (integer? step-count) (<= 1 step-count 9223372036854775807))
+              (invalid-argument "state machine step-count must be a positive int64" {}))
           machine
           (hffi/new-state-machine!
            (:context test-case)
            (:handle test-case)
            (mapv ::native-name rules)
-           (mapv ::native-name invariants))]
+           (mapv ::native-name invariants)
+           {:step-count step-count
+            :rule-weights (mapv ::weight rules)
+            :invariant-always-check (mapv (constantly true) invariants)})]
       (try
         (h/note! "Initial invariant check.")
         (check-invariants! invariants (:initial-state config) [])

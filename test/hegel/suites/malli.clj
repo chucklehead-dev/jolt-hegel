@@ -264,7 +264,7 @@
                                 :value value}))))))]
     (support/check! context "retains native Hegel shrinking through the Malli adapter"
            (and (not (:passed? result))
-                (= [10] @final-values)
+                (= 10 (last @final-values))
                 (= 10 (-> result :final first :exception ex-data :value)))))
   (let [schema
         [:schema

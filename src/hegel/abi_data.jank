@@ -41,6 +41,11 @@
   {:args [[:pointer :hegel/context] [:pointer :hegel/test-case] :c/double :c/string],
    :return :c/int32,
    :symbol "hegel_event_value"},
+  :failure-caveat
+  {:args [[:pointer :hegel/context] [:pointer :hegel/failure] [:pointer :c/string]],
+   :ownership {:out {:kind :borrowed, :owner :failure}},
+   :return :c/int32,
+   :symbol "hegel_failure_caveat"},
   :failure-free
   {:args [[:pointer :hegel/context] [:pointer :hegel/failure]],
    :return :c/int32,
@@ -163,6 +168,14 @@
    [[:pointer :hegel/context] [:pointer :hegel/test-case] :c/uint8 :c/bool [:pointer :c/uint8]],
    :return :c/int32,
    :symbol "hegel_generate_uuid"},
+  :label-combine
+  {:args [[:pointer :hegel/context] [:pointer :c/uint64] :c/size [:pointer :c/uint64]],
+   :return :c/int32,
+   :symbol "hegel_label_combine"},
+  :label-from-name
+  {:args [[:pointer :hegel/context] :c/string [:pointer :c/uint64]],
+   :return :c/int32,
+   :symbol "hegel_label_from_name"},
   :mark-complete
   {:args [[:pointer :hegel/context] [:pointer :hegel/test-case] :c/uint32 :c/string],
    :blocking? true,
@@ -199,9 +212,12 @@
     [:pointer :hegel/test-case]
     [:pointer :c/string]
     [:pointer :c/int64]
+    [:pointer :c/double]
     :c/size
     [:pointer :c/string]
+    [:pointer :c/bool]
     :c/size
+    :c/int64
     :c/int64
     :c/int64
     [:pointer [:pointer :hegel/state-machine]]
@@ -405,15 +421,93 @@
    :ownership {:out {:kind :owned, :release :run-free}},
    :return :c/int32,
    :symbol "hegel_run_start"},
+  :run-start-blob
+  {:args
+   [[:pointer :hegel/context]
+    [:pointer :hegel/settings]
+    :c/string
+    :hegel/output-callback
+    [:pointer :c/void]
+    [:pointer [:pointer :hegel/run]]],
+   :ownership {:out {:kind :owned, :release :run-free}},
+   :return :c/int32,
+   :symbol "hegel_run_start_blob"},
+  :set-default-profile
+  {:args [[:pointer :hegel/context] :c/string],
+   :return :c/int32,
+   :symbol "hegel_set_default_profile"},
   :settings-free
   {:args [[:pointer :hegel/context] [:pointer :hegel/settings]],
    :return :c/int32,
    :symbol "hegel_settings_free"},
+  :settings-get-backend
+  {:args [[:pointer :hegel/context] [:pointer :hegel/settings] [:pointer :c/uint32]],
+   :return :c/int32,
+   :symbol "hegel_settings_get_backend"},
+  :settings-get-database
+  {:args [[:pointer :hegel/context] [:pointer :hegel/settings] [:pointer :c/string]],
+   :ownership {:out {:kind :borrowed, :owner :settings}},
+   :return :c/int32,
+   :symbol "hegel_settings_get_database"},
+  :settings-get-derandomize
+  {:args [[:pointer :hegel/context] [:pointer :hegel/settings] [:pointer :c/bool]],
+   :return :c/int32,
+   :symbol "hegel_settings_get_derandomize"},
+  :settings-get-nondeterminism-strictness
+  {:args [[:pointer :hegel/context] [:pointer :hegel/settings] [:pointer :c/uint32]],
+   :return :c/int32,
+   :symbol "hegel_settings_get_nondeterminism_strictness"},
+  :settings-get-phases
+  {:args [[:pointer :hegel/context] [:pointer :hegel/settings] [:pointer :c/uint32]],
+   :return :c/int32,
+   :symbol "hegel_settings_get_phases"},
+  :settings-get-print-blob
+  {:args [[:pointer :hegel/context] [:pointer :hegel/settings] [:pointer :c/bool]],
+   :return :c/int32,
+   :symbol "hegel_settings_get_print_blob"},
+  :settings-get-report-multiple-failures
+  {:args [[:pointer :hegel/context] [:pointer :hegel/settings] [:pointer :c/bool]],
+   :return :c/int32,
+   :symbol "hegel_settings_get_report_multiple_failures"},
+  :settings-get-seed
+  {:args
+   [[:pointer :hegel/context] [:pointer :hegel/settings] [:pointer :c/uint64] [:pointer :c/bool]],
+   :return :c/int32,
+   :symbol "hegel_settings_get_seed"},
+  :settings-get-show-statistics
+  {:args [[:pointer :hegel/context] [:pointer :hegel/settings] [:pointer :c/bool]],
+   :return :c/int32,
+   :symbol "hegel_settings_get_show_statistics"},
+  :settings-get-suppress-health-check
+  {:args [[:pointer :hegel/context] [:pointer :hegel/settings] [:pointer :c/uint32]],
+   :return :c/int32,
+   :symbol "hegel_settings_get_suppress_health_check"},
+  :settings-get-test-cases
+  {:args [[:pointer :hegel/context] [:pointer :hegel/settings] [:pointer :c/uint64]],
+   :return :c/int32,
+   :symbol "hegel_settings_get_test_cases"},
+  :settings-get-unbounded-choices
+  {:args [[:pointer :hegel/context] [:pointer :hegel/settings] [:pointer :c/bool]],
+   :return :c/int32,
+   :symbol "hegel_settings_get_unbounded_choices"},
+  :settings-get-verbosity
+  {:args [[:pointer :hegel/context] [:pointer :hegel/settings] [:pointer :c/uint32]],
+   :return :c/int32,
+   :symbol "hegel_settings_get_verbosity"},
   :settings-new
   {:args [[:pointer :hegel/context] [:pointer [:pointer :hegel/settings]]],
    :ownership {:out {:kind :owned, :release :settings-free}},
    :return :c/int32,
    :symbol "hegel_settings_new"},
+  :settings-new-for-profile
+  {:args [[:pointer :hegel/context] :c/string [:pointer [:pointer :hegel/settings]]],
+   :ownership {:out {:kind :owned, :release :settings-free}},
+   :return :c/int32,
+   :symbol "hegel_settings_new_for_profile"},
+  :settings-register-profile
+  {:args [[:pointer :hegel/context] :c/string [:pointer :hegel/settings]],
+   :return :c/int32,
+   :symbol "hegel_settings_register_profile"},
   :settings-set-backend
   {:args [[:pointer :hegel/context] [:pointer :hegel/settings] :c/uint32],
    :return :c/int32,
@@ -430,10 +524,18 @@
   {:args [[:pointer :hegel/context] [:pointer :hegel/settings] :c/bool],
    :return :c/int32,
    :symbol "hegel_settings_set_derandomize"},
+  :settings-set-nondeterminism-strictness
+  {:args [[:pointer :hegel/context] [:pointer :hegel/settings] :c/uint32],
+   :return :c/int32,
+   :symbol "hegel_settings_set_nondeterminism_strictness"},
   :settings-set-phases
   {:args [[:pointer :hegel/context] [:pointer :hegel/settings] :c/uint32],
    :return :c/int32,
    :symbol "hegel_settings_set_phases"},
+  :settings-set-print-blob
+  {:args [[:pointer :hegel/context] [:pointer :hegel/settings] :c/bool],
+   :return :c/int32,
+   :symbol "hegel_settings_set_print_blob"},
   :settings-set-report-multiple-failures
   {:args [[:pointer :hegel/context] [:pointer :hegel/settings] :c/bool],
    :return :c/int32,
@@ -446,10 +548,6 @@
   {:args [[:pointer :hegel/context] [:pointer :hegel/settings] :c/bool],
    :return :c/int32,
    :symbol "hegel_settings_set_show_statistics"},
-  :settings-set-stateful-step-count
-  {:args [[:pointer :hegel/context] [:pointer :hegel/settings] :c/int64],
-   :return :c/int32,
-   :symbol "hegel_settings_set_stateful_step_count"},
   :settings-set-suppress-health-check
   {:args [[:pointer :hegel/context] [:pointer :hegel/settings] :c/uint32],
    :return :c/int32,
@@ -458,6 +556,15 @@
   {:args [[:pointer :hegel/context] [:pointer :hegel/settings] :c/uint64],
    :return :c/int32,
    :symbol "hegel_settings_set_test_cases"},
+  :settings-set-test-location
+  {:args
+   [[:pointer :hegel/context] [:pointer :hegel/settings] :c/string :c/uint32 :c/string :c/string],
+   :return :c/int32,
+   :symbol "hegel_settings_set_test_location"},
+  :settings-set-unbounded-choices
+  {:args [[:pointer :hegel/context] [:pointer :hegel/settings] :c/bool],
+   :return :c/int32,
+   :symbol "hegel_settings_set_unbounded_choices"},
   :settings-set-verbosity
   {:args [[:pointer :hegel/context] [:pointer :hegel/settings] :c/uint32],
    :return :c/int32,
@@ -563,6 +670,15 @@
   {:args [[:pointer :hegel/context] [:pointer :hegel/test-case] :c/double :c/string],
    :return :c/int32,
    :symbol "hegel_target"},
+  :test-case-block
+  {:args
+   [[:pointer :hegel/context]
+    [:pointer :hegel/test-case]
+    :c/uint64
+    [:pointer [:pointer :hegel/test-case]]],
+   :ownership {:out {:kind :owned, :release :test-case-free}},
+   :return :c/int32,
+   :symbol "hegel_test_case_block"},
   :test-case-clone
   {:args
    [[:pointer :hegel/context] [:pointer :hegel/test-case] [:pointer [:pointer :hegel/test-case]]],
@@ -584,10 +700,6 @@
    :ownership {:out {:kind :owned, :release :test-case-free}},
    :return :c/int32,
    :symbol "hegel_test_case_from_blob"},
-  :test-case-is-nondeterministic
-  {:args [[:pointer :hegel/context] [:pointer :hegel/test-case] [:pointer :c/bool]],
-   :return :c/int32,
-   :symbol "hegel_test_case_is_nondeterministic"},
   :test-case-printer
   {:args
    [[:pointer :hegel/context]
@@ -597,6 +709,14 @@
    :ownership {:out {:kind :owned, :release :printer-free}},
    :return :c/int32,
    :symbol "hegel_test_case_printer"},
+  :test-case-set-worker
+  {:args [[:pointer :hegel/context] [:pointer :hegel/test-case] :c/int64],
+   :return :c/int32,
+   :symbol "hegel_test_case_set_worker"},
+  :test-case-should-capture
+  {:args [[:pointer :hegel/context] [:pointer :hegel/test-case] [:pointer :c/bool]],
+   :return :c/int32,
+   :symbol "hegel_test_case_should_capture"},
   :version
   {:args [[:pointer :hegel/context] [:pointer :c/string]],
    :ownership {:out {:kind :borrowed, :owner :library}},
@@ -604,12 +724,12 @@
    :symbol "hegel_version"}},
  :library
  {:header
-  {:commit "caafb40bbc37b5c44c7843f2442b62e382d73894",
+  {:commit "ebfd9d53a3de91522e0c4e5941cf08242aba713b",
    :path "hegel-c/include/hegel.h",
    :repository "hegeldev/hegel-rust",
-   :tag "v0.36.3"},
+   :tag "libhegel-v0.44.1"},
   :name "libhegel",
-  :version "0.36.3"},
+  :version "0.44.1"},
  :schema-version 1,
  :types
  {:c/bool {:bits 8, :kind :boolean, :signed? false},

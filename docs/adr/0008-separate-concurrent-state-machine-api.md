@@ -3,6 +3,23 @@
 - Status: Accepted; declarations, validation, capability/lifecycle, and injected mocked-protocol seams implemented; executor pending
 - Date: 2026-09-06
 
+## Native 0.44 delta (2026-10-04)
+
+The context and proposed executor below record the 0.36 native contract.
+Several engine assumptions are **superseded**, not implementation requirements:
+0.44 accepts the first concurrent machine without an assumed-away flip case;
+concurrent failures have confirmation, graph reproduction blobs, shrinking,
+persistence, and optional caveats; the separate nondeterministic run status is
+removed. `hegel_test_case_should_capture` requests output capture and is not a
+nondeterminism predicate. Budgets now belong to individual machines.
+
+The separate executor is still pending. Existing declarations and injected
+join-before-free/cancellation/mock seams do not qualify a production executor
+or automatically approve a new concurrent result contract. A future executor
+must use engine-stamped captures and blob runs, preserve caveats, and retain
+the coordinator/worker ownership and liveness gates. See
+[the 0.44 migration](../LIBHEGEL-044-MIGRATION.md).
+
 ## Context
 
 `hegel.stateful/run!` drives libhegel's state-machine protocol at concurrency

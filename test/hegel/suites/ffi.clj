@@ -89,6 +89,9 @@
                   (fn [values call]
                     (swap! with-int64-array-calls conj (vec values))
                     (call ::rule-groups-ptr))
+                  hffi/with-scalar-array
+                  (fn [type _values call]
+                    (call (case type :double ::weights :uint8 ::flags)))
                   ffi-backend/with-native-scope (fn [call] (call))
                   ffi-backend/sizeof (constantly 8)
                   ffi-backend/alloc (fn [_size] ::out)
@@ -110,8 +113,8 @@
                (and (= [["r1" "r2"] ["inv"]] @with-c-string-array-calls)
                     (= [[5 6]] @with-int64-array-calls)))
         (support/check! context "the configured constructor passes every argument to libhegel in order"
-               (= [[::ctx ::test-case :rules-ptr-1 ::rule-groups-ptr 2
-                    :rules-ptr-2 1 2 4 ::out ::out]]
+               (= [[::ctx ::test-case :rules-ptr-1 ::rule-groups-ptr ::weights 2
+                    :rules-ptr-2 ::flags 1 2 4 50 ::out ::out]]
                   @native-calls))))
     (let [error (try
                   (hffi/new-state-machine-with-concurrency!
@@ -131,6 +134,9 @@
                   (fn [values call] (call ::strings (count values)))
                   hffi/with-int64-array
                   (fn [_values call] (call ::groups))
+                  hffi/with-scalar-array
+                  (fn [type _values call]
+                    (call (case type :double ::weights :uint8 ::flags)))
                   ffi-backend/with-native-scope (fn [call] (call))
                   ffi-backend/sizeof (constantly 8)
                   ffi-backend/alloc (constantly ::out)
@@ -160,6 +166,9 @@
                   (fn [values call] (call ::strings (count values)))
                   hffi/with-int64-array
                   (fn [_values call] (call ::groups))
+                  hffi/with-scalar-array
+                  (fn [type _values call]
+                    (call (case type :double ::weights :uint8 ::flags)))
                   ffi-backend/with-native-scope (fn [call] (call))
                   ffi-backend/sizeof (constantly 8)
                   ffi-backend/alloc
@@ -182,7 +191,7 @@
   (let [frees (atom [])]
     (with-redefs [hffi/new-state-machine-with-concurrency!
                   (fn [_ctx _test-case _rule-names _rule-groups _invariant-names
-                       _min-concurrency _max-concurrency]
+                       _min-concurrency _max-concurrency _opts]
                     {:state-machine ::machine :concurrency 4})
                   hffi/state-machine-free!
                   (fn [ctx state-machine]
@@ -238,22 +247,22 @@
                                            (let [value (first @values)]
                                              (swap! values subvec 1)
                                              value))
-                  hffi/c-test-case-is-nondeterministic
+                  hffi/c-test-case-should-capture
                   (fn [ctx test-case out]
-                    (swap! calls conj [:test-case-is-nondeterministic ctx test-case out])
+                    (swap! calls conj [:test-case-should-capture ctx test-case out])
                     0)
                   hffi/c-state-machine-should-check-invariant
                   (fn [ctx test-case state-machine invariant-index out]
                     (swap! calls conj [:state-machine-should-check-invariant
                                        ctx test-case state-machine invariant-index out])
                     0)]
-      (support/check! context "the nondeterministic case marker decodes the canonical boolean out value"
-             (true? (hffi/test-case-nondeterministic? ::ctx ::root-case)))
+      (support/check! context "the engine capture stamp decodes the canonical boolean out value"
+             (true? (hffi/test-case-should-capture? ::ctx ::root-case)))
       (support/check! context "the invariant decision remains a coordinator draw with no alternate route"
              (false? (hffi/state-machine-should-check-invariant!
                       ::ctx ::root-case ::machine 4)))
       (support/check! context "coordinator-only wrappers preserve their canonical native arguments"
-             (= [[:test-case-is-nondeterministic ::ctx ::root-case ::out]
+             (= [[:test-case-should-capture ::ctx ::root-case ::out]
                  [:state-machine-should-check-invariant
                   ::ctx ::root-case ::machine 4 ::out]]
                 @calls)))))

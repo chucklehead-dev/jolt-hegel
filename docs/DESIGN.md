@@ -61,15 +61,15 @@ control flow.
 
 The public result distinguishes the aggregate run status, wrapper-observed case
 counts, failures, final replay summaries, the seed, and whether any failure was
-flaky. `:test-cases` is a maximum: an exhausted engine choice tree may finish
-earlier.
+flaky. `:test-cases` bounds successful generated cases, not total body calls;
+confirmation and shrink attempts can add invocations.
 
-libhegel has a separate run-level nondeterminism path. Its "Flaky test
-detected" and "data generation is non-deterministic" errors return
+Under `:nondeterminism-strictness :error`, libhegel's nondeterminism errors return
 `:passed? false`, `:status :error`, `:flaky? true`, and the explanation in
 `:error`, without inventing a replayable failure blob. Health checks and other
 engine errors remain `:hegel.core/run-error` exceptions because they are not
-property verdicts.
+property verdicts. The native default `:quiet` instead confirms and caveats
+failures; any caveat is conservatively `:flaky? true` in this binding.
 
 The wrapper retains bounded `:observed-failures` grouped by stable origin while
 it drives exploration. Each entry includes the first and last structured
@@ -92,11 +92,13 @@ invariants derive origins from their declared names.
 
 ## Shrinking and final replay
 
-Failure blobs are copied before their native result objects are freed. Each blob
-is replayed through a final test case after shrinking completes. Only the replay
-runs with `final?` true. Reproduction requires both another interesting outcome
-and the original stable origin. A missing failure or a different replay origin
-is retained with `:replay-origin` and marks the aggregate result `:flaky? true`.
+Failure blobs and caveats are copied before native result objects are freed.
+The engine stamps capture attempts: first-check/confirmation/blob replays and
+the final replay can all have `final?` true. The wrapper selects each origin's
+freshest failing capture and performs no extra replay after the run. Missing
+captures or caveats mark the aggregate `:flaky? true`. Explicit bundle replay
+uses engine blob runs, checks the recorded origin, and trusts no caveated
+result; the property may execute more than once.
 
 Diagnostics should use `when-final`, `fprn`, or `note!` so they describe the
 minimal counterexample instead of every generated attempt. The database is
@@ -110,7 +112,7 @@ ordinary test assertion:
 
 - a passing property reports one pass, independent of case count;
 - intermediate failing candidates are captured but not published;
-- final replay assertion reports are published for the minimal failure;
+- assertion reports are published from each selected failing capture;
 - every nonpassing event includes the resolved Hegel seed;
 - blank exception messages fall back to the throwable-map cause or exception
   type and preserve original `ex-data`; and
@@ -149,13 +151,17 @@ Rule names and order must remain unchanged between generation and replay.
 Mutable systems under test must be constructed inside the property body so each
 generated case and final replay begins from fresh external state.
 
-The pinned libhegel 0.36.3 uses one round protocol for sequential and
+The pinned libhegel 0.44.1 uses one round protocol for sequential and
 concurrent machines.
 jolt-hegel fixes concurrency to one, advances the all-zero rule group at each
-join point, and exposes `:stateful-step-count` as the round budget. Concurrent
+join point, and exposes `:stateful-step-count` as the default round budget,
+with a per-machine `:step-count` override and positive finite rule weights.
+Concurrent
 machines remain outside the public contract because they require explicit
 semantics for shared state and nondeterministic failure capture; deterministic
-shrinking and final replay must not be implied for them.
+shrinking and final replay must not be implied without accounting for caveats
+and native confirmation. The separate executor remains pending, even though
+native concurrent failures now support graph blobs, shrinking and persistence.
 
 An expensive external service may wrap the complete property run when a fresh
 connection or session is the isolation unit and every body invocation restores

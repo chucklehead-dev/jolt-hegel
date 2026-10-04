@@ -11,7 +11,7 @@
 
 (deftest pinned-header-counts-and-callback
   (let [result (snapshot/snapshot)]
-    (is (= 103 (count (:functions result))))
+    (is (= 128 (count (:functions result))))
     (is (= 6 (count (:structs result))))
     (is (= 13 (count (:opaque-handles result))))
     (is (= 1 (count (:callbacks result))))

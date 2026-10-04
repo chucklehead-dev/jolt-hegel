@@ -344,6 +344,10 @@ jobs:
         if: matrix.host == 'bb'
         run: bb harness-test
 
+      - name: Check fresh-process profiles, environment precedence and Antithesis output
+        if: matrix.host == 'bb'
+        run: bb --classpath src:resources:script -m hegel.upgrade-env-test
+
       - name: Probe bootstrap optional loading (Babashka)
         if: matrix.host == 'bb'
         run: bb test --bootstrap-load-probe

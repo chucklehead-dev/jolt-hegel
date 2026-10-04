@@ -16,7 +16,7 @@ confined to resource/process discovery and a narrow native boundary.
                      /       /       |       \       \
              jolt.ffi   babashka.ffi (BB/JVM)   jank C++  CLR P/Invoke
                      \       \       |       /       /
-                                libhegel 0.36.3
+                                libhegel 0.44.1
 ```
 
 ## Source layers
@@ -25,7 +25,8 @@ confined to resource/process discovery and a narrow native boundary.
 | --- | --- |
 | `resources/hegel/abi.edn` | Canonical libhegel types, functions, blocking metadata, and ownership |
 | `hegel.abi` | Native-code-free descriptor loading, validation, and coverage reports |
-| `hegel.core` | Run lifecycle, case outcomes, seeds, shrinking, and final replay |
+| `hegel.core` | Profiles, run lifecycle, seeds, case outcomes, capture selection, and blob runs |
+| `hegel.label` | Portable opaque generator labels matching the native hash contract |
 | `hegel.generator` | Primitive, formatted, compositional, and collection generators |
 | `hegel.stateful` | Rules, invariants, swarm-driven state machines, and pools |
 | `hegel.clojure-test` | `clojure.test` capture and final publication |
