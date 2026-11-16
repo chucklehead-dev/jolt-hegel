@@ -5,7 +5,7 @@
             [clojure.string :as str])
   (:import [java.security MessageDigest]))
 
-(def fixture-dir "test/fixtures/hegel-0.36.3")
+(def fixture-dir "test/fixtures/hegel-0.51.6")
 (defn fail! [message data] (throw (ex-info (str "header snapshot parse failed: " message) data)))
 (defn read-utf8 [path] (slurp (io/file path) :encoding "UTF-8"))
 (defn sha256 [bytes]
@@ -25,7 +25,7 @@
 (defn validate-directives! [text]
   (doseq [line (str/split-lines text)
           :when (str/starts-with? (str/trim line) "#")]
-    (when-not (re-matches #"\s*#(?:ifndef HEGEL_H|define HEGEL_H|include <(?:stddef|stdint|stdbool)\.h>|define HEGEL_STATE_MACHINE_DONE INT64_MIN|ifdef __cplusplus|endif(?: // __cplusplus| /\* HEGEL_H \*/)?)[ \t]*" line)
+    (when-not (re-matches #"\s*#(?:ifndef HEGEL_H|define HEGEL_H|include <(?:stddef|stdint|stdbool)\.h>|define HEGEL_STATE_MACHINE_DONE INT64_MIN|define HEGEL_FILTER_ATTEMPTS 3|define HEGEL_RECURSION_ATTEMPTS 9|define HEGEL_MAX_SIZE_DEFAULT \(UINT64_MAX - 1\)|ifdef __cplusplus|endif(?: // __cplusplus| /\* HEGEL_H \*/)?)[ \t]*" line)
       (fail! "unsupported preprocessor directive" {:line line}))))
 (defn strip-comments [text]
   (-> text (str/replace #"(?s)/\*.*?\*/" "") (str/replace #"(?m)//.*$" "")))
@@ -36,7 +36,7 @@
       (re-matches #"0[xX][0-9a-fA-F]+" s) (Long/parseLong (subs s 2) 16)
       (re-matches #"\(1 << \d+\)" s)
       (bit-shift-left 1 (Long/parseLong (second (re-matches #"\(1 << (\d+)\)" s))))
-      (#{"INT64_MIN" "UINT64_MAX"} s) s
+      (#{"INT64_MIN" "UINT64_MAX" "(UINT64_MAX - 1)"} s) s
       :else (fail! (str "unsupported constant expression " (pr-str s)) {:expression s}))))
 (defn unique! [kind entries]
   (let [duplicates (->> entries frequencies (keep (fn [[k n]] (when (> n 1) k))) seq)]
@@ -71,6 +71,7 @@
       (= s "int64_t") "int64" (= s "uint64_t") "uint64"
       (= s "size_t") "size" (= s "float") "float" (= s "double") "double"
       (= s "bool *") "bool*"
+      (= s "const double *") "const double *"
       (= s "double *") "double*" (= s "float *") "float*"
       (re-matches #"HegelRecursion \*+" s) s
       (re-matches #"(?:const )?(?:u?int(?:8|16|32|64)_t|size_t) \*" s) s
@@ -121,7 +122,7 @@
   (let [entries (map (fn [[_ return name args]]
                        [name {:name name :return (normalize-type return)
                               :args (->> (str/split args #",") (map parse-arg) (remove nil?) vec)}])
-                     (re-seq #"(?m)(hegel_result_t|hegel_context_t \*|const char \*)\s*(hegel_[a-z0-9_]+)\s*\(([^;]*?)\)\s*;" text))]
+                     (re-seq #"(?m)(hegel_string_t|hegel_result_t|hegel_context_t \*|const char \*)\s*(hegel_[a-z0-9_]+)\s*\(([^;]*?)\)\s*;" text))]
     (mapv second (unique-names! "functions" entries))))
 (defn remove-recognized [text]
   (-> text
@@ -131,8 +132,9 @@
       (str/replace #"typedef\s+struct\s+(hegel_[a-z0-9_]+_t)\s+\1\s*;" "")
       (str/replace #"typedef\s+struct\s+(HegelRecursion)\s+\1\s*;" "")
       (str/replace #"typedef\s+void\s+\(\*hegel_output_callback_t\)\([^;]+\);" "")
-      (str/replace #"(?m)(hegel_result_t|hegel_context_t \*|const char \*)\s+hegel_[a-z0-9_]+\s*\([^;]*?\)\s*;" "")
+      (str/replace #"(?m)(hegel_string_t|hegel_result_t|hegel_context_t \*|const char \*)\s+hegel_[a-z0-9_]+\s*\([^;]*?\)\s*;" "")
       (str/replace #"(?m)(?:hegel_context_t \*|const char \*)hegel_[a-z0-9_]+\([^;]*?\);" "")
+      (str/replace #"typedef hegel_string_t hegel_owned_string_t;" "")
       (str/replace #"extern\s+\"C\"\s*\{" "")
       (str/replace #"(?m)^\s*#(?:ifndef|define|include|ifdef|endif).*?$" "")
       (str/replace #"\}" "")))
@@ -141,7 +143,8 @@
     (when-not (str/blank? residual)
       (fail! "unsupported top-level declaration" {:residual (subs residual 0 (min 240 (count residual)))}))))
 (defn parse-header [raw]
-  (let [text (strip-comments raw)]
+  (let [text (str/replace (strip-comments raw) "hegel_owned_string_t" "hegel_string_t")
+        text (str/replace text "typedef hegel_string_t hegel_string_t;" "")]
     (validate-directives! text)
     (let [result {:defines (parse-defines text) :enums (parse-enums text)
                   :structs (parse-structs text) :opaque-handles (parse-opaque-handles text)

@@ -54,6 +54,7 @@
         (h/run-test!
          {:test-cases 1 :seed 27 :database "" :verbosity :quiet}
          (fn [_]
+           (h/draw! (g/integer 0 100))
            (h/assume! (> (swap! calls inc) 1))))
         events (atom [])
         runner (report/counting-runner {:reporter #(swap! events conj %)})
@@ -120,7 +121,7 @@
     (require! "shared shrinking and final replay"
               (and (not (:passed? result))
                    (= :failed (:status result))
-                   (= [500] @final-values)
+                   (= 500 (last @final-values))
                    (= "hegel.clr-property-smoke/threshold" (:origin failure))
                    (= "AAEAAAAACgIAAAD0AQ==" (:reproduction-blob failure))
                    (:reproduced? failure)
@@ -194,10 +195,16 @@
               {:result stateful-result :steps @steps})))
 
 (defn -main [& _]
+  (let [value (h/sample 1 (g/grammar
+                         {:start :some-rule
+                          :rules {:some-rule [:cat "a" [:char-range "😀" "😀"] "\n"]}}))]
+    (when-not (= ["a😀\n"] value)
+      (throw (ex-info "Clojure grammar DSL smoke failed" {:value value})))
+    (println "PASS Clojure grammar DSL and Unicode literals"))
   (let [report (abi/backend-report)]
-    (require! "canonical ABI coverage is 103/103"
+    (require! "canonical ABI coverage is 159/159"
               (and (:supported? report)
-                   (= {:supported 103 :unsupported 0 :total 103}
+                   (= {:supported 159 :unsupported 0 :total 159}
                       (:summary report)))
               {:report report}))
   (check-primitive-and-composite-generators!)

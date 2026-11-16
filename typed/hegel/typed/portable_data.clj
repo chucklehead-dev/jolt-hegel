@@ -1,4 +1,4 @@
-(ns hegel.typed.portable-data
+(ns ^:typed.clojure hegel.typed.portable-data
   "Dev-only Typed Clojure external annotations for the unchanged
   `hegel.internal.portable-data` body (`src/hegel/internal/portable_data.cljc`,
   `:clj` reader branch only).

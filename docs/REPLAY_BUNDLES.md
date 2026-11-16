@@ -23,7 +23,7 @@ defaults. Transport bounds apply when exporting, not to ordinary runs.
 Supply provenance from an independently recorded deployment/property manifest:
 
 - `:hegel-sha`: exact lowercase 40-character source commit SHA;
-- `:libhegel-version`: native version, currently `"0.36.3"`;
+- `:libhegel-version`: native version, currently `"0.51.6"`;
 - `:runtime`: a map requiring `:host` (`:jolt`, `:bb`, `:jvm`, `:jank`, or
   `:clr`), and nonblank `:version`, `:os`, and `:arch` strings;
 - `:property-id` and `:generator-revision`: stable nonblank identifiers;
@@ -52,7 +52,7 @@ use the pure bundle/codec namespaces for offline validation.
 
 Compatible replay uses each native blob directly with the captured settings
 and string seed, with persistence disabled. It never starts a generation run.
-The property executes in final-replay mode, so recreate per-case state exactly
+The native blob replay run controls capture and confirmation passes. Recreate per-case state exactly
 as for `run-test!`. Results are `:reproduced` or `:not-reproduced`, with
 `:reproduced?`, `:flaky?` and per-failure `:failures`/`:final` evidence. Passing,
 rejecting, overrunning, or failing at a different origin does not reproduce
@@ -123,7 +123,7 @@ unbounded `slurp` or HTTP body allocation.
 authenticate an artifact, constrain arbitrary property code, or bound native
 blob decompression. The pinned native decoder uses
 `decompress_to_vec_zlib` without an output cap for compressed blobs
-([exact source](https://github.com/hegeldev/hegel-rust/blob/caafb40bbc37b5c44c7843f2442b62e382d73894/hegel-c/src/native/blob.rs)).
+([exact source](https://github.com/hegeldev/hegel/blob/caafb40bbc37b5c44c7843f2442b62e382d73894/hegel-c/src/native/blob.rs)).
 This API is not a sandbox for attacker-supplied counterexamples.
 
 Blobs encode generated choices and may disclose secrets even when all trace
@@ -135,3 +135,7 @@ Bundles are failure artifacts, not the materialized successful-value corpus
 API proposed in #56. That API still needs its own digest, completeness and
 offline-consumption contract. Types can help check these data shapes (#73),
 but neither annotations nor structural validation replaces the checks above.
+
+Blobs from 0.36.x are incompatible with 0.51.6. Keep the original runtime for
+old artifacts or regenerate failures with the new engine; do not rewrite their
+version fields. See [the migration guide](LIBHEGEL-051-MIGRATION.md).

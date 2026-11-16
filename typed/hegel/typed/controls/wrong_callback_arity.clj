@@ -1,4 +1,4 @@
-(ns hegel.typed.controls.wrong-callback-arity
+(ns ^:typed.clojure hegel.typed.controls.wrong-callback-arity
   "Intentionally invalid control: passes a single-arity failure callback where
   `hegel.internal.portable-data/validate!` requires the two-argument
   `hegel.typed.portable-data/InvalidFn` shape (path, reason). Must be rejected

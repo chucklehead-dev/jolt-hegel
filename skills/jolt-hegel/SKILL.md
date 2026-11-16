@@ -11,9 +11,9 @@ runtime choice affects installation and native diagnostics, not property code.
 
 The public API guidance was verified on 2026-09-05 against production source
 revision `116d4c4126db6ffd461ab41158c12b0abf5b49f5`; the runtime guidance was
-additionally checked against released Jolt v0.8.3 at
-`343f730922cf16fafe673b466cedcdcfe0596854`. Current `main` has a Jolt 0.8.1
-compatibility floor and qualifies 0.8.3 as its primary Linux x86_64, Windows
+additionally checked against released Jolt v0.8.27 at
+`0f08ec2732a0078d7523f274a1507049c06bffe6`. Current `main` has a Jolt 0.8.1
+compatibility floor and qualifies 0.8.27 as its primary Linux x86_64, Windows
 x86_64, and macOS arm64 release; the published `v0.5.0` release retains its
 historical Jolt 0.7.23+ contract. The supported FFI-capable Babashka floor is
 1.13.220 with libffi.
@@ -55,13 +55,13 @@ aliases to the consuming project, so activate the alias that contains the
 dependency when running the installer.
 
 ```bash
-# Current `main` / next release candidate: Jolt 0.8.1+ (0.8.3 is the primary CI release)
+# Current `main` / next release candidate: Jolt 0.8.1+ (0.8.27 is the primary CI release)
 jolt -A:test -m hegel.install
 
 # Babashka 1.13.220+ with libffi (on Linux, do not use the -static asset)
 bb -m hegel.install
 
-# JVM Clojure, JDK 22+
+# JVM Clojure, JDK 25+
 clojure -J--enable-native-access=ALL-UNNAMED -M:test -m hegel.install
 
 # Experimental jank 0.1-alpha on Linux/macOS; curl must be on PATH.
@@ -71,9 +71,8 @@ jank -I generated --module-path src:resources:script \
 
 The direct Babashka command assumes the pin is in top-level `:deps` in
 `bb.edn`, or otherwise on Babashka's classpath. Activate the consuming
-project's alias when it is alias-scoped. Babashka 1.13.220 embeds the upstream
-FFI library. The standalone JVM dependency is pinned to the same embedded
-`babashka/ffi` commit, `aacb153618bc39ca1e4c397b8f30fb81c76d0c4c`.
+project's alias when it is alias-scoped. Babashka embeds the upstream FFI library. The standalone JVM dependency is
+`org.babashka/ffi` version `0.1.3` and requires JDK 25+.
 It lives in this repository's `:jvm` alias so Babashka consumers do not fetch a
 duplicate copy. Dependency aliases do not propagate, so JVM consumers must add
 that FFI dependency beside jolt-hegel. Babashka consumers must use a build whose
@@ -103,7 +102,7 @@ code must not branch on it.
 
 Do not replace jolt-hegel's scoped temporary allocation with a fresh Jolt arena
 per wrapper or per FFI call. The landed evaluation measured that strategy as
-substantially slower for the adapter-scale workload. Jolt 0.8.3 includes the
+substantially slower for the adapter-scale workload. Jolt 0.8.27 includes the
 confined-arena optimization and sibling-fiber publication fix, but an exact
 release remeasurement still found a fresh arena 5.38x raw allocation and a
 100-allocation batch 3.64x raw. Consider arenas only for a real lexical batch

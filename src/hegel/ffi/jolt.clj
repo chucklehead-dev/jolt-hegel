@@ -2,6 +2,7 @@
   "Jolt implementation of the narrow native boundary. Signatures and layouts
   are derived from hegel/abi.edn."
   (:require [hegel.abi :as abi]
+            [hegel.native :as native]
             [jolt.ffi :as ffi]))
 
 (defn- scalar-type [type-id]
@@ -106,7 +107,14 @@
               (when-not (:supported? coverage)
                 (throw (ex-info "Jolt cannot express the canonical libhegel ABI"
                                 coverage)))
-              (ffi/load-library library-path)
+              (when-let [probe (ns-resolve 'jolt.ffi 'stack-args-correct?)]
+                (when (false? (probe))
+                  (throw (ex-info "This Jolt/Chez build misplaces native stack arguments; use an official Jolt release with the FFI ABI fixes"
+                                  {:type :hegel.ffi/unsupported-runtime-build
+                                   :capability :stack-arguments}))))
+              (when (or (native/nonblank-env "HEGEL_LIBHEGEL_LIBRARY")
+                        (nil? (ffi/find-symbol "hegel_version")))
+                (ffi/load-library library-path))
               (let [bindings
                     (into {}
                           (map (fn [[function-id function]]

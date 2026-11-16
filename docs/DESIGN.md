@@ -92,16 +92,17 @@ invariants derive origins from their declared names.
 
 ## Shrinking and final replay
 
-Failure blobs are copied before their native result objects are freed. Each blob
-is replayed through a final test case after shrinking completes. Only the replay
-runs with `final?` true. Reproduction requires both another interesting outcome
-and the original stable origin. A missing failure or a different replay origin
-is retained with `:replay-origin` and marks the aggregate result `:flaky? true`.
+Failure blobs are copied before their native result objects are freed. Native
+capture requests control `final?`; capture can occur repeatedly during shrinking
+and confirmation. The runner retains the latest failing capture per stable
+origin and selects those named by the native result. Missing capture or native
+caveats mark the result flaky. Explicit saved replay uses a native blob replay
+run and requires the original failure origin to reproduce.
 
-Diagnostics should use `when-final`, `fprn`, or `note!` so they describe the
-minimal counterexample instead of every generated attempt. The database is
-disabled in deterministic tests to prevent stale examples from changing their
-starting point.
+`when-final` and `fprn` skip exploration but may execute repeatedly. `note!` and
+labelled draws contribute to the retained structured diagnostic snapshot. Keep
+property behavior independent of the capture flag. The database is disabled in
+deterministic tests to prevent stale examples changing their starting point.
 
 ## `clojure.test` semantics
 
@@ -149,11 +150,11 @@ Rule names and order must remain unchanged between generation and replay.
 Mutable systems under test must be constructed inside the property body so each
 generated case and final replay begins from fresh external state.
 
-The pinned libhegel 0.36.3 uses one round protocol for sequential and
+The pinned libhegel 0.51.6 uses one round protocol for sequential and
 concurrent machines.
 jolt-hegel fixes concurrency to one, advances the all-zero rule group at each
 join point, and exposes `:stateful-step-count` as the round budget. Concurrent
-machines remain outside the public contract because they require explicit
+machines remain outside the sequential contract because they require explicit
 semantics for shared state and nondeterministic failure capture; deterministic
 shrinking and final replay must not be implied for them.
 

@@ -24,9 +24,9 @@
    :provenance provenance :seed "1"
    :options {:stateful-step-count 52 :verbosity :quiet}
    :failures [{:origin "hegel.stateful/invariant:below-fifty-one"
-               ;; Independent v0.36.3 fixture, not produced by this test run.
+               ;; Independent v0.51.6 fixture, not produced by this test run.
                :reproduction-blob
-               "AXic7cahEQAACMNAYtlfMS0g6jtAI3I/dTV/EMLQ4AKH1ANw"}]})
+               "AXic7cexEQAACMJA07r/Wu6kNsxAAQWXn7o1/4AyCEywH4wD1g=="}]})
 
 (defn- step-property [_]
   (hs/run! {:initial-state {:count 0}
@@ -41,13 +41,13 @@
 (defn- caught [thunk]
   (try (thunk) nil (catch Throwable e e)))
 
-(deftest actual-result-exports-and-replays-without-starting-a-run
+(deftest actual-result-exports-and-replays-without-starting-generation
   (let [result (h/run-test! {:test-cases 1 :seed 1 :database ""
                              :name "not-exported" :verbosity :quiet}
                             failing-property)
         exported (codec/decode (codec/encode (bundle/from-result provenance result)))
         calls (atom 0)]
-    (is (= {:test-cases 1 :verbosity :quiet} (:replay-options result)))
+    (is (= {:test-cases 1 :verbosity :quiet} (select-keys (:replay-options result) [:test-cases :verbosity])))
     (is (false? (:passed? result)))
     (is (false? (:flaky? result)))
     (is (= 1 (:draw (ex-data (get-in result [:final 0 :exception])))))

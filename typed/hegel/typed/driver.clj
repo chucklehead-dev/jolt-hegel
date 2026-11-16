@@ -1,4 +1,4 @@
-(ns hegel.typed.driver
+(ns ^:typed.clojure hegel.typed.driver
   "A minimal, fully-annotated valid consumer of
   `hegel.internal.portable-data`, checked alongside `text-size`'s body and
   `validate!`'s externally declared call-site contract by

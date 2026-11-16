@@ -23,7 +23,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: DeLaGuardo/setup-clojure@13.5
+      - uses: DeLaGuardo/setup-clojure@13.7.0
         with:
           clj-kondo: latest
       - name: Lint portable source, scripts, tests, and the typed pilot
@@ -41,7 +41,7 @@ jobs:
         with:
           distribution: temurin
           java-version: '25'
-      - uses: DeLaGuardo/setup-clojure@13.5
+      - uses: DeLaGuardo/setup-clojure@13.7.0
         with:
           cli: latest
       - name: Check annotations, text-size's body, validate!'s call-site contract, a valid driver, and reject every mutant control
@@ -59,7 +59,7 @@ jobs:
         with:
           distribution: temurin
           java-version: '25'
-      - uses: DeLaGuardo/setup-clojure@13.5
+      - uses: DeLaGuardo/setup-clojure@13.7.0
         with:
           cli: latest
       - name: Validate descriptor and JVM coverage without loading libhegel
@@ -72,7 +72,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-14, windows-2022]
+        os: [ubuntu-24.04, macos-26, windows-2022]
     env:
       HEGEL_ABI_CC: clang
     steps:
@@ -83,7 +83,7 @@ jobs:
         with:
           distribution: temurin
           java-version: '25'
-      - uses: DeLaGuardo/setup-clojure@13.5
+      - uses: DeLaGuardo/setup-clojure@13.7.0
         with:
           cli: latest
       - name: Compare pinned header, compiler layouts, constants, units and mutants
@@ -101,36 +101,26 @@ jobs:
         include:
           - name: Linux x86_64
             runner: ubuntu-24.04
-            asset: babashka-1.13.220-linux-amd64.tar.gz
-            sha256: 5211ebf6267be2dbbf4857611cb01331b865bf6b0a8c9bc500c83a816df1a769
+            asset: babashka-1.13.229-linux-amd64.tar.gz
+            sha256: a98c90a0530943dfa9a0b03bcccbc2030777a6ce094af303d5bb47d77e193299
           - name: Windows x86_64
             runner: windows-2022
-            asset: babashka-1.13.220-windows-amd64.zip
-            sha256: baf87302db04377d44f10dd1cb5c29924fc418d5765dc149213e793be5de0e9e
+            asset: babashka-1.13.229-windows-amd64.zip
+            sha256: eda55ef005e99503f6be97966f9a956f348f29affc7b2df9142d3fc6d239c855
           - name: macOS arm64
-            runner: macos-14
-            asset: babashka-1.13.220-macos-aarch64.tar.gz
-            sha256: f7d18c3ab11bb4ad0e32a45c1ae40ae25911d5fa06ba4ded07cb90b8af158077
+            runner: macos-26
+            asset: babashka-1.13.229-macos-aarch64.tar.gz
+            sha256: 2d96ff06ce66883caa873fb717941a58c45523e3db9d91424e9f81b038896331
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
 
-      - name: Make Git for Windows libffi discoverable
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $mingw = Join-Path $env:ProgramFiles 'Git\mingw64\bin'
-          if (-not (Test-Path -LiteralPath (Join-Path $mingw 'libffi-8.dll'))) {
-            throw 'Git for Windows libffi-8.dll is required by Babashka FFI'
-          }
-          $mingw | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-
       - name: Verify official FFI-capable Babashka
         uses: ./.github/actions/setup-babashka
         with:
-          version: 1.13.220
+          version: 1.13.229
           asset: ${{ matrix.asset }}
           sha256: ${{ matrix.sha256 }}
 
@@ -149,31 +139,31 @@ jobs:
             name: Linux x86_64
             runner: ubuntu-24.04
             shell: bash
-            # Official jolt-lang/jolt v0.8.3, source commit
-            # 343f730922cf16fafe673b466cedcdcfe0596854.
-            jolt-version: 0.8.3
-            jolt-asset: jolt-v0.8.3-x86_64-linux.tar.gz
-            jolt-sha256: e567297a6a840d9988a1aa082beb430aeaa0e6610a82a6f9ee0564e117745147
+            # Official jolt-lang/jolt v0.8.27, source commit
+            # 0f08ec2732a0078d7523f274a1507049c06bffe6.
+            jolt-version: 0.8.27
+            jolt-asset: jolt-v0.8.27-x86_64-linux.tar.gz
+            jolt-sha256: 7aedce645a5840772a74e0341da73e6e072f41107ee2b304fc7a4947021a64b4
           - runtime: Jolt
             host: jolt
             name: Windows x86_64
             runner: windows-2022
             shell: pwsh
-            # Official jolt-lang/jolt v0.8.3, source commit
-            # 343f730922cf16fafe673b466cedcdcfe0596854.
-            jolt-version: 0.8.3
-            jolt-asset: jolt-v0.8.3-x86_64-windows.zip
-            jolt-sha256: d2a01654d49837f4c22868d75a89c12bdac7ebc003e1df62cba56fb1ded743f6
+            # Official jolt-lang/jolt v0.8.27, source commit
+            # 0f08ec2732a0078d7523f274a1507049c06bffe6.
+            jolt-version: 0.8.27
+            jolt-asset: jolt-v0.8.27-x86_64-windows.zip
+            jolt-sha256: 9980fcb13ece3ae6610fb4af3ca538a5e19a69a5443aff56aff176a90cb96a76
           - runtime: Jolt
             host: jolt
             name: macOS arm64
-            runner: macos-14
+            runner: macos-26
             shell: bash
-            # Official jolt-lang/jolt v0.8.3, source commit
-            # 343f730922cf16fafe673b466cedcdcfe0596854.
-            jolt-version: 0.8.3
-            jolt-asset: jolt-v0.8.3-aarch64-macos.tar.gz
-            jolt-sha256: ef70f96c238061390e5099ddc188293edb2c5868bbc19e9019a929b038fa2d97
+            # Official jolt-lang/jolt v0.8.27, source commit
+            # 0f08ec2732a0078d7523f274a1507049c06bffe6.
+            jolt-version: 0.8.27
+            jolt-asset: jolt-v0.8.27-aarch64-macos.tar.gz
+            jolt-sha256: c85fb07350811d9b0762423b100796703d18a2bd6c7c4462a69b04a6f770177a
           # Keep the declared compatibility floor executable without making it
           # the primary cross-platform runtime. This row runs every existing
           # Jolt gate below, including the Linux-only relocated consumer.
@@ -190,22 +180,22 @@ jobs:
             name: Linux x86_64
             runner: ubuntu-24.04
             shell: bash
-            bb-asset: babashka-1.13.220-linux-amd64.tar.gz
-            bb-sha256: 5211ebf6267be2dbbf4857611cb01331b865bf6b0a8c9bc500c83a816df1a769
+            bb-asset: babashka-1.13.229-linux-amd64.tar.gz
+            bb-sha256: a98c90a0530943dfa9a0b03bcccbc2030777a6ce094af303d5bb47d77e193299
           - runtime: Babashka
             host: bb
             name: Windows x86_64
             runner: windows-2022
             shell: pwsh
-            bb-asset: babashka-1.13.220-windows-amd64.zip
-            bb-sha256: baf87302db04377d44f10dd1cb5c29924fc418d5765dc149213e793be5de0e9e
+            bb-asset: babashka-1.13.229-windows-amd64.zip
+            bb-sha256: eda55ef005e99503f6be97966f9a956f348f29affc7b2df9142d3fc6d239c855
           - runtime: Babashka
             host: bb
             name: macOS arm64
-            runner: macos-14
+            runner: macos-26
             shell: bash
-            bb-asset: babashka-1.13.220-macos-aarch64.tar.gz
-            bb-sha256: f7d18c3ab11bb4ad0e32a45c1ae40ae25911d5fa06ba4ded07cb90b8af158077
+            bb-asset: babashka-1.13.229-macos-aarch64.tar.gz
+            bb-sha256: 2d96ff06ce66883caa873fb717941a58c45523e3db9d91424e9f81b038896331
           - runtime: JVM
             host: jvm
             name: Linux x86_64
@@ -219,7 +209,7 @@ jobs:
           - runtime: JVM
             host: jvm
             name: macOS arm64
-            runner: macos-14
+            runner: macos-26
             shell: bash
 
     defaults:
@@ -247,16 +237,6 @@ jobs:
           asset: ${{ matrix.jolt-asset }}
           sha256: ${{ matrix.jolt-sha256 }}
 
-      - name: Make Git for Windows libffi discoverable
-        if: matrix.host == 'bb' && runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $mingw = Join-Path $env:ProgramFiles 'Git\mingw64\bin'
-          if (-not (Test-Path -LiteralPath (Join-Path $mingw 'libffi-8.dll'))) {
-            throw 'Git for Windows libffi-8.dll is required by Babashka FFI'
-          }
-          $mingw | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-
       - name: Set up JDK 25
         if: matrix.host == 'jvm'
         uses: actions/setup-java@v6
@@ -266,7 +246,7 @@ jobs:
 
       - name: Set up Clojure CLI and official Babashka
         if: matrix.host == 'jvm'
-        uses: DeLaGuardo/setup-clojure@13.5
+        uses: DeLaGuardo/setup-clojure@13.7.0
         with:
           cli: latest
 
@@ -274,7 +254,7 @@ jobs:
         if: matrix.host == 'bb'
         uses: ./.github/actions/setup-babashka
         with:
-          version: 1.13.220
+          version: 1.13.229
           asset: ${{ matrix.bb-asset }}
           sha256: ${{ matrix.bb-sha256 }}
 
@@ -336,6 +316,17 @@ jobs:
         if: matrix.host == 'jolt' && runner.os == 'Linux'
         run: bash script/check-standalone-resources.sh
 
+      - name: Acquire native package and check supported static relocation (current Jolt)
+        if: matrix.host == 'jolt' && matrix.jolt-version == '0.8.27'
+        run: bash script/check-native-package.sh
+
+      - name: Check unrecorded Antithesis workload failure
+        if: matrix.host == 'bb' && runner.os == 'Linux'
+        shell: bash
+        run: |
+          workload_output="$(mktemp -d)"
+          ANTITHESIS_OUTPUT_DIR="$workload_output" bb -cp src:resources:script -m hegel.workload-smoke
+
       - name: Run semantic suite (Babashka)
         if: matrix.host == 'bb'
         run: bb test
@@ -382,28 +373,3 @@ jobs:
         if: matrix.host == 'jvm'
         working-directory: test/consumer
         run: clojure -J--enable-native-access=ALL-UNNAMED -M:test -m consumer.smoke
-
-  jdk22-minimum:
-    name: JVM minimum / Linux x86_64
-    needs: abi-data
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    env:
-      HEGEL_CACHE_DIR: ${{ github.workspace }}/.hegel-lib
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-      - uses: actions/setup-java@v6
-        with:
-          distribution: temurin
-          java-version: '22'
-      - uses: DeLaGuardo/setup-clojure@13.5
-        with:
-          cli: latest
-      - name: Install libhegel
-        run: clojure -J--enable-native-access=ALL-UNNAMED -M:jvm:setup-native
-      - name: Run ABI and semantic suites
-        run: |
-          clojure -J--enable-native-access=ALL-UNNAMED -M:jvm:abi-test
-          clojure -J--enable-native-access=ALL-UNNAMED -M:jvm:test

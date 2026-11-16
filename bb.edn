@@ -22,7 +22,7 @@
                :task ((requiring-resolve 'hegel.corpus-contract-runner/-main))}
   test {:extra-paths ["test"]
         ;; Development-only: Malli remains optional for consumers.
-        :extra-deps {metosin/malli {:mvn/version "0.20.1"}}
+        :extra-deps {metosin/malli {:mvn/version "0.20.3"}}
         ;; Capture task arguments before resolving the entrypoint, and forward
         ;; them unchanged. A literal "test" is user input, not a task token.
         :task (let [args *command-line-args*]

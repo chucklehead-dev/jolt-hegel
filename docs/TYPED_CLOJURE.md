@@ -1,7 +1,7 @@
 # Typed Clojure pilot (dev-only, bounded)
 
 This is a small, opt-in pilot of [Typed Clojure](https://typedclojure.org)
-(coordinate `org.typedclojure/typed.clj.checker` `1.3.0`, entry point
+(coordinate `org.typedclojure/typed.clj.checker` `1.4.0`, entry point
 `typed.clojure/check-ns-clj`) over one unchanged namespace:
 `src/hegel/internal/portable_data.cljc`. It exists to answer "is external
 static typing worth adopting here", not to ship a typed runtime. Nothing in
@@ -9,7 +9,7 @@ static typing worth adopting here", not to ship a typed runtime. Nothing in
 
 Everything lives behind the optional `:typed-check` alias
 (`clojure -M:typed-check`, `:extra-paths ["script" "typed"]`,
-`:extra-deps {org.typedclojure/typed.clj.checker {:mvn/version "1.3.0"}}`).
+`:extra-deps {org.typedclojure/typed.clj.checker {:mvn/version "1.4.0"}}`).
 Ordinary consumers of jolt-hegel — including every other host and every
 existing alias — never resolve or load the checker or its dependency; it is
 JVM-only, dev-only.
@@ -144,7 +144,7 @@ mutation-specific evidence (such as `t/Str` plus `(t/Val 42)` for the
 would otherwise leave its production def unchecked while a generic
 "unannotated var" error could still reject the bad caller. The accept/reject
 criterion is a structured check on `check-ns-clj`'s return value or thrown
-`ex-info` data (see `check-ns-report` and `expected-type-error?` in the
+structured error maps (see `check-ns-report` and `expected-type-error?` in the
 runner), deliberately **not** a bare `(try ... (catch Throwable _ true))`: a
 missing namespace, a require-time syntax error, an unrelated type error, or
 an analyzer crash must fail the CI job, not be miscounted as "the checker
@@ -201,3 +201,12 @@ cost remains to be recorded from the first pull-request run.
   large sections of checked code; or if the measured cost or the ongoing
   effort of keeping annotations in sync with unannotated production code
   repeatedly outweighs what the mutation controls demonstrate it catches.
+
+## Checker 1.4.0 opt-in
+
+The checked production namespace, driver, annotation namespace and negative
+controls explicitly carry `^:typed.clojure` namespace metadata. This prevents
+1.4.0 from silently skipping them without allowing the checker to rewrite source.
+The harness accepts only the expected structured type-error maps, with exact
+error counts and mutation-specific evidence. Earlier 1.3.0 observations above
+remain historical.

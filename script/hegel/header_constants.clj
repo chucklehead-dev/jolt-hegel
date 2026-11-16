@@ -16,22 +16,10 @@
    :status-interesting ["hegel_status_t" "HEGEL_STATUS_INTERESTING"]
    :run-status-passed ["hegel_run_status_t" "HEGEL_RUN_STATUS_PASSED"]
    :run-status-failed ["hegel_run_status_t" "HEGEL_RUN_STATUS_FAILED"]
-   :run-status-error ["hegel_run_status_t" "HEGEL_RUN_STATUS_ERROR"]
-   :run-status-failed-nondeterministic ["hegel_run_status_t" "HEGEL_RUN_STATUS_FAILED_NONDETERMINISTIC"]
-   :label-list ["hegel_label_t" "HEGEL_LABEL_LIST"]
-   :label-set ["hegel_label_t" "HEGEL_LABEL_SET"]
-   :label-map ["hegel_label_t" "HEGEL_LABEL_MAP"]
-   :label-tuple ["hegel_label_t" "HEGEL_LABEL_TUPLE"]
-   :label-one-of ["hegel_label_t" "HEGEL_LABEL_ONE_OF"]
-   :label-optional ["hegel_label_t" "HEGEL_LABEL_OPTIONAL"]
-   :label-flat-map ["hegel_label_t" "HEGEL_LABEL_FLAT_MAP"]
-   :label-filter ["hegel_label_t" "HEGEL_LABEL_FILTER"]
-   :label-mapped ["hegel_label_t" "HEGEL_LABEL_MAPPED"]
-   :label-stateful-rule ["hegel_label_t" "HEGEL_LABEL_STATEFUL_RULE"]
-   :label-recursive ["hegel_label_t" "HEGEL_LABEL_RECURSIVE"]})
+   :run-status-error ["hegel_run_status_t" "HEGEL_RUN_STATUS_ERROR"]})
 
 (def core-enum-maps
-  {:backend-values {"auto" ["hegel_backend_t" "HEGEL_BACKEND_AUTO"]
+  {:backend-values {"auto" ["hegel_backend_t" "HEGEL_BACKEND_DEFAULT"]
                     "default" ["hegel_backend_t" "HEGEL_BACKEND_DEFAULT"]
                     "urandom" ["hegel_backend_t" "HEGEL_BACKEND_URANDOM"]}
    :verbosity-values {"quiet" ["hegel_verbosity_t" "HEGEL_VERBOSITY_QUIET"]
@@ -148,6 +136,8 @@
     {:ffi (merge (def-literals ffi (keys ffi-enum-map))
                  {:state-machine-done (def-map ffi 'state-machine-done)
                   :no-max-size (def-map ffi 'no-max-size)
+                  :default-max-size (def-map ffi 'default-max-size)
+                  :filter-attempts (def-map ffi 'filter-attempts)
                   :result-codes (result-codes ffi)})
      :core (into {}
                  (map (fn [name] [name (def-map core (symbol name))])
@@ -164,6 +154,7 @@
   (case value
     "INT64_MIN" -9223372036854775808N
     "UINT64_MAX" 18446744073709551615N
+    "(UINT64_MAX - 1)" -2
     value))
 
 (defn compare-constants
@@ -209,8 +200,12 @@
     (require-value! "state-machine-done" (:state-machine-done ffi)
                     (symbolic-value (get-in snapshot [:defines "HEGEL_STATE_MACHINE_DONE"])))
     (require-value! "no-max-size" (:no-max-size ffi) 18446744073709551615N)
+    (require-value! "default-max-size" (:default-max-size ffi)
+                    (+ 18446744073709551616N (symbolic-value (get-in snapshot [:defines "HEGEL_MAX_SIZE_DEFAULT"]))))
+    (require-value! "filter-attempts" (:filter-attempts ffi)
+                    (symbolic-value (get-in snapshot [:defines "HEGEL_FILTER_ATTEMPTS"])))
     {:status :pass :enum-count (+ (count ffi-enum-map) (reduce + (map count (vals core-enum-maps))))
-     :define-count 2}))
+     :define-count 4}))
 
 (defn snapshot []
   (header/snapshot))

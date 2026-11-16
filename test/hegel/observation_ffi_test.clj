@@ -8,6 +8,11 @@
   (let [calls (atom [])
         frees (atom [])]
     (with-redefs [backend/with-native-scope (fn [call] (call))
+                  backend/alloc (constantly :view)
+                  backend/layout-size (constantly 16)
+                  backend/write-field (fn [& _] nil)
+                  backend/write-utf8 (fn [_ text] (count text))
+                  backend/by-value (fn [_ _] :by-value-view)
                   backend/string->native (fn [value]
                                            (swap! calls conj [:string value])
                                            [:native value])
@@ -30,23 +35,28 @@
       (is (= [[:settings :ctx :settings 1]
               [:settings :ctx :settings 0]
               [:string "coverage/branch"]
-              [:event :ctx :case [:native "coverage/branch"]]
+              [:event :ctx :case :by-value-view]
               [:string "coverage/size"]
-              [:event-value :ctx :case 42.5 [:native "coverage/size"]]]
+              [:event-value :ctx :case 42.5 :by-value-view]]
              @calls))
-      (is (= [[:native "coverage/branch"] [:native "coverage/size"]]
+      (is (= [:view [:native "coverage/branch"] :view [:native "coverage/size"]]
              @frees)))))
 
 (deftest observation-wrapper-errors-retain-operation-and-release-label
   (doseq [[operation call expected-frees]
-          [[:event #(hffi/event! nil :case "coverage/event") [:label]]
+          [[:event #(hffi/event! nil :case "coverage/event") [:view :label]]
            [:event-value #(hffi/event-value! nil :case 1.0 "coverage/value")
-            [:label]]
+            [:view :label]]
            [:settings-set-show-statistics
             #(hffi/settings-set-show-statistics! nil :settings true) []]]]
     (let [free (atom [])
         error
         (with-redefs [backend/with-native-scope (fn [call] (call))
+                  backend/alloc (constantly :view)
+                  backend/layout-size (constantly 16)
+                  backend/write-field (fn [& _] nil)
+                  backend/write-utf8 (fn [_ text] (count text))
+                  backend/by-value (fn [_ _] :by-value-view)
                       backend/string->native (constantly :label)
                       backend/free #(swap! free conj %)
                       hffi/c-event (fn [& _] 7)

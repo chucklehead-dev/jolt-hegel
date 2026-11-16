@@ -1,4 +1,4 @@
-(ns hegel.typed.controls.text-size-wrong-input
+(ns ^:typed.clojure hegel.typed.controls.text-size-wrong-input
   "Intentionally invalid control: calls
   `hegel.internal.portable-data/text-size` with a number instead of the
   annotated `t/Str` input. Must be rejected by

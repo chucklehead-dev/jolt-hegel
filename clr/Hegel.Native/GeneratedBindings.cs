@@ -30,7 +30,7 @@ public struct HegelPrinterValueResult
 }
 
 [StructLayout(LayoutKind.Sequential)]
-public struct HegelStringResult
+public struct HegelString
 {
     public IntPtr Data;
     public nuint Len;
@@ -74,7 +74,7 @@ internal static partial class NativeMethods
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_context_last_error")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial IntPtr ContextLastError(IntPtr arg0);
+    internal static partial HegelString ContextLastError(IntPtr arg0);
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_context_new")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
@@ -82,11 +82,15 @@ internal static partial class NativeMethods
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_event")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial int Event(IntPtr arg0, IntPtr arg1, IntPtr arg2);
+    internal static partial int Event(IntPtr arg0, IntPtr arg1, HegelString arg2);
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_event_value")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial int EventValue(IntPtr arg0, IntPtr arg1, double arg2, IntPtr arg3);
+    internal static partial int EventValue(IntPtr arg0, IntPtr arg1, double arg2, HegelString arg3);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_failure_caveat")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int FailureCaveat(IntPtr arg0, IntPtr arg1, IntPtr arg2);
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_failure_free")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
@@ -124,6 +128,10 @@ internal static partial class NativeMethods
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int GenerateFloat(IntPtr arg0, IntPtr arg1, uint arg2, double arg3, double arg4, byte arg5, byte arg6, byte arg7, byte arg8, double arg9, IntPtr arg10);
 
+    [LibraryImport(LibraryName, EntryPoint = "hegel_generate_grammar")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int GenerateGrammar(IntPtr arg0, IntPtr arg1, IntPtr arg2, ulong arg3, IntPtr arg4);
+
     [LibraryImport(LibraryName, EntryPoint = "hegel_generate_integer")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int GenerateInteger(IntPtr arg0, IntPtr arg1, long arg2, long arg3, IntPtr arg4);
@@ -144,10 +152,6 @@ internal static partial class NativeMethods
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int GenerateString(IntPtr arg0, IntPtr arg1, IntPtr arg2, IntPtr arg3);
 
-    [LibraryImport(LibraryName, EntryPoint = "hegel_generate_string_result_free")]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial int GenerateStringResultFree(IntPtr arg0, IntPtr arg1);
-
     [LibraryImport(LibraryName, EntryPoint = "hegel_generate_time")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int GenerateTime(IntPtr arg0, IntPtr arg1, HegelTime arg2, HegelTime arg3, IntPtr arg4);
@@ -155,6 +159,62 @@ internal static partial class NativeMethods
     [LibraryImport(LibraryName, EntryPoint = "hegel_generate_uuid")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int GenerateUuid(IntPtr arg0, IntPtr arg1, byte arg2, byte arg3, IntPtr arg4);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_grammar_builder_file")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int GrammarBuilderFile(IntPtr arg0, IntPtr arg1, nuint arg2, IntPtr arg3);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_grammar_builder_free")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int GrammarBuilderFree(IntPtr arg0, IntPtr arg1);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_grammar_builder_new")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int GrammarBuilderNew(IntPtr arg0, HegelString arg1, IntPtr arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_grammar_builder_provide")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int GrammarBuilderProvide(IntPtr arg0, IntPtr arg1, nuint arg2, IntPtr arg3);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_grammar_draw_free")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int GrammarDrawFree(IntPtr arg0, IntPtr arg1);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_grammar_draw_new")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int GrammarDrawNew(IntPtr arg0, IntPtr arg1, ulong arg2, IntPtr arg3);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_grammar_draw_next")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int GrammarDrawNext(IntPtr arg0, IntPtr arg1, IntPtr arg2, IntPtr arg3);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_grammar_draw_provide")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int GrammarDrawProvide(IntPtr arg0, IntPtr arg1, HegelString arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_grammar_draw_result")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int GrammarDrawResult(IntPtr arg0, IntPtr arg1, IntPtr arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_grammar_free")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int GrammarFree(IntPtr arg0, IntPtr arg1);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_grammar_new")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int GrammarNew(IntPtr arg0, IntPtr arg1, IntPtr arg2, ulong arg3, uint arg4, IntPtr arg5, IntPtr arg6, nuint arg7, IntPtr arg8);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_grammar_placeholder")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int GrammarPlaceholder(IntPtr arg0, IntPtr arg1, HegelString arg2, IntPtr arg3);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_label_combine")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int LabelCombine(IntPtr arg0, IntPtr arg1, nuint arg2, IntPtr arg3);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_label_from_name")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int LabelFromName(IntPtr arg0, HegelString arg1, IntPtr arg2);
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_mark_complete")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
@@ -172,9 +232,13 @@ internal static partial class NativeMethods
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int NewRecursion(IntPtr arg0, IntPtr arg1, ulong arg2, ulong arg3, IntPtr arg4);
 
+    [LibraryImport(LibraryName, EntryPoint = "hegel_new_repeat")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int NewRepeat(IntPtr arg0, IntPtr arg1, IntPtr arg2);
+
     [LibraryImport(LibraryName, EntryPoint = "hegel_new_state_machine")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial int NewStateMachine(IntPtr arg0, IntPtr arg1, IntPtr arg2, IntPtr arg3, nuint arg4, IntPtr arg5, nuint arg6, long arg7, long arg8, IntPtr arg9, IntPtr arg10);
+    internal static partial int NewStateMachine(IntPtr arg0, IntPtr arg1, long arg2, long arg3, long arg4, IntPtr arg5);
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_next_test_case")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
@@ -182,7 +246,15 @@ internal static partial class NativeMethods
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_note")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial int Note(IntPtr arg0, IntPtr arg1, IntPtr arg2, nuint arg3);
+    internal static partial int Note(IntPtr arg0, IntPtr arg1, HegelString arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_owned_string_free")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int OwnedStringFree(IntPtr arg0, IntPtr arg1);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_pause_faults")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int PauseFaults(IntPtr arg0, IntPtr arg1);
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_pool_add")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
@@ -196,13 +268,17 @@ internal static partial class NativeMethods
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int PoolGenerate(IntPtr arg0, IntPtr arg1, IntPtr arg2, byte arg3, IntPtr arg4);
 
+    [LibraryImport(LibraryName, EntryPoint = "hegel_pool_restore")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int PoolRestore(IntPtr arg0, IntPtr arg1, IntPtr arg2, long arg3);
+
     [LibraryImport(LibraryName, EntryPoint = "hegel_printer_abort_speculative")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int PrinterAbortSpeculative(IntPtr arg0, IntPtr arg1);
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_printer_begin_group")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial int PrinterBeginGroup(IntPtr arg0, IntPtr arg1, ulong arg2, IntPtr arg3, nuint arg4);
+    internal static partial int PrinterBeginGroup(IntPtr arg0, IntPtr arg1, ulong arg2, HegelString arg3);
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_printer_begin_speculative")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
@@ -210,11 +286,11 @@ internal static partial class NativeMethods
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_printer_breakable")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial int PrinterBreakable(IntPtr arg0, IntPtr arg1, IntPtr arg2, nuint arg3);
+    internal static partial int PrinterBreakable(IntPtr arg0, IntPtr arg1, HegelString arg2);
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_printer_comment")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial int PrinterComment(IntPtr arg0, IntPtr arg1, IntPtr arg2, nuint arg3);
+    internal static partial int PrinterComment(IntPtr arg0, IntPtr arg1, HegelString arg2);
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_printer_commit_speculative")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
@@ -226,7 +302,7 @@ internal static partial class NativeMethods
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_printer_end_group")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial int PrinterEndGroup(IntPtr arg0, IntPtr arg1, IntPtr arg2, nuint arg3);
+    internal static partial int PrinterEndGroup(IntPtr arg0, IntPtr arg1, HegelString arg2);
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_printer_free")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
@@ -238,7 +314,7 @@ internal static partial class NativeMethods
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_printer_if_break")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial int PrinterIfBreak(IntPtr arg0, IntPtr arg1, IntPtr arg2, nuint arg3);
+    internal static partial int PrinterIfBreak(IntPtr arg0, IntPtr arg1, HegelString arg2);
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_printer_is_live")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
@@ -260,6 +336,10 @@ internal static partial class NativeMethods
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int PrinterOptionsSetMaxWidth(IntPtr arg0, IntPtr arg1, ulong arg2);
 
+    [LibraryImport(LibraryName, EntryPoint = "hegel_printer_reflow")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int PrinterReflow(IntPtr arg0, IntPtr arg1, IntPtr arg2, HegelString arg3);
+
     [LibraryImport(LibraryName, EntryPoint = "hegel_printer_resolve")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int PrinterResolve(IntPtr arg0, IntPtr arg1);
@@ -270,7 +350,7 @@ internal static partial class NativeMethods
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_printer_text")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial int PrinterText(IntPtr arg0, IntPtr arg1, IntPtr arg2, nuint arg3);
+    internal static partial int PrinterText(IntPtr arg0, IntPtr arg1, HegelString arg2);
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_printer_value")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
@@ -300,6 +380,26 @@ internal static partial class NativeMethods
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int RecursionRetry(IntPtr arg0, IntPtr arg1, IntPtr arg2);
 
+    [LibraryImport(LibraryName, EntryPoint = "hegel_reflow_options_free")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int ReflowOptionsFree(IntPtr arg0, IntPtr arg1);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_reflow_options_new")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int ReflowOptionsNew(IntPtr arg0, IntPtr arg1);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_repeat_failed")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int RepeatFailed(IntPtr arg0, IntPtr arg1, IntPtr arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_repeat_free")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int RepeatFree(IntPtr arg0, IntPtr arg1);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_repeat_more")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int RepeatMore(IntPtr arg0, IntPtr arg1, IntPtr arg2, IntPtr arg3);
+
     [LibraryImport(LibraryName, EntryPoint = "hegel_run_free")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int RunFree(IntPtr arg0, IntPtr arg1);
@@ -311,6 +411,10 @@ internal static partial class NativeMethods
     [LibraryImport(LibraryName, EntryPoint = "hegel_run_result_error")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int RunResultError(IntPtr arg0, IntPtr arg1, IntPtr arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_run_result_error_kind")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int RunResultErrorKind(IntPtr arg0, IntPtr arg1, IntPtr arg2, IntPtr arg3);
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_run_result_failure")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
@@ -332,13 +436,89 @@ internal static partial class NativeMethods
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int RunStart(IntPtr arg0, IntPtr arg1, IntPtr arg2, IntPtr arg3, IntPtr arg4);
 
+    [LibraryImport(LibraryName, EntryPoint = "hegel_run_start_blob")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int RunStartBlob(IntPtr arg0, IntPtr arg1, HegelString arg2, IntPtr arg3, IntPtr arg4, IntPtr arg5);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_set_default_profile")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int SetDefaultProfile(IntPtr arg0, HegelString arg1);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_set_unicode_version")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int SetUnicodeVersion(IntPtr arg0, HegelString arg1);
+
     [LibraryImport(LibraryName, EntryPoint = "hegel_settings_free")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int SettingsFree(IntPtr arg0, IntPtr arg1);
 
+    [LibraryImport(LibraryName, EntryPoint = "hegel_settings_get_backend")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int SettingsGetBackend(IntPtr arg0, IntPtr arg1, IntPtr arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_settings_get_database")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int SettingsGetDatabase(IntPtr arg0, IntPtr arg1, IntPtr arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_settings_get_derandomize")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int SettingsGetDerandomize(IntPtr arg0, IntPtr arg1, IntPtr arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_settings_get_nondeterminism_strictness")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int SettingsGetNondeterminismStrictness(IntPtr arg0, IntPtr arg1, IntPtr arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_settings_get_phases")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int SettingsGetPhases(IntPtr arg0, IntPtr arg1, IntPtr arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_settings_get_print_blob")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int SettingsGetPrintBlob(IntPtr arg0, IntPtr arg1, IntPtr arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_settings_get_report_multiple_failures")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int SettingsGetReportMultipleFailures(IntPtr arg0, IntPtr arg1, IntPtr arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_settings_get_seed")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int SettingsGetSeed(IntPtr arg0, IntPtr arg1, IntPtr arg2, IntPtr arg3);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_settings_get_show_statistics")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int SettingsGetShowStatistics(IntPtr arg0, IntPtr arg1, IntPtr arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_settings_get_stop_on_first_failure")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int SettingsGetStopOnFirstFailure(IntPtr arg0, IntPtr arg1, IntPtr arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_settings_get_suppress_health_check")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int SettingsGetSuppressHealthCheck(IntPtr arg0, IntPtr arg1, IntPtr arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_settings_get_test_cases")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int SettingsGetTestCases(IntPtr arg0, IntPtr arg1, IntPtr arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_settings_get_unbounded_choices")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int SettingsGetUnboundedChoices(IntPtr arg0, IntPtr arg1, IntPtr arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_settings_get_verbosity")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int SettingsGetVerbosity(IntPtr arg0, IntPtr arg1, IntPtr arg2);
+
     [LibraryImport(LibraryName, EntryPoint = "hegel_settings_new")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int SettingsNew(IntPtr arg0, IntPtr arg1);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_settings_new_for_profile")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int SettingsNewForProfile(IntPtr arg0, HegelString arg1, IntPtr arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_settings_register_profile")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int SettingsRegisterProfile(IntPtr arg0, HegelString arg1, IntPtr arg2);
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_settings_set_backend")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
@@ -356,9 +536,21 @@ internal static partial class NativeMethods
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int SettingsSetDerandomize(IntPtr arg0, IntPtr arg1, byte arg2);
 
+    [LibraryImport(LibraryName, EntryPoint = "hegel_settings_set_from_string")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int SettingsSetFromString(IntPtr arg0, IntPtr arg1, HegelString arg2, HegelString arg3);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_settings_set_nondeterminism_strictness")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int SettingsSetNondeterminismStrictness(IntPtr arg0, IntPtr arg1, uint arg2);
+
     [LibraryImport(LibraryName, EntryPoint = "hegel_settings_set_phases")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int SettingsSetPhases(IntPtr arg0, IntPtr arg1, uint arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_settings_set_print_blob")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int SettingsSetPrintBlob(IntPtr arg0, IntPtr arg1, byte arg2);
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_settings_set_report_multiple_failures")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
@@ -372,9 +564,9 @@ internal static partial class NativeMethods
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int SettingsSetShowStatistics(IntPtr arg0, IntPtr arg1, byte arg2);
 
-    [LibraryImport(LibraryName, EntryPoint = "hegel_settings_set_stateful_step_count")]
+    [LibraryImport(LibraryName, EntryPoint = "hegel_settings_set_stop_on_first_failure")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial int SettingsSetStatefulStepCount(IntPtr arg0, IntPtr arg1, long arg2);
+    internal static partial int SettingsSetStopOnFirstFailure(IntPtr arg0, IntPtr arg1, byte arg2);
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_settings_set_suppress_health_check")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
@@ -384,6 +576,14 @@ internal static partial class NativeMethods
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int SettingsSetTestCases(IntPtr arg0, IntPtr arg1, ulong arg2);
 
+    [LibraryImport(LibraryName, EntryPoint = "hegel_settings_set_test_location")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int SettingsSetTestLocation(IntPtr arg0, IntPtr arg1, HegelString arg2, uint arg3, HegelString arg4, HegelString arg5);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_settings_set_unbounded_choices")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int SettingsSetUnboundedChoices(IntPtr arg0, IntPtr arg1, byte arg2);
+
     [LibraryImport(LibraryName, EntryPoint = "hegel_settings_set_verbosity")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int SettingsSetVerbosity(IntPtr arg0, IntPtr arg1, uint arg2);
@@ -392,13 +592,21 @@ internal static partial class NativeMethods
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int StartSpan(IntPtr arg0, IntPtr arg1, ulong arg2);
 
+    [LibraryImport(LibraryName, EntryPoint = "hegel_state_machine_add_invariant")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int StateMachineAddInvariant(IntPtr arg0, IntPtr arg1, IntPtr arg2, HegelString arg3, byte arg4);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_state_machine_add_rule")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int StateMachineAddRule(IntPtr arg0, IntPtr arg1, IntPtr arg2, HegelString arg3, double arg4, IntPtr arg5, nuint arg6);
+
     [LibraryImport(LibraryName, EntryPoint = "hegel_state_machine_free")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int StateMachineFree(IntPtr arg0, IntPtr arg1);
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_state_machine_next_group")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial int StateMachineNextGroup(IntPtr arg0, IntPtr arg1, IntPtr arg2, IntPtr arg3);
+    internal static partial int StateMachineNextGroup(IntPtr arg0, IntPtr arg1, IntPtr arg2, IntPtr arg3, IntPtr arg4);
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_state_machine_next_rule")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
@@ -411,6 +619,10 @@ internal static partial class NativeMethods
     [LibraryImport(LibraryName, EntryPoint = "hegel_state_machine_should_check_invariant")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int StateMachineShouldCheckInvariant(IntPtr arg0, IntPtr arg1, IntPtr arg2, long arg3, IntPtr arg4);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_state_machine_start")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int StateMachineStart(IntPtr arg0, IntPtr arg1, IntPtr arg2, IntPtr arg3);
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_stop_span")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
@@ -430,11 +642,11 @@ internal static partial class NativeMethods
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_string_generator_regex")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial int StringGeneratorRegex(IntPtr arg0, IntPtr arg1, byte arg2, IntPtr arg3, IntPtr arg4);
+    internal static partial int StringGeneratorRegex(IntPtr arg0, HegelString arg1, byte arg2, IntPtr arg3, IntPtr arg4);
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_string_generator_text")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial int StringGeneratorText(IntPtr arg0, ulong arg1, ulong arg2, IntPtr arg3, uint arg4, uint arg5, IntPtr arg6, nuint arg7, IntPtr arg8, nuint arg9, IntPtr arg10, nuint arg11, IntPtr arg12, nuint arg13, IntPtr arg14);
+    internal static partial int StringGeneratorText(IntPtr arg0, ulong arg1, ulong arg2, IntPtr arg3, uint arg4, uint arg5, IntPtr arg6, nuint arg7, IntPtr arg8, nuint arg9, HegelString arg10, HegelString arg11, IntPtr arg12);
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_string_generator_url")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
@@ -442,7 +654,11 @@ internal static partial class NativeMethods
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_target")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial int Target(IntPtr arg0, IntPtr arg1, double arg2, IntPtr arg3);
+    internal static partial int Target(IntPtr arg0, IntPtr arg1, double arg2, HegelString arg3);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_test_case_block")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int TestCaseBlock(IntPtr arg0, IntPtr arg1, ulong arg2, IntPtr arg3);
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_test_case_clone")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
@@ -454,15 +670,23 @@ internal static partial class NativeMethods
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_test_case_from_blob")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial int TestCaseFromBlob(IntPtr arg0, IntPtr arg1, IntPtr arg2, IntPtr arg3, IntPtr arg4, IntPtr arg5);
-
-    [LibraryImport(LibraryName, EntryPoint = "hegel_test_case_is_nondeterministic")]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial int TestCaseIsNondeterministic(IntPtr arg0, IntPtr arg1, IntPtr arg2);
+    internal static partial int TestCaseFromBlob(IntPtr arg0, IntPtr arg1, HegelString arg2, IntPtr arg3, IntPtr arg4, IntPtr arg5);
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_test_case_printer")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int TestCasePrinter(IntPtr arg0, IntPtr arg1, IntPtr arg2, IntPtr arg3);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_test_case_set_worker")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int TestCaseSetWorker(IntPtr arg0, IntPtr arg1, long arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_test_case_should_capture")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int TestCaseShouldCapture(IntPtr arg0, IntPtr arg1, IntPtr arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_unpause_faults")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int UnpauseFaults(IntPtr arg0, IntPtr arg1);
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_version")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
@@ -481,6 +705,7 @@ public static partial class Bridge
         "hegel_context_new",
         "hegel_event",
         "hegel_event_value",
+        "hegel_failure_caveat",
         "hegel_failure_free",
         "hegel_failure_origin",
         "hegel_failure_reproduction_blob",
@@ -490,24 +715,42 @@ public static partial class Bridge
         "hegel_generate_date",
         "hegel_generate_datetime",
         "hegel_generate_float",
+        "hegel_generate_grammar",
         "hegel_generate_integer",
         "hegel_generate_integer_big",
         "hegel_generate_ipv4",
         "hegel_generate_ipv6",
         "hegel_generate_string",
-        "hegel_generate_string_result_free",
         "hegel_generate_time",
         "hegel_generate_uuid",
+        "hegel_grammar_builder_file",
+        "hegel_grammar_builder_free",
+        "hegel_grammar_builder_new",
+        "hegel_grammar_builder_provide",
+        "hegel_grammar_draw_free",
+        "hegel_grammar_draw_new",
+        "hegel_grammar_draw_next",
+        "hegel_grammar_draw_provide",
+        "hegel_grammar_draw_result",
+        "hegel_grammar_free",
+        "hegel_grammar_new",
+        "hegel_grammar_placeholder",
+        "hegel_label_combine",
+        "hegel_label_from_name",
         "hegel_mark_complete",
         "hegel_new_collection",
         "hegel_new_pool",
         "hegel_new_recursion",
+        "hegel_new_repeat",
         "hegel_new_state_machine",
         "hegel_next_test_case",
         "hegel_note",
+        "hegel_owned_string_free",
+        "hegel_pause_faults",
         "hegel_pool_add",
         "hegel_pool_free",
         "hegel_pool_generate",
+        "hegel_pool_restore",
         "hegel_printer_abort_speculative",
         "hegel_printer_begin_group",
         "hegel_printer_begin_speculative",
@@ -524,6 +767,7 @@ public static partial class Bridge
         "hegel_printer_options_free",
         "hegel_printer_options_new",
         "hegel_printer_options_set_max_width",
+        "hegel_printer_reflow",
         "hegel_printer_resolve",
         "hegel_printer_shift_indent",
         "hegel_printer_text",
@@ -534,34 +778,67 @@ public static partial class Bridge
         "hegel_recursion_free",
         "hegel_recursion_leaf",
         "hegel_recursion_retry",
+        "hegel_reflow_options_free",
+        "hegel_reflow_options_new",
+        "hegel_repeat_failed",
+        "hegel_repeat_free",
+        "hegel_repeat_more",
         "hegel_run_free",
         "hegel_run_result",
         "hegel_run_result_error",
+        "hegel_run_result_error_kind",
         "hegel_run_result_failure",
         "hegel_run_result_failure_count",
         "hegel_run_result_free",
         "hegel_run_result_status",
         "hegel_run_start",
+        "hegel_run_start_blob",
+        "hegel_set_default_profile",
+        "hegel_set_unicode_version",
         "hegel_settings_free",
+        "hegel_settings_get_backend",
+        "hegel_settings_get_database",
+        "hegel_settings_get_derandomize",
+        "hegel_settings_get_nondeterminism_strictness",
+        "hegel_settings_get_phases",
+        "hegel_settings_get_print_blob",
+        "hegel_settings_get_report_multiple_failures",
+        "hegel_settings_get_seed",
+        "hegel_settings_get_show_statistics",
+        "hegel_settings_get_stop_on_first_failure",
+        "hegel_settings_get_suppress_health_check",
+        "hegel_settings_get_test_cases",
+        "hegel_settings_get_unbounded_choices",
+        "hegel_settings_get_verbosity",
         "hegel_settings_new",
+        "hegel_settings_new_for_profile",
+        "hegel_settings_register_profile",
         "hegel_settings_set_backend",
         "hegel_settings_set_database",
         "hegel_settings_set_database_key",
         "hegel_settings_set_derandomize",
+        "hegel_settings_set_from_string",
+        "hegel_settings_set_nondeterminism_strictness",
         "hegel_settings_set_phases",
+        "hegel_settings_set_print_blob",
         "hegel_settings_set_report_multiple_failures",
         "hegel_settings_set_seed",
         "hegel_settings_set_show_statistics",
-        "hegel_settings_set_stateful_step_count",
+        "hegel_settings_set_stop_on_first_failure",
         "hegel_settings_set_suppress_health_check",
         "hegel_settings_set_test_cases",
+        "hegel_settings_set_test_location",
+        "hegel_settings_set_unbounded_choices",
         "hegel_settings_set_verbosity",
         "hegel_start_span",
+        "hegel_state_machine_add_invariant",
+        "hegel_state_machine_add_rule",
         "hegel_state_machine_free",
         "hegel_state_machine_next_group",
         "hegel_state_machine_next_rule",
         "hegel_state_machine_rule_rejected",
         "hegel_state_machine_should_check_invariant",
+        "hegel_state_machine_start",
         "hegel_stop_span",
         "hegel_string_generator_domain",
         "hegel_string_generator_email",
@@ -570,11 +847,14 @@ public static partial class Bridge
         "hegel_string_generator_text",
         "hegel_string_generator_url",
         "hegel_target",
+        "hegel_test_case_block",
         "hegel_test_case_clone",
         "hegel_test_case_free",
         "hegel_test_case_from_blob",
-        "hegel_test_case_is_nondeterministic",
         "hegel_test_case_printer",
+        "hegel_test_case_set_worker",
+        "hegel_test_case_should_capture",
+        "hegel_unpause_faults",
         "hegel_version",
     };
 
@@ -591,6 +871,7 @@ public static partial class Bridge
             "context-new" => InvokeContextNew(args),
             "event" => InvokeEvent(args),
             "event-value" => InvokeEventValue(args),
+            "failure-caveat" => InvokeFailureCaveat(args),
             "failure-free" => InvokeFailureFree(args),
             "failure-origin" => InvokeFailureOrigin(args),
             "failure-reproduction-blob" => InvokeFailureReproductionBlob(args),
@@ -600,24 +881,42 @@ public static partial class Bridge
             "generate-date" => InvokeGenerateDate(args),
             "generate-datetime" => InvokeGenerateDatetime(args),
             "generate-float" => InvokeGenerateFloat(args),
+            "generate-grammar" => InvokeGenerateGrammar(args),
             "generate-integer" => InvokeGenerateInteger(args),
             "generate-integer-big" => InvokeGenerateIntegerBig(args),
             "generate-ipv4" => InvokeGenerateIpv4(args),
             "generate-ipv6" => InvokeGenerateIpv6(args),
             "generate-string" => InvokeGenerateString(args),
-            "generate-string-result-free" => InvokeGenerateStringResultFree(args),
             "generate-time" => InvokeGenerateTime(args),
             "generate-uuid" => InvokeGenerateUuid(args),
+            "grammar-builder-file" => InvokeGrammarBuilderFile(args),
+            "grammar-builder-free" => InvokeGrammarBuilderFree(args),
+            "grammar-builder-new" => InvokeGrammarBuilderNew(args),
+            "grammar-builder-provide" => InvokeGrammarBuilderProvide(args),
+            "grammar-draw-free" => InvokeGrammarDrawFree(args),
+            "grammar-draw-new" => InvokeGrammarDrawNew(args),
+            "grammar-draw-next" => InvokeGrammarDrawNext(args),
+            "grammar-draw-provide" => InvokeGrammarDrawProvide(args),
+            "grammar-draw-result" => InvokeGrammarDrawResult(args),
+            "grammar-free" => InvokeGrammarFree(args),
+            "grammar-new" => InvokeGrammarNew(args),
+            "grammar-placeholder" => InvokeGrammarPlaceholder(args),
+            "label-combine" => InvokeLabelCombine(args),
+            "label-from-name" => InvokeLabelFromName(args),
             "mark-complete" => InvokeMarkComplete(args),
             "new-collection" => InvokeNewCollection(args),
             "new-pool" => InvokeNewPool(args),
             "new-recursion" => InvokeNewRecursion(args),
+            "new-repeat" => InvokeNewRepeat(args),
             "new-state-machine" => InvokeNewStateMachine(args),
             "next-test-case" => InvokeNextTestCase(args),
             "note" => InvokeNote(args),
+            "owned-string-free" => InvokeOwnedStringFree(args),
+            "pause-faults" => InvokePauseFaults(args),
             "pool-add" => InvokePoolAdd(args),
             "pool-free" => InvokePoolFree(args),
             "pool-generate" => InvokePoolGenerate(args),
+            "pool-restore" => InvokePoolRestore(args),
             "printer-abort-speculative" => InvokePrinterAbortSpeculative(args),
             "printer-begin-group" => InvokePrinterBeginGroup(args),
             "printer-begin-speculative" => InvokePrinterBeginSpeculative(args),
@@ -634,6 +933,7 @@ public static partial class Bridge
             "printer-options-free" => InvokePrinterOptionsFree(args),
             "printer-options-new" => InvokePrinterOptionsNew(args),
             "printer-options-set-max-width" => InvokePrinterOptionsSetMaxWidth(args),
+            "printer-reflow" => InvokePrinterReflow(args),
             "printer-resolve" => InvokePrinterResolve(args),
             "printer-shift-indent" => InvokePrinterShiftIndent(args),
             "printer-text" => InvokePrinterText(args),
@@ -644,34 +944,67 @@ public static partial class Bridge
             "recursion-free" => InvokeRecursionFree(args),
             "recursion-leaf" => InvokeRecursionLeaf(args),
             "recursion-retry" => InvokeRecursionRetry(args),
+            "reflow-options-free" => InvokeReflowOptionsFree(args),
+            "reflow-options-new" => InvokeReflowOptionsNew(args),
+            "repeat-failed" => InvokeRepeatFailed(args),
+            "repeat-free" => InvokeRepeatFree(args),
+            "repeat-more" => InvokeRepeatMore(args),
             "run-free" => InvokeRunFree(args),
             "run-result" => InvokeRunResult(args),
             "run-result-error" => InvokeRunResultError(args),
+            "run-result-error-kind" => InvokeRunResultErrorKind(args),
             "run-result-failure" => InvokeRunResultFailure(args),
             "run-result-failure-count" => InvokeRunResultFailureCount(args),
             "run-result-free" => InvokeRunResultFree(args),
             "run-result-status" => InvokeRunResultStatus(args),
             "run-start" => InvokeRunStart(args),
+            "run-start-blob" => InvokeRunStartBlob(args),
+            "set-default-profile" => InvokeSetDefaultProfile(args),
+            "set-unicode-version" => InvokeSetUnicodeVersion(args),
             "settings-free" => InvokeSettingsFree(args),
+            "settings-get-backend" => InvokeSettingsGetBackend(args),
+            "settings-get-database" => InvokeSettingsGetDatabase(args),
+            "settings-get-derandomize" => InvokeSettingsGetDerandomize(args),
+            "settings-get-nondeterminism-strictness" => InvokeSettingsGetNondeterminismStrictness(args),
+            "settings-get-phases" => InvokeSettingsGetPhases(args),
+            "settings-get-print-blob" => InvokeSettingsGetPrintBlob(args),
+            "settings-get-report-multiple-failures" => InvokeSettingsGetReportMultipleFailures(args),
+            "settings-get-seed" => InvokeSettingsGetSeed(args),
+            "settings-get-show-statistics" => InvokeSettingsGetShowStatistics(args),
+            "settings-get-stop-on-first-failure" => InvokeSettingsGetStopOnFirstFailure(args),
+            "settings-get-suppress-health-check" => InvokeSettingsGetSuppressHealthCheck(args),
+            "settings-get-test-cases" => InvokeSettingsGetTestCases(args),
+            "settings-get-unbounded-choices" => InvokeSettingsGetUnboundedChoices(args),
+            "settings-get-verbosity" => InvokeSettingsGetVerbosity(args),
             "settings-new" => InvokeSettingsNew(args),
+            "settings-new-for-profile" => InvokeSettingsNewForProfile(args),
+            "settings-register-profile" => InvokeSettingsRegisterProfile(args),
             "settings-set-backend" => InvokeSettingsSetBackend(args),
             "settings-set-database" => InvokeSettingsSetDatabase(args),
             "settings-set-database-key" => InvokeSettingsSetDatabaseKey(args),
             "settings-set-derandomize" => InvokeSettingsSetDerandomize(args),
+            "settings-set-from-string" => InvokeSettingsSetFromString(args),
+            "settings-set-nondeterminism-strictness" => InvokeSettingsSetNondeterminismStrictness(args),
             "settings-set-phases" => InvokeSettingsSetPhases(args),
+            "settings-set-print-blob" => InvokeSettingsSetPrintBlob(args),
             "settings-set-report-multiple-failures" => InvokeSettingsSetReportMultipleFailures(args),
             "settings-set-seed" => InvokeSettingsSetSeed(args),
             "settings-set-show-statistics" => InvokeSettingsSetShowStatistics(args),
-            "settings-set-stateful-step-count" => InvokeSettingsSetStatefulStepCount(args),
+            "settings-set-stop-on-first-failure" => InvokeSettingsSetStopOnFirstFailure(args),
             "settings-set-suppress-health-check" => InvokeSettingsSetSuppressHealthCheck(args),
             "settings-set-test-cases" => InvokeSettingsSetTestCases(args),
+            "settings-set-test-location" => InvokeSettingsSetTestLocation(args),
+            "settings-set-unbounded-choices" => InvokeSettingsSetUnboundedChoices(args),
             "settings-set-verbosity" => InvokeSettingsSetVerbosity(args),
             "start-span" => InvokeStartSpan(args),
+            "state-machine-add-invariant" => InvokeStateMachineAddInvariant(args),
+            "state-machine-add-rule" => InvokeStateMachineAddRule(args),
             "state-machine-free" => InvokeStateMachineFree(args),
             "state-machine-next-group" => InvokeStateMachineNextGroup(args),
             "state-machine-next-rule" => InvokeStateMachineNextRule(args),
             "state-machine-rule-rejected" => InvokeStateMachineRuleRejected(args),
             "state-machine-should-check-invariant" => InvokeStateMachineShouldCheckInvariant(args),
+            "state-machine-start" => InvokeStateMachineStart(args),
             "stop-span" => InvokeStopSpan(args),
             "string-generator-domain" => InvokeStringGeneratorDomain(args),
             "string-generator-email" => InvokeStringGeneratorEmail(args),
@@ -680,11 +1013,14 @@ public static partial class Bridge
             "string-generator-text" => InvokeStringGeneratorText(args),
             "string-generator-url" => InvokeStringGeneratorUrl(args),
             "target" => InvokeTarget(args),
+            "test-case-block" => InvokeTestCaseBlock(args),
             "test-case-clone" => InvokeTestCaseClone(args),
             "test-case-free" => InvokeTestCaseFree(args),
             "test-case-from-blob" => InvokeTestCaseFromBlob(args),
-            "test-case-is-nondeterministic" => InvokeTestCaseIsNondeterministic(args),
             "test-case-printer" => InvokeTestCasePrinter(args),
+            "test-case-set-worker" => InvokeTestCaseSetWorker(args),
+            "test-case-should-capture" => InvokeTestCaseShouldCapture(args),
+            "unpause-faults" => InvokeUnpauseFaults(args),
             "version" => InvokeVersion(args),
             _ => throw new ArgumentOutOfRangeException(nameof(functionId), functionId, "Unknown libhegel function"),
         };
@@ -716,8 +1052,9 @@ public static partial class Bridge
 
     private static object? InvokeContextLastError(object?[] args)
     {
-        RequireArity("context-last-error", args, 1);
-        return NativeMethods.ContextLastError(ToIntPtr(args[0]));
+        RequireArity("context-last-error", args, 2);
+        Marshal.StructureToPtr(NativeMethods.ContextLastError(ToIntPtr(args[1])), ToIntPtr(args[0]), false);
+        return null;
     }
 
     private static object? InvokeContextNew(object?[] args)
@@ -729,13 +1066,19 @@ public static partial class Bridge
     private static object? InvokeEvent(object?[] args)
     {
         RequireArity("event", args, 3);
-        return NativeMethods.Event(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]));
+        return NativeMethods.Event(ToIntPtr(args[0]), ToIntPtr(args[1]), Marshal.PtrToStructure<HegelString>(ToIntPtr(args[2])));
     }
 
     private static object? InvokeEventValue(object?[] args)
     {
         RequireArity("event-value", args, 4);
-        return NativeMethods.EventValue(ToIntPtr(args[0]), ToIntPtr(args[1]), Convert.ToDouble(args[2], CultureInfo.InvariantCulture), ToIntPtr(args[3]));
+        return NativeMethods.EventValue(ToIntPtr(args[0]), ToIntPtr(args[1]), Convert.ToDouble(args[2], CultureInfo.InvariantCulture), Marshal.PtrToStructure<HegelString>(ToIntPtr(args[3])));
+    }
+
+    private static object? InvokeFailureCaveat(object?[] args)
+    {
+        RequireArity("failure-caveat", args, 3);
+        return NativeMethods.FailureCaveat(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]));
     }
 
     private static object? InvokeFailureFree(object?[] args)
@@ -792,6 +1135,12 @@ public static partial class Bridge
         return NativeMethods.GenerateFloat(ToIntPtr(args[0]), ToIntPtr(args[1]), Convert.ToUInt32(args[2], CultureInfo.InvariantCulture), Convert.ToDouble(args[3], CultureInfo.InvariantCulture), Convert.ToDouble(args[4], CultureInfo.InvariantCulture), ToByte(args[5]), ToByte(args[6]), ToByte(args[7]), ToByte(args[8]), Convert.ToDouble(args[9], CultureInfo.InvariantCulture), ToIntPtr(args[10]));
     }
 
+    private static object? InvokeGenerateGrammar(object?[] args)
+    {
+        RequireArity("generate-grammar", args, 5);
+        return NativeMethods.GenerateGrammar(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]), ToUInt64(args[3]), ToIntPtr(args[4]));
+    }
+
     private static object? InvokeGenerateInteger(object?[] args)
     {
         RequireArity("generate-integer", args, 5);
@@ -822,12 +1171,6 @@ public static partial class Bridge
         return NativeMethods.GenerateString(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]), ToIntPtr(args[3]));
     }
 
-    private static object? InvokeGenerateStringResultFree(object?[] args)
-    {
-        RequireArity("generate-string-result-free", args, 2);
-        return NativeMethods.GenerateStringResultFree(ToIntPtr(args[0]), ToIntPtr(args[1]));
-    }
-
     private static object? InvokeGenerateTime(object?[] args)
     {
         RequireArity("generate-time", args, 5);
@@ -838,6 +1181,90 @@ public static partial class Bridge
     {
         RequireArity("generate-uuid", args, 5);
         return NativeMethods.GenerateUuid(ToIntPtr(args[0]), ToIntPtr(args[1]), ToByte(args[2]), ToByte(args[3]), ToIntPtr(args[4]));
+    }
+
+    private static object? InvokeGrammarBuilderFile(object?[] args)
+    {
+        RequireArity("grammar-builder-file", args, 4);
+        return NativeMethods.GrammarBuilderFile(ToIntPtr(args[0]), ToIntPtr(args[1]), ToNUInt(args[2]), ToIntPtr(args[3]));
+    }
+
+    private static object? InvokeGrammarBuilderFree(object?[] args)
+    {
+        RequireArity("grammar-builder-free", args, 2);
+        return NativeMethods.GrammarBuilderFree(ToIntPtr(args[0]), ToIntPtr(args[1]));
+    }
+
+    private static object? InvokeGrammarBuilderNew(object?[] args)
+    {
+        RequireArity("grammar-builder-new", args, 3);
+        return NativeMethods.GrammarBuilderNew(ToIntPtr(args[0]), Marshal.PtrToStructure<HegelString>(ToIntPtr(args[1])), ToIntPtr(args[2]));
+    }
+
+    private static object? InvokeGrammarBuilderProvide(object?[] args)
+    {
+        RequireArity("grammar-builder-provide", args, 4);
+        return NativeMethods.GrammarBuilderProvide(ToIntPtr(args[0]), ToIntPtr(args[1]), ToNUInt(args[2]), ToIntPtr(args[3]));
+    }
+
+    private static object? InvokeGrammarDrawFree(object?[] args)
+    {
+        RequireArity("grammar-draw-free", args, 2);
+        return NativeMethods.GrammarDrawFree(ToIntPtr(args[0]), ToIntPtr(args[1]));
+    }
+
+    private static object? InvokeGrammarDrawNew(object?[] args)
+    {
+        RequireArity("grammar-draw-new", args, 4);
+        return NativeMethods.GrammarDrawNew(ToIntPtr(args[0]), ToIntPtr(args[1]), ToUInt64(args[2]), ToIntPtr(args[3]));
+    }
+
+    private static object? InvokeGrammarDrawNext(object?[] args)
+    {
+        RequireArity("grammar-draw-next", args, 4);
+        return NativeMethods.GrammarDrawNext(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]), ToIntPtr(args[3]));
+    }
+
+    private static object? InvokeGrammarDrawProvide(object?[] args)
+    {
+        RequireArity("grammar-draw-provide", args, 3);
+        return NativeMethods.GrammarDrawProvide(ToIntPtr(args[0]), ToIntPtr(args[1]), Marshal.PtrToStructure<HegelString>(ToIntPtr(args[2])));
+    }
+
+    private static object? InvokeGrammarDrawResult(object?[] args)
+    {
+        RequireArity("grammar-draw-result", args, 3);
+        return NativeMethods.GrammarDrawResult(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]));
+    }
+
+    private static object? InvokeGrammarFree(object?[] args)
+    {
+        RequireArity("grammar-free", args, 2);
+        return NativeMethods.GrammarFree(ToIntPtr(args[0]), ToIntPtr(args[1]));
+    }
+
+    private static object? InvokeGrammarNew(object?[] args)
+    {
+        RequireArity("grammar-new", args, 9);
+        return NativeMethods.GrammarNew(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]), ToUInt64(args[3]), Convert.ToUInt32(args[4], CultureInfo.InvariantCulture), ToIntPtr(args[5]), ToIntPtr(args[6]), ToNUInt(args[7]), ToIntPtr(args[8]));
+    }
+
+    private static object? InvokeGrammarPlaceholder(object?[] args)
+    {
+        RequireArity("grammar-placeholder", args, 4);
+        return NativeMethods.GrammarPlaceholder(ToIntPtr(args[0]), ToIntPtr(args[1]), Marshal.PtrToStructure<HegelString>(ToIntPtr(args[2])), ToIntPtr(args[3]));
+    }
+
+    private static object? InvokeLabelCombine(object?[] args)
+    {
+        RequireArity("label-combine", args, 4);
+        return NativeMethods.LabelCombine(ToIntPtr(args[0]), ToIntPtr(args[1]), ToNUInt(args[2]), ToIntPtr(args[3]));
+    }
+
+    private static object? InvokeLabelFromName(object?[] args)
+    {
+        RequireArity("label-from-name", args, 3);
+        return NativeMethods.LabelFromName(ToIntPtr(args[0]), Marshal.PtrToStructure<HegelString>(ToIntPtr(args[1])), ToIntPtr(args[2]));
     }
 
     private static object? InvokeMarkComplete(object?[] args)
@@ -864,10 +1291,16 @@ public static partial class Bridge
         return NativeMethods.NewRecursion(ToIntPtr(args[0]), ToIntPtr(args[1]), ToUInt64(args[2]), ToUInt64(args[3]), ToIntPtr(args[4]));
     }
 
+    private static object? InvokeNewRepeat(object?[] args)
+    {
+        RequireArity("new-repeat", args, 3);
+        return NativeMethods.NewRepeat(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]));
+    }
+
     private static object? InvokeNewStateMachine(object?[] args)
     {
-        RequireArity("new-state-machine", args, 11);
-        return NativeMethods.NewStateMachine(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]), ToIntPtr(args[3]), ToNUInt(args[4]), ToIntPtr(args[5]), ToNUInt(args[6]), Convert.ToInt64(args[7], CultureInfo.InvariantCulture), Convert.ToInt64(args[8], CultureInfo.InvariantCulture), ToIntPtr(args[9]), ToIntPtr(args[10]));
+        RequireArity("new-state-machine", args, 6);
+        return NativeMethods.NewStateMachine(ToIntPtr(args[0]), ToIntPtr(args[1]), Convert.ToInt64(args[2], CultureInfo.InvariantCulture), Convert.ToInt64(args[3], CultureInfo.InvariantCulture), Convert.ToInt64(args[4], CultureInfo.InvariantCulture), ToIntPtr(args[5]));
     }
 
     private static object? InvokeNextTestCase(object?[] args)
@@ -878,8 +1311,20 @@ public static partial class Bridge
 
     private static object? InvokeNote(object?[] args)
     {
-        RequireArity("note", args, 4);
-        return NativeMethods.Note(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]), ToNUInt(args[3]));
+        RequireArity("note", args, 3);
+        return NativeMethods.Note(ToIntPtr(args[0]), ToIntPtr(args[1]), Marshal.PtrToStructure<HegelString>(ToIntPtr(args[2])));
+    }
+
+    private static object? InvokeOwnedStringFree(object?[] args)
+    {
+        RequireArity("owned-string-free", args, 2);
+        return NativeMethods.OwnedStringFree(ToIntPtr(args[0]), ToIntPtr(args[1]));
+    }
+
+    private static object? InvokePauseFaults(object?[] args)
+    {
+        RequireArity("pause-faults", args, 2);
+        return NativeMethods.PauseFaults(ToIntPtr(args[0]), ToIntPtr(args[1]));
     }
 
     private static object? InvokePoolAdd(object?[] args)
@@ -900,6 +1345,12 @@ public static partial class Bridge
         return NativeMethods.PoolGenerate(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]), ToByte(args[3]), ToIntPtr(args[4]));
     }
 
+    private static object? InvokePoolRestore(object?[] args)
+    {
+        RequireArity("pool-restore", args, 4);
+        return NativeMethods.PoolRestore(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]), Convert.ToInt64(args[3], CultureInfo.InvariantCulture));
+    }
+
     private static object? InvokePrinterAbortSpeculative(object?[] args)
     {
         RequireArity("printer-abort-speculative", args, 2);
@@ -908,8 +1359,8 @@ public static partial class Bridge
 
     private static object? InvokePrinterBeginGroup(object?[] args)
     {
-        RequireArity("printer-begin-group", args, 5);
-        return NativeMethods.PrinterBeginGroup(ToIntPtr(args[0]), ToIntPtr(args[1]), ToUInt64(args[2]), ToIntPtr(args[3]), ToNUInt(args[4]));
+        RequireArity("printer-begin-group", args, 4);
+        return NativeMethods.PrinterBeginGroup(ToIntPtr(args[0]), ToIntPtr(args[1]), ToUInt64(args[2]), Marshal.PtrToStructure<HegelString>(ToIntPtr(args[3])));
     }
 
     private static object? InvokePrinterBeginSpeculative(object?[] args)
@@ -920,14 +1371,14 @@ public static partial class Bridge
 
     private static object? InvokePrinterBreakable(object?[] args)
     {
-        RequireArity("printer-breakable", args, 4);
-        return NativeMethods.PrinterBreakable(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]), ToNUInt(args[3]));
+        RequireArity("printer-breakable", args, 3);
+        return NativeMethods.PrinterBreakable(ToIntPtr(args[0]), ToIntPtr(args[1]), Marshal.PtrToStructure<HegelString>(ToIntPtr(args[2])));
     }
 
     private static object? InvokePrinterComment(object?[] args)
     {
-        RequireArity("printer-comment", args, 4);
-        return NativeMethods.PrinterComment(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]), ToNUInt(args[3]));
+        RequireArity("printer-comment", args, 3);
+        return NativeMethods.PrinterComment(ToIntPtr(args[0]), ToIntPtr(args[1]), Marshal.PtrToStructure<HegelString>(ToIntPtr(args[2])));
     }
 
     private static object? InvokePrinterCommitSpeculative(object?[] args)
@@ -944,8 +1395,8 @@ public static partial class Bridge
 
     private static object? InvokePrinterEndGroup(object?[] args)
     {
-        RequireArity("printer-end-group", args, 4);
-        return NativeMethods.PrinterEndGroup(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]), ToNUInt(args[3]));
+        RequireArity("printer-end-group", args, 3);
+        return NativeMethods.PrinterEndGroup(ToIntPtr(args[0]), ToIntPtr(args[1]), Marshal.PtrToStructure<HegelString>(ToIntPtr(args[2])));
     }
 
     private static object? InvokePrinterFree(object?[] args)
@@ -962,8 +1413,8 @@ public static partial class Bridge
 
     private static object? InvokePrinterIfBreak(object?[] args)
     {
-        RequireArity("printer-if-break", args, 4);
-        return NativeMethods.PrinterIfBreak(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]), ToNUInt(args[3]));
+        RequireArity("printer-if-break", args, 3);
+        return NativeMethods.PrinterIfBreak(ToIntPtr(args[0]), ToIntPtr(args[1]), Marshal.PtrToStructure<HegelString>(ToIntPtr(args[2])));
     }
 
     private static object? InvokePrinterIsLive(object?[] args)
@@ -996,6 +1447,12 @@ public static partial class Bridge
         return NativeMethods.PrinterOptionsSetMaxWidth(ToIntPtr(args[0]), ToIntPtr(args[1]), ToUInt64(args[2]));
     }
 
+    private static object? InvokePrinterReflow(object?[] args)
+    {
+        RequireArity("printer-reflow", args, 4);
+        return NativeMethods.PrinterReflow(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]), Marshal.PtrToStructure<HegelString>(ToIntPtr(args[3])));
+    }
+
     private static object? InvokePrinterResolve(object?[] args)
     {
         RequireArity("printer-resolve", args, 2);
@@ -1010,8 +1467,8 @@ public static partial class Bridge
 
     private static object? InvokePrinterText(object?[] args)
     {
-        RequireArity("printer-text", args, 4);
-        return NativeMethods.PrinterText(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]), ToNUInt(args[3]));
+        RequireArity("printer-text", args, 3);
+        return NativeMethods.PrinterText(ToIntPtr(args[0]), ToIntPtr(args[1]), Marshal.PtrToStructure<HegelString>(ToIntPtr(args[2])));
     }
 
     private static object? InvokePrinterValue(object?[] args)
@@ -1056,6 +1513,36 @@ public static partial class Bridge
         return NativeMethods.RecursionRetry(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]));
     }
 
+    private static object? InvokeReflowOptionsFree(object?[] args)
+    {
+        RequireArity("reflow-options-free", args, 2);
+        return NativeMethods.ReflowOptionsFree(ToIntPtr(args[0]), ToIntPtr(args[1]));
+    }
+
+    private static object? InvokeReflowOptionsNew(object?[] args)
+    {
+        RequireArity("reflow-options-new", args, 2);
+        return NativeMethods.ReflowOptionsNew(ToIntPtr(args[0]), ToIntPtr(args[1]));
+    }
+
+    private static object? InvokeRepeatFailed(object?[] args)
+    {
+        RequireArity("repeat-failed", args, 3);
+        return NativeMethods.RepeatFailed(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]));
+    }
+
+    private static object? InvokeRepeatFree(object?[] args)
+    {
+        RequireArity("repeat-free", args, 2);
+        return NativeMethods.RepeatFree(ToIntPtr(args[0]), ToIntPtr(args[1]));
+    }
+
+    private static object? InvokeRepeatMore(object?[] args)
+    {
+        RequireArity("repeat-more", args, 4);
+        return NativeMethods.RepeatMore(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]), ToIntPtr(args[3]));
+    }
+
     private static object? InvokeRunFree(object?[] args)
     {
         RequireArity("run-free", args, 2);
@@ -1072,6 +1559,12 @@ public static partial class Bridge
     {
         RequireArity("run-result-error", args, 3);
         return NativeMethods.RunResultError(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]));
+    }
+
+    private static object? InvokeRunResultErrorKind(object?[] args)
+    {
+        RequireArity("run-result-error-kind", args, 4);
+        return NativeMethods.RunResultErrorKind(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]), ToIntPtr(args[3]));
     }
 
     private static object? InvokeRunResultFailure(object?[] args)
@@ -1104,16 +1597,130 @@ public static partial class Bridge
         return NativeMethods.RunStart(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]), ToIntPtr(args[3]), ToIntPtr(args[4]));
     }
 
+    private static object? InvokeRunStartBlob(object?[] args)
+    {
+        RequireArity("run-start-blob", args, 6);
+        return NativeMethods.RunStartBlob(ToIntPtr(args[0]), ToIntPtr(args[1]), Marshal.PtrToStructure<HegelString>(ToIntPtr(args[2])), ToIntPtr(args[3]), ToIntPtr(args[4]), ToIntPtr(args[5]));
+    }
+
+    private static object? InvokeSetDefaultProfile(object?[] args)
+    {
+        RequireArity("set-default-profile", args, 2);
+        return NativeMethods.SetDefaultProfile(ToIntPtr(args[0]), Marshal.PtrToStructure<HegelString>(ToIntPtr(args[1])));
+    }
+
+    private static object? InvokeSetUnicodeVersion(object?[] args)
+    {
+        RequireArity("set-unicode-version", args, 2);
+        return NativeMethods.SetUnicodeVersion(ToIntPtr(args[0]), Marshal.PtrToStructure<HegelString>(ToIntPtr(args[1])));
+    }
+
     private static object? InvokeSettingsFree(object?[] args)
     {
         RequireArity("settings-free", args, 2);
         return NativeMethods.SettingsFree(ToIntPtr(args[0]), ToIntPtr(args[1]));
     }
 
+    private static object? InvokeSettingsGetBackend(object?[] args)
+    {
+        RequireArity("settings-get-backend", args, 3);
+        return NativeMethods.SettingsGetBackend(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]));
+    }
+
+    private static object? InvokeSettingsGetDatabase(object?[] args)
+    {
+        RequireArity("settings-get-database", args, 3);
+        return NativeMethods.SettingsGetDatabase(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]));
+    }
+
+    private static object? InvokeSettingsGetDerandomize(object?[] args)
+    {
+        RequireArity("settings-get-derandomize", args, 3);
+        return NativeMethods.SettingsGetDerandomize(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]));
+    }
+
+    private static object? InvokeSettingsGetNondeterminismStrictness(object?[] args)
+    {
+        RequireArity("settings-get-nondeterminism-strictness", args, 3);
+        return NativeMethods.SettingsGetNondeterminismStrictness(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]));
+    }
+
+    private static object? InvokeSettingsGetPhases(object?[] args)
+    {
+        RequireArity("settings-get-phases", args, 3);
+        return NativeMethods.SettingsGetPhases(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]));
+    }
+
+    private static object? InvokeSettingsGetPrintBlob(object?[] args)
+    {
+        RequireArity("settings-get-print-blob", args, 3);
+        return NativeMethods.SettingsGetPrintBlob(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]));
+    }
+
+    private static object? InvokeSettingsGetReportMultipleFailures(object?[] args)
+    {
+        RequireArity("settings-get-report-multiple-failures", args, 3);
+        return NativeMethods.SettingsGetReportMultipleFailures(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]));
+    }
+
+    private static object? InvokeSettingsGetSeed(object?[] args)
+    {
+        RequireArity("settings-get-seed", args, 4);
+        return NativeMethods.SettingsGetSeed(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]), ToIntPtr(args[3]));
+    }
+
+    private static object? InvokeSettingsGetShowStatistics(object?[] args)
+    {
+        RequireArity("settings-get-show-statistics", args, 3);
+        return NativeMethods.SettingsGetShowStatistics(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]));
+    }
+
+    private static object? InvokeSettingsGetStopOnFirstFailure(object?[] args)
+    {
+        RequireArity("settings-get-stop-on-first-failure", args, 3);
+        return NativeMethods.SettingsGetStopOnFirstFailure(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]));
+    }
+
+    private static object? InvokeSettingsGetSuppressHealthCheck(object?[] args)
+    {
+        RequireArity("settings-get-suppress-health-check", args, 3);
+        return NativeMethods.SettingsGetSuppressHealthCheck(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]));
+    }
+
+    private static object? InvokeSettingsGetTestCases(object?[] args)
+    {
+        RequireArity("settings-get-test-cases", args, 3);
+        return NativeMethods.SettingsGetTestCases(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]));
+    }
+
+    private static object? InvokeSettingsGetUnboundedChoices(object?[] args)
+    {
+        RequireArity("settings-get-unbounded-choices", args, 3);
+        return NativeMethods.SettingsGetUnboundedChoices(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]));
+    }
+
+    private static object? InvokeSettingsGetVerbosity(object?[] args)
+    {
+        RequireArity("settings-get-verbosity", args, 3);
+        return NativeMethods.SettingsGetVerbosity(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]));
+    }
+
     private static object? InvokeSettingsNew(object?[] args)
     {
         RequireArity("settings-new", args, 2);
         return NativeMethods.SettingsNew(ToIntPtr(args[0]), ToIntPtr(args[1]));
+    }
+
+    private static object? InvokeSettingsNewForProfile(object?[] args)
+    {
+        RequireArity("settings-new-for-profile", args, 3);
+        return NativeMethods.SettingsNewForProfile(ToIntPtr(args[0]), Marshal.PtrToStructure<HegelString>(ToIntPtr(args[1])), ToIntPtr(args[2]));
+    }
+
+    private static object? InvokeSettingsRegisterProfile(object?[] args)
+    {
+        RequireArity("settings-register-profile", args, 3);
+        return NativeMethods.SettingsRegisterProfile(ToIntPtr(args[0]), Marshal.PtrToStructure<HegelString>(ToIntPtr(args[1])), ToIntPtr(args[2]));
     }
 
     private static object? InvokeSettingsSetBackend(object?[] args)
@@ -1140,10 +1747,28 @@ public static partial class Bridge
         return NativeMethods.SettingsSetDerandomize(ToIntPtr(args[0]), ToIntPtr(args[1]), ToByte(args[2]));
     }
 
+    private static object? InvokeSettingsSetFromString(object?[] args)
+    {
+        RequireArity("settings-set-from-string", args, 4);
+        return NativeMethods.SettingsSetFromString(ToIntPtr(args[0]), ToIntPtr(args[1]), Marshal.PtrToStructure<HegelString>(ToIntPtr(args[2])), Marshal.PtrToStructure<HegelString>(ToIntPtr(args[3])));
+    }
+
+    private static object? InvokeSettingsSetNondeterminismStrictness(object?[] args)
+    {
+        RequireArity("settings-set-nondeterminism-strictness", args, 3);
+        return NativeMethods.SettingsSetNondeterminismStrictness(ToIntPtr(args[0]), ToIntPtr(args[1]), Convert.ToUInt32(args[2], CultureInfo.InvariantCulture));
+    }
+
     private static object? InvokeSettingsSetPhases(object?[] args)
     {
         RequireArity("settings-set-phases", args, 3);
         return NativeMethods.SettingsSetPhases(ToIntPtr(args[0]), ToIntPtr(args[1]), Convert.ToUInt32(args[2], CultureInfo.InvariantCulture));
+    }
+
+    private static object? InvokeSettingsSetPrintBlob(object?[] args)
+    {
+        RequireArity("settings-set-print-blob", args, 3);
+        return NativeMethods.SettingsSetPrintBlob(ToIntPtr(args[0]), ToIntPtr(args[1]), ToByte(args[2]));
     }
 
     private static object? InvokeSettingsSetReportMultipleFailures(object?[] args)
@@ -1164,10 +1789,10 @@ public static partial class Bridge
         return NativeMethods.SettingsSetShowStatistics(ToIntPtr(args[0]), ToIntPtr(args[1]), ToByte(args[2]));
     }
 
-    private static object? InvokeSettingsSetStatefulStepCount(object?[] args)
+    private static object? InvokeSettingsSetStopOnFirstFailure(object?[] args)
     {
-        RequireArity("settings-set-stateful-step-count", args, 3);
-        return NativeMethods.SettingsSetStatefulStepCount(ToIntPtr(args[0]), ToIntPtr(args[1]), Convert.ToInt64(args[2], CultureInfo.InvariantCulture));
+        RequireArity("settings-set-stop-on-first-failure", args, 3);
+        return NativeMethods.SettingsSetStopOnFirstFailure(ToIntPtr(args[0]), ToIntPtr(args[1]), ToByte(args[2]));
     }
 
     private static object? InvokeSettingsSetSuppressHealthCheck(object?[] args)
@@ -1182,6 +1807,18 @@ public static partial class Bridge
         return NativeMethods.SettingsSetTestCases(ToIntPtr(args[0]), ToIntPtr(args[1]), ToUInt64(args[2]));
     }
 
+    private static object? InvokeSettingsSetTestLocation(object?[] args)
+    {
+        RequireArity("settings-set-test-location", args, 6);
+        return NativeMethods.SettingsSetTestLocation(ToIntPtr(args[0]), ToIntPtr(args[1]), Marshal.PtrToStructure<HegelString>(ToIntPtr(args[2])), Convert.ToUInt32(args[3], CultureInfo.InvariantCulture), Marshal.PtrToStructure<HegelString>(ToIntPtr(args[4])), Marshal.PtrToStructure<HegelString>(ToIntPtr(args[5])));
+    }
+
+    private static object? InvokeSettingsSetUnboundedChoices(object?[] args)
+    {
+        RequireArity("settings-set-unbounded-choices", args, 3);
+        return NativeMethods.SettingsSetUnboundedChoices(ToIntPtr(args[0]), ToIntPtr(args[1]), ToByte(args[2]));
+    }
+
     private static object? InvokeSettingsSetVerbosity(object?[] args)
     {
         RequireArity("settings-set-verbosity", args, 3);
@@ -1194,6 +1831,18 @@ public static partial class Bridge
         return NativeMethods.StartSpan(ToIntPtr(args[0]), ToIntPtr(args[1]), ToUInt64(args[2]));
     }
 
+    private static object? InvokeStateMachineAddInvariant(object?[] args)
+    {
+        RequireArity("state-machine-add-invariant", args, 5);
+        return NativeMethods.StateMachineAddInvariant(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]), Marshal.PtrToStructure<HegelString>(ToIntPtr(args[3])), ToByte(args[4]));
+    }
+
+    private static object? InvokeStateMachineAddRule(object?[] args)
+    {
+        RequireArity("state-machine-add-rule", args, 7);
+        return NativeMethods.StateMachineAddRule(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]), Marshal.PtrToStructure<HegelString>(ToIntPtr(args[3])), Convert.ToDouble(args[4], CultureInfo.InvariantCulture), ToIntPtr(args[5]), ToNUInt(args[6]));
+    }
+
     private static object? InvokeStateMachineFree(object?[] args)
     {
         RequireArity("state-machine-free", args, 2);
@@ -1202,8 +1851,8 @@ public static partial class Bridge
 
     private static object? InvokeStateMachineNextGroup(object?[] args)
     {
-        RequireArity("state-machine-next-group", args, 4);
-        return NativeMethods.StateMachineNextGroup(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]), ToIntPtr(args[3]));
+        RequireArity("state-machine-next-group", args, 5);
+        return NativeMethods.StateMachineNextGroup(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]), ToIntPtr(args[3]), ToIntPtr(args[4]));
     }
 
     private static object? InvokeStateMachineNextRule(object?[] args)
@@ -1222,6 +1871,12 @@ public static partial class Bridge
     {
         RequireArity("state-machine-should-check-invariant", args, 5);
         return NativeMethods.StateMachineShouldCheckInvariant(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]), Convert.ToInt64(args[3], CultureInfo.InvariantCulture), ToIntPtr(args[4]));
+    }
+
+    private static object? InvokeStateMachineStart(object?[] args)
+    {
+        RequireArity("state-machine-start", args, 4);
+        return NativeMethods.StateMachineStart(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]), ToIntPtr(args[3]));
     }
 
     private static object? InvokeStopSpan(object?[] args)
@@ -1251,13 +1906,13 @@ public static partial class Bridge
     private static object? InvokeStringGeneratorRegex(object?[] args)
     {
         RequireArity("string-generator-regex", args, 5);
-        return NativeMethods.StringGeneratorRegex(ToIntPtr(args[0]), ToIntPtr(args[1]), ToByte(args[2]), ToIntPtr(args[3]), ToIntPtr(args[4]));
+        return NativeMethods.StringGeneratorRegex(ToIntPtr(args[0]), Marshal.PtrToStructure<HegelString>(ToIntPtr(args[1])), ToByte(args[2]), ToIntPtr(args[3]), ToIntPtr(args[4]));
     }
 
     private static object? InvokeStringGeneratorText(object?[] args)
     {
-        RequireArity("string-generator-text", args, 15);
-        return NativeMethods.StringGeneratorText(ToIntPtr(args[0]), ToUInt64(args[1]), ToUInt64(args[2]), ToIntPtr(args[3]), Convert.ToUInt32(args[4], CultureInfo.InvariantCulture), Convert.ToUInt32(args[5], CultureInfo.InvariantCulture), ToIntPtr(args[6]), ToNUInt(args[7]), ToIntPtr(args[8]), ToNUInt(args[9]), ToIntPtr(args[10]), ToNUInt(args[11]), ToIntPtr(args[12]), ToNUInt(args[13]), ToIntPtr(args[14]));
+        RequireArity("string-generator-text", args, 13);
+        return NativeMethods.StringGeneratorText(ToIntPtr(args[0]), ToUInt64(args[1]), ToUInt64(args[2]), ToIntPtr(args[3]), Convert.ToUInt32(args[4], CultureInfo.InvariantCulture), Convert.ToUInt32(args[5], CultureInfo.InvariantCulture), ToIntPtr(args[6]), ToNUInt(args[7]), ToIntPtr(args[8]), ToNUInt(args[9]), Marshal.PtrToStructure<HegelString>(ToIntPtr(args[10])), Marshal.PtrToStructure<HegelString>(ToIntPtr(args[11])), ToIntPtr(args[12]));
     }
 
     private static object? InvokeStringGeneratorUrl(object?[] args)
@@ -1269,7 +1924,13 @@ public static partial class Bridge
     private static object? InvokeTarget(object?[] args)
     {
         RequireArity("target", args, 4);
-        return NativeMethods.Target(ToIntPtr(args[0]), ToIntPtr(args[1]), Convert.ToDouble(args[2], CultureInfo.InvariantCulture), ToIntPtr(args[3]));
+        return NativeMethods.Target(ToIntPtr(args[0]), ToIntPtr(args[1]), Convert.ToDouble(args[2], CultureInfo.InvariantCulture), Marshal.PtrToStructure<HegelString>(ToIntPtr(args[3])));
+    }
+
+    private static object? InvokeTestCaseBlock(object?[] args)
+    {
+        RequireArity("test-case-block", args, 4);
+        return NativeMethods.TestCaseBlock(ToIntPtr(args[0]), ToIntPtr(args[1]), ToUInt64(args[2]), ToIntPtr(args[3]));
     }
 
     private static object? InvokeTestCaseClone(object?[] args)
@@ -1287,19 +1948,31 @@ public static partial class Bridge
     private static object? InvokeTestCaseFromBlob(object?[] args)
     {
         RequireArity("test-case-from-blob", args, 6);
-        return NativeMethods.TestCaseFromBlob(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]), ToIntPtr(args[3]), ToIntPtr(args[4]), ToIntPtr(args[5]));
-    }
-
-    private static object? InvokeTestCaseIsNondeterministic(object?[] args)
-    {
-        RequireArity("test-case-is-nondeterministic", args, 3);
-        return NativeMethods.TestCaseIsNondeterministic(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]));
+        return NativeMethods.TestCaseFromBlob(ToIntPtr(args[0]), ToIntPtr(args[1]), Marshal.PtrToStructure<HegelString>(ToIntPtr(args[2])), ToIntPtr(args[3]), ToIntPtr(args[4]), ToIntPtr(args[5]));
     }
 
     private static object? InvokeTestCasePrinter(object?[] args)
     {
         RequireArity("test-case-printer", args, 4);
         return NativeMethods.TestCasePrinter(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]), ToIntPtr(args[3]));
+    }
+
+    private static object? InvokeTestCaseSetWorker(object?[] args)
+    {
+        RequireArity("test-case-set-worker", args, 3);
+        return NativeMethods.TestCaseSetWorker(ToIntPtr(args[0]), ToIntPtr(args[1]), Convert.ToInt64(args[2], CultureInfo.InvariantCulture));
+    }
+
+    private static object? InvokeTestCaseShouldCapture(object?[] args)
+    {
+        RequireArity("test-case-should-capture", args, 3);
+        return NativeMethods.TestCaseShouldCapture(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]));
+    }
+
+    private static object? InvokeUnpauseFaults(object?[] args)
+    {
+        RequireArity("unpause-faults", args, 2);
+        return NativeMethods.UnpauseFaults(ToIntPtr(args[0]), ToIntPtr(args[1]));
     }
 
     private static object? InvokeVersion(object?[] args)
