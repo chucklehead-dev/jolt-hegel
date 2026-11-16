@@ -480,8 +480,8 @@ For a reusable dependent generator defined at top level, use `g/bind`:
 
 ```clojure
 (def sized-booleans
-  (g/bind (g/integer 1 10)
-          (fn [size] (g/vector {:size size} (g/boolean)))))
+  (g/bind (fn [size] (g/vector {:size size} (g/boolean)))
+          (g/integer 1 10)))
 ;; Later, inside a property: (h/draw! sized-booleans)
 ```
 

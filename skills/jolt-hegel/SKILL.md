@@ -123,8 +123,8 @@ regression-sensitive negative control before changing ownership.
 - Construct reusable dependent generators with `g/bind`. Use `g/let` only
   inside an active property: it draws immediately and returns a value. Use
   `h/assume!` only when rejection is uncommon.
-- Check combinator arities: `g/one-of` takes a collection of generators;
-  `g/tuple` takes variadic generators.
+- Check combinator signatures: `(g/bind f generator)` is function-first;
+  `g/one-of` takes a collection of generators; `g/tuple` is variadic.
 - Use `clojure.test/is` inside `hegel.clojure-test/with`. In a direct
   `run-test!` property, throw on failure; returning `false` passes the case.
 - Give exceptions a stable `:hegel/origin` based on the property or assertion
