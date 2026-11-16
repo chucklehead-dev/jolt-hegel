@@ -501,3 +501,28 @@
         (is (:passed? result))
         (is (= 2 @builds))
         (is (= @builds @frees))))))
+
+(deftest dynamically-created-native-generators-have-bounded-retention
+  (let [builds (atom 0) frees (atom 0)
+        build hffi/string-generator-regex! release hffi/string-generator-free!]
+    (with-redefs [hffi/string-generator-regex! (fn [& args] (swap! builds inc) (apply build args))
+                  hffi/string-generator-free! (fn [& args] (swap! frees inc) (apply release args))]
+      (let [result (h/run-test! {:test-cases 1 :seed 17 :database "" :verbosity :quiet}
+                                (fn [_]
+                                  (dotimes [_ 100] (h/draw! (g/regex-str "a")))
+                                  (is (<= (- @builds @frees) 64))))]
+        (is (:passed? result))
+        (is (= @builds @frees))))))
+
+(deftest accepted-inner-consumption-rolls-back-with-its-outer-filter
+  (let [run (h/run-test! {:test-cases 1 :seed 42 :database "" :verbosity :quiet}
+                         (fn [_]
+                           (let [pool (hs/pool) attempts (atom 0)]
+                             (hs/add! pool :only)
+                             (is (= :only
+                                    (h/draw! (g/filter
+                                              (fn [_] (= 3 (swap! attempts inc)))
+                                              (g/filter (constantly true)
+                                                        (hs/values-consumed pool))))))
+                             (is (hs/pool-empty? pool)))))]
+    (is (:passed? run))))

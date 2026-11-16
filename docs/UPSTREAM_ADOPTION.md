@@ -15,7 +15,7 @@ is not part of 0.8.27.
 | Capture and replay | Follow native capture/confirmation and blob replay; retain caveats; expose stop-on-first-failure and nondeterminism strictness. Strictness defaults to `:error`. |
 | FFI correctness | Check Jolt 0.8.27's stack-argument ABI probe when available. Older supported Jolt releases lack that probe. |
 | Native distribution | Optional `packaging/jolt` dependency uses lazy `:jolt/native`, a checksum-verified build task, and static archives on Linux/macOS. Preloaded/static symbols avoid redundant shared-library loading. |
-| Generator cost | Cache compiled string/regex/grammar generators for each test case, with owned handles released before the native context. Constructors still validate eagerly. |
+| Generator cost | Cache up to 64 compiled string/regex/grammar generators for each test case (additional generators use lexical ownership), with owned handles released before the native context. Constructors still validate eagerly. |
 | Shrinking | Stable component-derived labels distinguish combinator shapes instead of giving every tuple, map, etc. the same label. |
 | Generator defaults | Use native default-size sentinel (100, or minimum + 100 for larger minima) and native filter-attempt count. Explicit maximums remain explicit. |
 | Stateful pools | Restore consumed values when filters or collection uniqueness discard a speculative draw; nested accepted draws remain part of their parent's rollback. |

@@ -671,18 +671,21 @@
     (named-generator
      kind
      (fn [test-case]
-       (let [context (:context test-case)]
-         (if-let [cache (:native-generators test-case)]
-           (let [handle (or (get @cache cache-key)
-                            (let [handle (builder context)]
-                              (h/register-native-cleanup! test-case #(release context handle))
-                              (swap! cache assoc cache-key handle)
-                              handle))]
-             (draw context (:handle test-case) handle))
-           ;; Manually constructed test cases retain the lexical ownership path.
-           (let [handle (builder context)]
-             (with-cleanup #(draw context (:handle test-case) handle)
-                           #(release context handle) (constantly true)))))))))
+       (let [context (:context test-case)
+             cache (:native-generators test-case)]
+           (if-let [handle (when cache (get @cache cache-key))]
+             (draw context (:handle test-case) handle)
+             (if (and cache (< (count @cache) 64))
+               (let [handle (builder context)]
+                 (h/register-native-cleanup! test-case #(release context handle))
+                 (swap! cache assoc cache-key handle)
+                 (draw context (:handle test-case) handle))
+               ;; Bound retained handles and cleanup callbacks even when a long
+               ;; workload constructs a fresh generator on every iteration.
+               ;; Manual test cases also use lexical ownership.
+               (let [handle (builder context)]
+                 (with-cleanup #(draw context (:handle test-case) handle)
+                               #(release context handle) (constantly true))))))))))
 
 (defn- native-string-generator [builder]
   (native-generator :string builder
