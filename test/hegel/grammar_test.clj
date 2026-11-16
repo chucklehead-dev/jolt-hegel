@@ -47,7 +47,7 @@
         (is (true? (:hegel/usage-error? data)))))))
 
 (deftest literals-are-escaped-and-preserved
-  (doseq [literal ["" "quote\"\\slash\n\r\t" "\u0000" "é😀" "\"\nother: \"injection"]]
+  (doseq [literal [(apply str (map char (range 32))) "" "quote\"\\slash\n\r\t" "\u0000" "é😀" "\"\nother: \"injection"]]
     (is (= [literal] (h/sample 1 (g/grammar {:rules {:start literal}}))))))
 
 (deftest operators-generate-and-shrink-through-native-grammar

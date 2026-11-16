@@ -37,6 +37,9 @@
         :else (recur (next units) (conj result unit)))
       result)))
 
+(defn- hex-digit [n]
+  (nth ["0" "1" "2" "3" "4" "5" "6" "7" "8" "9" "a" "b" "c" "d" "e" "f"] (int n)))
+
 (defn- literal [value path]
   (scalars value path)
   (str "\""
@@ -45,7 +48,8 @@
                            34 "\\\""
                            92 "\\\\"
                            (if (< (int c) 32)
-                             (format "\\u%04x" (int c))
+                             (str "\\u00" (hex-digit (quot (int c) 16))
+                                  (hex-digit (mod (int c) 16)))
                              (str c)))) value))
        "\""))
 
