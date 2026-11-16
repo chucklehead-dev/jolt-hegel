@@ -1,0 +1,20 @@
+You are a fresh agent conducting a bounded developer-experience probe. You have no prior implementation context. Build your own solution to the task below; the aim is to observe actual authoring and debugging friction, not to grade you against hidden code.
+
+Read/write ONLY your assigned scratch directory. You may READ public documentation and source in /workspace/jolt-hegel (README.md, docs/, skills/jolt-hegel/references/api.md, src/) and your target checkout. Do NOT read /workspace/jolt-hegel/external/, /workspace/jolt-hegel/target/, /workspace/tooling/*pilot*, sibling study directories, reference implementations, previous agent reports or conversation histories. Do not edit Hegel or the target, create commits, contact other agents, or send external messages. Public source lookup is allowed when documentation is insufficient; record why you needed it.
+
+A deps.edn is prepared in your directory with local dependencies on the real pinned sources. Use Jolt /workspace/tooling/jolt/jolt (v0.8.27). Hegel source is /workspace/jolt-hegel, commit 8179cb83eda81c708dc834ee38647f2354fe3d55; native libhegel 0.51.6 is already installed. The target checkout and pin are given below. This is a pre-provisioned environment, so do NOT claim to measure cold-install onboarding. Keep individual commands bounded with `timeout 120s`; spend at most 20 minutes on the task. If blocked, preserve the evidence and report the limitation rather than guessing success.
+
+Deliver:
+1. Runnable source and commands for the property, with bounded generation and a fixed seed.
+2. A deliberately broken semantic control demonstrating the property catches its intended defect. An unconditional throw is not an adequate control.
+3. Observations/coverage showing the important categories actually ran. Inspect the returned run verdict.
+4. A minimized counterexample, your explanation of its meaning, and a fresh-process attempt to reproduce it (prefer a saved native replay artifact; also retain an ordinary input/command fixture). If this is blocked, document exactly where and why.
+5. A structured report.edn in your directory and a concise final response: commands and outcomes, docs/source consulted, wrong assumptions and revisions, assistance needed, what the property proves/does not prove, diagnosis and replay result, and proposed improvements. Distinguish facts from hypotheses. Keep a chronological journal.jsonl of significant lookups/runs/errors; mark it as agent self-report, not independent telemetry. Do not invent timings, success, or human findings.
+
+Do not assume a new core API is needed. Prefer ordinary local helpers, then explain any recurring-looking friction. Do not inspect anyone else's solution.
+
+Assigned scratch directory: /workspace/naive-hegel-study/03-parser-meaning
+Target checkout: /workspace/pilot-targets/instaparse
+Target commit: 6105ad194ab5f52c255fe475fb20c59f0dde64e9
+
+Task: Generate bounded arithmetic ASTs using nonnegative integer leaves and addition. Print them with full parentheses, parse and transform the text through Instaparse, and compare the result with independent evaluation of the original AST. Keep arithmetic inside a documented safe numerical domain.

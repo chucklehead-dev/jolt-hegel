@@ -1,0 +1,66 @@
+{:task :json-error-offset
+ :record-type :agent-self-report
+ :status :completed
+ :environment {:provisioned true :cold-install-measured false
+               :jolt "0.8.27" :libhegel "0.51.6"
+               :hegel-sha "8179cb83eda81c708dc834ee38647f2354fe3d55"
+               :target-sha "e9562890a5f74b1cfd8added087860e7533df605"
+               :pins-verified true}
+ :commands {:all "bash commands.sh"
+            :individual "YYJSON_JOLT_LIB=$PWD/libyyjson-jolt.so timeout 120s /workspace/tooling/jolt/jolt -M -m probe MODE"
+            :modes ["baseline" "control" "replay" "fixture"]
+            :working-directory "/workspace/naive-hegel-study/06-json-error-offset"
+            :observed-exit-codes {:native-build 0 :baseline 0 :control 0 :replay 0 :fixture 0}
+            :note "Control command succeeds only when returned verdict is a stable :failed result; replay command succeeds only on :reproduced?."}
+ :property {:source "src/probe.clj" :seed 20261116 :valid-case-budget 300
+            :generation "Vectors of 0..32 indices selecting a, é, 中, 😀, or space. Quoted input has generated prefix, raw NUL, z, closing quote."
+            :oracle "1 for opening ASCII quote plus sum of independently specified UTF-8 widths [1 2 3 4 1]. No target encoder or offset routine."
+            :assertions ["Reject with :yyjson/error :invalid"
+                         "Position equals expected zero-based UTF-8 offset"
+                         "Subsequent fixed object with Unicode parses correctly"
+                         "Removing the raw NUL leaves a valid string with the expected value"]
+            :control "Mutation of the rejection result substitutes 1 + prefix scalar count for byte position; ASCII cases continue to pass."}
+ :baseline {:passed? true :status :passed :valid-cases 300 :flaky? false
+            :coverage-passed? true
+            :coverage-hits {:empty 17 :nonempty 283 :width-1 247 :width-2 204 :width-3 200 :width-4 205 :mixed-width 260}
+            :prefix-length-range [0 32] :artifact "baseline-result.edn"}
+ :control {:passed? false :status :failed :flaky? false :n-failures 1
+           :test-cases 120 :valid-cases 59 :overrun-cases 44 :interesting-cases 17
+           :artifact "control-result.edn"
+           :minimized {:indices [1] :prefix "é" :input-hex "22 c3 a9 00 7a 22" :expected-offset 3 :mutant-offset 2}
+           :meaning "A single two-byte scalar distinguishes scalar offsets from byte offsets. Empty and ASCII-only prefixes do not. Native minimization found the shortest failing prefix in this domain."
+           :target-defect-found? false}
+ :replay {:native-bundle "control-bundle.edn" :fresh-process true :status :reproduced :reproduced? true :flaky? false
+          :artifact "replay-result.edn"
+          :ordinary-fixture "fixture.edn" :raw-input "fixture-input.json"
+          :ordinary-fresh-process true :ordinary-result "fixture-result.edn"
+          :ordinary-baseline-position 3 :ordinary-control-position 2
+          :provenance "Expected deployment/property manifest defined independently in source, not copied from bundle."}
+ :consulted [{:path "/workspace/jolt-hegel/skills/jolt-hegel/references/api.md"
+              :reason "Runner verdict, generator signatures, observations, coverage, replay export."}
+             {:path "/workspace/jolt-hegel/docs/REPLAY_BUNDLES.md"
+              :reason "Exact provenance contract and native blob replay semantics."}
+             {:path "/workspace/pilot-targets/yyjson-jolt/README.md"
+              :reason "Error contract and library build override."}
+             {:path "/workspace/pilot-targets/yyjson-jolt/src/yyjson/native.clj"
+              :reason "Confirm how to prevent automatic writes to target checkout; obtain compiler flags for scratch build."}
+             {:path "/workspace/pilot-targets/yyjson-jolt/src/yyjson/core.clj"
+              :reason "Inspect NUL handling and offset path to diagnose scope and ensure oracle independence."}]
+ :wrong-assumptions-and-revisions ["Pre-provisioned did not mean yyjson native library existed in target checkout. Built it into scratch and used documented override."
+                                  "No failed API authoring attempts occurred. Returned :counterexample was nil, so explicit final-pass capture retained the ordinary fixture; exception data also retained the minimized prefix."]
+ :assistance-needed :none
+ :diagnosis {:facts ["Raw NUL is rejected by the Clojure wrapper before native parser invocation."
+                     "Wrapper computes UTF-8 byte count before NUL; independent width-table property passed."
+                     "Native replay reproduced the deliberate scalar-offset mutation."
+                     "Result EDN diagnostic files contain #error forms; portable bundle and fixture are separate readable EDN artifacts."]
+             :hypotheses []}
+ :limits ["This is bounded testing over five safe scalar tokens, not proof over all Unicode or JSON grammar."
+          "Does not test escapes, malformed UTF-8, multiple NULs, surrogate handling, or arbitrary suffixes."
+          "Subsequent parse correctness does not establish absence of memory leaks or concurrency bugs."
+          "Raw NUL path is a wrapper rejection; this does not exercise native parse-error cleanup."
+          "Minimized counterexample is to deliberate control, not an observed target defect."]
+ :proposed-improvements ["Document a compact custom-runner example combining returned-verdict inspection, final input capture, bundle export, and fresh-process replay."
+                         "Expose or document ordinary minimized input capture more prominently when :counterexample is nil."
+                         "Clarify that final-replay observations can include multiple capture passes and are not exclusively the final minimal input."
+                         "No new core API is required for this property; local width-table and adapter helpers were sufficient."]
+ :journal "journal.jsonl"}

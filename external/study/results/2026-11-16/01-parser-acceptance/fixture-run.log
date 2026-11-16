@@ -1,0 +1,2 @@
+WARNING: let already refers to: #'clojure.core/let in namespace: hegel.generator, being replaced by: #'hegel.generator/let
+{:input "(0)", :good-accepts? true, :broken-rejects? true, :trailing-junk-rejected? true}

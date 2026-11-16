@@ -1,0 +1,8 @@
+WARNING: let already refers to: #'clojure.core/let in namespace: hegel.generator, being replaced by: #'hegel.generator/let
+:witness {:codepoints [], :raw "\"\"", :escaped "\"\""}
+:witness {:codepoints [0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31], :raw "\"\\u0000\\u0001\\u0002\\u0003\\u0004\\u0005\\u0006\\u0007\\u0008\\u0009\\u000a\\u000b\\u000c\\u000d\\u000e\\u000f\\u0010\\u0011\\u0012\\u0013\\u0014\\u0015\\u0016\\u0017\\u0018\\u0019\\u001a\\u001b\\u001c\\u001d\\u001e\\u001f\"", :escaped "\"\\u0000\\u0001\\u0002\\u0003\\u0004\\u0005\\u0006\\u0007\\u0008\\u0009\\u000a\\u000b\\u000c\\u000d\\u000e\\u000f\\u0010\\u0011\\u0012\\u0013\\u0014\\u0015\\u0016\\u0017\\u0018\\u0019\\u001a\\u001b\\u001c\\u001d\\u001e\\u001f\""}
+:witness {:codepoints [34 92], :raw "\"\\\"\\\\\"", :escaped "\"\\u0022\\u005c\""}
+:witness {:codepoints [128 2047 2048 55295 57344 65535], :raw "\"߿ࠀ퟿￿\"", :escaped "\"\\u0080\\u07ff\\u0800\\ud7ff\\ue000\\uffff\""}
+:witness {:codepoints [65536 128512 1114111], :raw "\"𐀀😀􏿿\"", :escaped "\"\\ud800\\udc00\\ud83d\\ude00\\udbff\\udfff\""}
+:witness {:codepoints [65 0 66], :raw "\"A\\u0000B\"", :escaped "\"\\u0041\\u0000\\u0042\""}
+:witness {:codepoints [128104 8205 128105 65039], :raw "\"👨‍👩️\"", :escaped "\"\\ud83d\\udc68\\u200d\\ud83d\\udc69\\ufe0f\""}

@@ -1,0 +1,1 @@
+{:format :hiccup, :input "a", :tokens ["a"], :normal [:S [:chunk "a"]], :actual [:S], :optimization-used? true}

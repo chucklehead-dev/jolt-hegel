@@ -1,0 +1,64 @@
+{:study :parser-optimization
+ :evidence-kind :agent-self-report
+ :status :completed
+ :environment {:pre-provisioned true :cold-install-measured? false
+               :runtime-observed "jolt v0.8.27"
+               :hegel-sha-supplied "8179cb83eda81c708dc834ee38647f2354fe3d55"
+               :instaparse-sha-supplied "6105ad194ab5f52c255fe475fb20c59f0dde64e9"
+               :libhegel-version "0.51.6"}
+ :contract {:grammar "S = chunk*; chunk = 'a' | 'b'"
+            :domain "Complete valid strings in {a,b}*, bounded to 0..32 chunks; output format hiccup or enlive. Each chunk consumes exactly one character, so boundaries and trees are unambiguous."
+            :claim "Structural Clojure equality of normal and :optimize :memory parse trees; both must succeed. Metadata intentionally excluded by equality."
+            :eligibility "Top-level star repetition is accepted by pinned repeat.cljc. Empty input may fall back; coverage confirms optimization for nonempty cases and fallback for empty cases."
+            :excluded ["Arbitrary or ambiguous grammars" "Invalid input/failure diagnostics" "Partial/total parses" "Hidden rules" "Headers" "Unicode" "Metadata equality" "Performance or actual memory reduction" "Universal correctness beyond sampled cases"]}
+ :implementation {:source "src/probe.clj" :seed "424242" :case-budget 200
+                  :generator "tuple of sampled output format and vector of 0..32 sampled a/b strings"
+                  :verdict-checked? true
+                  :control "Remove the last repeated child only for nonempty input, from hiccup vector or enlive content. Empty input remains unmodified; no unconditional throw."
+                  :native-bundle "failure-bundle.edn"
+                  :ordinary-fixture "counterexample.edn"}
+ :commands {:working-directory "/workspace/naive-hegel-study/02-parser-optimization"
+            :good "timeout 120s /workspace/tooling/jolt/jolt -M -m probe good"
+            :control "timeout 120s /workspace/tooling/jolt/jolt -M -m probe control"
+            :native-replay "timeout 120s /workspace/tooling/jolt/jolt -M -m probe replay"
+            :ordinary-replay "timeout 120s /workspace/tooling/jolt/jolt -M -m probe fixture"}
+ :results {:good {:process-exit 0 :passed? true :status :passed :valid-cases 200 :failures 0 :flaky? false
+                  :coverage-passed? true
+                  :category-hits {"hiccup/empty" 5 "hiccup/nonempty" 92 "enlive/empty" 8 "enlive/nonempty" 95 "optimized" 187 "fallback" 13}
+                  :observed-chunk-range [0 27]
+                  :limitation "Generated maximum was 27, so the permitted bound 32 was not reached in this run."}
+           :control {:process-exit 0 :passed? false :status :failed :n-failures 1 :flaky? false
+                     :reported-test-cases 115 :valid-cases 58
+                     :note "Exit zero means the harness verified expected failure, not that the broken property passed. Exploration includes shrinking; its counts are not iid generation statistics."}
+           :minimized {:format :hiccup :input "a" :tokens ["a"]
+                       :normal [:S [:chunk "a"]] :broken [:S]
+                       :meaning "One chunk is the smallest failing size; zero chunks is unaffected. The control loses one semantic tree node. This is an injected defect, not an Instaparse bug."
+                       :source "Retained result :final first :exception ex-data, stored in retained-failure.edn; not an arbitrary callback capture."}
+           :native-replay {:process-exit 0 :status :reproduced :reproduced? true :flaky? false :fresh-process? true}
+           :ordinary-replay {:process-exit 0 :good-passed? true :control-differs? true :fresh-process? true}}
+ :consulted {:docs ["/workspace/jolt-hegel/README.md"
+                    "/workspace/jolt-hegel/skills/jolt-hegel/references/api.md"
+                    "/workspace/jolt-hegel/docs/OBSERVATIONS.md"
+                    "/workspace/jolt-hegel/docs/REPLAY_BUNDLES.md"
+                    "/workspace/pilot-targets/instaparse/docs/ExperimentalFeatures.md"]
+             :searches ["Instaparse README.md and docs/ for optimize/memory"]
+             :source [{:path "/workspace/pilot-targets/instaparse/src/instaparse/repeat.cljc"
+                       :why "Docs exemplify plus, but empty input requires star. Confirmed star eligibility and optimization metadata."}
+                      {:path "/workspace/pilot-targets/instaparse/src/instaparse/core.cljc"
+                       :why "Confirm complete-parse dispatch and fallback semantics."}
+                      {:path "/workspace/jolt-hegel/src/hegel/core.cljc"
+                       :why "Locate retained final exception after realizing final callbacks may run several times and top-level :counterexample was absent."}]}
+ :friction {:wrong-assumptions-and-revisions
+            ["Initial combined README/API read exceeded output budget; focused docs reads followed."
+             "Initially captured the last final callback in an atom. Replaced it with retained :final exception data because final callbacks can execute repeatedly. Both yielded the same minimized case here."
+             "Initially selected :counterexample at result top level; it was absent. Retained failure entry has :counterexample nil under this quiet run, but structured exception data and native replay blob remain available."
+             "Searched both core.clj and core.cljc; nonexistent core.clj caused rg exit 2 while valid core.cljc matches were returned."]
+            :warnings ["hegel.generator/let shadows clojure.core/let warning on each require; did not prevent runs."]
+            :assistance-needed "None beyond supplied task, provisioned dependencies, public docs and allowed source. No other agents or external messages used."
+            :improvements ["Show a compact end-to-end replay example extracting minimized ordinary input from result :final exception data."
+                           "Document star and empty-input fallback in Instaparse optimization examples."
+                           "Include a small comparison-property example with four format/emptiness coverage obligations and optimization metadata checks."]
+            :core-api-change-needed? false}
+ :facts-vs-hypotheses {:facts "Recorded verdicts, category counts, source eligibility, retained minimized input, and fresh-process replay are observed. No target failure found."
+                       :hypotheses "The proposed documentation improvements may reduce authoring friction; no human usability study or timings establish that."}
+ :artifacts ["src/probe.clj" "deps.edn" "good.log" "good-result.edn" "control.log" "control-result.edn" "retained-failure.edn" "counterexample.edn" "failure-bundle.edn" "replay.log" "replay-result.edn" "fixture.log" "journal.jsonl" "README.md"]}

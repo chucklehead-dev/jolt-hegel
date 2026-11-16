@@ -1,0 +1,9 @@
+{:status :reproduced, :reproduced? true, :flaky? false, :seed "20261116", :replay-options {:backend :default, :unbounded-choices? false, :test-cases 300, :verbosity :quiet, :derandomize? false, :report-multiple-failures? false, :stop-on-first-failure? true, :nondeterminism-strictness :error, :phases [:explicit :reuse :generate :target :shrink], :suppress-health-checks []}, :n-failures 1, :failures [{:status :interesting, :reproduced? true, :counterexample nil, :origin "raw-nul/offset-and-recovery", :exception #error {
+ :cause "raw NUL rejection/byte offset/recovery mismatch"
+ :data {:indices [1], :prefix "é", :expected 3, :actual {:yyjson/error :invalid, :position 2}, :recovery {"ok" [true 42 "😀"]}, :safe "éz", :hegel/origin "raw-nul/offset-and-recovery"}
+ :via [ {:type clojure.lang.ExceptionInfo :message "raw NUL rejection/byte offset/recovery mismatch" :data {:indices [1], :prefix "é", :expected 3, :actual {:yyjson/error :invalid, :position 2}, :recovery {"ok" [true 42 "😀"]}, :safe "éz", :hegel/origin "raw-nul/offset-and-recovery"} :at nil}]
+ :trace []}, :replay-origin "raw-nul/offset-and-recovery", :reproduction-blob nil, :caveat nil}], :final [{:status :interesting, :origin "raw-nul/offset-and-recovery", :replay-origin "raw-nul/offset-and-recovery", :exception #error {
+ :cause "raw NUL rejection/byte offset/recovery mismatch"
+ :data {:indices [1], :prefix "é", :expected 3, :actual {:yyjson/error :invalid, :position 2}, :recovery {"ok" [true 42 "😀"]}, :safe "éz", :hegel/origin "raw-nul/offset-and-recovery"}
+ :via [ {:type clojure.lang.ExceptionInfo :message "raw NUL rejection/byte offset/recovery mismatch" :data {:indices [1], :prefix "é", :expected 3, :actual {:yyjson/error :invalid, :position 2}, :recovery {"ok" [true 42 "😀"]}, :safe "éz", :hegel/origin "raw-nul/offset-and-recovery"} :at nil}]
+ :trace []}, :counterexample nil}]}

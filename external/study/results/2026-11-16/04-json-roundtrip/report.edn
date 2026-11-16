@@ -1,0 +1,65 @@
+{:study "04-json-roundtrip"
+ :status :completed
+ :evidence-kind :agent-self-report
+ :environment {:pre-provisioned true :cold-install-measured false
+               :jolt "0.8.27" :libhegel "0.51.6"
+               :hegel-sha "8179cb83eda81c708dc834ee38647f2354fe3d55"
+               :target-sha "e9562890a5f74b1cfd8added087860e7533df605"
+               :pin-source :assignment :runtime-version-observed true}
+ :domain {:containers [:string-keyed-maps :vectors] :scalars [:strings :booleans :nil :bounded-integers]
+          :integer-bounds [-1000000 1000000] :string-max-codepoints 12
+          :string-alphabet "ab Z\"\\\n\t\u0000é中́😀"
+          :max-depth 4 :max-leaves 32 :max-container-size 4
+          :equality "Clojure =; object order irrelevant, vector order and exact strings significant"
+          :excluded ["Floating point, signed zero, NaN and infinities: outside integer-only numerical equality contract."
+                     "Ratios and BigDecimal: writer/reader can change numeric representation or precision."
+                     "Arbitrary-width BigInt and integers outside the chosen bounds: not generated; no claim about their support."
+                     "Lists, sequences, sets, keywords, symbols, chars, UUIDs, records, non-string map keys: JSON conversions do not generally preserve original value/type; excluded even when some compare equal."
+                     "Malformed Unicode surrogate values and Unicode scalars outside the stated alphabet; arbitrary recursion depth and collection size."
+                     "Metadata, concrete collection/numeric classes and map iteration order are not equality obligations."]}
+ :commands ["bash run.sh baseline" "bash run.sh control" "bash run.sh replay" "bash run.sh fixture"]
+ :baseline {:seed "424242" :requested-cases 500 :passed? true :status :passed
+            :valid-cases 500 :invalid 0 :overrun 0 :failures 0 :flaky? false
+            :explicit-witnesses-passed 11
+            :coverage-passed? true
+            :coverage-counts {"root/nil" 6 "root/boolean" 8 "root/integer" 11 "root/string" 10
+                              "root/vector" 220 "root/map" 245 "nested" 390 "unicode" 356
+                              "supplementary" 298 "nul" 303}
+            :observed-depth [0 4]}
+ :control {:defect "Read JSON with :key-fn keyword, changing string keys to keywords. Scalars and empty maps remain unaffected."
+           :passed? false :status :failed :n-failures 1 :flaky? false
+           :valid-cases 314 :interesting-cases 21 :overrun-cases 2519
+           :minimized-input {"" nil} :serialized-json "{\"\":null}"
+           :actual-description "A map with the empty-name keyword key and nil value; its key differs from the input empty string."
+           :diagnosis "Intentional control defect, not a discovered yyjson default round-trip bug. One map entry suffices; empty map and scalar values cannot expose key conversion. Native shrink result, no claim of exhaustive global minimality."
+           :origin "json-roundtrip/equality"}
+ :replay {:native-artifact "failure-bundle.edn" :independent-manifest "provenance in src/probe.clj"
+          :fresh-process? true :status :reproduced :reproduced? true :flaky? false
+          :ordinary-fixture "counterexample.edn" :fixture-fresh-process? true
+          :fixture-original-passes? true :fixture-control-fails? true}
+ :artifacts {:source "src/probe.clj" :commands "run.sh" :journal "journal.jsonl"
+             :logs ["baseline.log" "control.log" "replay.log" "fixture.log"]
+             :raw-result-dumps ["baseline-result.edn" "control-result.edn" "replay-result.edn"]
+             :raw-dump-caveat "Failure result dumps use pr-str, may contain #error and NUL, and are diagnostic text rather than portable EDN. Use the validated failure-bundle.edn or counterexample.edn for replay."}
+ :consulted [{:path "/workspace/jolt-hegel/skills/jolt-hegel/references/api.md" :purpose "Generation, observations, verdict handling, recursion bounds, replay API."}
+             {:path "/workspace/jolt-hegel/docs/REPLAY_BUNDLES.md" :purpose "Exact provenance schema and native bundle replay requirements."}
+             {:path "/workspace/pilot-targets/yyjson-jolt/README.md" :purpose "JSON API, Unicode/type contract, native override."}
+             {:path "/workspace/pilot-targets/yyjson-jolt/src/yyjson/core.clj" :purpose "Confirm key-fn semantics and implementation boundary; README already described the public contract."}
+             {:path "/workspace/pilot-targets/yyjson-jolt/src/yyjson/native.clj" :purpose "Confirm default automatic build writes into target and determine equivalent scratch-only native compilation."}]
+ :friction [{:fact "First documentation command encountered exec-server transport disconnected; retry succeeded." :classification :infrastructure}
+            {:fact "Combined large documentation read was truncated; focused section reads followed." :classification :navigation}
+            {:fact "Target auto-build writes into target native directory; scratch-only policy required manual compilation and YYJSON_JOLT_LIB." :classification :environment-policy}
+            {:fact "h/final? diagnostic capture repeats; ordinary fixture captured the final input, and fresh native replay confirmed it." :classification :diagnostics}
+            {:fact "Failure result :counterexample is nil for this custom property; input is retained in exception data and local capture." :classification :diagnostics}
+            {:fact "Control exploration reported 2519 overruns while shrinking to a stable counterexample." :classification :observed-run-behavior
+             :hypothesis "Recursive shrink candidates can exhaust choice prefixes; not investigated and not interpreted as target failures."}]
+ :wrong-assumptions-and-revisions ["No generator API or property correction was required after first execution."
+                                  "A raw pr-str run result is not necessarily portable EDN; preserved validated replay bundle and ordinary input separately."
+                                  "A single broad docs read was too large for output limits; narrowed to relevant sections."]
+ :assistance {:human-needed false :other-agents-contacted false :implementation-help-needed false}
+ :proves "The checked finite execution corpus round-trips under default yyjson APIs, mandatory category coverage ran, and changing keys is detected and reproducibly minimized."
+ :does-not-prove "Universal JSON correctness, exhaustive coverage, standards conformance, independently correct writer and reader, performance, numerical domains or Unicode outside stated bounds. A paired writer/reader defect could cancel."
+ :improvements ["Add a compact recursive JSON + coverage + replay recipe to public docs; existing APIs were sufficient."
+                "Document explicitly how custom properties retain ordinary minimized values when result :counterexample is nil."
+                "Consider a supported target build-output directory override, avoiding manual compiler invocation in read-only source consumers."
+                "Explain overrun counts during shrink in reporting docs, so successful replay is not mistaken for infrastructure failure."]}

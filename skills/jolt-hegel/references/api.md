@@ -451,6 +451,19 @@ oversized or mispriced attempts, and labels every subtree so shrinking can
 replace a tree with one of its descendants. Do not add a separate generated
 depth counter around `g/recursive`.
 
+For a reusable dependent generator defined at top level, use `g/bind`:
+
+```clojure
+(def sized-booleans
+  (g/bind (g/integer 1 10)
+          (fn [size] (g/vector {:size size} (g/boolean)))))
+;; Later, inside a property: (h/draw! sized-booleans)
+```
+
+`g/bind` constructs a generator; `g/let` executes draws immediately in the
+current test case. A top-level `g/let` with generator bindings therefore fails
+with `no Hegel test case is currently bound`.
+
 `g/let` draws tagged generator right-hand sides and leaves ordinary expressions
 alone. It must execute inside an active `run-test!` or
 `hegel.clojure-test/with` property; it returns its body value and is not a
