@@ -41,13 +41,13 @@
 (defn- caught [thunk]
   (try (thunk) nil (catch Throwable e e)))
 
-(deftest actual-result-exports-and-replays-without-starting-a-run
+(deftest actual-result-exports-and-replays-without-starting-generation
   (let [result (h/run-test! {:test-cases 1 :seed 1 :database ""
                              :name "not-exported" :verbosity :quiet}
                             failing-property)
         exported (codec/decode (codec/encode (bundle/from-result provenance result)))
         calls (atom 0)]
-    (is (= {:test-cases 1 :verbosity :quiet} (:replay-options result)))
+    (is (= {:test-cases 1 :verbosity :quiet} (select-keys (:replay-options result) [:test-cases :verbosity])))
     (is (false? (:passed? result)))
     (is (false? (:flaky? result)))
     (is (= 1 (:draw (ex-data (get-in result [:final 0 :exception])))))

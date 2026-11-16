@@ -977,3 +977,14 @@ Use the consuming project's established test command and selected executable
 when they differ from these examples. For process-backed properties, pre-resolve
 every parent and worker dependency set before generation and preserve the first
 worker transcript when infrastructure setup fails.
+
+## Next-release upstream additions
+
+The [adoption report](../../../docs/UPSTREAM_ADOPTION.md) documents the optional
+Jolt native package and examples for `grammar-str`, `:profile`,
+`:unbounded-choices?`, `:print-blob?`, rule `:weight` and invariant
+`:pause-faults?`. Run options also accept `:test-location` with `:file`, `:line`,
+`:namespace` and `:name`; `hegel.clojure-test` supplies this automatically.
+Replay captures resolved semantic settings rather than a mutable profile name.
+String and byte default maximum sizes are 100, or minimum + 100 when the minimum
+exceeds 100. Native compiled generators are reused within each test case.

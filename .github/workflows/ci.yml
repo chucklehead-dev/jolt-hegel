@@ -316,6 +316,17 @@ jobs:
         if: matrix.host == 'jolt' && runner.os == 'Linux'
         run: bash script/check-standalone-resources.sh
 
+      - name: Acquire, statically link and relocate the native package (current Jolt)
+        if: matrix.host == 'jolt' && runner.os != 'Windows' && matrix.jolt-version == '0.8.27'
+        run: bash script/check-native-package.sh
+
+      - name: Check unrecorded Antithesis workload failure
+        if: matrix.host == 'bb' && runner.os == 'Linux'
+        shell: bash
+        run: |
+          workload_output="$(mktemp -d)"
+          ANTITHESIS_OUTPUT_DIR="$workload_output" bb -cp src:resources:script -m hegel.workload-smoke
+
       - name: Run semantic suite (Babashka)
         if: matrix.host == 'bb'
         run: bb test

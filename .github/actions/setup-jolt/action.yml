@@ -74,14 +74,13 @@ runs:
         # Jolt resolves Maven coordinates with system OpenSSL and extracts jars
         # with unzip. Git for Windows supplies both on hosted runners, but its
         # executable directories are not inherited by later pwsh/bash steps.
-        $gitRoot = Join-Path $env:ProgramFiles 'Git'
-        $gitMingwBin = Join-Path $gitRoot 'mingw64\bin'
-        $gitUsrBin = Join-Path $gitRoot 'usr\bin'
-        foreach ($path in @($gitMingwBin, $gitUsrBin)) {
-          if (-not (Test-Path -LiteralPath $path)) {
-            throw "Required Git for Windows directory is missing: $path"
+        $gitRoot = Split-Path (Split-Path (Get-Command git).Source -Parent) -Parent
+        # Git for Windows can use mingw64 or ucrt64 depending on its release.
+        foreach ($relative in @('mingw64\bin', 'ucrt64\bin', 'usr\bin')) {
+          $path = Join-Path $gitRoot $relative
+          if (Test-Path -LiteralPath $path) {
+            $path | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           }
-          $path | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
         }
 
     - name: Verify Jolt

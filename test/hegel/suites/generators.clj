@@ -735,14 +735,14 @@
                     (> first-stop-index retry-index))))
     (support/check! context "leaf-budget retry preserves nested recursive span order"
            (= [[:new 2 1]
-               [:start hffi/label-recursive]
+               [:start (:hegel.generator/label (meta generator))]
                [:branch 0 true]
-               [:start hffi/label-mapped]
-               [:start hffi/label-recursive]
+               [:start (:hegel.generator/label (meta (g/fmap identity (g/composite-fn identity))))]
+               [:start (:hegel.generator/label (meta generator))]
                [:branch 1 false]
                [:leaf :retry]
                [:retry]
-               [:start hffi/label-recursive]
+               [:start (:hegel.generator/label (meta generator))]
                [:branch 0 false]
                [:leaf :ok]
                [:finish :ok]

@@ -53,7 +53,9 @@
 
 (defn- test-case [ctx handle final? verbosity]
   (assoc (->TestCase ctx handle final? verbosity)
-         :native-cleanups (atom [])))
+         :native-cleanups (atom [])
+         :draw-attempts (atom [])
+         :native-generators (atom {})))
 
 (defn- should-log? [verbosity final?]
   (case verbosity
@@ -266,7 +268,7 @@
   (true? (:hegel/usage-error? (ex-data error))))
 
 (def ^:private run-option-keys
-  #{:mode :backend :test-cases :stateful-step-count :verbosity :seed
+  #{:test-location :profile :print-blob? :unbounded-choices? :mode :backend :test-cases :stateful-step-count :verbosity :seed
     :derandomize? :report-multiple-failures? :stop-on-first-failure? :nondeterminism-strictness :database :database-key :name
     :phases :suppress-health-checks :show-statistics? :observations? :coverage
     :counterexample})
@@ -296,6 +298,17 @@
      ::removed-mode
      "libhegel removed :mode; omit it for normal runs. :test-cases 1 sets a valid-case budget, not the former no-shrink single-test-case mode."
      {:mode (:mode opts)}))
+  (when (and (contains? opts :profile)
+             (not (and (string? (:profile opts)) (seq (:profile opts)))))
+    (validation/usage-error! ::invalid-option "profile must be a nonempty string" {:profile (:profile opts)}))
+  (when-let [location (:test-location opts)]
+    (validation/reject-unknown-keys! ::invalid-option "test location"
+                                     #{:file :line :namespace :name} location)
+    (doseq [key [:file :namespace :name]]
+      (when-not (and (string? (get location key)) (seq (get location key)))
+        (validation/usage-error! ::invalid-option "test location requires nonempty strings"
+                                 {:field key :location location})))
+    (validation/require-integer-range! ::invalid-option :line (:line location) 0 4294967295))
   (when (contains? opts :backend)
     (enum-value! :backend backend-values (:backend opts)))
   (when (contains? opts :verbosity)
@@ -311,7 +324,7 @@
   (when (contains? opts :seed)
     (validation/require-integer-range! ::invalid-option :seed (:seed opts)
                                        0 max-uint64))
-  (doseq [option [:derandomize? :report-multiple-failures? :stop-on-first-failure?
+  (doseq [option [:print-blob? :unbounded-choices? :derandomize? :report-multiple-failures? :stop-on-first-failure?
                   :show-statistics? :observations?]
           :when (contains? opts option)]
     (validation/require-boolean! ::invalid-option option (get opts option)))
@@ -406,7 +419,32 @@
                  :last details})
           observed)))))
 
+(defn- resolved-settings [ctx settings]
+  (let [value #(hffi/settings-value! ctx settings %1 %2)
+        flag #(not (zero? (value % :uint8)))
+        enums (fn [table mask] (vec (for [[key bit] table :when (pos? (bit-and mask bit))] key)))
+        seed (hffi/settings-seed! ctx settings)]
+    (cond->
+     {:backend ({1 :default 2 :urandom} (value :settings-get-backend :int32))
+      :test-cases (value :settings-get-test-cases :uint64)
+      :verbosity ({0 :normal 1 :quiet 2 :verbose 3 :debug} (value :settings-get-verbosity :int32))
+      :derandomize? (flag :settings-get-derandomize)
+      :report-multiple-failures? (flag :settings-get-report-multiple-failures)
+      :stop-on-first-failure? (flag :settings-get-stop-on-first-failure)
+      :unbounded-choices? (flag :settings-get-unbounded-choices)
+      :print-blob? (flag :settings-get-print-blob)
+      :show-statistics? (flag :settings-get-show-statistics)
+      :phases (enums phase-values (value :settings-get-phases :uint32))
+      :suppress-health-checks (enums health-check-values (value :settings-get-suppress-health-check :uint32))}
+      (some? seed) (assoc :seed seed))))
+
 (defn- configure-settings! [ctx settings opts]
+  (when-let [location (:test-location opts)]
+    (hffi/settings-set-test-location! ctx settings location))
+  (when (contains? opts :unbounded-choices?)
+    (hffi/settings-set-unbounded-choices! ctx settings (:unbounded-choices? opts)))
+  (when (contains? opts :print-blob?)
+    (hffi/settings-set-print-blob! ctx settings (:print-blob? opts)))
   (when (contains? opts :backend)
     (hffi/settings-set-backend!
      ctx settings (enum-value! :backend backend-values (:backend opts))))
@@ -454,7 +492,7 @@
 (defn- drive-run! [ctx run verbosity case-fn run-observations render-opts]
   (loop [counts {:test-cases 0 :valid-test-cases 0 :invalid-test-cases 0
                  :overrun-test-cases 0 :interesting-test-cases 0}
-         observed [] captures {}]
+         observed [] captures {} last-failure nil]
     (if-let [handle (hffi/next-test-case! ctx run)]
       (let [capture? (hffi/test-case-should-capture? ctx handle)
             test-case (observed-test-case ctx handle capture? verbosity run-observations render-opts)
@@ -473,8 +511,11 @@
                  (assoc captures (:origin outcome)
                         (assoc outcome :counterexample snapshot
                                        :replay-origin (:origin outcome) :reproduced? true))
-                 captures)))
-      (assoc counts :observed-failures observed :captures captures))))
+                 captures)
+               (if (= :interesting (:status outcome))
+                 (assoc outcome :counterexample snapshot) last-failure)))
+      (assoc counts :observed-failures observed :captures captures
+                    :last-failure last-failure))))
 
 (defn- snapshot-failure! [ctx result index]
   (let [failure (hffi/run-result-failure! ctx result index)]
@@ -489,9 +530,17 @@
   (let [n (hffi/run-result-failure-count! ctx result)]
     (mapv #(snapshot-failure! ctx result %) (range n))))
 
-(defn- captured-failure [captures failure]
-  (merge {:status :missing-capture :reproduced? false :counterexample nil}
-         (get captures (:origin failure)) failure))
+(defn- captured-failure
+  ([captures failure] (captured-failure captures failure nil))
+  ([captures failure last-failure]
+   (if (and (nil? (:reproduction-blob failure))
+            last-failure (= (:origin failure) (:origin last-failure))
+            (not (contains? captures (:origin failure))))
+     ;; Antithesis single-case workloads deliberately do not record or replay.
+     ;; Retain one execution's evidence without claiming confirmation.
+     (merge last-failure failure {:reproduced? false :unrecorded? true})
+     (merge {:status :missing-capture :reproduced? false :counterexample nil}
+            (get captures (:origin failure)) failure))))
 
 (defn- replay-failure!
   ([ctx settings verbosity case-fn failure render-opts]
@@ -539,7 +588,7 @@
   ;; bounds: a valid ordinary run must not fail merely because its eventual
   ;; artifact would exceed the deliberately smaller transport limits.
   (let [options (select-keys opts
-                             [:backend :test-cases :stateful-step-count
+                             [:backend :unbounded-choices? :test-cases :stateful-step-count
                               :verbosity :derandomize? :report-multiple-failures?
                               :stop-on-first-failure? :nondeterminism-strictness
                               :phases :suppress-health-checks])]
@@ -590,7 +639,7 @@
         (let [ctx (hffi/context-new!)
               render-opts (render/resolve-options (:counterexample opts))]
           (try
-            (let [settings (hffi/settings-new! ctx)]
+            (let [settings (hffi/settings-new-for-profile! ctx "base")]
               (try
                 (configure-settings! ctx settings opts)
                 (let [failures (binding [hffi/*stateful-step-count* (get opts :stateful-step-count 50)]
@@ -643,16 +692,20 @@
   health-check, and unexpected engine errors throw."
   [opts case-fn]
   (let [opts (validate-run-options! opts case-fn)
-        opts (assoc opts :seed (resolve-seed opts))
-        replay-options (capture-replay-options opts)
         render-opts (render/resolve-options (:counterexample opts))
         run-observations (some-> (observation-policy/initial opts) atom)]
     (hffi/ensure-compatible-version!)
     (let [ctx (hffi/context-new!)]
       (try
-        (let [settings (hffi/settings-new! ctx)]
+        (let [settings (if-let [profile (:profile opts)]
+                         (hffi/settings-new-for-profile! ctx profile)
+                         (hffi/settings-new! ctx))]
           (try
-            (configure-settings! ctx settings opts)
+            (let [opts (merge (resolved-settings ctx settings) opts)
+                  opts (assoc opts :seed (resolve-seed opts)
+                                   :nondeterminism-strictness (get opts :nondeterminism-strictness :error))
+                  replay-options (capture-replay-options opts)]
+              (configure-settings! ctx settings opts)
             (let [run (hffi/run-start! ctx settings)]
               (try
                 (let [counts (binding [hffi/*stateful-step-count* (get opts :stateful-step-count 50)]
@@ -671,7 +724,7 @@
                       ;; returning data that a counting runner can record.
                       (observation-policy/finish
                        (merge
-                       (dissoc counts :captures)
+                       (dissoc counts :captures :last-failure)
                        {:passed? false
                         :status :error
                         :seed (str (:seed opts))
@@ -693,19 +746,21 @@
                         (let [failures (if (= :failed status)
                                          (snapshot-failures! ctx result)
                                          [])
-                              replayed (mapv #(captured-failure (:captures counts) %) failures)]
+                              replayed (mapv #(captured-failure (:captures counts) % (:last-failure counts)) failures)]
                           (doseq [failure replayed]
                             (when-let [snapshot (:counterexample failure)] (render/emit! snapshot)))
                           (observation-policy/finish
                            (merge
-                           (dissoc counts :captures)
+                           (dissoc counts :captures :last-failure)
                            {:passed? (= :passed status)
                             :status status
                             :seed (str (:seed opts))
                             :replay-options replay-options
                             :flaky?
                             (boolean
-                             (some #(or (:caveat %) (not (:reproduced? %))) replayed))
+                             (some #(or (:caveat %)
+                                        (and (not (:reproduced? %))
+                                             (not (:unrecorded? %)))) replayed))
                             :health-check-failure? nil
                             :error nil
                             :n-failures (count failures)
@@ -715,7 +770,7 @@
                   (finally
                     (hffi/run-result-free! ctx result))))
                 (finally
-                  (hffi/run-free! ctx run))))
+                  (hffi/run-free! ctx run)))))
             (finally
               (hffi/settings-free! ctx settings))))
         (finally

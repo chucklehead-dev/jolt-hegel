@@ -35,6 +35,14 @@
    {:name "libhegel-windows-arm64.dll"
     :sha256 "bf48152fdd1ab307b4c14341b7d6c598b82b6661a53e29c6675c80617af1a65b"}})
 
+(def ^:private libhegel-static-assets
+  {[:linux "amd64"] {:name "libhegel-linux-amd64.a"
+                     :sha256 "3971bc69181387315639d42bcf30744de8bd16f0f973b419d7fcbfaf8f76e638"}
+   [:linux "arm64"] {:name "libhegel-linux-arm64.a"
+                     :sha256 "9a7be794a4dae568f5a5f8984e985fba4fe41bcca21903864a9027d157e6e9b0"}
+   [:darwin "arm64"] {:name "libhegel-darwin-arm64.a"
+                      :sha256 "7ae388ae772f7787abfa4b79057436011905feb463d97cbd16e8ea57317a4aaf"}})
+
 (def ^:private jolt? (= :jolt (host/runtime)))
 
 (defn- nonblank [value]
@@ -272,6 +280,28 @@
   (println "libhegel:" native/library-path)
   nil)
 
+(defn setup-packaged!
+  "Materialize verified artifacts at the paths declared by packaging/jolt.
+  The package is opt-in; ordinary portable consumers retain their own cache."
+  []
+  (verify-source-version!)
+  (let [{:keys [os library-name]} (native/platform)
+        target [os (architecture)]
+        directory (native/join-path native/project-root-path ".hegel-lib")
+        shared (get libhegel-assets target)
+        archive (get libhegel-static-assets target)]
+    (when-not shared
+      (throw (ex-info "no packaged libhegel for this platform" {:target target})))
+    (ensure-directory! directory)
+    (doseq [[asset filename] (cond-> [[shared library-name]]
+                              archive (conj [archive "libhegel_c.a"]))]
+      (let [path (native/join-path directory filename)]
+        (when-not (checksum-matches? path (:sha256 asset))
+          (download-verified!
+           (str (or (native/nonblank-env "HEGEL_LIBHEGEL_RELEASE_BASE") libhegel-release-base)
+                "/" (:name asset)) path (:sha256 asset))))))
+  nil)
+
 (defn- print-version! []
   (println (verify-source-version!))
   nil)
@@ -279,13 +309,14 @@
 (defn- usage! []
   (println
    (str "Usage: " (name (host/runtime)) " -m hegel.install "
-        "[setup|fetch-libhegel|verify-source|paths|version]"))
+        "[setup|setup-packaged|fetch-libhegel|verify-source|paths|version]"))
   nil)
 
 (defn -main [& arguments]
   (case (first arguments)
     (nil "setup") (setup!)
     "fetch-libhegel" (fetch-libhegel!)
+    "setup-packaged" (setup-packaged!)
     "verify-source" (println (verify-source-version!))
     "paths" (print-paths!)
     "version" (print-version!)

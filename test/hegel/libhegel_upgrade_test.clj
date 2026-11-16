@@ -422,3 +422,82 @@
                               ["stateful-rule" hffi/label-stateful-rule]]]
         (is (= expected (hffi/label-from-name! ctx (str "jolt-hegel." name)))))
       (finally (hffi/context-free! ctx)))))
+
+(deftest rejected-consumed-pool-draws-are-restored
+  (let [result (h/run-test!
+                {:test-cases 1 :seed 42 :database "" :verbosity :quiet}
+                (fn [_]
+                  (let [pool (hs/pool)
+                        attempts (atom 0)]
+                    (hs/add! pool :only)
+                    (is (= :only (h/draw! (g/filter
+                                          (fn [_] (= 3 (swap! attempts inc)))
+                                          (hs/values-consumed pool)))))
+                    (is (= 3 @attempts))
+                    (is (hs/pool-empty? pool)))))]
+    (is (:passed? result))))
+
+(deftest engine-text-and-binary-defaults-grow-above-large-minima
+  (doseq [generator [(g/bytes {:min-size 150}) (g/string {:min-size 150 :alphabet "a"})]]
+    (let [sizes (map count (let [values (atom [])]
+                          (h/run-test! {:test-cases 20 :seed 76 :database "" :verbosity :quiet}
+                                       (fn [_] (swap! values conj (h/draw! generator))))
+                          @values))]
+      (is (every? #(<= 150 % 250) sizes))
+      (is (some #(< 150 %) sizes)))))
+
+(deftest profiles-resolve-and-snapshot-replay-settings
+  (let [run (h/run-test! {:profile "ci" :name "profile-test" :test-cases 1
+                          :verbosity :quiet :print-blob? false :unbounded-choices? true}
+                         (fn [_] (h/draw! (g/integer 0 10))))]
+    (is (:passed? run))
+    (is (true? (get-in run [:replay-options :derandomize?])))
+    (is (true? (get-in run [:replay-options :unbounded-choices?])))
+    (is (= [:too-slow] (get-in run [:replay-options :suppress-health-checks])))
+    (is (not (contains? (:replay-options run) :profile)))
+    (is (= (:seed run)
+           (:seed (h/run-test! {:profile "ci" :name "profile-test" :test-cases 1
+                                 :verbosity :quiet :print-blob? false} (fn [_] true)))))))
+
+(deftest composed-labels-track-components
+  (let [label #(-> % meta :hegel.generator/label)]
+    (is (= (label (g/vector (g/integer))) (label (g/vector (g/integer)))))
+    (is (not= (label (g/vector (g/integer))) (label (g/vector (g/string)))))
+    (is (not= (label (g/tuple (g/integer) (g/string)))
+              (label (g/tuple (g/string) (g/integer)))))))
+
+(deftest invariant-fault-brackets-unpause-on-failure
+  (let [events (atom [])]
+    (with-redefs [hffi/pause-faults! (fn [_] (swap! events conj :pause))
+                  hffi/unpause-faults! (fn [_] (swap! events conj :unpause))]
+      (let [run (h/run-test! {:test-cases 1 :seed 1 :database "" :verbosity :quiet}
+                             (fn [_]
+                               (hs/run! {:initial-state 0
+                                         :rules [(hs/rule :inc {:weight 4.0} inc)]
+                                         :invariants [(hs/invariant :fails {:pause-faults? true}
+                                                                    (constantly false))]})))]
+        (is (false? (:passed? run)))
+        (is (seq @events))
+        (is (every? #(= [:pause :unpause] %) (partition 2 @events)))))))
+
+(deftest grammar-strings-use-native-parsing-and-shrinking
+  (let [generator (g/grammar-str "start: \"ab\" | \"c\"" {:max-size 8})
+        run (h/run-test! {:test-cases 20 :seed 9 :database "" :verbosity :quiet}
+                         (fn [_] (let [value (h/draw! generator)]
+                                   (throw (ex-info "grammar failure" {:value value :hegel/origin "grammar"})))))]
+    (is (= "c" (-> run :final first :exception ex-data :value)))
+    (is (false? (:flaky? run))))
+  (is (= ["hello"] (h/sample 1 (g/grammar-str "%import .words.word\nstart: word"
+                                                         {:imports {"words.lark" "word: \"hello\""}})))))
+
+(deftest native-generators-compile-once-per-case-and-release-their-cache
+  (let [builds (atom 0) frees (atom 0)
+        build hffi/string-generator-regex! release hffi/string-generator-free!]
+    (with-redefs [hffi/string-generator-regex! (fn [& args] (swap! builds inc) (apply build args))
+                  hffi/string-generator-free! (fn [& args] (swap! frees inc) (apply release args))]
+      (let [generator (g/regex-str "[ab]")
+            result (h/run-test! {:test-cases 1 :seed 99 :database "" :verbosity :quiet}
+                                (fn [_] (dotimes [_ 20] (h/draw! generator))))]
+        (is (:passed? result))
+        (is (= 2 @builds))
+        (is (= @builds @frees))))))

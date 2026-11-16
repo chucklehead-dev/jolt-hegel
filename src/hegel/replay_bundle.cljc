@@ -32,7 +32,7 @@
   #{:filter-too-much :too-slow :test-cases-too-large :large-initial-test-case})
 
 (def ^:private replay-option-keys
-  #{:backend :test-cases :stateful-step-count :verbosity :derandomize?
+  #{:unbounded-choices? :backend :test-cases :stateful-step-count :verbosity :derandomize?
     :report-multiple-failures? :stop-on-first-failure? :nondeterminism-strictness :phases :suppress-health-checks})
 
 (defn- invalid!
@@ -173,7 +173,7 @@
   (when (contains? options :verbosity)
     (require-one-of! (conj path :verbosity) (:verbosity options)
                      verbosity-values))
-  (doseq [key [:derandomize? :report-multiple-failures? :stop-on-first-failure?]
+  (doseq [key [:unbounded-choices? :derandomize? :report-multiple-failures? :stop-on-first-failure?]
           :when (contains? options key)]
     (require-boolean! (conj path key) (get options key)))
   (when (contains? options :phases)

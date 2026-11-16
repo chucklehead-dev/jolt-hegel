@@ -7,7 +7,7 @@
             [hegel.ffi :as hffi]
             [hegel.host :as host]
             [hegel.internal.binary32 :as binary32]
-            [hegel.internal.render :as render]
+            [hegel.internal.draw-attempt :as attempt]
             [hegel.temporal :as temporal]
             [hegel.validation :as validation]))
 
@@ -48,6 +48,20 @@
     (invalid-option "composite-fn requires a function" {:value f}))
   (with-meta f (assoc (meta f) ::generator true)))
 
+(def ^:private primitive-labels
+  (into {} (clojure.core/map
+            (fn [kind] [kind (hffi/label-from-name! nil (str "jolt-hegel." (name kind)))])
+            [:custom :boolean :integer :big-integer :double :float32 :bytes :string :grammar :sampled-from :just])))
+
+(defn- named-generator [kind f]
+  (with-meta (composite-fn f) {::generator true ::label (get primitive-labels kind)}))
+
+(defn- labelled-composite [kind components body]
+  (let [label (hffi/label-combine!
+               (into [kind] (clojure.core/map #(or (::label (meta %)) (:custom primitive-labels)) components)))]
+    (with-meta (composite-fn (fn [test-case] (body test-case label)))
+      {::generator true ::label label})))
+
 (defn boolean
   "Generate a boolean. The optional probability is the chance of true."
   ([]
@@ -57,7 +71,7 @@
                   (<= 0.0 probability 1.0))
      (invalid-option "boolean probability must be between 0 and 1"
                      {:probability probability}))
-   (composite-fn
+   (named-generator :boolean
     (fn [test-case]
       (hffi/generate-boolean! (:context test-case)
                               (:handle test-case)
@@ -92,7 +106,7 @@
                       :hegel/usage-error? true
                       :min min-value
                       :max max-value})))
-   (composite-fn
+   (named-generator :integer
     (fn [test-case]
       (hffi/generate-integer! (:context test-case)
                               (:handle test-case)
@@ -113,7 +127,7 @@
      (validation/usage-error! ::invalid-bounds
        "big-integer requires ordered inclusive integer bounds"
        {:min min-value :max max-value}))
-   (composite-fn
+   (named-generator :big-integer
      (fn [test-case]
        (hffi/generate-integer-big! (:context test-case) (:handle test-case)
                                  min-value max-value)))))
@@ -172,7 +186,7 @@
        (invalid-option
         "double generator cannot allow infinity with both bounds"
         {:min min-value :max max-value}))
-     (composite-fn
+     (named-generator :double
       (fn [test-case]
         (hffi/generate-float!
          (:context test-case) (:handle test-case)
@@ -218,7 +232,7 @@
      (when (and allow-infinity? (not (or (= min-value ##-Inf)
                                                        (= max-value ##Inf))))
        (invalid-option "float32 infinity requires an unbounded endpoint" opts))
-     (composite-fn
+     (named-generator :float32
        (fn [test-case]
          (hffi/generate-float!
            (:context test-case) (:handle test-case)
@@ -226,12 +240,21 @@
            (:exclude-min? opts) (:exclude-max? opts) binary32/min-positive)))))
   ([min-value max-value] (float32 {:min min-value :max max-value})))
 
+(defn- bytes-generator [min-size max-size]
+  (when-not (and (integer? min-size) (integer? max-size)
+                 (<= 0 min-size max-size hffi/no-max-size))
+    (invalid-option "byte generator sizes must be non-negative integers with min <= max"
+                    {:min-size min-size :max-size max-size}))
+  (named-generator :bytes
+    (fn [test-case]
+      (hffi/generate-bytes! (:context test-case) (:handle test-case) min-size max-size))))
+
 (defn bytes
   "Generate a byte array with an inclusive length range.
 
   With no options, lengths range from 0 through 100. The one-argument form
   accepts :min-size and :max-size; when :max-size is omitted it defaults to the
-  larger of :min-size and 100."
+  engine default: 100, or :min-size + 100 when the minimum exceeds 100."
   ([]
    (bytes {}))
   ([opts]
@@ -240,21 +263,15 @@
          _ (uint64! :min-size min-size)
          max-size (if (some? (:max-size opts))
                     (:max-size opts)
-                    (max min-size 100))]
+                    hffi/default-max-size)]
      (uint64! :max-size max-size)
-     (bytes min-size max-size)))
+     (bytes-generator min-size (if (and (some? (:max-size opts))
+                                  (>= max-size hffi/default-max-size))
+                           hffi/no-max-size max-size))))
   ([min-size max-size]
-   (when-not (and (integer? min-size) (integer? max-size)
-                  (<= 0 min-size max-size hffi/no-max-size))
-     (invalid-option
-      "byte generator sizes must be non-negative integers with min <= max"
-      {:min-size min-size :max-size max-size}))
-   (composite-fn
-    (fn [test-case]
-      (hffi/generate-bytes! (:context test-case)
-                            (:handle test-case)
-                            min-size
-                            max-size)))))
+   (uint64! :max-size max-size)
+   (bytes-generator min-size (if (>= max-size hffi/default-max-size)
+                              hffi/no-max-size max-size))))
 
 (def ^:private lowercase-hex-digits
   ["0" "1" "2" "3" "4" "5" "6" "7"
@@ -553,7 +570,7 @@
         _ (uint64! :min-size min-size)
         max-size (if (contains? opts :max-size)
                    (:max-size opts)
-                   (max min-size 100))
+                   hffi/default-max-size)
         min-codepoint (if (contains? opts :min-codepoint)
                         (:min-codepoint opts)
                         0)
@@ -588,7 +605,9 @@
     (let [codec (:codec opts)
           normalized
           {:min-size min-size
-           :max-size max-size
+           :max-size (if (and (contains? opts :max-size)
+                              (>= max-size hffi/default-max-size))
+                       hffi/no-max-size max-size)
            :codec (cond
                     (nil? codec) nil
                     (keyword? codec) (name codec)
@@ -642,25 +661,58 @@
           nil))
        (throw error)))))
 
-(defn- native-string-generator [builder]
-  ;; Validate at generator construction, matching the C++ binding. The actual
-  ;; immutable native handle is rebuilt per draw so every allocation has a
-  ;; deterministic free even though Jolt has no user-facing close protocol.
+(defn- native-generator [kind builder release draw]
+  ;; Validate immediately, then reuse the immutable compiled generator within
+  ;; each test case. A case owns its cache and frees handles before its context.
   (let [validation-context (hffi/context-new!)]
-    (with-cleanup
-      (fn []
-        (let [handle (builder validation-context)]
-          (hffi/string-generator-free! validation-context handle)))
-      #(hffi/context-free! validation-context)
-      (constantly true)))
-  (composite-fn
-   (fn [test-case]
-     (let [context (:context test-case)
-           handle (builder context)]
-       (with-cleanup
-         #(hffi/generate-string! context (:handle test-case) handle)
-         #(hffi/string-generator-free! context handle)
-         (constantly true))))))
+    (with-cleanup #(release validation-context (builder validation-context))
+                  #(hffi/context-free! validation-context) (constantly true)))
+  (let [cache-key (gensym "native-generator-")]
+    (named-generator
+     kind
+     (fn [test-case]
+       (let [context (:context test-case)]
+         (if-let [cache (:native-generators test-case)]
+           (let [handle (or (get @cache cache-key)
+                            (let [handle (builder context)]
+                              (h/register-native-cleanup! test-case #(release context handle))
+                              (swap! cache assoc cache-key handle)
+                              handle))]
+             (draw context (:handle test-case) handle))
+           ;; Manually constructed test cases retain the lexical ownership path.
+           (let [handle (builder context)]
+             (with-cleanup #(draw context (:handle test-case) handle)
+                           #(release context handle) (constantly true)))))))))
+
+(defn- native-string-generator [builder]
+  (native-generator :string builder
+                    (fn [ctx handle] (hffi/string-generator-free! ctx handle))
+                    (fn [ctx tc handle] (hffi/generate-string! ctx tc handle))))
+
+(defn grammar-str
+  "Generate strings from a Lark grammar, with native grammar-aware shrinking.
+  Options: :start, :max-size (0 selects 8192), :max-depth (0 selects 200),
+  :alphabet (string-generator options), and :imports (path to source map).
+  Imports are supplied only from that map or Hegel's bundled grammars; this
+  function does not read files. Explicit user-supplied terminals are not supported."
+  ([source] (grammar-str source {}))
+  ([source opts]
+   (when-not (string? source)
+     (invalid-option "grammar source must be a string" {:source source}))
+   (options! "grammar options" #{:start :max-size :max-depth :alphabet :imports} opts)
+   (let [max-size (get opts :max-size 0)
+         max-depth (get opts :max-depth 0)
+         imports (get opts :imports {})]
+     (validation/require-integer-range! ::invalid-option :max-size max-size 0 1048576)
+     (validation/require-integer-range! ::invalid-option :max-depth max-depth 0 500)
+     (when-not (and (map? imports) (every? (fn [[path source]] (and (string? path) (string? source))) imports))
+       (invalid-option "grammar imports must map paths to source strings" {:imports imports}))
+     (when (and (some? (:start opts)) (not (string? (:start opts))))
+       (invalid-option "grammar start must be a string" {:start (:start opts)}))
+     (let [options {:start (:start opts) :max-size max-size :max-depth max-depth
+                    :imports imports :alphabet (when (:alphabet opts) (normalize-text-options (:alphabet opts)))}]
+       (native-generator :grammar #(hffi/grammar-new! % source options)
+                         hffi/grammar-free! hffi/generate-grammar!)))))
 
 (defn string
   "Generate Unicode text.
@@ -769,9 +821,9 @@
   (require-generator! "fmap" generator)
   (when-not (fn? f)
     (invalid-option "fmap requires a function" {:value f}))
-  (composite-fn
-   (fn [test-case]
-     (in-span test-case hffi/label-mapped
+  (labelled-composite hffi/label-mapped [generator]
+   (fn [test-case label]
+     (in-span test-case label
               #(f (generator test-case))))))
 
 (defn bind
@@ -780,10 +832,10 @@
   (require-generator! "bind" generator)
   (when-not (fn? f)
     (invalid-option "bind requires a function" {:value f}))
-  (composite-fn
-   (fn [test-case]
+  (labelled-composite hffi/label-flat-map [generator]
+   (fn [test-case label]
      (in-span
-      test-case hffi/label-flat-map
+      test-case label
       #(let [next-generator (f (generator test-case))]
          (require-generator! "bind result" next-generator)
          (next-generator test-case))))))
@@ -815,8 +867,8 @@
      (when-not (fn? branch-fn)
        (invalid-option "recursive requires a branch function"
                        {:value branch-fn}))
-     (composite-fn
-      (fn [test-case]
+     (labelled-composite hffi/label-recursive [leaf]
+      (fn [test-case label]
         (let [context (:context test-case)
               handle (:handle test-case)
               recursion
@@ -828,7 +880,7 @@
                       (let [current-context (:context current-test-case)
                             current-handle (:handle current-test-case)]
                         (hffi/start-span!
-                         current-context current-handle hffi/label-recursive)
+                         current-context current-handle label)
                         (with-cleanup
                          (fn []
                           (let [branch?
@@ -869,7 +921,7 @@
                          #(hffi/stop-span! current-context current-handle)
                          (complement recursion-retry-control?))))]
               (loop []
-                (render/begin-attempt! (:render test-case))
+                (attempt/begin! test-case)
                 (let [attempt
                       (host/try-catch-all
                         {:status :accepted
@@ -880,20 +932,19 @@
                           {:status :leaf-budget-retry}
                           ::finish-retry
                           {:status :finish-retry}
-                          (do (render/abort-attempt! (:render test-case))
-                              (throw error))))]
+                          (attempt/abort-with-error! test-case error)))]
                   (case (:status attempt)
                     :accepted
-                    (do (render/commit-attempt! (:render test-case))
+                    (do (attempt/commit! test-case)
                         (:value attempt))
                     :leaf-budget-retry
                     (do
-                      (render/abort-attempt! (:render test-case))
+                      (attempt/abort! test-case)
                       (hffi/recursion-retry! context handle recursion)
                       (recur))
                     :finish-retry
                     (do
-                      (render/abort-attempt! (:render test-case))
+                      (attempt/abort! test-case)
                       (recur)))))))
            #(hffi/recursion-free! context recursion)
            (constantly true))))))))
@@ -904,12 +955,12 @@
   (require-generator! "filter" generator)
   (when-not (fn? pred)
     (invalid-option "filter requires a predicate function" {:value pred}))
-  (composite-fn
-   (fn [test-case]
+  (labelled-composite hffi/label-filter [generator]
+   (fn [test-case label]
      (loop [attempt 0]
        (hffi/start-span! (:context test-case) (:handle test-case)
-                         hffi/label-filter)
-       (render/begin-attempt! (:render test-case))
+                         label)
+       (attempt/begin! test-case)
        (let [discard? (atom false)
              [accepted? value]
              (host/try-catch-all
@@ -923,21 +974,20 @@
                                  @discard?)
                 (complement recursion-retry-control?))
               error
-              (do (render/abort-attempt! (:render test-case))
-                  (throw error)))]
+              (attempt/abort-with-error! test-case error))]
          (if accepted?
-           (do (render/commit-attempt! (:render test-case))
+           (do (attempt/commit! test-case)
                value)
            (do
-             (render/abort-attempt! (:render test-case))
-             (if (< attempt 2)
+             (attempt/abort! test-case)
+             (if (< attempt (dec hffi/filter-attempts))
                (recur (inc attempt))
                (h/assume! test-case false)))))))))
 
 (defn just
   "Return a generator which always produces value without making a draw."
   [value]
-  (composite-fn (fn [_] value)))
+  (named-generator :just (fn [_] value)))
 
 (defn sampled-from
   "Generate one value from a non-empty collection."
@@ -945,7 +995,7 @@
   (let [values (vec values)]
     (when (empty? values)
       (invalid-option "sampled-from requires at least one value" {}))
-    (composite-fn
+    (named-generator :sampled-from
      (fn [test-case]
        (let [index (hffi/generate-integer!
                     (:context test-case) (:handle test-case)
@@ -959,10 +1009,10 @@
     (when (empty? generators)
       (invalid-option "one-of requires at least one generator" {}))
     (require-generators! "one-of" generators)
-    (composite-fn
-     (fn [test-case]
+    (labelled-composite hffi/label-one-of generators
+     (fn [test-case label]
        (in-span
-        test-case hffi/label-one-of
+        test-case label
         #(let [index (hffi/generate-integer!
                       (:context test-case) (:handle test-case)
                       0 (dec (count generators)))]
@@ -972,10 +1022,10 @@
   "Generate nil or a value from generator."
   [generator]
   (require-generator! "optional" generator)
-  (composite-fn
-   (fn [test-case]
+  (labelled-composite hffi/label-optional [generator]
+   (fn [test-case label]
      (in-span
-      test-case hffi/label-optional
+      test-case label
       #(when (hffi/generate-boolean!
               (:context test-case) (:handle test-case) 0.5 false false)
          (generator test-case))))))
@@ -987,9 +1037,9 @@
     (require-generators! "tuple" generators)
     (if (empty? generators)
       (just [])
-      (composite-fn
-       (fn [test-case]
-         (in-span test-case hffi/label-tuple
+      (labelled-composite hffi/label-tuple generators
+       (fn [test-case label]
+         (in-span test-case label
                   #(mapv (fn [generator] (generator test-case))
                          generators)))))))
 
@@ -1036,16 +1086,15 @@
            (loop [result initial-value]
              (if (hffi/collection-more! context handle collection)
                (do
-                 (render/begin-attempt! (:render test-case))
+                 (attempt/begin! test-case)
                  (let [[accepted? next-result]
                        (host/try-catch-all
                         (step collection result)
                         error
-                        (do (render/abort-attempt! (:render test-case))
-                            (throw error)))]
+                        (attempt/abort-with-error! test-case error))]
                    (if accepted?
-                     (render/commit-attempt! (:render test-case))
-                     (render/abort-attempt! (:render test-case)))
+                     (attempt/commit! test-case)
+                     (attempt/abort! test-case))
                    (recur next-result)))
                result)))
          #(hffi/collection-free! context collection)
@@ -1200,10 +1249,10 @@
              (validation/require-boolean! ::invalid-option :unique?
                                           (:unique? opts)))
          unique? (clojure.core/boolean (:unique? opts))]
-     (composite-fn
-      (fn [test-case]
+     (labelled-composite hffi/label-list [elements]
+      (fn [test-case label]
         (draw-collection
-         test-case hffi/label-list min-size max-size []
+         test-case label min-size max-size []
          (fn [collection result]
            (let [value (elements test-case)]
              (if (and unique? (some #(= value %) result))
@@ -1258,10 +1307,10 @@
    (let [[min-size max-size] (collection-bounds "set"
                                                 #{:size :min-size :max-size}
                                                 opts)]
-     (composite-fn
-      (fn [test-case]
+     (labelled-composite hffi/label-set [elements]
+      (fn [test-case label]
         (draw-collection
-         test-case hffi/label-set min-size max-size #{}
+         test-case label min-size max-size #{}
          (fn [collection result]
            (let [value (elements test-case)]
              (if (contains? result value)
@@ -1290,10 +1339,10 @@
    (let [[min-size max-size] (collection-bounds "map"
                                                 #{:size :min-size :max-size}
                                                 opts)]
-     (composite-fn
-      (fn [test-case]
+     (labelled-composite hffi/label-map [keys values]
+      (fn [test-case label]
         (draw-collection
-         test-case hffi/label-map min-size max-size {}
+         test-case label min-size max-size {}
          (fn [collection result]
            (let [key (keys test-case)]
              (if (contains? result key)

@@ -361,7 +361,7 @@
               error)))]
     (support/check! context "combinator spans close exactly once when mapping throws"
            (and (= marker error)
-                (= [[:start hffi/label-mapped] [:stop false]] @events))))
+                (= [[:start (:hegel.generator/label (meta generator))] [:stop false]] @events))))
   (let [stop-calls (atom 0)
         marker (ex-info "stopping mapped span failed" {:marker :stop})
         generator (g/fmap identity (g/just :value))
@@ -396,7 +396,7 @@
               error)))]
     (support/check! context "filter spans close exactly once when predicates throw"
            (and (= marker error)
-                (= [[:start hffi/label-filter] [:stop false]] @events))))
+                (= [[:start (:hegel.generator/label (meta generator))] [:stop false]] @events))))
   (let [stop-calls (atom 0)
         marker (ex-info "stopping filter span failed" {:marker :filter-stop})
         generator (g/filter (constantly true) (g/just :value))

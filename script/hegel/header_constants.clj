@@ -136,6 +136,8 @@
     {:ffi (merge (def-literals ffi (keys ffi-enum-map))
                  {:state-machine-done (def-map ffi 'state-machine-done)
                   :no-max-size (def-map ffi 'no-max-size)
+                  :default-max-size (def-map ffi 'default-max-size)
+                  :filter-attempts (def-map ffi 'filter-attempts)
                   :result-codes (result-codes ffi)})
      :core (into {}
                  (map (fn [name] [name (def-map core (symbol name))])
@@ -198,8 +200,12 @@
     (require-value! "state-machine-done" (:state-machine-done ffi)
                     (symbolic-value (get-in snapshot [:defines "HEGEL_STATE_MACHINE_DONE"])))
     (require-value! "no-max-size" (:no-max-size ffi) 18446744073709551615N)
+    (require-value! "default-max-size" (:default-max-size ffi)
+                    (+ 18446744073709551616N (symbolic-value (get-in snapshot [:defines "HEGEL_MAX_SIZE_DEFAULT"]))))
+    (require-value! "filter-attempts" (:filter-attempts ffi)
+                    (symbolic-value (get-in snapshot [:defines "HEGEL_FILTER_ATTEMPTS"])))
     {:status :pass :enum-count (+ (count ffi-enum-map) (reduce + (map count (vals core-enum-maps))))
-     :define-count 2}))
+     :define-count 4}))
 
 (defn snapshot []
   (header/snapshot))

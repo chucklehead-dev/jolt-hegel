@@ -6,6 +6,19 @@ for v0.1.0 through v0.4.0, see the tag and release history in that repository.
 
 ## Unreleased
 
+- Adopt lazy Jolt native dependencies and static Linux/macOS packaging through
+  the optional `packaging/jolt` root, with verified artifacts and relocation
+  tests. Check Jolt's stack-argument ABI capability when available.
+- Reuse compiled native generators within each test case, combine component
+  labels for shrinking, restore consumed pool values after speculative discard,
+  and adopt native default sizes and filter retry counts.
+- Add named profiles with concrete replay settings, `:unbounded-choices?`,
+  `:print-blob?`, `grammar-str`, weighted stateful rules, source-aware Antithesis
+  reporting and fault-paused invariants. Preserve observed failures from
+  unrecorded Antithesis workloads without claiming they were replayed.
+  See the [adoption report](docs/UPSTREAM_ADOPTION.md) for inherited engine fixes
+  and remaining platform/API work.
+
 - Migrate fully to libhegel 0.51.6 from the new `hegeldev/hegel` monorepo:
   audit all 159 C functions, regenerate jank/CLR bindings, use length-delimited
   UTF-8 views and aggregate returns, and adopt the state-machine builder API.

@@ -211,6 +211,9 @@
   "UINT64_MAX, used by libhegel for an engine-bounded collection size."
   18446744073709551615N)
 
+(def default-max-size 18446744073709551614N)
+(def filter-attempts 3)
+
 (def string-layout (backend/layout :hegel/string))
 
 (defn- read-string-view [ptr]
@@ -874,11 +877,12 @@
     (host/try-catch-all
      (do
        (doseq [[rule group] (map vector rule-names rule-groups)]
-         (with-string-value rule
+         (with-string-value (if (map? rule) (:name rule) rule)
            (fn [name]
              (with-int64-array [group]
                #(check-draw! ctx :state-machine-add-rule
-                  (c-state-machine-add-rule ctx test-case machine name 1.0 % 1))))))
+                  (c-state-machine-add-rule ctx test-case machine name
+                                            (if (map? rule) (double (:weight rule)) 1.0) % 1))))))
        (doseq [invariant invariant-names]
          (with-string-value invariant
            #(check-draw! ctx :state-machine-add-invariant
@@ -1290,7 +1294,118 @@
        (fn []
          (let [out (backend/alloc 8)]
            (try
-             (check! ctx :label-from-name (c-label-from-name ctx value out))
+             (check! ctx :label-from-name (c-label-from-name (or ctx backend/null) value out))
              (let [value (backend/read-value out :uint64)]
                (if (neg? value) (+ 18446744073709551616N value) value))
              (finally (backend/free out)))))))))
+
+(def c-pool-restore (backend/function :pool-restore))
+(defn pool-restore! [ctx test-case pool variable-id]
+  (check-draw! ctx :pool-restore (c-pool-restore ctx test-case pool variable-id)))
+
+(defn settings-new-for-profile! [ctx profile]
+  (with-string-value profile
+    #(call-out! ctx :settings-new-for-profile :pointer
+                (fn [out] ((backend/function :settings-new-for-profile) ctx % out)))))
+
+(defn settings-value! [ctx settings function-id type]
+  (call-out! ctx function-id type #((backend/function function-id) ctx settings %)))
+
+(defn settings-seed! [ctx settings]
+  (backend/with-native-scope
+   (fn []
+     (with-out-buffer :uint8
+       (fn [specified]
+         (let [seed (call-out! ctx :settings-get-seed :uint64
+                      #((backend/function :settings-get-seed) ctx settings % specified))]
+           (when-not (zero? (backend/read-value specified :uint8))
+             (if (neg? seed) (+ 18446744073709551616N seed) seed))))))))
+
+(defn settings-set-unbounded-choices! [ctx settings enabled?]
+  (check! ctx :settings-set-unbounded-choices
+          ((backend/function :settings-set-unbounded-choices) ctx settings (if enabled? 1 0))))
+
+(defn settings-set-print-blob! [ctx settings enabled?]
+  (check! ctx :settings-set-print-blob
+          ((backend/function :settings-set-print-blob) ctx settings (if enabled? 1 0))))
+
+(def c-label-combine (backend/function :label-combine))
+(defn label-combine! [labels]
+  (backend/with-native-scope
+   (fn []
+     (let [labels (vec labels)
+           data (backend/alloc (max 1 (* 8 (count labels))))]
+       (try
+         (doseq [[index label] (map-indexed vector labels)]
+           (backend/write-value data :int64 (* 8 index)
+                                (long (if (> label 9223372036854775807N)
+                                        (- label 18446744073709551616N)
+                                        #?(:cljr (System.Convert/ToInt64 label)
+                                           :default label)))))
+         (let [value (call-out! backend/null :label-combine :uint64
+                       #(c-label-combine backend/null data (count labels) %))]
+           (if (neg? value) (+ 18446744073709551616N value) value))
+         (finally (backend/free data)))))))
+
+(defn settings-set-test-location! [ctx settings {:keys [file line namespace name]}]
+  (with-string-value file
+    (fn [file]
+      (with-string-value namespace
+        (fn [namespace]
+          (with-string-value name
+            #(check! ctx :settings-set-test-location
+                     ((backend/function :settings-set-test-location)
+                      ctx settings file line namespace %))))))))
+
+(defn pause-faults! [ctx]
+  (check! ctx :pause-faults ((backend/function :pause-faults) ctx)))
+
+(defn unpause-faults! [ctx]
+  (check! ctx :unpause-faults ((backend/function :unpause-faults) ctx)))
+
+(defn grammar-new! [ctx source {:keys [start max-size max-depth imports alphabet]}]
+  (let [builder (with-string-value source
+                  #(call-out! ctx :grammar-builder-new :pointer
+                              (fn [out] ((backend/function :grammar-builder-new) ctx % out))))]
+    (try
+      (loop [index 0]
+        (let [path (backend/with-native-scope
+                    (fn []
+                      (let [out (backend/alloc (backend/layout-size string-layout))]
+                        (try
+                          (let [rc ((backend/function :grammar-builder-file) ctx builder index out)]
+                            (when-not (= -11 rc)
+                              (check! ctx :grammar-builder-file rc)
+                              (read-string-view out)))
+                          (finally (backend/free out))))))]
+          (when path
+            (with-c-string (get imports path)
+              #(check! ctx :grammar-builder-provide
+                       ((backend/function :grammar-builder-provide) ctx builder index %)))
+            (recur (inc index)))))
+      (let [alphabet-handle (when alphabet (string-generator-text! ctx alphabet))]
+        (try
+          (with-c-string start
+            #(call-out! ctx :grammar-new :pointer
+                        (fn [out] ((backend/function :grammar-new) ctx builder %
+                                    max-size max-depth (or alphabet-handle backend/null)
+                                    backend/null 0 out))))
+          (finally (when alphabet-handle (string-generator-free! ctx alphabet-handle)))))
+      (finally ((backend/function :grammar-builder-free) ctx builder)))))
+
+(defn grammar-free! [ctx grammar]
+  (check! ctx :grammar-free ((backend/function :grammar-free) ctx grammar)))
+
+(defn generate-grammar! [ctx test-case grammar]
+  (backend/with-native-scope
+   (fn []
+     (let [size (backend/layout-size string-layout)
+           out (backend/alloc size)]
+       (zero-memory! out size)
+       (try
+         (check-draw! ctx :generate-grammar
+                      ((backend/function :generate-grammar) ctx test-case grammar 0 out))
+         (read-string-view out)
+         (finally
+           (c-generate-string-result-free ctx out)
+           (backend/free out)))))))

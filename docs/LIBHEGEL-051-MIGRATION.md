@@ -25,8 +25,8 @@ a caller-owned destination argument before the native arguments.
 
 State machines are constructed, populated with named rules and invariants,
 then started. The public step count is applied per machine rather than through
-the removed settings setter. Sequential rules share group zero and weight
-1.0; invariants are checked every step. Failed construction frees the machine.
+the removed settings setter. Sequential rules share group zero and default to weight
+1.0 (`:weight` can override it); invariants are checked every step. Failed construction frees the machine.
 Span labels use stable names hashed by native Hegel rather than retired enum
 values. `:auto` remains an alias for the native default backend.
 
@@ -52,6 +52,15 @@ with persistence disabled. Native blobs and databases are version-specific.
 Do not rewrite old bundle provenance or feed 0.36.x artifacts to 0.51.6: retain
 the old deployment to inspect them or regenerate failures with the new engine.
 Seeds alone do not promise identical examples across engine upgrades.
+
+## Additional adoption
+
+See [the adoption report](UPSTREAM_ADOPTION.md) for packaging, profiles, generator
+caching and grammar generation, component labels, discarded pool consumption,
+Antithesis integration, inherited engine fixes and deliberate deferrals.
+Unrecorded single-case Antithesis failures retain their observed exception with
+`:unrecorded? true`, `:reproduced? false` and no replay blob; absence of replay
+in that mode does not itself mean nondeterminism.
 
 ## Validation
 

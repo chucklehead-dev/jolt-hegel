@@ -18,6 +18,10 @@ Experimental ports reuse that same implementation and boundary on jank and
 ClojureCLR. They have focused cross-platform CI but are not yet part of the
 supported release contract.
 
+See the [upstream adoption report](docs/UPSTREAM_ADOPTION.md) for the full
+0.51.6 migration, native Jolt packaging, new generator/settings APIs, inherited
+engine improvements, measured allocation tradeoffs, and remaining work.
+
 ## Current main status
 
 This table describes the support floor exercised by the current `main` source

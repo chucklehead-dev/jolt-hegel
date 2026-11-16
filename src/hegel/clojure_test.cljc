@@ -176,7 +176,7 @@
                *file*)
         base (str file ":" line)]
     `(hegel.clojure-test/run-with-reports!
-      ~opts
+      (merge {:test-location {:file ~file :line ~line :namespace ~(str (ns-name *ns*)) :name ~base}} ~opts)
       ~base
       (fn []
         (hegel.generator/let ~bindings
