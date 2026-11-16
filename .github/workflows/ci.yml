@@ -316,8 +316,8 @@ jobs:
         if: matrix.host == 'jolt' && runner.os == 'Linux'
         run: bash script/check-standalone-resources.sh
 
-      - name: Acquire, statically link and relocate the native package (current Jolt)
-        if: matrix.host == 'jolt' && runner.os != 'Windows' && matrix.jolt-version == '0.8.27'
+      - name: Acquire native package and check supported static relocation (current Jolt)
+        if: matrix.host == 'jolt' && matrix.jolt-version == '0.8.27'
         run: bash script/check-native-package.sh
 
       - name: Check unrecorded Antithesis workload failure

@@ -24,6 +24,10 @@ export JOLT_GATEBOOT_BUILD_DIR="$probe_root/gateboot"
 (cd "$probe_root/app" && jolt -e '(println :dependency-unused)') > "$probe_root/lazy.log" 2>&1
 test ! -e "$probe_root/library/.hegel-lib"
 (cd "$probe_root/app" && jolt -m probe) > "$probe_root/source.log" 2>&1 || { tail -60 "$probe_root/source.log"; exit 1; }
+# Windows currently qualifies dependency acquisition and dynamic loading only.
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*) cat "$probe_root/source.log"; exit 0 ;;
+esac
 test -f "$probe_root/library/.hegel-lib/libhegel_c.a"
 (cd "$probe_root/app" && jolt build -m probe -o "$probe_root/shipped/probe") > "$probe_root/build.log" 2>&1 || { tail -60 "$probe_root/build.log"; exit 1; }
 # Both the source and every shared/static library vanish from their old paths.

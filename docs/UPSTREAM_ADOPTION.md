@@ -95,8 +95,9 @@ For Jolt 0.8.27+, select the optional dependency root at the commit you use:
          :deps/root "packaging/jolt"}}}
 ```
 
-Requiring a native namespace acquires verified artifacts when missing; unused
-or pure-data dependencies stay inactive. `jolt build` can link the supplied
+Requiring a namespace from the packaged dependency acquires verified artifacts
+when missing; an unused dependency stays inactive. Use the portable root for
+pure-data consumers that must not acquire native files. `jolt build` can link the supplied
 Linux/macOS archive. A working native linker is required. The portable root
 continues to support explicit setup and `HEGEL_LIBHEGEL_LIBRARY`; that override
 also takes precedence in the packaged adapter. The package build places files
