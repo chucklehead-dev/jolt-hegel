@@ -10,6 +10,7 @@
             [hegel.ffi :as hffi]
             [hegel.generator :as g]
             [hegel.generator-cleanup-test]
+            [hegel.grammar-test]
             [hegel.internal.render :as render]
             [hegel.sequence-generators-test]
             [hegel.temporal-test]
@@ -835,3 +836,8 @@
               hffi/recursion-free! (fn [& _] (swap! events conj :free))]
              (support/throws? #(generator {:context :context :handle :test-case})))
             (= [:start :stop :free] @events)))))
+
+(defn grammar-contract [context]
+  (let [result (t/run-tests 'hegel.grammar-test)]
+    (support/check! context "Clojure grammar compilation and native shrinking"
+                    (zero? (+ (:fail result) (:error result))))))

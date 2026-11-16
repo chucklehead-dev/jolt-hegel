@@ -195,6 +195,12 @@
               {:result stateful-result :steps @steps})))
 
 (defn -main [& _]
+  (let [value (h/sample 1 (g/grammar
+                         {:start :some-rule
+                          :rules {:some-rule [:cat "a" [:char-range "😀" "😀"] "\n"]}}))]
+    (when-not (= ["a😀\n"] value)
+      (throw (ex-info "Clojure grammar DSL smoke failed" {:value value})))
+    (println "PASS Clojure grammar DSL and Unicode literals"))
   (let [report (abi/backend-report)]
     (require! "canonical ABI coverage is 159/159"
               (and (:supported? report)

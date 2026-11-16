@@ -6,6 +6,11 @@ for v0.1.0 through v0.4.0, see the tag and release history in that repository.
 
 ## Unreleased
 
+- Add `g/grammar`, a Clojure data DSL for native grammar string generation and
+  shrinking, plus pure `hegel.grammar/compile` for inspection. Validate references,
+  operators, bounds, Unicode ranges and nonproductive rules with data paths.
+  See [grammar examples](docs/GRAMMARS.md); raw `grammar-str` remains available.
+
 - Adopt lazy Jolt native dependencies and static Linux/macOS packaging through
   the optional `packaging/jolt` root, with verified artifacts and relocation
   tests. Check Jolt's stack-argument ABI capability when available.

@@ -83,6 +83,12 @@
     (throw (ex-info "" {:jank/control :body-exception}))))
 
 (defn -main [& _]
+  (let [value (h/sample 1 (g/grammar
+                         {:start :some-rule
+                          :rules {:some-rule [:cat "a" [:char-range "😀" "😀"] "\n"]}}))]
+    (when-not (= ["a😀\n"] value)
+      (throw (ex-info "Clojure grammar DSL smoke failed" {:value value})))
+    (println "PASS Clojure grammar DSL and Unicode literals"))
   (when-not (and (native/absolute-path? "/tmp/jolt-hegel")
                  (native/absolute-path? "C:\\src\\jolt-hegel")
                  (native/absolute-path? "\\\\server\\share\\jolt-hegel")

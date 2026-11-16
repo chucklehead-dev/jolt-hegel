@@ -22,6 +22,9 @@ See the [upstream adoption report](docs/UPSTREAM_ADOPTION.md) for the full
 0.51.6 migration, native Jolt packaging, new generator/settings APIs, inherited
 engine improvements, measured allocation tradeoffs, and remaining work.
 
+For parser inputs, [define grammars as Clojure data](docs/GRAMMARS.md) with
+`g/grammar`, or keep existing Lark source with `g/grammar-str`.
+
 ## Current main status
 
 This table describes the support floor exercised by the current `main` source

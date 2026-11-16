@@ -20,7 +20,7 @@ is not part of 0.8.27.
 | Generator defaults | Use native default-size sentinel (100, or minimum + 100 for larger minima) and native filter-attempt count. Explicit maximums remain explicit. |
 | Stateful pools | Restore consumed values when filters or collection uniqueness discard a speculative draw; nested accepted draws remain part of their parent's rollback. |
 | Settings | Expose named profiles, unbounded choices and reproduce-blob printing. Resolve native defaults and configured seeds before applying explicit options. Replay snapshots concrete settings and starts from `base`, avoiding later profile drift. |
-| Grammars | `g/grammar-str` adds native grammar generation/shrinking, start rule, size/depth bounds, alphabet options and explicit in-memory imports. |
+| Grammars | `g/grammar` adds a validated Clojure data DSL; `g/grammar-str` accepts raw Lark. Both use native grammar generation/shrinking, start rule, size/depth bounds, alphabet options and explicit in-memory imports. |
 | Stateful scheduling | Sequential rules accept positive finite `:weight`; native scheduling consumes it. |
 | Antithesis | Source locations from `hegel.clojure-test`, optional `:pause-faults?` invariants, and correct observed-only failure reporting for unrecorded single-case workloads. Those failures have `:unrecorded? true`, `:reproduced? false` and no replay blob. |
 | Other dependencies | JDK 25 minimum, babashka.ffi 0.1.3, Babashka 1.13.229, Malli 0.20.3, Typed Clojure 1.4.0, ClojureCLR 1.12.6, refreshed jank package pin and compatible CI runners. |
@@ -102,3 +102,5 @@ Linux/macOS archive. A working native linker is required. The portable root
 continues to support explicit setup and `HEGEL_LIBHEGEL_LIBRARY`; that override
 also takes precedence in the packaged adapter. The package build places files
 at its declared dependency-local paths, irrespective of `HEGEL_CACHE_DIR`.
+
+For the data-first grammar API and pure compiler, see [Grammars as Clojure data](GRAMMARS.md).

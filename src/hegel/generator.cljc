@@ -6,6 +6,7 @@
             [hegel.core :as h]
             [hegel.ffi :as hffi]
             [hegel.host :as host]
+            [hegel.grammar :as grammar]
             [hegel.internal.binary32 :as binary32]
             [hegel.internal.draw-attempt :as attempt]
             [hegel.temporal :as temporal]
@@ -716,6 +717,16 @@
                     :imports imports :alphabet (when (:alphabet opts) (normalize-text-options (:alphabet opts)))}]
        (native-generator :grammar #(hffi/grammar-new! % source options)
                          hffi/grammar-free! hffi/generate-grammar!)))))
+
+(defn grammar
+  "Generate strings from Clojure grammar data; see hegel.grammar/compile.
+  Options: :max-size, :max-depth and :alphabet, as for grammar-str.
+  The grammar's :start key selects its root rule."
+  ([spec] (grammar spec {}))
+  ([spec opts]
+   (options! "grammar generator options" #{:max-size :max-depth :alphabet} opts)
+   (let [{:keys [source start]} (grammar/compile spec)]
+     (grammar-str source (assoc opts :start start)))))
 
 (defn string
   "Generate Unicode text.

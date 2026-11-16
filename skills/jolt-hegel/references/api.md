@@ -988,3 +988,8 @@ Jolt native package and examples for `grammar-str`, `:profile`,
 Replay captures resolved semantic settings rather than a mutable profile name.
 String and byte default maximum sizes are 100, or minimum + 100 when the minimum
 exceeds 100. Native compiled generators are reused within each test case.
+
+`g/grammar` accepts Clojure grammar data (`:rules`, optional `:start`). See
+[the grammar DSL](../../../docs/GRAMMARS.md) for operators and examples.
+`hegel.grammar/compile` returns inspectable `{:source ... :start ...}` without
+loading native code. Use `grammar-str` for existing Lark source.
