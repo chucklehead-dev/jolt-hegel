@@ -24,9 +24,9 @@
    :provenance provenance :seed "1"
    :options {:stateful-step-count 52 :verbosity :quiet}
    :failures [{:origin "hegel.stateful/invariant:below-fifty-one"
-               ;; Independent v0.36.3 fixture, not produced by this test run.
+               ;; Independent v0.51.6 fixture, not produced by this test run.
                :reproduction-blob
-               "AXic7cahEQAACMNAYtlfMS0g6jtAI3I/dTV/EMLQ4AKH1ANw"}]})
+               "AXic7cexEQAACMJA07r/Wu6kNsxAAQWXn7o1/4AyCEywH4wD1g=="}]})
 
 (defn- step-property [_]
   (hs/run! {:initial-state {:count 0}

@@ -1,0 +1,7 @@
+{:libhegel-version "0.51.6"
+ :commit "a6928220ae21e2658994a9246b93f84f21557447"
+ :seed "1"
+ :stateful-step-count 52
+ :property "hegel.libhegel-upgrade-test/step-51-machine"
+ :origin "hegel.stateful/invariant:below-fifty-one"
+ :reproduction-blob "AXic7cexEQAACMJA07r/Wu6kNsxAAQWXn7o1/4AyCEywH4wD1g=="}

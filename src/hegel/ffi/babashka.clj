@@ -140,7 +140,12 @@
 
 (defn- make-binding [library function descriptor]
   (let [{:keys [args return]} (signature function descriptor)
-        raw (ffi/cfn library (:symbol function) args return)]
+        raw-binding (ffi/cfn library (:symbol function) args return)
+        raw (if (= :by-value (first (when (vector? (:return function)) (:return function))))
+              (with-meta (fn [destination & values]
+                           (ffi/write destination return (apply raw-binding values)))
+                         (meta raw-binding))
+              raw-binding)]
     (if (some #(contains? #{:c/uint64 :c/size} %) (:args function))
       (with-meta
         (fn [& values]
@@ -270,7 +275,7 @@
 (defn layout [type-id] (native-type type-id (abi/descriptor)))
 (defn layout-size [layout] (ffi/sizeof layout))
 (defn read-field [pointer layout path]
-  (ffi/read pointer (ffi/place layout path)))
+  (ffi/read (ffi/reinterpret pointer (ffi/sizeof layout)) (ffi/place layout path)))
 (defn write-field [pointer layout path value]
   (ffi/write pointer (ffi/place layout path) value))
 

@@ -34,7 +34,8 @@
                                            @native-result)
                   ffi-backend/free #(swap! frees conj %)
                   ffi-backend/null? #(= ::null %)
-                  ffi-backend/native->string (fn [pointer]
+                  ffi-backend/read-field (fn [ptr _layout path] (if (= [:data] path) ptr 7))
+                  ffi-backend/read-utf8 (fn [pointer _length]
                                                (swap! calls conj
                                                       [:decode pointer])
                                                "decoded")
@@ -74,109 +75,60 @@
       (support/check! context "test-case-clone! threads ctx and the source test case to libhegel"
              (some #{[:call ::ctx ::test-case ::out]} @calls))
       (support/check! context "test-case-clone! frees the pointer-out buffer exactly once"
-             (= [::out] @frees)))))
+             (= [::out] @frees))
+      (doseq [[rc expected] [[-1 :hegel.ffi/stop-test] [-2 :hegel.ffi/assumption-rejected]]]
+        (with-redefs [hffi/c-test-case-clone (fn [& _] rc)]
+          (let [error (try (hffi/test-case-clone! ::ctx ::test-case) nil
+                           (catch Throwable error error))]
+            (support/check! context "clone preserves native draw control flow"
+                            (= expected (:type (ex-data error)))))))
+      (support/check! context "clone frees its output on draw control flow"
+                      (= [::out ::out ::out] @frees)))))
 
 (defn- new-state-machine-with-concurrency-contract [context]
-  (let [with-c-string-array-calls (atom [])
-        with-int64-array-calls (atom [])
-        native-calls (atom [])]
-    (with-redefs [hffi/with-c-string-array
-                  (fn [values call]
-                    (swap! with-c-string-array-calls conj values)
-                    (call (keyword (str "rules-ptr-" (count @with-c-string-array-calls)))
-                          (count values)))
-                  hffi/with-int64-array
-                  (fn [values call]
-                    (swap! with-int64-array-calls conj (vec values))
-                    (call ::rule-groups-ptr))
-                  ffi-backend/with-native-scope (fn [call] (call))
-                  ffi-backend/sizeof (constantly 8)
-                  ffi-backend/alloc (fn [_size] ::out)
-                  ffi-backend/free (fn [_pointer] nil)
-                  ffi-backend/read-value (fn [_pointer type]
-                                           (case type
-                                             :pointer ::machine
-                                             :int64 3))
-                  hffi/c-new-state-machine
-                  (fn [& arguments]
-                    (swap! native-calls conj arguments)
-                    0)]
-      (let [result (hffi/new-state-machine-with-concurrency!
-                    ::ctx ::test-case ["r1" "r2"] [5 6] ["inv"]
-                    2 4)]
-        (support/check! context "the configured constructor returns the owned handle and selected concurrency as a map"
-               (= {:state-machine ::machine :concurrency 3} result))
-        (support/check! context "the configured constructor threads rule names and rule groups through unchanged"
-               (and (= [["r1" "r2"] ["inv"]] @with-c-string-array-calls)
-                    (= [[5 6]] @with-int64-array-calls)))
-        (support/check! context "the configured constructor passes every argument to libhegel in order"
-               (= [[::ctx ::test-case :rules-ptr-1 ::rule-groups-ptr 2
-                    :rules-ptr-2 1 2 4 ::out ::out]]
-                  @native-calls))))
-    (let [error (try
-                  (hffi/new-state-machine-with-concurrency!
-                   ::ctx ::test-case ["r1" "r2"] [5] ["inv"] 2 4)
-                  nil
-                  (catch Throwable e e))]
-      (support/check! context "the configured constructor rejects non-parallel rule groups before native access"
-             (and (= ::hffi/invalid-argument (:type (ex-data error)))
-                  (= :rule-groups (:argument (ex-data error)))
-                  (= 2 (:expected (ex-data error)))
-                  (= 1 (:actual (ex-data error))))))))
+  (let [calls (atom [])]
+    (with-redefs [hffi/with-string-value (fn [value call] (call value))
+                  hffi/with-int64-array (fn [values call] (call (vec values)))
+                  hffi/call-draw-out! (fn [_ctx operation _type call]
+                                       (call ::out)
+                                       (if (= :new-state-machine operation) ::machine 4))
+                  hffi/c-new-state-machine (fn [& args] (swap! calls conj (into [:new] args)) 0)
+                  hffi/c-state-machine-add-rule (fn [& args] (swap! calls conj (into [:rule] args)) 0)
+                  hffi/c-state-machine-add-invariant (fn [& args] (swap! calls conj (into [:invariant] args)) 0)
+                  hffi/c-state-machine-start (fn [& args] (swap! calls conj (into [:start] args)) 0)]
+      (let [result (binding [hffi/*stateful-step-count* 17]
+                     (hffi/new-state-machine-with-concurrency! ::ctx ::case ["r1" "r2"] [5 6] ["inv"] 2 4))]
+        (support/check! context "builder declares rules and invariants in order before starting"
+          (= [[:new ::ctx ::case 2 4 17 ::out]
+              [:rule ::ctx ::case ::machine "r1" 1.0 [5] 1]
+              [:rule ::ctx ::case ::machine "r2" 1.0 [6] 1]
+              [:invariant ::ctx ::case ::machine "inv" 1]
+              [:start ::ctx ::case ::machine ::out]] @calls))
+        (support/check! context "builder returns handle and worker count"
+          (= {:state-machine ::machine :concurrency 4} result))))
+    (support/check! context "builder rejects non-parallel rule groups"
+      (try (hffi/new-state-machine-with-concurrency! ::ctx ::case ["r1"] [] [] 1 1) false
+           (catch clojure.lang.ExceptionInfo e (= ::hffi/invalid-argument (:type (ex-data e))))))))
 
 (defn- new-state-machine-post-creation-cleanup-contract [context]
-  (let [reads (atom 0)
-        frees (atom [])]
-    (with-redefs [hffi/with-c-string-array
-                  (fn [values call] (call ::strings (count values)))
-                  hffi/with-int64-array
-                  (fn [_values call] (call ::groups))
-                  ffi-backend/with-native-scope (fn [call] (call))
-                  ffi-backend/sizeof (constantly 8)
-                  ffi-backend/alloc (constantly ::out)
-                  ffi-backend/free (fn [_pointer] nil)
-                  ffi-backend/read-value
-                  (fn [_pointer type]
-                    (if (and (= :pointer type) (= 1 (swap! reads inc)))
-                      ::machine
-                      (throw (ex-info "mocked concurrency read failure" {}))))
-                  hffi/c-new-state-machine (fn [& _arguments] 0)
-                  hffi/c-state-machine-free
-                  (fn [ctx machine]
-                    (swap! frees conj [ctx machine])
-                    0)]
-      (let [error (try
-                    (hffi/new-state-machine-with-concurrency!
-                     ::ctx ::test-case ["r1"] [0] [] 1 2)
-                    nil
-                    (catch Throwable e e))]
-        (support/check! context "the configured constructor preserves a post-creation read failure"
-               (= "mocked concurrency read failure" (ex-message error)))
-        (support/check! context "the configured constructor frees its owned machine after a post-creation failure"
-               (= [[::ctx ::machine]] @frees)))))
-  (let [allocations (atom 0)
-        frees (atom [])]
-    (with-redefs [hffi/with-c-string-array
-                  (fn [values call] (call ::strings (count values)))
-                  hffi/with-int64-array
-                  (fn [_values call] (call ::groups))
-                  ffi-backend/with-native-scope (fn [call] (call))
-                  ffi-backend/sizeof (constantly 8)
-                  ffi-backend/alloc
-                  (fn [_size]
-                    (if (= 1 (swap! allocations inc))
-                      ::machine-out
-                      (throw (ex-info "mocked second allocation failure" {}))))
-                  ffi-backend/free #(swap! frees conj %)]
-      (let [error (try
-                    (hffi/new-state-machine-with-concurrency!
-                     ::ctx ::test-case ["r1"] [0] [] 1 2)
-                    nil
-                    (catch Throwable e e))]
-        (support/check! context "a second out-buffer allocation failure preserves its cause"
-               (= "mocked second allocation failure" (ex-message error)))
-        (support/check! context "a second out-buffer allocation failure frees the first buffer"
-               (= [::machine-out] @frees))))))
+  (doseq [fail-at [:rule :invariant :start]]
+    (let [frees (atom []) marker (ex-info "declaration failure" {:at fail-at})
+          fail (fn [at] (when (= at fail-at) (throw marker)) 0)]
+      (with-redefs [hffi/with-string-value (fn [value call] (call value))
+                    hffi/with-int64-array (fn [values call] (call (vec values)))
+                    hffi/call-draw-out! (fn [_ctx operation _type call]
+                                         (call ::out)
+                                         (if (= :new-state-machine operation) ::machine 1))
+                    hffi/c-new-state-machine (fn [& _] 0)
+                    hffi/c-state-machine-add-rule (fn [& _] (fail :rule))
+                    hffi/c-state-machine-add-invariant (fn [& _] (fail :invariant))
+                    hffi/c-state-machine-start (fn [& _] (fail :start))
+                    hffi/state-machine-free! (fn [ctx machine] (swap! frees conj [ctx machine])
+                                              (throw (ex-info "cleanup" {})))]
+        (let [error (try (hffi/new-state-machine-with-concurrency! ::ctx ::case ["r1"] [0] ["inv"] 1 1)
+                         nil (catch Throwable e e))]
+          (support/check! context (str "builder preserves " fail-at " failure and frees exactly once")
+                          (and (identical? marker error) (= [[::ctx ::machine]] @frees))))))))
 
 (defn- new-state-machine-sequential-wrapper-cleanup-contract [context]
   (let [frees (atom [])]
@@ -238,22 +190,22 @@
                                            (let [value (first @values)]
                                              (swap! values subvec 1)
                                              value))
-                  hffi/c-test-case-is-nondeterministic
+                  hffi/c-test-case-should-capture
                   (fn [ctx test-case out]
-                    (swap! calls conj [:test-case-is-nondeterministic ctx test-case out])
+                    (swap! calls conj [:test-case-should-capture ctx test-case out])
                     0)
                   hffi/c-state-machine-should-check-invariant
                   (fn [ctx test-case state-machine invariant-index out]
                     (swap! calls conj [:state-machine-should-check-invariant
                                        ctx test-case state-machine invariant-index out])
                     0)]
-      (support/check! context "the nondeterministic case marker decodes the canonical boolean out value"
-             (true? (hffi/test-case-nondeterministic? ::ctx ::root-case)))
+      (support/check! context "the capture marker decodes the canonical boolean out value"
+             (true? (hffi/test-case-should-capture? ::ctx ::root-case)))
       (support/check! context "the invariant decision remains a coordinator draw with no alternate route"
              (false? (hffi/state-machine-should-check-invariant!
                       ::ctx ::root-case ::machine 4)))
       (support/check! context "coordinator-only wrappers preserve their canonical native arguments"
-             (= [[:test-case-is-nondeterministic ::ctx ::root-case ::out]
+             (= [[:test-case-should-capture ::ctx ::root-case ::out]
                  [:state-machine-should-check-invariant
                   ::ctx ::root-case ::machine 4 ::out]]
                 @calls)))))

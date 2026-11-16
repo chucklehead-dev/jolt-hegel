@@ -342,8 +342,7 @@
                :hungry
                (fn [state]
                  (when (compare-and-set! first-rule? true false)
-                   (dotimes [_ 10000]
-                     (h/draw! (g/integer))))
+                   (hffi/check-draw! nil :generate-integer -1))
                  (inc state)))]})))]
     (support/check! context "running out of draw data inside a rule remains an overrun"
            (and (:passed? result)

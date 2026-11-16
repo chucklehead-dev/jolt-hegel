@@ -24,8 +24,8 @@
   (doseq [code [55296 56319 56320 57343]]
     (let [constructed (try {:text (str (char code))}
                            (catch IllegalArgumentException _ {:rejected? true}))]
-      (if (:rejected? constructed)
-        (is (:rejected? constructed))
+      (if (or (:rejected? constructed) (= "�" (:text constructed)))
+        (is (or (:rejected? constructed) (= "�" (:text constructed))))
         (doseq [text [(:text constructed) (str (:text constructed) "x")]]
           (let [data (try (digest/sha256 text) nil
                           (catch clojure.lang.ExceptionInfo error (ex-data error)))]

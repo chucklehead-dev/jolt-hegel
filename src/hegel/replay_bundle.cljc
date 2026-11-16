@@ -33,7 +33,7 @@
 
 (def ^:private replay-option-keys
   #{:backend :test-cases :stateful-step-count :verbosity :derandomize?
-    :report-multiple-failures? :phases :suppress-health-checks})
+    :report-multiple-failures? :stop-on-first-failure? :nondeterminism-strictness :phases :suppress-health-checks})
 
 (defn- invalid!
   [path reason]
@@ -164,13 +164,16 @@
   (when (contains? options :test-cases)
     (require-integer-range! (conj path :test-cases) (:test-cases options)
                             1 max-uint64))
+  (when (contains? options :nondeterminism-strictness)
+    (require-one-of! (conj path :nondeterminism-strictness)
+                     (:nondeterminism-strictness options) #{:quiet :warn :error}))
   (when (contains? options :stateful-step-count)
     (require-integer-range! (conj path :stateful-step-count)
                             (:stateful-step-count options) 1 max-int64))
   (when (contains? options :verbosity)
     (require-one-of! (conj path :verbosity) (:verbosity options)
                      verbosity-values))
-  (doseq [key [:derandomize? :report-multiple-failures?]
+  (doseq [key [:derandomize? :report-multiple-failures? :stop-on-first-failure?]
           :when (contains? options key)]
     (require-boolean! (conj path key) (get options key)))
   (when (contains? options :phases)

@@ -175,14 +175,17 @@
 
 (defn- call-wrapper [descriptor function-id function]
   (let [id (identifier function-id)
+        aggregate? (= :by-value (first (when (vector? (:return function)) (:return function))))
         args (map-indexed (fn [index type]
-                            (str (cpp-type descriptor type) " arg" index))
-                          (:args function))
+                           (str (cpp-type descriptor type) " arg" index)) (:args function))
         values (map #(str "arg" %) (range (count (:args function))))]
-    (str "inline " (cpp-type descriptor (:return function))
+    (str "inline " (if aggregate? "void" (cpp-type descriptor (:return function)))
          " hegel_jank_call_" id "(hegel_jank_bindings *bindings"
+         (when aggregate? ", void *destination")
          (when (seq args) (str ", " (str/join ", " args))) ")\n{\n  "
-         (when-not (= :c/void (:return function)) "return ")
+         (if aggregate?
+           (str "*static_cast<" (cpp-type descriptor (:return function)) " *>(destination) = ")
+           (when-not (= :c/void (:return function)) "return "))
          "bindings->" id "(" (str/join ", " values) ");\n}")))
 
 (defn- ordered-struct-types [types]
@@ -380,12 +383,14 @@
       (str "(cpp/cast " (jank-type-form descriptor type) " " value ")"))))
 
 (defn- jank-invoker [descriptor function-id function]
-  (let [call (str "(cpp/hegel_jank_call_" (identifier function-id)
+  (let [aggregate? (= :by-value (first (when (vector? (:return function)) (:return function))))
+        call (str "(cpp/hegel_jank_call_" (identifier function-id)
                   " native-bindings"
+                  (when aggregate? " (cpp/unbox (nth values 0))")
                   (when (seq (:args function))
                     (str "\n     "
                          (str/join "\n     "
-                                   (map-indexed #(jank-argument descriptor %2 %1)
+                                   (map-indexed #(jank-argument descriptor %2 (+ %1 (if aggregate? 1 0)))
                                                 (:args function)))))
                   ")")
         return (:return function)

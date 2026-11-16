@@ -105,9 +105,9 @@
   (and (= 1 (count errors))
        (let [error (first errors)
              report (str error)]
-         (and (instance? clojure.lang.ExceptionInfo error)
-              (= :clojure.core.typed.errors/type-error
-                 (:type-error (ex-data error)))
+         (and (map? error)
+              (contains? #{:typed.clojure/app-type-error :typed.clojure/type-mismatch-error}
+                         (:type-error error))
               (every? #(str/includes? report %) evidence)))))
 
 (defn- normalize-report

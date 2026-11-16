@@ -24,11 +24,11 @@
 ## Install
 
 Use the runtime selected by the consuming project's toolchain contract: Jolt
-0.8.1 or later on current `main` and next-release work, with 0.8.3 as the
+0.8.1 or later on current `main` and next-release work, with 0.8.27 as the
 primary qualified release (the published `v0.5.0` tag retains its historical
 Jolt 0.7.23+ contract), an FFI-capable Babashka
 1.13.220 or later build with the official `babashka.ffi`, or JVM Clojure on
-JDK 22 or later. On Linux, use the
+JDK 25 or later. On Linux, use the
 ordinary release asset rather than the `-static` asset and confirm `bb describe`
 reports a non-nil `:libffi/version`. Do not substitute a
 convenient global executable for a project-selected binary. Add the public
@@ -45,16 +45,14 @@ project's test alias:
     {:git/url "https://github.com/chucklehead-dev/jolt-hegel.git"
      :git/sha "<jolt-hegel-commit-sha>"}
     ;; JVM Clojure only; omit for Jolt and Babashka.
-    io.github.babashka/ffi
-    {:git/url "https://github.com/babashka/ffi.git"
-     :git/sha "aacb153618bc39ca1e4c397b8f30fb81c76d0c4c"}}}}}
+    org.babashka/ffi {:mvn/version "0.1.3"}}}}}
 ```
 
 From the consuming project, install the verified libhegel release with the host
 that will run the tests:
 
 ```bash
-# Current `main` / next release candidate: Jolt 0.8.1+ (0.8.3 primary)
+# Current `main` / next release candidate: Jolt 0.8.1+ (0.8.27 primary)
 JOLT_CACHE_DIR=.jolt-cache/jolt-hegel-<jolt-hegel-commit-sha> \
   jolt -A:test -m hegel.install
 
@@ -118,11 +116,11 @@ unavailable; a source-only test can conceal missing packaging.
 
 | Host | Status and current evidence |
 | --- | --- |
-| Jolt 0.8.1+ on current `main` | Jolt 0.8.3 is primary on Linux x86_64, Windows x86_64, and macOS arm64; Jolt 0.8.1 retains a full Linux minimum lane |
+| Jolt 0.8.1+ on current `main` | Jolt 0.8.27 is primary on Linux x86_64, Windows x86_64, and macOS arm64; Jolt 0.8.1 retains a full Linux minimum lane |
 | FFI-capable Babashka 1.13.220+ | Supported on the same three-OS native-image matrix; Linux `-static` assets are excluded |
-| JVM Clojure on JDK 22+ | Supported on the same matrix with JDK 25 primary and a Linux JDK 22 minimum gate |
+| JVM Clojure on JDK 25+ | Supported on the same matrix with JDK 25 primary and a Linux JDK 25 minimum gate |
 | jank | Experimental focused Linux and macOS suites; see `docs/JANK.md` |
-| ClojureCLR 1.12.2 on .NET 8 | Experimental focused three-OS suite; see `docs/CLR.md` |
+| ClojureCLR 1.12.6 on .NET 8 | Experimental focused three-OS suite; see `docs/CLR.md` |
 
 The experimental hosts reuse shared property behavior, but their focused CI is
 not equivalent to the complete supported-host semantic and consumer matrix.
@@ -278,14 +276,14 @@ from successful symbol resolution or a focused host smoke test.
 Consumers that supply Malli may require `hegel.malli` and build a generator
 with `(hegel.malli/generator schema)`. Malli is deliberately absent from
 jolt-hegel's runtime dependencies; add `metosin/malli` explicitly to the same
-consumer alias. The adapter test suite uses Malli 0.20.1.
+consumer alias. The adapter test suite uses Malli 0.20.3.
 
 ```clojure
 {:extra-deps
  {io.github.chucklehead-dev/jolt-hegel
   {:git/url "https://github.com/chucklehead-dev/jolt-hegel.git"
    :git/sha "<jolt-hegel-commit-sha>"}
-  metosin/malli {:mvn/version "0.20.1"}}}
+  metosin/malli {:mvn/version "0.20.3"}}}
 ```
 
 ```clojure
@@ -492,9 +490,9 @@ namespace load time.
 | `(h/assume! condition)` | reject the current case when false |
 | `(h/target! score)` | guide targeting toward a finite score |
 | `(h/target! score label)` | target with a stable label |
-| `(h/final?)` | true only during minimal failure replay |
-| `(h/when-final ...)` | evaluate diagnostics only during final replay |
-| `(h/fprn ...)` | print values to stderr only during final replay |
+| `(h/final?)` | true during native diagnostic capture; may repeat |
+| `(h/when-final ...)` | evaluate diagnostics during capture passes |
+| `(h/fprn ...)` | print values to stderr during capture passes |
 | `(h/note! ...)` | print according to configured verbosity |
 | `(h/sample n generator)` | inspect up to `n` values |
 
@@ -944,7 +942,7 @@ Concurrent engine safety has not been verified by jolt-hegel's test suite, so
 concurrent native runs remain unsupported until that contract has a dedicated
 integration test.
 
-libhegel 0.36.3's concurrent state-machine protocol is not exposed. The current
+libhegel 0.51.6's concurrent state-machine protocol is not exposed. The current
 `hegel.stateful/run!` implementation drives the round protocol with fixed
 concurrency one so deterministic shrinking and final replay keep their
 existing contract. Upstream machines declared with maximum concurrency above

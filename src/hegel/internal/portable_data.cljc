@@ -1,4 +1,4 @@
-(ns hegel.internal.portable-data
+(ns ^:typed.clojure hegel.internal.portable-data
   "Bounded validation of portable EDN-shaped data.
 
   Callers supply their limits and an `(fn [path reason] ...)` failure policy so

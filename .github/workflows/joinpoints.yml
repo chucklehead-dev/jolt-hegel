@@ -56,9 +56,9 @@ jobs:
       - name: Provision pinned Babashka
         uses: ./.github/actions/setup-babashka
         with:
-          version: 1.13.220
-          asset: babashka-1.13.220-linux-amd64.tar.gz
-          sha256: 5211ebf6267be2dbbf4857611cb01331b865bf6b0a8c9bc500c83a816df1a769
+          version: 1.13.229
+          asset: babashka-1.13.229-linux-amd64.tar.gz
+          sha256: a98c90a0530943dfa9a0b03bcccbc2030777a6ce094af303d5bb47d77e193299
       - name: Install verified libhegel
         env:
           HEGEL_CACHE_DIR: ${{ runner.temp }}/hegel-native
@@ -66,7 +66,7 @@ jobs:
           bb -m hegel.install
           native="$HEGEL_CACHE_DIR/libhegel_c.so"
           test -f "$native"
-          echo "12d804f8767f926f8ec22a733e57af265f0b79f383ce78cc8d9fcbae2a8a3ad7  $native" | sha256sum --check
+          echo "0f76c0f11e1a1a044b7921e9c16ac8d51ae91878a1fd5c3e19b0f6b4eaebfaf0  $native" | sha256sum --check
           echo "HEGEL_LIBHEGEL_LIBRARY=$native" >> "$GITHUB_ENV"
       - name: Check actual manifest, compiler reports and runtime controls
         run: bash script/check-joinpoints.sh

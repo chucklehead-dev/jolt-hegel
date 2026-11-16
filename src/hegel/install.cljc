@@ -11,29 +11,29 @@
             [hegel.version :as version]))
 
 (def ^:private libhegel-release-base
-  (str "https://github.com/hegeldev/hegel-rust/releases/download/v"
+  (str "https://github.com/hegeldev/hegel/releases/download/libhegel/"
        version/libhegel-version))
 
 (def ^:private libhegel-assets
   {[:linux "amd64"]
    {:name "libhegel-linux-amd64.so"
-    :sha256 "12d804f8767f926f8ec22a733e57af265f0b79f383ce78cc8d9fcbae2a8a3ad7"}
+    :sha256 "0f76c0f11e1a1a044b7921e9c16ac8d51ae91878a1fd5c3e19b0f6b4eaebfaf0"}
 
    [:linux "arm64"]
    {:name "libhegel-linux-arm64.so"
-    :sha256 "9cc5725fae13f9d79708dbce4d3c2343a193f2029fed7002f88e0f08f26a2efa"}
+    :sha256 "f7222179a300def794c82ad9d80050b6d45197b6f77d0e17087ca1ae07203b23"}
 
    [:darwin "arm64"]
    {:name "libhegel-darwin-arm64.dylib"
-    :sha256 "ac3939a523ca5d98ed741e5894c3b44d0c7b0fa8baaa3deabc5653bb1d754df9"}
+    :sha256 "81029db7c270fe110fb039bfd249b95d07d9862f0de796cfb3ec132ca7ec8528"}
 
    [:windows "amd64"]
    {:name "libhegel-windows-amd64.dll"
-    :sha256 "b0d334228b46177d93f7dd92a9da0882d23b0cea15927b3707d8562d3395741b"}
+    :sha256 "cb44773bafe1744b0c5eb8bd1aced1e5ee472f33d648165c4834fe8d7b73fe87"}
 
    [:windows "arm64"]
    {:name "libhegel-windows-arm64.dll"
-    :sha256 "e7837056eb3de1b3842e98805e6e4cb85b22ddcd5f8e246dea1f52046f71d600"}})
+    :sha256 "bf48152fdd1ab307b4c14341b7d6c598b82b6661a53e29c6675c80617af1a65b"}})
 
 (def ^:private jolt? (= :jolt (host/runtime)))
 

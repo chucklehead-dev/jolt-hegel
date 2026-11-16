@@ -76,7 +76,7 @@
      :type cause-type
      :data cause-data}))
 
-(defn- evaluate-case [base final-reports body]
+(defn- evaluate-case [base body]
   (let [reports (atom [])
         outcome
         (host/try-catch-all
@@ -86,8 +86,6 @@
             (body))}
          error
          {:error error})]
-    (when (h/final?)
-      (swap! final-reports into @reports))
     (if-let [error (:error outcome)]
       (if (or (:hegel/origin (ex-data error))
               (:hegel/usage-error? (ex-data error))
@@ -154,7 +152,6 @@
   "Implementation for `with`; public only so macro expansions can call it."
   [opts base body]
   (let [reporter ct/report
-        final-reports (atom [])
         opts (if (or (contains? opts :name)
                      (contains? opts :database-key))
                opts
@@ -162,8 +159,9 @@
         result (h/run-test!
                 opts
                 (fn [_]
-                  (evaluate-case base final-reports body)))]
-    (publish-result! reporter base result @final-reports)))
+                  (evaluate-case base body)))]
+    (publish-result! reporter base result
+                     (mapcat #(or (:reports (ex-data (:exception %))) []) (:failures result)))))
 
 (defmacro with
   "Run a shrinking Hegel property inside a clojure.test deftest.

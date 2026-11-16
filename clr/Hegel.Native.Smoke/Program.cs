@@ -14,7 +14,7 @@ internal static class Program
         }
 
         Bridge.Load(args[0]);
-        Require("all descriptor symbols loaded", Bridge.ExpectedSymbols.Count == 103);
+        Require("all descriptor symbols loaded", Bridge.ExpectedSymbols.Count == 159);
         CheckLayouts();
         CheckMemory();
         CheckNativeCalls();
@@ -64,16 +64,31 @@ internal static class Program
             settings = OutPointer("settings-new", context);
             Ok("settings-set-test-cases", context, settings, 1UL);
 
-            var versionOut = Bridge.Alloc((ulong)IntPtr.Size);
+            var versionOut = Bridge.Alloc(16);
             try
             {
                 Ok("version", context, versionOut);
                 var versionPointer = (IntPtr)Bridge.ReadValue("pointer", versionOut);
-                Require("libhegel version", Bridge.NativeToString(versionPointer) == "0.36.3");
+                Require("libhegel version", Bridge.ReadUtf8(versionPointer, checked((int)(ulong)Bridge.ReadValue("uint64", IntPtr.Add(versionOut, 8)))) == "0.51.6");
             }
             finally
             {
                 Bridge.Free(versionOut);
+            }
+
+            var errorOut = Bridge.Alloc(16);
+            try
+            {
+                Require("invalid setting rejected", Convert.ToInt32(Bridge.Invoke(
+                    "settings-set-backend", new object?[] { context, settings, 999 })) != 0);
+                Bridge.Invoke("context-last-error", new object?[] { errorOut, context });
+                var data = (IntPtr)Bridge.ReadValue("pointer", errorOut);
+                var length = checked((int)(ulong)Bridge.ReadValue("uint64", IntPtr.Add(errorOut, 8)));
+                Require("context error aggregate return", length > 0 && Bridge.ReadUtf8(data, length).Length > 0);
+            }
+            finally
+            {
+                Bridge.Free(errorOut);
             }
 
             run = OutPointer("run-start", context, settings, IntPtr.Zero, IntPtr.Zero);

@@ -31,6 +31,7 @@
    ;; The binding stores this nonnegative enum in an int32 out-cell. Compiler
    ;; width/range checks are a separate gate; C does not fix enum signedness.
    "hegel_run_status_t" :c/int32
+   "hegel_run_error_kind_t" :c/int32
    "output-callback" :hegel/output-callback
    "const-char*" :c/string "const-char**" [:pointer :c/string]
    ;; A returned string buffer is length-delimited, not the :c/string ABI.
@@ -38,6 +39,7 @@
 
 (defn canonical-type [snapshot c-type argument?]
   (or (get scalar-types c-type)
+      (when (contains? (:enums snapshot) c-type) :c/int32)
       (let [clean (-> c-type (str/replace #"\bconst\b" "") str/trim)
             [_ base stars] (re-matches #"(.+?)\s*(\*+)" clean)]
         (if stars

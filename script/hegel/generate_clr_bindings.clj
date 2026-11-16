@@ -124,17 +124,19 @@
 
 (defn- invoker-source [descriptor [function-id function]]
   (let [method (method-name function-id)
+        aggregate? (= :by-value (first (when (vector? (:return function)) (:return function))))
         args (str/join ", "
-                       (map-indexed #(argument-expression descriptor %1 %2)
+                       (map-indexed #(argument-expression descriptor (+ %1 (if aggregate? 1 0)) %2)
                                     (:args function)))
         call (str "NativeMethods." method "(" args ")")]
     (str "    private static object? Invoke" method "(object?[] args)\n"
          "    {\n"
          "        RequireArity(\"" (name function-id) "\", args, "
-         (count (:args function)) ");\n"
-         (if (= :c/void (:return function))
-           (str "        " call ";\n        return null;\n")
-           (str "        return " call ";\n"))
+         (+ (count (:args function)) (if aggregate? 1 0)) ");\n"
+         (cond
+           aggregate? (str "        Marshal.StructureToPtr(" call ", ToIntPtr(args[0]), false);\n        return null;\n")
+           (= :c/void (:return function)) (str "        " call ";\n        return null;\n")
+           :else (str "        return " call ";\n"))
          "    }")))
 
 (defn- generated-source [descriptor]

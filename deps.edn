@@ -10,9 +10,7 @@
 
  :aliases
   {:jvm {:extra-deps
-         {io.github.babashka/ffi
-          {:git/url "https://github.com/babashka/ffi.git"
-           :git/sha "aacb153618bc39ca1e4c397b8f30fb81c76d0c4c"}}}
+         {org.babashka/ffi {:mvn/version "0.1.3"}}}
    :setup-native {:main-opts ["-m" "hegel.install"]}
    :abi-test {:extra-paths ["script"]
               :main-opts ["-m" "hegel.abi-check"]}
@@ -27,7 +25,7 @@
    :clr-codegen {:extra-paths ["script"]
                  :main-opts ["-m" "hegel.generate-clr-bindings"]}
    :test {:extra-paths ["test"]
-         :extra-deps {metosin/malli {:mvn/version "0.20.1"}}
+         :extra-deps {metosin/malli {:mvn/version "0.20.3"}}
          :main-opts ["-m" "hegel.test-runner"]}
    :harness-test {:extra-paths ["test"]
                   :main-opts ["-m" "hegel.harness-test-runner"]}
@@ -39,7 +37,7 @@
    ;; default :paths, so ordinary consumers never resolve or need the checker.
    :typed-check {:extra-paths ["script" "typed"]
                  :extra-deps {org.typedclojure/typed.clj.checker
-                              {:mvn/version "1.3.0"}}
+                              {:mvn/version "1.4.0"}}
                  :main-opts ["-m" "hegel.typed-check"]}}
 
  :tasks

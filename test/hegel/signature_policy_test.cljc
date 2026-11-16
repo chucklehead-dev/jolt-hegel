@@ -2,7 +2,7 @@
   "Characterization of the canonical ABI -> selected-host carrier policy.
 
   resources/hegel/abi.edn is the single canonical definition of libhegel's C
-  ABI. Nothing here restates its 103 signatures or its 6 struct layouts:
+  ABI. Nothing here restates its 159 signatures or its 6 struct layouts:
   every traversal, including struct field order, is derived recursively from
   `hegel.abi/functions` and `hegel.abi/types`. What *is* literalized is the
   small per-target scalar carrier policy each adapter applies to that
@@ -148,13 +148,13 @@
         types (abi/types)
         functions (abi/functions)]
     (is (= 1 (:schema-version descriptor)))
-    (is (= 103 (count functions))
+    (is (= 159 (count functions))
         "the canonical descriptor is the only inventory of libhegel functions")
-    (is (= 34 (count types)))
+    (is (= 39 (count types)))
     ;; 12 scalar carriers plus void and string, 13 opaque handles, 6 structs
     ;; and exactly one callback type.
     (is (= {:void 1 :boolean 1 :integer 9 :float 2 :string 1
-            :opaque 13 :struct 6 :function-pointer 1}
+            :opaque 18 :struct 6 :function-pointer 1}
            (frequencies (map :kind (vals types)))))
     (is (= 12 (count (filter #(contains? #{:boolean :integer :float} (:kind %))
                              (vals types))))
@@ -211,27 +211,21 @@
                                                  (:args function))
                                        function-id))
                                    functions))]
-    (is (= 365 (count argument-forms)))
-    (is (= {:pointer 277 :scalar 70 :string 10 :by-value 6 :callback 2}
+    (is (= 544 (count argument-forms)))
+    (is (= {:pointer 426 :scalar 78 :by-value 37 :callback 3}
            (frequencies (map #(form-class types %) argument-forms))))
-    (is (= 103 (count return-forms)))
-    (is (= {:scalar 101 :pointer 1 :string 1}
+    (is (= 159 (count return-forms)))
+    (is (= {:scalar 157 :pointer 1 :by-value 1}
            (frequencies (map #(form-class types %) return-forms))))
-    ;; Every aggregate crosses the boundary through caller-owned storage on
-    ;; the way out. No function returns an aggregate by value, which is why no
-    ;; target needs a return-buffer convention.
-    (is (empty? (filter #(= :by-value (form-class types %)) return-forms)))
+    ;; Borrowed UTF-8 diagnostics return a struct by value. Every adapter
+    ;; normalizes this to a caller-owned destination as the first argument.
+    (is (= [:by-value :hegel/string] (:return (:context-last-error functions))))
+    (is (= 1 (count (filter #(= :by-value (form-class types %)) return-forms))))
     (is (empty? (filter #(= :aggregate (form-class types %)) return-forms)))
-    ;; Six by-value aggregate arguments, all of them date/time bounds.
-    (is (= {:generate-date 2 :generate-time 2 :generate-datetime 2}
-           (into {}
-                 (keep (fn [[function-id function]]
-                         (let [count* (count (filter #(= :by-value (form-class types %))
-                                                     (:args function)))]
-                           (when (pos? count*) [function-id count*]))))
-                 functions)))
-    (is (= [:run-start :test-case-from-blob] callback-users)
-        "one callback type, used by exactly two functions")
+    (doseq [id [:generate-date :generate-time :generate-datetime]]
+      (is (= 2 (count (filter #(= :by-value (form-class types %)) (:args (get functions id)))))))
+    (is (= [:run-start :run-start-blob :test-case-from-blob] callback-users)
+        "one callback type, used by exactly three functions")
     (is (= [:hegel/output-callback] (type-ids-of-kind types :function-pointer)))))
 
 (deftest every-declared-carrier-maps-to-the-literal-target-policy
@@ -272,7 +266,7 @@
 (deftest bare-opaque-handles-and-unrepresentable-forms-are-rejected
   (let [descriptor (abi/descriptor)
         opaque (type-ids-of-kind (abi/types) :opaque)]
-    (is (= 13 (count opaque)))
+    (is (= 18 (count opaque)))
     (doseq [type-id opaque]
       (is (= type-id
              (:type (ex-data (rejection #(adapter/native-type type-id descriptor)))))
@@ -301,8 +295,8 @@
       (is (= (expected-type types return)
              (adapter/native-type return descriptor))
           (str function-id " return " (pr-str return))))
-    (is (= 468 @translated)
-        "365 argument forms and 103 return forms were each translated")))
+    (is (= 703 @translated)
+        "544 argument forms and 159 return forms were each translated")))
 
 (deftest the-adapter-signature-composition-matches-the-public-translation
   (let [descriptor (abi/descriptor)

@@ -1,8 +1,8 @@
 # Structured counterexample diagnostics
 
 Labelled draws and `note!` calls are assembled in libhegel's test-case
-document. At normal verbosity this happens only during the final replay of a
-minimal failure. Verbose and debug runs also emit one document for every
+document. At normal verbosity native capture passes build snapshots; the runner
+retains and emits the snapshot selected for each reported failure. Verbose and debug runs also emit one document for every
 exploration case; quiet runs create no printer and return no counterexample
 snapshot.
 

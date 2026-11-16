@@ -23,8 +23,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  CLOJURECLR_VERSION: 1.12.2
-  CLOJURECLR_NUPKG_SHA256: e916c78d8ec1054a0b8a449fb9b478af46f32fe4c9f9ca992ce037b5302a4d9f
+  CLOJURECLR_VERSION: 1.12.6
+  CLOJURECLR_NUPKG_SHA256: 666ccf73c6da7d833622f635b44b0f3ae6f1d3e51849e7d5b17718ded11d108e
 
 jobs:
   generated-bindings:
@@ -35,7 +35,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: DeLaGuardo/setup-clojure@13.5
+      - uses: DeLaGuardo/setup-clojure@13.7.0
         with:
           bb: latest
       - name: Verify generated ABI artifacts

@@ -1,7 +1,6 @@
 (ns hegel.core
   "The property-test run loop and dynamic test-case API."
-  (:require [clojure.string :as str]
-            [hegel.ffi :as hffi]
+  (:require [hegel.ffi :as hffi]
             [hegel.host :as host]
             [hegel.internal.observation-policy :as observation-policy]
             [hegel.internal.observations :as observations]
@@ -85,13 +84,13 @@
 (def ^:private max-uint64 18446744073709551615N)
 
 (def ^:private backend-values
-  {:auto 0
+  {:auto 1
    :default 1
    :urandom 2})
 
 (def ^:private verbosity-values
-  {:quiet 0
-   :normal 1
+  {:quiet 1
+   :normal 0
    :verbose 2
    :debug 3})
 
@@ -153,18 +152,20 @@
                 {:type ::no-test-case}))))
 
 (defn final?
-  "True only while replaying a minimal failing example."
+  "True when native Hegel requests diagnostic capture.
+  Capture can happen multiple times during shrinking and confirmation; it is
+  not a guarantee that this is the eventual minimal failing example."
   []
   (boolean (:final? (current-test-case!))))
 
 (defmacro when-final
-  "Evaluate body only during the final replay of a failing example."
+  "Evaluate body when Hegel requests diagnostic capture. May run repeatedly."
   [& body]
   `(when (final?)
      ~@body))
 
 (defmacro fprn
-  "Print values to stderr only during the final replay."
+  "Print values to stderr during diagnostic capture passes."
   [& values]
   `(when-final
      (binding [*out* *err*]
@@ -266,7 +267,7 @@
 
 (def ^:private run-option-keys
   #{:mode :backend :test-cases :stateful-step-count :verbosity :seed
-    :derandomize? :report-multiple-failures? :database :database-key :name
+    :derandomize? :report-multiple-failures? :stop-on-first-failure? :nondeterminism-strictness :database :database-key :name
     :phases :suppress-health-checks :show-statistics? :observations? :coverage
     :counterexample})
 
@@ -299,6 +300,8 @@
     (enum-value! :backend backend-values (:backend opts)))
   (when (contains? opts :verbosity)
     (enum-value! :verbosity verbosity-values (:verbosity opts)))
+  (when (contains? opts :nondeterminism-strictness)
+    (enum-value! :nondeterminism-strictness {:quiet 0 :warn 1 :error 2} (:nondeterminism-strictness opts)))
   (when (contains? opts :test-cases)
     (validation/require-integer-range! ::invalid-option :test-cases
                                        (:test-cases opts) 1 max-uint64))
@@ -308,7 +311,7 @@
   (when (contains? opts :seed)
     (validation/require-integer-range! ::invalid-option :seed (:seed opts)
                                        0 max-uint64))
-  (doseq [option [:derandomize? :report-multiple-failures?
+  (doseq [option [:derandomize? :report-multiple-failures? :stop-on-first-failure?
                   :show-statistics? :observations?]
           :when (contains? opts option)]
     (validation/require-boolean! ::invalid-option option (get opts option)))
@@ -409,9 +412,12 @@
      ctx settings (enum-value! :backend backend-values (:backend opts))))
   (when (contains? opts :test-cases)
     (hffi/settings-set-test-cases! ctx settings (:test-cases opts)))
-  (when (contains? opts :stateful-step-count)
-    (hffi/settings-set-stateful-step-count!
-     ctx settings (:stateful-step-count opts)))
+  ;; Retain the public abort-on-nondeterminism default, while allowing the
+  ;; new native confirmation/shrinking policy explicitly.
+  (hffi/settings-set-nondeterminism-strictness!
+   ctx settings ({:quiet 0 :warn 1 :error 2} (get opts :nondeterminism-strictness :error)))
+  (when (contains? opts :stop-on-first-failure?)
+    (hffi/settings-set-stop-on-first-failure! ctx settings (:stop-on-first-failure? opts)))
   (when (contains? opts :verbosity)
     (hffi/settings-set-verbosity!
      ctx settings
@@ -446,36 +452,36 @@
   nil)
 
 (defn- drive-run! [ctx run verbosity case-fn run-observations render-opts]
-  (loop [counts {:test-cases 0
-                 :valid-test-cases 0
-                 :invalid-test-cases 0
-                 :overrun-test-cases 0
-                 :interesting-test-cases 0}
-         observed []]
+  (loop [counts {:test-cases 0 :valid-test-cases 0 :invalid-test-cases 0
+                 :overrun-test-cases 0 :interesting-test-cases 0}
+         observed [] captures {}]
     (if-let [handle (hffi/next-test-case! ctx run)]
-      (let [test-case (observed-test-case ctx handle false verbosity run-observations
-                                          render-opts)
-            {next-counts :counts next-observed :observed}
+      (let [capture? (hffi/test-case-should-capture? ctx handle)
+            test-case (observed-test-case ctx handle capture? verbosity run-observations render-opts)
+            [outcome snapshot]
             (try
               (let [outcome (run-body test-case case-fn)]
                 (mark-outcome! test-case outcome)
-                ;; Non-final verbose/debug diagnostics are emitted once here
-                ;; and then discarded; only the final replay snapshot below
-                ;; is preserved in the aggregate result.
-                (render/emit! (render/finish! (:render test-case)))
-                (record-observations! run-observations test-case outcome)
-                {:counts (count-outcome counts outcome)
-                 :observed (record-observed-failure observed outcome)})
-              (finally
-                (release-test-case! test-case)))]
-        (recur next-counts next-observed))
-      (assoc counts :observed-failures observed))))
+                (let [snapshot (render/finish! (:render test-case))]
+                  (when-not capture? (render/emit! snapshot))
+                  (record-observations! run-observations test-case outcome)
+                  [outcome snapshot]))
+              (finally (release-test-case! test-case)))]
+        (recur (count-outcome counts outcome)
+               (record-observed-failure observed outcome)
+               (if (and capture? (= :interesting (:status outcome)))
+                 (assoc captures (:origin outcome)
+                        (assoc outcome :counterexample snapshot
+                                       :replay-origin (:origin outcome) :reproduced? true))
+                 captures)))
+      (assoc counts :observed-failures observed :captures captures))))
 
 (defn- snapshot-failure! [ctx result index]
   (let [failure (hffi/run-result-failure! ctx result index)]
     (try
       {:origin (hffi/failure-origin! ctx failure)
-       :reproduction-blob (hffi/failure-reproduction-blob! ctx failure)}
+       :reproduction-blob (hffi/failure-reproduction-blob! ctx failure)
+       :caveat (hffi/failure-caveat! ctx failure)}
       (finally
         (hffi/failure-free! ctx failure)))))
 
@@ -483,55 +489,45 @@
   (let [n (hffi/run-result-failure-count! ctx result)]
     (mapv #(snapshot-failure! ctx result %) (range n))))
 
+(defn- captured-failure [captures failure]
+  (merge {:status :missing-capture :reproduced? false :counterexample nil}
+         (get captures (:origin failure)) failure))
+
 (defn- replay-failure!
   ([ctx settings verbosity case-fn failure render-opts]
    (replay-failure! ctx settings verbosity case-fn failure render-opts nil))
   ([ctx settings verbosity case-fn failure render-opts run-observations]
-  (if-let [blob (:reproduction-blob failure)]
-    (let [handle (hffi/test-case-from-blob! ctx settings blob)
-          test-case (observed-test-case ctx handle true verbosity run-observations
-                                        render-opts)]
-      (try
-        (let [outcome (run-body test-case case-fn)
-              expected-origin (:origin failure)
-              replay-origin (:origin outcome)]
-          (mark-outcome! test-case outcome)
-          ;; Seal/read the printer document after mark-complete! and before
-          ;; cleanup frees it; copy the snapshot into the failure so it
-          ;; survives release-test-case!.
-          (let [snapshot (render/finish! (:render test-case))]
-            (render/emit! snapshot)
-            (record-observations! run-observations test-case outcome)
-            (merge failure
-                   outcome
-                   {:origin expected-origin
-                    :replay-origin replay-origin
-                    :reproduced? (and (= :interesting (:status outcome))
-                                      (= expected-origin replay-origin))
-                    :counterexample snapshot})))
-        (finally
-          (release-test-case! test-case))))
-    (assoc failure
-           :status :missing-reproduction-blob
-           :reproduced? false
-           :counterexample nil))))
+   (if-let [blob (:reproduction-blob failure)]
+     (let [run (hffi/run-start-blob! ctx settings blob)]
+       (try
+         (let [counts (drive-run! ctx run verbosity case-fn run-observations render-opts)
+               result (hffi/run-result! ctx run)]
+           (try
+             (when (= hffi/run-status-error (hffi/run-result-status! ctx result))
+               (throw (ex-info (str "Hegel replay error: " (hffi/run-result-error! ctx result))
+                               {:type ::run-error})))
+             (let [reported (snapshot-failures! ctx result)
+                   matching (some #(when (= (:origin failure) (:origin %)) %) reported)
+                   replayed (if matching
+                              (captured-failure (:captures counts) (merge failure matching))
+                              (assoc failure :status :not-reproduced :reproduced? false
+                                             :counterexample nil))]
+               (when-let [snapshot (:counterexample replayed)] (render/emit! snapshot))
+               replayed)
+             (finally (hffi/run-result-free! ctx result))))
+         (finally (hffi/run-free! ctx run))))
+     (assoc failure :status :missing-reproduction-blob :reproduced? false :counterexample nil))))
 
 (defn- run-status [native]
   (case native
     0 :passed
     1 :failed
     2 :error
-    3 :failed-nondeterministic
     (throw (ex-info (str "unknown libhegel run status " native)
                     {:type ::unknown-run-status
                      :status native}))))
 
-(defn- nondeterministic-run-error? [message]
-  (and (string? message)
-       (or (str/starts-with? message "Flaky test detected:")
-           (str/starts-with?
-            message
-            "Your data generation is non-deterministic:"))))
+
 
 (defn- public-final [replayed]
   (mapv #(select-keys % [:status :value :origin :replay-origin :exception
@@ -545,6 +541,7 @@
   (let [options (select-keys opts
                              [:backend :test-cases :stateful-step-count
                               :verbosity :derandomize? :report-multiple-failures?
+                              :stop-on-first-failure? :nondeterminism-strictness
                               :phases :suppress-health-checks])]
     (cond-> options
       (contains? options :phases) (update :phases vec)
@@ -562,8 +559,9 @@
   the ordinary loaded-library version gate before replay allocation.
 
   Returns :status :incompatible with :mismatches without executing a property,
-  or :reproduced/:not-reproduced with per-failure results. No run is started,
-  no seed-based generation is substituted, and persistence is disabled.
+  or :reproduced/:not-reproduced with per-failure results. A native blob replay
+  run drives capture and confirmation; no seed-based generation is substituted
+  and persistence is disabled.
   Usage, native and inconclusive errors propagate after resource cleanup.
 
   IMPORTANT: use only trusted artifacts. EDN bounds and matching provenance
@@ -595,14 +593,15 @@
             (let [settings (hffi/settings-new! ctx)]
               (try
                 (configure-settings! ctx settings opts)
-                (let [failures (mapv #(replay-failure!
+                (let [failures (binding [hffi/*stateful-step-count* (get opts :stateful-step-count 50)]
+                                 (mapv #(replay-failure!
                                       ctx settings (or (:verbosity opts) :normal)
                                       case-fn % render-opts)
-                                    (:failures bundle))
+                                    (:failures bundle)))
                       reproduced? (every? :reproduced? failures)]
                   {:status (if reproduced? :reproduced :not-reproduced)
                    :reproduced? reproduced?
-                   :flaky? (not reproduced?)
+                   :flaky? (boolean (or (not reproduced?) (some :caveat failures)))
                    :seed (:seed bundle)
                    :replay-options (capture-replay-options opts)
                    :n-failures (count failures)
@@ -625,7 +624,9 @@
 
   Supported options are :backend, :test-cases, :stateful-step-count,
   :verbosity, :seed,
-  :derandomize?, :report-multiple-failures?, :database, :database-key/:name,
+  :derandomize?, :report-multiple-failures?, :stop-on-first-failure?,
+  :nondeterminism-strictness (:quiet/:warn/:error; default :error),
+  :database, :database-key/:name,
   :phases, :suppress-health-checks, :show-statistics?, :observations?,
   :coverage, and :counterexample. Coverage names its scope and categorical
   requirements explicitly; it uses completed valid exploration cases, never
@@ -654,30 +655,23 @@
             (configure-settings! ctx settings opts)
             (let [run (hffi/run-start! ctx settings)]
               (try
-                (let [counts (drive-run! ctx run (or (:verbosity opts) :normal)
-                                         case-fn run-observations render-opts)
+                (let [counts (binding [hffi/*stateful-step-count* (get opts :stateful-step-count 50)]
+                               (drive-run! ctx run (or (:verbosity opts) :normal)
+                                           case-fn run-observations render-opts))
                       result (hffi/run-result! ctx run)]
                 (try
                   (let [status (run-status (hffi/run-result-status! ctx result))
                         run-error (when (= :error status)
                                     (or (hffi/run-result-error! ctx result)
                                         "unknown error"))]
-                    (when (= :failed-nondeterministic status)
-                      (throw
-                       (ex-info
-                        (str "libhegel reported a concurrent state-machine "
-                             "failure, but jolt-hegel exposes only the "
-                             "sequential state-machine protocol")
-                        {:type ::unsupported-concurrent-state-machine
-                         :seed (str (:seed opts))})))
-                    (if (nondeterministic-run-error? run-error)
+                    (if (and run-error (contains? #{2 3} (hffi/run-result-error-kind! ctx result)))
                       ;; libhegel reports nondeterminism as a run-level error,
                       ;; before a counterexample is available to replay. Keep
                       ;; that distinct from replay-time flakiness while still
                       ;; returning data that a counting runner can record.
                       (observation-policy/finish
                        (merge
-                       counts
+                       (dissoc counts :captures)
                        {:passed? false
                         :status :error
                         :seed (str (:seed opts))
@@ -699,21 +693,19 @@
                         (let [failures (if (= :failed status)
                                          (snapshot-failures! ctx result)
                                          [])
-                              replayed (mapv #(replay-failure!
-                                              ctx settings
-                                              (or (:verbosity opts) :normal)
-                                              case-fn % render-opts run-observations)
-                                             failures)]
+                              replayed (mapv #(captured-failure (:captures counts) %) failures)]
+                          (doseq [failure replayed]
+                            (when-let [snapshot (:counterexample failure)] (render/emit! snapshot)))
                           (observation-policy/finish
                            (merge
-                           counts
+                           (dissoc counts :captures)
                            {:passed? (= :passed status)
                             :status status
                             :seed (str (:seed opts))
                             :replay-options replay-options
                             :flaky?
                             (boolean
-                             (some (comp not :reproduced?) replayed))
+                             (some #(or (:caveat %) (not (:reproduced? %))) replayed))
                             :health-check-failure? nil
                             :error nil
                             :n-failures (count failures)

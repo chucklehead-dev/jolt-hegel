@@ -707,8 +707,6 @@
                        (clojure.core/boolean (:full-match? opts))
                        true)
          pattern (str pattern)]
-     (when (str/includes? pattern "\u0000")
-       (invalid-option "regex pattern cannot contain NUL" {:pattern pattern}))
      (native-string-generator
       #(hffi/string-generator-regex! % pattern full-match?)))))
 
