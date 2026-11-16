@@ -1449,7 +1449,7 @@
 
 (defn invoke-context_last_error [& values]
   (let [native-bindings (cpp/hegel_jank_current_bindings)]
-    (cpp/hegel_jank_call_context_last_error native-bindings (cpp/unbox (nth values 0))
+    (cpp/hegel_jank_call_context_last_error native-bindings (cpp/unbox (:* cpp/void) (nth values 0))
      (cpp/unsafe-cast (:* cpp/hegel_jank_hegel_context) (cpp/unbox (:* cpp/void) (nth values 1))))))
 
 (defn invoke-context_new [& values]

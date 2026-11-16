@@ -57,7 +57,7 @@ jobs:
             runner: windows-2022
             library-name: libhegel_c.dll
           - name: macOS arm64
-            runner: macos-14
+            runner: macos-26
             library-name: libhegel_c.dylib
 
     env:

@@ -22,8 +22,15 @@ jobs:
           repository: casselc/jolt
           ref: 09f4218828f93320f3b43eb4e8ae5df76fc65210
           path: target/aspect-compiler
-          submodules: recursive
+          submodules: false
           persist-credentials: false
+      - name: Restore pinned compiler submodules from maintained upstreams
+        working-directory: target/aspect-compiler
+        run: |
+          # The deleted fork's exact pinned process commit exists upstream.
+          git submodule init
+          git config submodule.vendor/process.url https://github.com/babashka/process.git
+          git submodule update --init --recursive
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: cisco/ChezScheme

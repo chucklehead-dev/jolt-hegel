@@ -72,7 +72,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-14, windows-2022]
+        os: [ubuntu-24.04, macos-26, windows-2022]
     env:
       HEGEL_ABI_CC: clang
     steps:
@@ -108,7 +108,7 @@ jobs:
             asset: babashka-1.13.229-windows-amd64.zip
             sha256: eda55ef005e99503f6be97966f9a956f348f29affc7b2df9142d3fc6d239c855
           - name: macOS arm64
-            runner: macos-14
+            runner: macos-26
             asset: babashka-1.13.229-macos-aarch64.tar.gz
             sha256: 2d96ff06ce66883caa873fb717941a58c45523e3db9d91424e9f81b038896331
 
@@ -116,16 +116,6 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-
-      - name: Make Git for Windows libffi discoverable
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $mingw = Join-Path $env:ProgramFiles 'Git\mingw64\bin'
-          if (-not (Test-Path -LiteralPath (Join-Path $mingw 'libffi-8.dll'))) {
-            throw 'Git for Windows libffi-8.dll is required by Babashka FFI'
-          }
-          $mingw | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Verify official FFI-capable Babashka
         uses: ./.github/actions/setup-babashka
@@ -167,7 +157,7 @@ jobs:
           - runtime: Jolt
             host: jolt
             name: macOS arm64
-            runner: macos-14
+            runner: macos-26
             shell: bash
             # Official jolt-lang/jolt v0.8.27, source commit
             # 0f08ec2732a0078d7523f274a1507049c06bffe6.
@@ -202,7 +192,7 @@ jobs:
           - runtime: Babashka
             host: bb
             name: macOS arm64
-            runner: macos-14
+            runner: macos-26
             shell: bash
             bb-asset: babashka-1.13.229-macos-aarch64.tar.gz
             bb-sha256: 2d96ff06ce66883caa873fb717941a58c45523e3db9d91424e9f81b038896331
@@ -219,7 +209,7 @@ jobs:
           - runtime: JVM
             host: jvm
             name: macOS arm64
-            runner: macos-14
+            runner: macos-26
             shell: bash
 
     defaults:
@@ -246,16 +236,6 @@ jobs:
           version: ${{ matrix.jolt-version }}
           asset: ${{ matrix.jolt-asset }}
           sha256: ${{ matrix.jolt-sha256 }}
-
-      - name: Make Git for Windows libffi discoverable
-        if: matrix.host == 'bb' && runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $mingw = Join-Path $env:ProgramFiles 'Git\mingw64\bin'
-          if (-not (Test-Path -LiteralPath (Join-Path $mingw 'libffi-8.dll'))) {
-            throw 'Git for Windows libffi-8.dll is required by Babashka FFI'
-          }
-          $mingw | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Set up JDK 25
         if: matrix.host == 'jvm'

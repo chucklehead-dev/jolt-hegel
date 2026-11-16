@@ -34,7 +34,7 @@ jobs:
             jolt-asset: jolt-v0.8.27-x86_64-windows.zip
             jolt-sha256: 9980fcb13ece3ae6610fb4af3ca538a5e19a69a5443aff56aff176a90cb96a76
           - name: macOS arm64
-            runner: macos-14
+            runner: macos-26
             shell: bash
             jolt-asset: jolt-v0.8.27-aarch64-macos.tar.gz
             jolt-sha256: c85fb07350811d9b0762423b100796703d18a2bd6c7c4462a69b04a6f770177a

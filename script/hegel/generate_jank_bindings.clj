@@ -386,7 +386,7 @@
   (let [aggregate? (= :by-value (first (when (vector? (:return function)) (:return function))))
         call (str "(cpp/hegel_jank_call_" (identifier function-id)
                   " native-bindings"
-                  (when aggregate? " (cpp/unbox (nth values 0))")
+                  (when aggregate? " (cpp/unbox (:* cpp/void) (nth values 0))")
                   (when (seq (:args function))
                     (str "\n     "
                          (str/join "\n     "
