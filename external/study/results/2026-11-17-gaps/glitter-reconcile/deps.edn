@@ -1,0 +1,1 @@
+{:paths ["src" "/workspace/pilot-targets/glitter-core/src" "/workspace/pilot-targets/glitter-core/test"] :deps {local/hegel {:local/root "/workspace/jolt-hegel"}}}

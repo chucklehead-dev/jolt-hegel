@@ -1,0 +1,2 @@
+:nested? false :calls [:glitter.life-cycle/unmount] :events [[:create-element "li"] [:create-text-node "hi"] [:append-child "hi" :to "li"] [:append-child "li" :to "body"] [:remove-child "li" :from "body"]]
+:nested? true :calls [] :events [[:create-element "ul"] [:create-element "li"] [:create-text-node "hi"] [:append-child "hi" :to "li"] [:append-child "li" :to "ul"] [:append-child "ul" :to "body"] [:remove-child "ul" :from "body"]]

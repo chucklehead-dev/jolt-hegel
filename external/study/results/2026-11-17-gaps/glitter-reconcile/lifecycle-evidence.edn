@@ -1,0 +1,1 @@
+{:hegel/origin "lifecycle/removal", :input {:depth 1, :remove? true}, :expected [:glitter.life-cycle/mount :glitter.life-cycle/unmount], :actual [:glitter.life-cycle/mount]}

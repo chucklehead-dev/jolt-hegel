@@ -1,0 +1,9 @@
+WARNING: let already refers to: #'clojure.core/let in namespace: hegel.generator, being replaced by: #'hegel.generator/let
+"forecast-percent" 0
+"outcomes" [false true]
+:replay "tied" {:status :reproduced, :reproduced? true, :flaky? false}
+:provenance-mismatch-rejected "tied"
+"low-bin-successes" 0
+"high-bin-failures" 1
+:replay "online" {:status :reproduced, :reproduced? true, :flaky? false}
+:provenance-mismatch-rejected "online"

@@ -1,0 +1,7 @@
+WARNING: let already refers to: #'clojure.core/let in namespace: hegel.generator, being replaced by: #'hegel.generator/let
+Unhandled exception: annotation/shape
+  ex-data: {:input {:text , :format :enlive, :line 3, :col 4}, :hegel/origin annotation/shape}
+  trace:
+    instaparse.util/throw-illegal-argument-exception (/workspace/pilot-targets/instaparse/src/instaparse/util.cljc:12)
+    study/annotate! (./study.clj:28)
+    study/-main (./study.clj:57)

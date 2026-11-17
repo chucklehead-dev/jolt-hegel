@@ -1,0 +1,10 @@
+All commands executed from /workspace/hegel-gap-study/json-options unless a source path is absolute.
+Read task.txt; skill SKILL.md, external-pilots.md, relevant api.md sections, docs/REPLAY_BUNDLES.md.
+Read target README.md, src/yyjson/core.clj, native/shim.c, deps.edn, test/yyjson/core_test.clj.
+Build: timeout 120s cc -O3 -shared -fPIC -o libyyjson-jolt.so /workspace/pilot-targets/yyjson-jolt/native/shim.c /workspace/pilot-targets/yyjson-jolt/native/yyjson/yyjson.c -lm
+Execution command and environment: verify.sh (complete executable command source).
+timeout 120s ./verify.sh > logs/original-run.log 2>&1   # exit 1, authored EOF error
+timeout 120s ./verify.sh > logs/run-2.log 2>&1          # exit 0
+timeout 120s ./verify.sh > logs/run-3-replay.log 2>&1   # exit 0, fresh-process replay
+Target-only invocation: final command in verify.sh, independently executed -> logs/target-only.log; exit 0.
+Metadata commands: git -C TARGET rev-parse HEAD; git -C HEGEL rev-parse HEAD; jolt --version; uname -a; cc --version; sha256sum libyyjson-jolt.so; git status --short in both checkouts (clean). See logs/deployment.log.

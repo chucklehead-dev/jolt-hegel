@@ -1,0 +1,1 @@
+{:hegel/origin "benchmark-eviction-total", :input {:n 3, :cap 1, :p 0.0}, :details {:exception "java.lang.IllegalArgumentException: Don't know how to create ISeq from: java.lang.Double"}}

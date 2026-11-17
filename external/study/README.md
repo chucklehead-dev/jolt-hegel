@@ -1,5 +1,10 @@
 # External-pilot DX/HCI study
 
+The subsequent [source test-gap round](results/2026-11-17-gaps/README.md)
+uses six fresh agents, adds augur and glitter-core, and records seven
+independently reproduced target defects. Its original evidence, task prompts,
+replay bundles and parent verification are archived separately below that link.
+
 The reference implementation tests six concrete properties. A separate set of
 fresh agents attempts the same tasks using only public Hegel documentation,
 source when needed, and pinned target checkouts. They do not receive the

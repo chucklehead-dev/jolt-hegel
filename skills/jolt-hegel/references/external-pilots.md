@@ -72,7 +72,18 @@ improvements concerned retained-input/replay guidance and immediate draws
 versus reusable generators. Do not generalize that finding to resource or
 concurrency workflows that were not tested.
 
-For later stateful packs, compare an independent model with actual state and
+The [source-gap round](../../../external/study/results/2026-11-17-gaps/README.md)
+extended the study to augur and glitter-core and reproduced seven target
+defects. Choose properties that cross existing example boundaries: tied inputs
+in different orders, adjacent numeric bins, repeated aggregation, and every
+operation that can grow bounded state. Check invariants after expiry and
+overflow as well as successful resolution. A headless renderer is itself a
+system under test: verify both relocation directions, node identity and
+descendant teardown before trusting its lifecycle observations. Attribute a
+failure to the renderer or adapter when the evidence supports that layer.
+These examples do not establish a need for new Hegel core abstractions.
+
+For stateful packs, compare an independent model with actual state and
 identity, not just plausible event logs. Reconstruct fresh resources for every
 execution, including shrink/replay. For concurrent targets, generated commands
 and a seed do not capture an OS/fiber schedule; preserve explicit synchronization

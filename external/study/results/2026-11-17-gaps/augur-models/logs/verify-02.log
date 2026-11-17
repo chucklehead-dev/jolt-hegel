@@ -1,0 +1,23 @@
+jolt v0.8.27
+:tied {:p 0.0, :forward 1.0, :reverse 0.5, :expected 0.5}
+:tied {:p 0.5, :forward 1.0, :reverse 0.5, :expected 0.5}
+:tied {:p 1.0, :forward 1.0, :reverse 0.5, :expected 0.5}
+:online {:table {:k {:pos [0.0 0.0], :n [0.0 1.0]}}, :low 0.5, :high 0.4545463636363637, :expected "low <= high"}
+:known-target-defects-confirmed
+WARNING: let already refers to: #'clojure.core/let in namespace: hegel.generator, being replaced by: #'hegel.generator/let
+"forecast-percent" 0
+"outcomes" [false true]
+:replay "tied" {:status :reproduced, :reproduced? true, :flaky? false}
+:provenance-mismatch-rejected "tied"
+"low-bin-successes" 0
+"high-bin-failures" 1
+:replay "online" {:status :reproduced, :reproduced? true, :flaky? false}
+:provenance-mismatch-rejected "online"
+WARNING: let already refers to: #'clojure.core/let in namespace: hegel.generator, being replaced by: #'hegel.generator/let
+:semantic-negative-control {:passed? false, :status :failed, :seed "98271", :test-cases 22, :valid-test-cases 0, :invalid-test-cases 0, :interesting-test-cases 13, :n-failures 1, :flaky? false}
+:positive-property "isotonic" {:passed? true, :status :passed, :seed "98271", :test-cases 500, :valid-test-cases 500, :invalid-test-cases 0, :interesting-test-cases 0, :n-failures 0, :flaky? false}
+:positive-property "posterior" {:passed? true, :status :passed, :seed "98271", :test-cases 500, :valid-test-cases 500, :invalid-test-cases 0, :interesting-test-cases 0, :n-failures 0, :flaky? false}
+:explicit-witnesses-passed
+
+Ran 17 tests. 70 assertions passed, 0 failures, 0 errors.
+{:test 17, :pass 70, :fail 0, :error 0, :type :summary}

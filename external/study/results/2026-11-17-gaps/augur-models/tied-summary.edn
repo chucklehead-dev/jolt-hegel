@@ -1,0 +1,1 @@
+{:passed? false, :status :failed, :seed "98271", :test-cases 150, :valid-test-cases 48, :invalid-test-cases 0, :interesting-test-cases 14, :n-failures 1, :flaky? false}
