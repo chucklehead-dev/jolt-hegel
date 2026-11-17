@@ -1,0 +1,3 @@
+WARNING: let already refers to: #'clojure.core/let in namespace: hegel.generator, being replaced by: #'hegel.generator/let
+:replay {:status :reproduced, :reproduced? true, :flaky? false}
+:provenance-mismatch :rejected-before-property

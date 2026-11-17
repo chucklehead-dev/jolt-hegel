@@ -1,0 +1,2 @@
+{:paths ["."] :deps {local/hegel {:local/root "/workspace/jolt-hegel"} local/instaparse {:local/root "/workspace/pilot-targets/instaparse"}}
+ :aliases {:target-tests {:extra-paths ["/workspace/pilot-targets/instaparse/test"]}}}

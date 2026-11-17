@@ -1,0 +1,10 @@
+WARNING: let already refers to: #'clojure.core/let in namespace: hegel.generator, being replaced by: #'hegel.generator/let
+{:passed? false, :status :failed, :flaky? false, :failures [{:status :interesting, :reproduced? true, :counterexample nil, :origin "json-unicode/equivalence", :exception #error {
+ :cause "JSON encodings did not decode to original"
+ :data {:hegel/origin "json-unicode/equivalence", :codepoints [65536], :raw "\"𐀀\"", :escaped "\"\\ud800\\udc01\"", :expected "𐀀", :raw-decoded "𐀀", :escaped-decoded "𐀁"}
+ :via [ {:type clojure.lang.ExceptionInfo :message "JSON encodings did not decode to original" :data {:hegel/origin "json-unicode/equivalence", :codepoints [65536], :raw "\"𐀀\"", :escaped "\"\\ud800\\udc01\"", :expected "𐀀", :raw-decoded "𐀀", :escaped-decoded "𐀁"} :at nil}]
+ :trace []}, :replay-origin "json-unicode/equivalence", :reproduction-blob "AAQAAAABAQAKAQAAAAIACgMAAAAAAAEBAA==", :caveat nil}], :final [{:status :interesting, :origin "json-unicode/equivalence", :replay-origin "json-unicode/equivalence", :exception #error {
+ :cause "JSON encodings did not decode to original"
+ :data {:hegel/origin "json-unicode/equivalence", :codepoints [65536], :raw "\"𐀀\"", :escaped "\"\\ud800\\udc01\"", :expected "𐀀", :raw-decoded "𐀀", :escaped-decoded "𐀁"}
+ :via [ {:type clojure.lang.ExceptionInfo :message "JSON encodings did not decode to original" :data {:hegel/origin "json-unicode/equivalence", :codepoints [65536], :raw "\"𐀀\"", :escaped "\"\\ud800\\udc01\"", :expected "𐀀", :raw-decoded "𐀀", :escaped-decoded "𐀁"} :at nil}]
+ :trace []}, :counterexample nil}]}

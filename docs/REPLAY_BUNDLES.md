@@ -3,8 +3,52 @@
 Replay bundles retain native failure blobs together with a versioned property
 and deployment contract. They are not seed-only reruns. This API is additive;
 ordinary `run-test!` calls continue to work and now include `:replay-options`
-in their result, capturing present replay-relevant settings without inventing
-defaults. Transport bounds apply when exporting, not to ordinary runs.
+in their result, capturing resolved replay-relevant settings, including native profile
+defaults and explicit overrides. Transport bounds apply when exporting, not to ordinary runs.
+
+## Retaining an ordinary minimized input
+
+A structured diagnostic snapshot lives on each retained failure, for example
+`(-> result :final first :counterexample)`. It is rendered/redacted diagnostic
+data, not the original generated value. There is no top-level `:counterexample`.
+Quiet verbosity disables snapshots, but stable failure exceptions and native
+replay blobs remain available.
+
+Keep a plain input explicitly in the assertion's exception data:
+
+```clojure
+(require '[hegel.core :as h] '[hegel.generator :as g])
+
+(defn bounded-property [_]
+  (let [n (h/draw! (g/integer 0 10) "n")]
+    (when (>= n 5)
+      (throw (ex-info "Expected n below five"
+                      {:hegel/origin "example/below-five" :input n})))))
+
+(def result
+  (h/run-test! {:test-cases 100 :seed 42 :database "" :verbosity :quiet}
+               bounded-property))
+
+;; For this deliberately failing, single-origin example:
+(assert (and (= :failed (:status result)) (not (:flaky? result))))
+(def minimum (-> result :final first :exception ex-data :input))
+(spit "minimum.edn" (pr-str minimum)) ; 5 for this property
+```
+
+For multiple failures, handle each retained entry and its origin. Capture
+callbacks (`final?`/`when-final`) can execute repeatedly; reading the selected
+result avoids treating an arbitrary callback as the final minimum. A plain
+fixture can test your domain assertion directly without regenerating choices.
+The native bundle below instead reruns the property from its saved choices.
+
+Do not treat `(pr-str result)` as a replay format: exceptions can print as
+`#error` forms and result maps contain other diagnostic data. Export a validated
+bundle with the codec and keep ordinary input fixtures as separate plain data.
+For a complete executable run/export/new-process-replay example, see the
+[external pilot runner](../external/support/pilot/runner.clj) and its
+[commands](../external/README.md). Reusing it requires the independently pinned
+manifest described below; expected provenance must not come from the input
+artifact itself.
 
 ## Export and replay
 

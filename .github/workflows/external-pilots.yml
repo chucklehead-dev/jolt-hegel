@@ -1,0 +1,58 @@
+name: External Hegel pilots
+on:
+  pull_request:
+    paths:
+      - 'external/**'
+      - 'script/check-external-pilots.py'
+      - 'src/**'
+      - 'resources/**'
+      - 'deps.edn'
+      - '.github/actions/setup-jolt/**'
+      - '.github/workflows/external-pilots.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: external-pilots-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  pilot:
+    name: External pilots / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            asset: jolt-v0.8.27-x86_64-linux.tar.gz
+            sha256: 7aedce645a5840772a74e0341da73e6e072f41107ee2b304fc7a4947021a64b4
+          - os: macos-26
+            asset: jolt-v0.8.27-aarch64-macos.tar.gz
+            sha256: c85fb07350811d9b0762423b100796703d18a2bd6c7c4462a69b04a6f770177a
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/setup-jolt
+        with:
+          version: '0.8.27'
+          asset: ${{ matrix.asset }}
+          sha256: ${{ matrix.sha256 }}
+      - uses: DeLaGuardo/setup-clojure@13.7.0
+        with:
+          clj-kondo: latest
+      - name: Lint maintained pack sources
+        run: clj-kondo --fail-level warning --lint external/packs external/support
+      - name: Acquire verified Hegel library
+        run: jolt -m hegel.install setup
+      - name: Run properties, broken controls and fresh-process replay
+        run: python3 script/check-external-pilots.py
+      - name: Preserve execution and replay evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: external-pilot-${{ matrix.os }}
+          path: target/external-pilot/
+          if-no-files-found: warn

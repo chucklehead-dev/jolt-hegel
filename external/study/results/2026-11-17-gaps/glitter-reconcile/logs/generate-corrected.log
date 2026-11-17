@@ -1,0 +1,14 @@
+WARNING: let already refers to: #'clojure.core/let in namespace: hegel.generator, being replaced by: #'hegel.generator/let
+
+Ran 4 tests. 6 assertions passed, 0 failures, 0 errors.
+:positive-witnesses :passed :semantic-control :rejected
+"size" 3
+"order" [1 2 0]
+"permutation" {:passed? false, :status :failed, :seed "142857", :test-cases 1076, :valid-test-cases 101, :invalid-test-cases 0, :overrun-test-cases 967, :interesting-test-cases 8, :n-failures 1, :flaky? false, :error nil}
+:retained {:hegel/origin "keyed/snapshot", :input [[0 1 2] [1 2 0]], :expected [["li" "1" [{:text "1"}]] ["li" "2" [{:text "2"}]] ["li" "0" [{:text "0"}]]], :actual [["li" "0" [{:text "0"}]] ["li" "1" [{:text "1"}]] ["li" "2" [{:text "2"}]] ["li" "0" [{:text "0"}]]]}
+"frames" [[0 1] [1 2 0]]
+"keyed" {:passed? false, :status :failed, :seed "142857", :test-cases 3615, :valid-test-cases 1132, :invalid-test-cases 0, :overrun-test-cases 2447, :interesting-test-cases 36, :n-failures 1, :flaky? false, :error nil}
+:retained {:hegel/origin "keyed/snapshot", :input [[0 1] [1 2 0]], :expected [["li" "1" [{:text "1"}]] ["li" "2" [{:text "2"}]] ["li" "0" [{:text "0"}]]], :actual [["li" "0" [{:text "0"}]] ["li" "2" [{:text "2"}]] ["li" "1" [{:text "1"}]] ["li" "0" [{:text "0"}]]]}
+"lifecycle" {:depth 1, :remove? true}
+"lifecycle" {:passed? false, :status :failed, :seed "142857", :test-cases 40, :valid-test-cases 7, :invalid-test-cases 0, :overrun-test-cases 22, :interesting-test-cases 11, :n-failures 1, :flaky? false, :error nil}
+:retained {:hegel/origin "lifecycle/removal", :input {:depth 1, :remove? true}, :expected [:glitter.life-cycle/mount :glitter.life-cycle/unmount], :actual [:glitter.life-cycle/mount]}

@@ -1,0 +1,82 @@
+{:study :parser-acceptance
+ :evidence-type :agent-self-report
+ :cold-install-measured? false
+ :assignment-completed? true
+ :pins {:hegel "8179cb83eda81c708dc834ee38647f2354fe3d55"
+        :instaparse "6105ad194ab5f52c255fe475fb20c59f0dde64e9"
+        :jolt "0.8.27" :libhegel "0.51.6"
+        :basis :pre-provisioned-assignment}
+ :artifacts {:source "src/probe.clj" :commands "commands.sh"
+             :journal "journal.jsonl" :bundle "failure-bundle.edn"
+             :ordinary-fixture "counterexample.edn"
+             :logs ["first-run-error.log" "good-run.log" "broken-run.log"
+                    "replay-run.log" "fixture-run.log"]}
+ :commands {:working-directory "/workspace/naive-hegel-study/01-parser-acceptance"
+            :environment {"JOLT_CACHE_DIR" "/workspace/naive-hegel-study/01-parser-acceptance/.jolt-cache"}
+            :template "timeout 120s /workspace/tooling/jolt/jolt -M -m probe MODE"
+            :modes ["good" "broken" "replay" "fixture"]
+            :exit-codes {:first-good-attempt 1 :good 0 :broken 0 :replay 0 :fixture 0}
+            :exit-meaning "Broken mode exits zero only when the expected semantic failure is stable and export succeeds; the underlying property verdict is false."}
+ :generation {:seed "424242" :test-cases 200 :max-depth 4 :max-leaves 12
+              :integer-min 0 :integer-max 9999 :spaces-per-gap [0 1 2]
+              :representation "Recursive token vectors; unary parentheses and binary addition; separate dependent gap generation."
+              :parser-independence "Handwritten EBNF uses Atom plus repetition of addition tails; not derived from generator data or generator serialization."
+              :bound-note "Native recursion budgets plus finite literals and gap sizes bound generation; each process is timeout-limited."}
+ :good {:passed? true :status :passed :valid-test-cases 200 :invalid-test-cases 0
+        :overrun-test-cases 0 :flaky? false :coverage-passed? true
+        :coverage-counts {:recursive 178 :nonrecursive 22 :spaces 196 :no-spaces 4
+                          :parentheses 164 :addition 157 :multi-digit 194}
+        :length-range [1 77]
+        :scope :exploration
+        :category-definition "Recursive means input contains a parenthesis or addition token; nonrecursive means a literal with optional surrounding spaces."
+        :coverage-requirement "Each of the seven named categories must occur at least once among completed valid exploration cases."}
+ :semantic-control {:mutation "Remove parentheses alternative from Atom in the target grammar."
+                    :passed? false :status :failed :n-failures 1 :flaky? false
+                    :valid-test-cases 174 :overrun-test-cases 1617
+                    :interesting-exploration-cases 26
+                    :diagnosis "The assertion throws only when Instaparse returns failure for a generated valid input. The missing grouping production causes rejection."
+                    :not-a-target-bug "This is a deliberate local grammar defect, not evidence of an Instaparse implementation defect."
+                    :overrun-note "Count observed during shrinking/exploration. Exact cause not investigated; not attributed to parser rejection."}
+ :counterexample {:input "(0)" :origin "arithmetic/complete-acceptance"
+                  :meaning "Smallest syntactic grouping around a nonnegative literal; the control cannot consume the opening parenthesis."
+                  :minimality "Native-shrunk retained failure. Length three is a shortest valid parenthesized expression; no exhaustive enumeration was run."
+                  :capture "Result :counterexample is nil in this quiet run; retained exception ex-data contains :input, and native blob is present."
+                  :fixture-file "counterexample.edn"}
+ :replay {:fresh-process? true :native-artifact "failure-bundle.edn"
+          :status :reproduced :reproduced? true :flaky? false
+          :same-input "(0)" :expected-provenance-source "Independent constant in src/probe.clj, not copied from decoded bundle."
+          :ordinary-fixture {:good-accepts? true :broken-rejects? true
+                             :trailing-junk-rejected? true}}
+ :docs-consulted ["/workspace/jolt-hegel/README.md (initial combined output truncated)"
+                  "/workspace/jolt-hegel/skills/jolt-hegel/references/api.md (selected sections)"
+                  "/workspace/jolt-hegel/docs/OBSERVATIONS.md"
+                  "/workspace/jolt-hegel/docs/REPLAY_BUNDLES.md"
+                  "/workspace/pilot-targets/instaparse/README.md (parse/failure API)"]
+ :source-consulted [{:path "/workspace/pilot-targets/instaparse/src/instaparse/core.cljc"
+                     :method "rg snippets" :reason "Confirm whole-input default; README subsequently supplied sufficient contract."}
+                    {:path "/workspace/jolt-hegel/src/hegel/generator.cljc"
+                     :method "rg signatures only" :reason "Locate combinator signatures; API table subsequently sufficient."}
+                    {:path "/workspace/jolt-hegel/src/hegel/core.cljc"
+                     :method "rg signatures only" :reason "Locate draw!/note! signatures; no implementation logic inspected."}]
+ :wrong-assumptions-and-revisions [{:assumption "g/let at top level returns a generator value."
+                                   :observed-error "no Hegel test case is currently bound"
+                                   :revision "Use g/bind and g/fmap for a reusable dependent generator."
+                                   :evidence "first-run-error.log"}]
+ :assistance-needed {:human false :external false :subagents false
+                     :note "Resolved initial error using public API documentation; no assistance requested."}
+ :what-it-establishes ["All 200 explored generated inputs were accepted in full by the independently authored grammar."
+                       "Observed categories satisfy explicit nonzero coverage requirements."
+                       "Removing parentheses support is detected, shrunk, and reproduced in a fresh process."
+                       "Ordinary fixture confirms rejection of a trailing non-grammar character."]
+ :limitations ["Finite bounded sampling is not a proof for all arithmetic strings."
+               "No arithmetic evaluation, associativity, parse-tree correctness, ambiguity or comprehensive invalid-input rejection property."
+               "Literals are canonical decimal spellings 0..9999; leading-zero literals and larger integers are not generated."
+               "Whitespace is ASCII space only, at most two per token gap."
+               "Coverage is observed exploration data, not an independent statistical confidence claim or independent telemetry."
+               "Printed broken/replay result dumps include #error printer forms; use report.edn, replay-verdict.edn, fixture-result.edn and the codec bundle for portable structured data."
+               "Pins are provided assignment facts, not independently revalidated Git identities."]
+ :proposed-improvements [{:type :documentation :proposal "Contrast imperative g/let with generator-building g/bind immediately next to the dependent-draw example; show both top-level and property-body usage."}
+                         {:type :local-helper :proposal "A small local result-to-EDN helper could replace Throwable printer forms with ex-data and messages; no new core API needed."}
+                         {:type :follow-up-property :proposal "If broader coverage is wanted, add nested-group depth labels, leading-zero literals and longer numeric strings with explicit bounds."}]
+ :hypotheses ["The initial g/let confusion may recur for developers accustomed to generator-valued binding macros; this single agent run cannot establish frequency."
+              "Many overrun attempts may reflect recursive shrinking choice budgets; not diagnosed in this bounded probe."]}

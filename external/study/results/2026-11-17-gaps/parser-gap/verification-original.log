@@ -1,0 +1,19 @@
+jolt v0.8.27
+WARNING: let already refers to: #'clojure.core/let in namespace: hegel.generator, being replaced by: #'hegel.generator/let
+:replay {:status :reproduced, :reproduced? true, :flaky? false}
+:provenance-mismatch :rejected-before-property
+WARNING: let already refers to: #'clojure.core/let in namespace: hegel.generator, being replaced by: #'hegel.generator/let
+:broken-control :detected-shifted-column
+"visible-annotation" {:passed? true, :status :passed, :seed "42017", :test-cases 250, :valid-test-cases 250, :invalid-test-cases 0, :overrun-test-cases 0, :interesting-test-cases 0, :n-failures 0, :flaky? false}
+"optimized-tree-and-spans" {:passed? true, :status :passed, :seed "42017", :test-cases 250, :valid-test-cases 250, :invalid-test-cases 0, :overrun-test-cases 0, :interesting-test-cases 0, :n-failures 0, :flaky? false}
+"hidden-root-annotation" {:passed? false, :status :failed, :seed "42017", :test-cases 289, :valid-test-cases 1, :invalid-test-cases 0, :overrun-test-cases 266, :interesting-test-cases 22, :n-failures 1, :flaky? false}
+:minimum {:text "", :format :hiccup, :line 1, :col 1}
+:format :hiccup :grammar "<S> = 'a'*" :text "" :tree () :annotation-outcome "Invalid parse-tree, not recognized as either enlive or hiccup format."
+:format :hiccup :grammar "<S> = 'a'" :text "a" :tree ("a") :annotation-outcome "Invalid parse-tree, not recognized as either enlive or hiccup format."
+:format :hiccup :grammar "<S> = 'a' T; T = 'b'" :text "ab" :tree ("a" [:T "b"]) :annotation-outcome "Invalid parse-tree, not recognized as either enlive or hiccup format."
+:format :hiccup :grammar "<S> = 'a' T; T = '\n' 'b'" :text "a\nb" :tree ("a" [:T "\n" "b"]) :annotation-outcome "Invalid parse-tree, not recognized as either enlive or hiccup format."
+:format :enlive :grammar "<S> = 'a'*" :text "" :tree () :annotation-outcome "Invalid parse-tree, not recognized as either enlive or hiccup format."
+:format :enlive :grammar "<S> = 'a'" :text "a" :tree ("a") :annotation-outcome "Invalid parse-tree, not recognized as either enlive or hiccup format."
+:format :enlive :grammar "<S> = 'a' T; T = 'b'" :text "ab" :tree ("a" {:tag :T, :content ("b")}) :annotation-outcome "Invalid parse-tree, not recognized as either enlive or hiccup format."
+:format :enlive :grammar "<S> = 'a' T; T = '\n' 'b'" :text "a\nb" :tree ("a" {:tag :T, :content ("\n" "b")}) :annotation-outcome "Invalid parse-tree, not recognized as either enlive or hiccup format."
+:visible-child [:T "b"] :metadata #:instaparse.gll{:start-index 1, :end-index 2, :start-line 1, :start-column 2, :end-line 1, :end-column 3}

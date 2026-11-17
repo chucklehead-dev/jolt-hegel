@@ -1,0 +1,1 @@
+{:paths ["."] :deps {hegel/hegel {:local/root "/workspace/jolt-hegel"} yyjson/yyjson {:local/root "/workspace/pilot-targets/yyjson-jolt"}}}

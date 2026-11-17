@@ -135,7 +135,8 @@ When a property throws, jolt-hegel gives the failure a stable identity, lets
 libhegel minimize the choices that produced it, and retains the selected failure
 capture. Put expensive diagnostics behind `h/final?`, `h/when-final`, or `h/fprn`
 to skip exploration. Native capture and confirmation may execute them repeatedly;
-use result `:counterexample` data for the retained failure.
+use the retained entries in `(:final result)` or `(:failures result)`, rather
+than assuming the last capture callback is the minimum.
 
 Every result includes its selected seed as a decimal string. Rerun it with
 the same engine, property contract and settings:
@@ -173,8 +174,12 @@ state, timing, or other nondeterminism before trusting its counterexample.
 Labelled `h/draw!` calls (including bindings produced by `g/let`) and
 `h/note!` use libhegel's bounded test-case document. Rejected filter,
 duplicate collection, and recursive retry output is rolled back with the draw.
-Final failures expose a redacted, rendered `:counterexample` snapshot; quiet
-runs remain silent. See [structured counterexample diagnostics](docs/COUNTEREXAMPLES.md)
+Each retained failure entry can expose a redacted, rendered `:counterexample`
+snapshot. There is no top-level snapshot field. `:verbosity :quiet` disables
+these snapshots, so they are nil even when labelled draws occurred; it does
+not remove the retained failure exception or native replay blob. Attach a
+plain `:input` to your assertion exception when you need an ordinary value
+fixture; see [minimized input capture](docs/REPLAY_BUNDLES.md#retaining-an-ordinary-minimized-input). See [structured counterexample diagnostics](docs/COUNTEREXAMPLES.md)
 for custom rendering, redaction, output bounds, and replay limitations.
 
 ### Portable counterexample bundles
@@ -722,3 +727,6 @@ adding evidence-backed property and stateful tests to another project.
 jolt-hegel is licensed under the [Eclipse Public License 2.0](LICENSE).
 libhegel remains under its upstream MIT license; see
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+External integration tests and the first agent-based DX study are documented in
+[the external pilot packs](external/README.md).

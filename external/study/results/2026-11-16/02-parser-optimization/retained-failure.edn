@@ -1,0 +1,1 @@
+[{:status :interesting, :origin "instaparse/tree-equality", :replay-origin "instaparse/tree-equality", :counterexample nil, :exception-data {:format :hiccup, :input "a", :tokens ["a"], :normal [:S [:chunk "a"]], :actual [:S], :optimization-used? true, :hegel/origin "instaparse/tree-equality"}}]

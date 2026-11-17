@@ -7,6 +7,7 @@
 - [`clojure.test` property template](#clojuretest-property-template)
 - [Custom-runner property template](#custom-runner-property-template)
 - [Generators](#generators)
+  - [Grammar strings](#grammar-strings)
   - [Optional Malli adapter](#optional-malli-adapter)
 - [Combinators and collections](#combinators-and-collections)
 - [Core controls](#core-controls)
@@ -20,6 +21,7 @@
 - [Materialized corpora](#materialized-corpora)
 - [Concurrency](#concurrency)
 - [Verification commands](#verification-commands)
+- [External pilots and DX probes](external-pilots.md)
 
 ## Install
 
@@ -232,6 +234,8 @@ All generators return `(fn [test-case] value)` and are consumed with
 | `(g/string)` | Unicode string with 0 through 100 code points |
 | `(g/string opts)` | size, codec, code-point, category, character, or alphabet constraints |
 | `(g/character opts)` | one-code-point string with the string character filters |
+| `(g/grammar spec opts)` | Clojure data grammar; options are optional |
+| `(g/grammar-str source opts)` | raw Lark grammar; options are optional |
 | `(g/regex-str pattern)` | full-match regex string |
 | `(g/regex-str pattern {:full-match? false})` | string containing a regex match |
 | `(g/email)` | RFC 5321/5322 email-address string |
@@ -270,6 +274,27 @@ not a promise to find the numerically smallest value. `g/double` is unchanged.
 These new numeric contracts are qualified on BB/JVM/Jolt, not yet on
 experimental jank or ClojureCLR. Do not infer arbitrary-width numeric semantics
 from successful symbol resolution or a focused host smoke test.
+
+### Grammar strings
+
+```clojure
+(def digits
+  (g/grammar {:rules {:start [:repeat {:min 1 :max 4}
+                              [:char-range "0" "9"]]}}))
+```
+
+`:start` defaults to `:start`; `:rules` maps rule keywords to expressions.
+Strings are literal text, keywords reference rules, and operator vectors use
+`:cat`, `:alt`, `:optional`, `:repeat {:min n :max n}`, or `:char-range`.
+Whitespace is explicit. `g/grammar` options are `:max-size`, `:max-depth` and
+`:alphabet`; select the start rule in the grammar data. The result is an
+ordinary Hegel generator. For inspection, `(hegel.grammar/compile spec)` returns
+`{:source ... :start ...}` without loading native code.
+
+Use `grammar-str` for existing Lark, imports, regex terminals and directives
+outside the DSL. Neither API automatically converts Instaparse grammars, Malli
+schemas or test.check generators. See [the grammar contract](../../../docs/GRAMMARS.md)
+for name/bound validation, recursion and Unicode rules.
 
 ### Optional Malli adapter
 
@@ -451,6 +476,19 @@ oversized or mispriced attempts, and labels every subtree so shrinking can
 replace a tree with one of its descendants. Do not add a separate generated
 depth counter around `g/recursive`.
 
+For a reusable dependent generator defined at top level, use `g/bind`:
+
+```clojure
+(def sized-booleans
+  (g/bind (fn [size] (g/vector {:size size} (g/boolean)))
+          (g/integer 1 10)))
+;; Later, inside a property: (h/draw! sized-booleans)
+```
+
+`g/bind` constructs a generator; `g/let` executes draws immediately in the
+current test case. A top-level `g/let` with generator bindings therefore fails
+with `no Hegel test case is currently bound`.
+
 `g/let` draws tagged generator right-hand sides and leaves ordinary expressions
 alone. It must execute inside an active `run-test!` or
 `hegel.clojure-test/with` property; it returns its body value and is not a
@@ -521,8 +559,8 @@ never parse that report to decide coverage or confuse it with `*err*` capture.
 ```
 
 Coverage implicitly enables collection. Requirements use completed valid
-exploration cases only; rejected, overrun, interesting and explicit final replay
-cannot supply hits. Zero valid cases or missing labels fail, and numeric values
+exploration cases only; rejected, overrun, interesting and native diagnostic-
+capture cases cannot supply hits. Zero valid cases or missing labels fail, and numeric values
 do not satisfy categorical requirements. Both thresholds apply; defaults are
 one hit and zero fraction. A missed requirement changes an otherwise passing
 result to `:passed? false`, `:status :coverage-failed`, without a native failure
@@ -531,7 +569,10 @@ blob or extra shrink run. Existing native failures/errors remain primary.
 The C API does not expose each case's native subphase. Choose `:exploration`
 explicitly for mixed phases. `:generation-only` coverage requires the caller's
 explicit `:phases [:generate]`, which disables normal native reuse/target/shrink
-work; never make that choice silently. Final replay is separately summarized.
+work; never make that choice silently. The `:final-replay` bucket separately
+summarizes cases stamped for native diagnostic capture. Capture may happen
+repeatedly during shrinking/confirmation; these are not independent generated
+samples or necessarily the one selected minimum.
 Discarded draws within a valid case do not roll back frontend events: emit
 final-value coverage after a successful draw when that is the intended check.
 
@@ -828,6 +869,12 @@ Common `run-test!` options:
 | `:database` | database path; `""` disables persistence |
 | `:verbosity` | `:quiet`, `:normal`, `:verbose`, or `:debug` |
 | `:report-multiple-failures?` | retain multiple stable failure origins |
+| `:profile` | native profile name; explicit options override resolved defaults |
+| `:stop-on-first-failure?` | stop exploration after finding a failure, then shrink |
+| `:nondeterminism-strictness` | `:quiet`, `:warn`, or `:error`; frontend default `:error` |
+| `:unbounded-choices?` | native choice-recording limit option |
+| `:print-blob?` | native reproduction-blob printing |
+| `:test-location` | `:file`, `:line`, `:namespace`, `:name` for source-aware reporting |
 
 libhegel 0.36 removes `:mode`, including `:single-test-case`. Supplying it is
 an actionable pre-native usage error. Use `:test-cases 1` only when a one-valid-
@@ -857,13 +904,24 @@ or run-level nondeterminism has no failure blob.
          :last-data (:data last))))
 ```
 
+Retained diagnostic snapshots live on `:final` and `:failures` entries, not at
+the result's top level. Quiet verbosity disables snapshots; it does not erase
+retained exception data or native blobs. Attach plain `:input` to assertion
+exception data when a value fixture is needed, then read
+`(-> result :final first :exception ex-data :input)`. Do not infer the selected
+minimum from whichever `final?` callback happened last. See
+[ordinary minimized input capture](../../../docs/REPLAY_BUNDLES.md#retaining-an-ordinary-minimized-input).
+
 There are two flakiness shapes. A shrunk failure that does not reproduce with
 the same stable origin keeps its failure entry, records `:replay-origin`, and
 sets `:flaky? true`. If libhegel detects different
 outcomes or different generation for the same choice prefix, the result has
 `:status :error`, `:passed? false`, `:flaky? true`, and the explanation in
 `:error`; it has no counterexample to replay. Other run-level errors, including
-health-check failures, still throw `:hegel.core/run-error`.
+health-check failures, still throw `:hegel.core/run-error`. An unrecorded
+single-case Antithesis workload instead retains its observed failure with
+`:unrecorded? true`, `:reproduced? false` and no native blob; the absence of
+confirmation in that mode is not itself flakiness.
 
 ## Replay bundles
 
@@ -871,7 +929,10 @@ Current source adds `hegel.replay-bundle/from-result` for stable, reproduced
 failed results and `hegel.replay-bundle.codec/encode` / `decode` for bounded
 schema-v1 EDN. These pure namespaces need no native library or type checker.
 Export requires the new result's captured `:replay-options`; do not invent
-settings for older results. Keep uint64 seeds as decimal strings.
+settings for older results. Replay captures resolved semantic settings, not a
+mutable profile name. Keep uint64 seeds as decimal strings. A printed entire
+result may contain `#error` forms and is not a portable bundle; use the codec
+and retain ordinary input fixtures separately.
 
 `(h/replay-bundle! expected-provenance bundle case-fn)` compares every
 provenance field and replays native blobs directly with captured settings and

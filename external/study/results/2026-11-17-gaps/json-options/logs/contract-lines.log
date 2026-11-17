@@ -1,0 +1,22 @@
+51:doubles, booleans and nil. Duplicate keys: the last one wins.
+53:Strings and keys may contain NUL: they take a slower, length-aware path and are written as `\u0000`.
+56:## Errors
+6:    (write-str v :key-fn f :value-fn g)
+10:  uuids and chars (as strings). Anything else throws, unless :value-fn turns it into one of those.
+92:(defn- obj [ctx d m]
+93:  (let [o (yj-obj d) kf (:key-fn ctx) vf (:value-fn ctx)]
+109:(defn- arr [ctx d xs]
+136:(defn write-str
+140:  :value-fn  (fn [key value]) applied to every map value before it is written"
+141:  [v & {:keys [pretty key-fn value-fn]}]
+142:  (let [ctx {:key-fn (or key-fn default-key) :value-fn value-fn}
+156:(defn- value [kf p]
+177:(defn read-str
+181:  (when (nul? s) ; a raw NUL is never valid JSON, and a :string argument would end there
+182:    (throw (ex-info "yyjson: invalid JSON: raw NUL character" {:yyjson/error :invalid
+55:(deftest nul-in-strings-and-keys
+108:(deftest options
+109:  (is (= {:a {:b 1}} (json/read-str "{\"a\":{\"b\":1}}" :key-fn keyword)))
+110:  (is (= "{\"A\":1}" (json/write-str {:a 1} :key-fn #(str/upper-case (name %)))))
+113:                         :value-fn (fn [_ v] (if (instance? java.time.LocalDate v) (str v) v)))))
+151:(deftest random-round-trip

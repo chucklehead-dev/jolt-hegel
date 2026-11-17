@@ -1,0 +1,4 @@
+Initial nested bash -c heredoc authoring command, exit 2:
+own: line 18: warning: here-document at line 4 delimited by end-of-file (wanted `EOF')
+/bin/bash: -c: line 19: syntax error near unexpected token `('
+This was an agent quoting error, repaired before execution. No target failure.

@@ -1,0 +1,12 @@
+Working directory: /workspace/hegel-gap-study/json-numbers
+Original full study and fresh-process replay, exit 0:
+  ./verify.sh > logs/initial-study.log 2>&1
+Target-only boundary probe, exit 0:
+  YYJSON_JOLT_LIB="$PWD/libyyjson-jolt.so" JOLT_CACHE_DIR="$PWD/.jolt-cache" timeout 120s /workspace/tooling/jolt/jolt target-only.clj > logs/target-only.log 2>&1
+Initial scalar/container smoke probe, exit 0: logs/probe.log
+Native build command and environment: verify.sh
+Runtime/compiler/platform capture: logs/runtime.txt
+Git pin capture: logs/hegel-sha.txt and logs/target-sha.txt
+Existing suite attempted from upstream-suite/ with scratch cache and library overrides:
+  timeout 120s /workspace/tooling/jolt/jolt -e '(require (quote clojure.test) (quote yyjson.core-test)) (let [r (clojure.test/run-tests (quote yyjson.core-test))] (System/exit (if (zero? (+ (:fail r) (:error r))) 0 1)))'
+Exit 1: dependency bootstrap failed (network unavailable), logs/upstream-tests.log.

@@ -1,0 +1,7 @@
+WARNING: let already refers to: #'clojure.core/let in namespace: hegel.generator, being replaced by: #'hegel.generator/let
+error[read/eof]: EOF while reading
+  --> ././study.clj:96:1
+  trace:
+    ldr-load-body
+    ns-require+use
+    jfn$jolt.main/run-ns$0

@@ -1,0 +1,70 @@
+{:assignment :parser-meaning
+ :evidence-kind "Agent self-report, not independent telemetry"
+ :environment {:preprovisioned? true :cold-install-measured? false
+               :jolt "0.8.27"
+               :hegel-sha "8179cb83eda81c708dc834ee38647f2354fe3d55"
+               :target-sha "6105ad194ab5f52c255fe475fb20c59f0dde64e9"
+               :native-version "0.51.6"
+               :pin-check "git rev-parse HEAD matched both assigned pins; Jolt --version matched; native compatibility gate completed during runs"}
+ :source "src/parser_meaning.clj"
+ :commands "bash commands.sh (individual commands bounded with timeout 120s)"
+ :seed 20261116
+ :domain {:leaf-min 0 :leaf-max 999 :max-depth 4 :max-leaves 16
+          :max-sum 15984
+          :safe-arithmetic "All sums fit exactly in signed 64-bit integers and IEEE double integer precision. No negatives, overflow, division, or precedence ambiguity in the correct property."}
+ :property {:generator "Native recursive generator; integer leaves or [:add left right]"
+            :printer "Decimal leaves, fully parenthesized binary additions"
+            :parser "Instaparse grammar with explicit expr root and hidden punctuation"
+            :transform "Bottom-up parse-long, addition, expr identity"
+            :oracle "Flatten original AST to integer leaves and reduce with +, independently of rendered text and parsed tree"
+            :failure "Throw if parsing fails or transformed value differs from independent AST sum"}
+ :runs [{:mode :initial-correct :exit 1 :passed? false
+         :diagnosis "Harness mistake: hidden expr root yielded a sequence, so 0 transformed to (0)."
+         :evidence "initial-root-mistake-correct.log"}
+        {:mode :correct :exit 0 :passed? true :status :passed :valid-cases 300 :flaky? false
+         :coverage {:leaf 29 :addition 271 :nested 244 :zero 38 :multi-digit 292}
+         :observed {:min-depth 0 :max-depth 4 :min-leaves 1 :max-leaves 13}
+         :evidence "correct-result.edn"}
+        {:mode :control :exit 0 :passed? false :status :failed :flaky? false
+         :valid-cases 130 :failures 1 :overruns 1139
+         :mutation "Replace parsed addition transform with binary subtraction; leaf decoding and model unchanged."
+         :coverage "Incomplete on valid cases, as expected for a failing run; semantic failure remained primary."
+         :evidence "control-result.edn"}
+        {:mode :native-replay :status :reproduced :reproduced? true :flaky? false
+         :fresh-process? true :evidence "replay-result.edn"}
+        {:mode :ordinary-fixture :exit 0 :fresh-process? true :evidence "fixture.log"}]
+ :counterexample {:ast [:add 0 1] :text "(0+1)" :expected 1 :mutated-actual -1
+                  :parse-failed? false
+                  :origin "parser-meaning/evaluation"
+                  :meaning "An addition node with the smallest positive right operand distinguishes addition from subtraction. Leaves and additions with right operand zero would not expose this defect."
+                  :minimality "Native-shrunk witness. Structurally minimal for this defect: one addition required; right operand 1 is smallest nonnegative value distinguishing operators, left operand 0 is smallest. No claim about arbitrary global shrink ordering."
+                  :native-artifact "control-replay.edn"
+                  :ordinary-artifact "counterexample.edn"}
+ :consulted ["/workspace/jolt-hegel/skills/jolt-hegel/references/api.md: custom runner, recursive generators, observations/coverage, run verdicts and replay"
+             "/workspace/jolt-hegel/docs/REPLAY_BUNDLES.md: export, provenance and replay contracts"
+             "/workspace/pilot-targets/instaparse/README.md: arithmetic grammar, hidden tags and transform example"]
+ :public-source-lookup {:needed? false}
+ :wrong-assumptions-and-revisions ["Assumed hidden root would return a scalar tagged tree; observed root sequence, then used explicit expr plus identity as in README."
+                                  "Initial entire API read was too large and tool output truncated; reread focused sections."
+                                  "One exec transport disconnect was transient; retry succeeded."]
+ :assistance {:human-needed? false :external-contact? false :new-core-api-needed? false
+              :helpers "Local renderer, leaf collector/model, evidence map, result serialization, and CLI modes were sufficient."}
+ :proves "For the 300 observed bounded generated ASTs, this grammar and transform preserve arithmetic value. Coverage confirms leaves, additions, nesting, zero and multi-digit values ran. The semantic control demonstrates sensitivity to replacing addition with subtraction."
+ :does-not-prove ["Not exhaustive over the bounded domain; observed maximum leaf count was 13, below configured bound 16."
+                  "Does not establish complete Instaparse correctness, malformed-input rejection, ambiguity handling, whitespace behavior, other operators, or overflow behavior."
+                  "Addition is associative and commutative: the value property cannot detect all changed grouping or operand-order defects."
+                  "The model shares host + arithmetic with the correct transform; the safe numerical domain reduces overflow concerns but is not independent arithmetic implementation verification."
+                  "No target defect found; initial failure was harness authoring error and final failure was a deliberate local transform mutation."
+                  "Replay compatibility assertions are caller-supplied, not authenticated provenance."]
+ :diagnosis {:facts ["Correct run passed with coverage."
+                     "Control failed at stable semantic origin with minimized [:add 0 1]."
+                     "Fresh native blob replay reproduced the same witness; ordinary fixture returned correct 1 versus mutated -1."
+                     "Failure result counterexample field was nil; useful AST/text/value evidence was available in exception data and local final-capture helper."
+                     "Control run reported 1139 overruns during its full exploration/shrink activity."]
+             :hypotheses ["Recursive leaf-budget retries or shrink prefix handling may contribute to overrun count; no internal investigation was performed."]}
+ :improvements ["Document Instaparse hidden-root result shape adjacent to scalar evaluation examples; the explicit-root arithmetic example already provides the correct pattern."
+                "Provide a concise Hegel worked example combining recursive ASTs, structured coverage, failed-result inspection and replay export."
+                "Document extracting a minimized input from exception data when :counterexample is nil, avoiding an unnecessary final-capture atom."
+                "Clarify common recursive-run overrun causes for users interpreting run counters."
+                "No new core API is justified by this probe."]
+ :journal "journal.jsonl"}

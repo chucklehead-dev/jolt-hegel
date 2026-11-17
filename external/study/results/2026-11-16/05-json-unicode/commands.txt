@@ -1,0 +1,12 @@
+cd /workspace/naive-hegel-study/05-json-unicode
+# Native output stays in scratch. No target checkout edits.
+timeout 120s cc -O3 -shared -fPIC -o libyyjson-jolt.so /workspace/pilot-targets/yyjson-jolt/native/shim.c /workspace/pilot-targets/yyjson-jolt/native/yyjson/yyjson.c -lm
+timeout 120s sh run.sh witnesses
+timeout 120s sh run.sh good
+timeout 120s sh run.sh broken
+timeout 120s sh run.sh replay
+timeout 120s sh run.sh fixture
+
+Each run.sh invocation starts a fresh Jolt process. broken writes replay.edn.
+Full result files include printed exception objects; use replay.edn as the portable EDN replay artifact.
+The control is an intentionally wrong encoder, not a discovered yyjson defect.

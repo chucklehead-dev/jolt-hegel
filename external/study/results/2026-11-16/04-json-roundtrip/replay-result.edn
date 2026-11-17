@@ -1,0 +1,9 @@
+{:status :reproduced, :reproduced? true, :flaky? false, :seed "424242", :replay-options {:backend :default, :unbounded-choices? false, :test-cases 500, :verbosity :quiet, :derandomize? false, :report-multiple-failures? false, :stop-on-first-failure? true, :nondeterminism-strictness :error, :phases [:explicit :reuse :generate :target :shrink], :suppress-health-checks []}, :n-failures 1, :failures [{:status :interesting, :reproduced? true, :counterexample nil, :origin "json-roundtrip/equality", :exception #error {
+ :cause "JSON round-trip equality failed"
+ :data {:hegel/origin "json-roundtrip/equality", :input {"" nil}, :json "{\"\":null}", :actual {: nil}}
+ :via [ {:type clojure.lang.ExceptionInfo :message "JSON round-trip equality failed" :data {:hegel/origin "json-roundtrip/equality", :input {"" nil}, :json "{\"\":null}", :actual {: nil}} :at nil}]
+ :trace []}, :replay-origin "json-roundtrip/equality", :reproduction-blob nil, :caveat nil}], :final [{:status :interesting, :origin "json-roundtrip/equality", :replay-origin "json-roundtrip/equality", :exception #error {
+ :cause "JSON round-trip equality failed"
+ :data {:hegel/origin "json-roundtrip/equality", :input {"" nil}, :json "{\"\":null}", :actual {: nil}}
+ :via [ {:type clojure.lang.ExceptionInfo :message "JSON round-trip equality failed" :data {:hegel/origin "json-roundtrip/equality", :input {"" nil}, :json "{\"\":null}", :actual {: nil}} :at nil}]
+ :trace []}, :counterexample nil}]}

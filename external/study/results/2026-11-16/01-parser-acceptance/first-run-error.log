@@ -1,0 +1,10 @@
+WARNING: let already refers to: #'clojure.core/let in namespace: hegel.generator, being replaced by: #'hegel.generator/let
+Unhandled exception: no Hegel test case is currently bound
+  ex-data: {:type :hegel.core/no-test-case}
+  at ./src/probe.clj:31:1
+  trace:
+    hegel.core/current-test-case! (/workspace/jolt-hegel/src/hegel/core.cljc:153)
+    hegel.core/draw! (/workspace/jolt-hegel/src/hegel/core.cljc:196)
+    ldr-load-body
+    ns-require+use
+    jfn$jolt.main/run-ns$0

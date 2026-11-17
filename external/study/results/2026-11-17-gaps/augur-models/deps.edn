@@ -1,0 +1,1 @@
+{:paths ["."] :deps {local/hegel {:local/root "/workspace/jolt-hegel"} local/augur {:local/root "/workspace/pilot-targets/augur"}} :aliases {:target-tests {:extra-paths ["/workspace/pilot-targets/augur/test"]}}}

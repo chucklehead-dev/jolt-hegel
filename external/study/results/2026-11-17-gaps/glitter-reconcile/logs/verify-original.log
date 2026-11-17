@@ -1,0 +1,17 @@
+WARNING: let already refers to: #'clojure.core/let in namespace: hegel.generator, being replaced by: #'hegel.generator/let
+
+Ran 4 tests. 6 assertions passed, 0 failures, 0 errors.
+:positive-witnesses :passed :semantic-control :rejected
+:ordered-edits {:passed? true, :status :passed, :seed "424242", :test-cases 500, :valid-test-cases 500, :invalid-test-cases 0, :overrun-test-cases 0, :interesting-test-cases 0, :n-failures 0, :flaky? false, :error nil}
+WARNING: let already refers to: #'clojure.core/let in namespace: hegel.generator, being replaced by: #'hegel.generator/let
+"size" 3
+"order" [1 2 0]
+"permutation" :replay {:status :reproduced, :reproduced? true, :flaky? false}
+"frames" [[0 1] [1 2 0]]
+"keyed" :replay {:status :reproduced, :reproduced? true, :flaky? false}
+"lifecycle" {:depth 1, :remove? true}
+"lifecycle" :replay {:status :reproduced, :reproduced? true, :flaky? false}
+:defect :append-move :expected ["1" "2" "0"] :actual ["0" "1" "2" "0"] :events [[:append-child "li" :to "ul"]]
+:defect :descendant-unmount :expected [:glitter.life-cycle/mount :glitter.life-cycle/unmount] :actual [:glitter.life-cycle/mount]
+Target-only known-defect assertions passed; Hegel not loaded.
+Verified expected known failures and passing controls. Logs: /workspace/hegel-gap-study/glitter-reconcile/logs/verify-HbdzDo

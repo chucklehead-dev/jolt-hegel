@@ -1,0 +1,69 @@
+{:assignment "05-json-unicode"
+ :status :completed
+ :evidence-kind :agent-self-report
+ :scope {:scratch "/workspace/naive-hegel-study/05-json-unicode"
+         :hegel-pin "8179cb83eda81c708dc834ee38647f2354fe3d55"
+         :target-pin "e9562890a5f74b1cfd8added087860e7533df605"
+         :pin-source :assignment
+         :runtime-observed "jolt v0.8.27"
+         :platform-observed "Linux x86_64"
+         :native-version "0.51.6"
+         :cold-install-measured? false}
+ :implementation {:source "src/probe.clj" :runner "run.sh"
+                  :seed 20261116 :max-cases 500 :max-scalars 24
+                  :scalar-domain [[0 55295] [57344 65535] [65536 1114111]]
+                  :oracle "Original string built from scalar values with Jolt char. Independently encode raw permitted characters and four-digit Unicode escapes; supplementary scalars use high=0xD800+quot(cp-0x10000,1024), low=0xDC00+mod(cp-0x10000,1024). Neither yyjson/write-str nor data.json is used."
+                  :raw-note "JSON forbids raw control characters, including NUL; raw-mode output necessarily escapes those. Quotes and backslashes are also escaped."
+                  :control "Increment low-surrogate payload modulo 1024 only in escaped supplementary encoding; keeps well-formed JSON and changes decoded scalar. BMP-only and empty inputs still pass."}
+ :commands [{:command "timeout 120s sh run.sh witnesses" :exit 0 :outcome "Seven witness families pass, including every control U+0000..U+001F and supplementary boundaries."}
+            {:command "timeout 120s sh run.sh good" :exit 0 :passed? true :status :passed :valid-cases 500}
+            {:command "timeout 120s sh run.sh broken" :exit 0 :passed? false :status :failed :flaky? false :note "Exit zero is expected for detected control; returned property verdict explicitly inspected."}
+            {:command "timeout 120s sh run.sh replay" :exit 0 :status :reproduced :reproduced? true :flaky? false :fresh-process? true}
+            {:command "timeout 120s sh run.sh fixture" :exit 0 :fresh-process? true :outcome "Correct helper passes; mutant throws expected semantic origin."}]
+ :coverage {:scope :exploration :valid-cases 500 :passed? true
+            :counts {"empty" 22 "nul" 35 "control" 252 "supplementary" 370
+                     "bmp-nonascii" 444 "quote" 52 "backslash" 52}
+            :observed-length {:min 0 :max 24}
+            :interpretation "Completed valid cases only, not independent random samples or a statistical confidence bound."}
+ :counterexample {:codepoints [65536] :unicode "U+10000"
+                  :correct-escape "\\ud800\\udc00"
+                  :mutated-escape "\\ud800\\udc01"
+                  :actual-mutated-scalar 65537
+                  :origin "json-unicode/equivalence"
+                  :meaning "One supplementary scalar is enough to detect the deliberately off-by-one low surrogate. The unchanged target decodes both encodings according to their meaning; this is a control defect, not a target bug."
+                  :minimality "Hegel shrank to one scalar at the minimum supplementary codepoint. Empty and BMP-only vectors cannot trigger this mutation."
+                  :native-artifact "replay.edn" :ordinary-fixture "fixture.edn"
+                  :native-replay-result "replay-result.edn"
+                  :snapshot-note "Quiet mode returns nil :counterexample. Retained failure exception ex-data supplies the exact minimal input and outputs; native blob export/replay works."}
+ :docs-consulted ["/workspace/jolt-hegel/README.md"
+                  "/workspace/jolt-hegel/skills/jolt-hegel/references/api.md"
+                  "/workspace/jolt-hegel/docs/OBSERVATIONS.md"
+                  "/workspace/jolt-hegel/docs/REPLAY_BUNDLES.md"
+                  "/workspace/jolt-hegel/docs/COUNTEREXAMPLES.md"
+                  "/workspace/pilot-targets/yyjson-jolt/README.md"]
+ :source-consulted [{:path "/workspace/pilot-targets/yyjson-jolt/src/yyjson/native.clj"
+                     :why "README warns auto-build writes beside sources. Confirmed YYJSON_JOLT_LIB override, then compiled in scratch to respect read-only target."}
+                    {:path "/workspace/jolt-hegel/src/hegel/generator.cljc"
+                     :extent "rg definition-name search only; implementations not read"
+                     :why "Located generator constructors while resolving signatures; API reference then supplied usage."}]
+ :friction [{:fact "First exec_command failed with exec-server transport disconnected; retry worked." :category :infrastructure}
+            {:fact "Initial broad README/API output was truncated; switched to focused docs." :category :lookup}
+            {:fact "Quiet run had nil :counterexample despite labelled draw/note." :revision "Read COUNTEREXAMPLES.md; quiet explicitly disables snapshots. Used retained ex-data instead, without rerunning or changing verdict."}
+            {:fact "Generator namespace emits let-shadowing warning on every run." :impact "No observed functional failure."}]
+ :assistance {:substantive-help-needed? false
+              :detail "Before task.txt was readable, sent parent infrastructure status/request for contents. Parent later confirmed executor available; all task work proceeded independently. No sibling tasks, solutions or reports read."}
+ :what-established ["At this fixed seed, all 500 generated valid scalar vectors decode from both independently built JSON forms to their original string."
+                    "Explicit witnesses cover all JSON controls, interior NUL, quote/backslash, BMP boundaries, minimum/maximum supplementary values and a ZWJ sequence."
+                    "The property detects a valid-but-wrong surrogate pair and native replay reproduces it in another process."]
+ :not-established ["Exhaustive Unicode correctness, malformed UTF-8 or malformed surrogate handling."
+                   "JSON object keys, nested structures, streaming, large strings, normalization or writer correctness."
+                   "Cold installation experience, human authoring measurements or cross-host replay."]
+ :hypotheses ["Showing a short quiet-mode snapshot note near the introductory replay example may reduce surprise; this probe does not measure frequency across developers."]
+ :proposed-improvements ["Add a compact standalone run/export/fresh-process replay example with an independently declared manifest."
+                         "Document that quiet disables structured snapshots alongside the README result-map description."
+                         "For read-only consumer checkouts, document the existing YYJSON_JOLT_LIB override and scratch compilation command."]
+ :new-core-api-needed? false
+ :artifacts ["src/probe.clj" "run.sh" "deps.edn" "commands.txt" "journal.jsonl"
+             "good.log" "good-result.edn" "broken.log" "broken-result.edn"
+             "witnesses.log" "replay.edn" "replay.log" "replay-result.edn"
+             "fixture.edn" "fixture.log"]}

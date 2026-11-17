@@ -1,0 +1,9 @@
+Threw exception while test
+{}
+#error {
+ :cause "boom"
+ :data {}
+ :via [ {:type clojure.lang.ExceptionInfo :message "boom" :data {} :at nil}]
+ :trace []}
+
+Ran 9 tests. 17 assertions passed, 0 failures, 0 errors.

@@ -1,0 +1,10 @@
+WARNING: let already refers to: #'clojure.core/let in namespace: hegel.generator, being replaced by: #'hegel.generator/let
+
+Ran 4 tests. 6 assertions passed, 0 failures, 0 errors.
+Unhandled exception: keyed/snapshot
+  ex-data: {:hegel/origin keyed/snapshot, :input [[0] [0]], :expected [[li 0 [{:text 0}]]], :actual [[li nil [{:text 0}]]]}
+  trace:
+    study/ensure! (./src/study.clj:14)
+    study/reconcile-case! (./src/study.clj:25)
+    study/positives! (./src/study.clj:74)
+    study/-main (./src/study.clj:84)
