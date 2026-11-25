@@ -1,4 +1,6 @@
-(require '[hegel.ffi.jolt :as backend] '[jolt.ffi :as ffi])
+(ns hegel.zone-loader-contract
+  (:require [hegel.ffi.jolt :as backend]
+            [jolt.ffi :as ffi]))
 
 (backend/load! (first *command-line-args*))
 

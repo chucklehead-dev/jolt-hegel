@@ -496,6 +496,27 @@
                 (= (:counterexample failure)
                    (:counterexample (first (:final result))))))))
 
+(defn- capture-modes [context]
+  (doseq [verbosity [:quiet :normal :verbose :debug]]
+    (let [stamps (atom #{})
+          [run _] (capture-err
+                   #(h/run-test!
+                     {:verbosity verbosity :test-cases 1 :seed 5 :database ""}
+                     (fn [_]
+                       (swap! stamps conj (h/final?))
+                       (h/note! "selected")
+                       (throw (ex-info "multiline\nλ" {:input false})))))
+          failure (first (:failures run))]
+      (support/check! context (str verbosity " distinguishes exploration and stamped failures")
+                      (and (= #{false true} @stamps)
+                           (:reproduced? failure)
+                           (= false (-> failure :exception ex-data :input))))
+      (support/check! context (str verbosity " captures the selected execution's diagnostic")
+                      (if (= :quiet verbosity)
+                        (and (nil? (:diagnostic failure)) (nil? (:output failure)))
+                        (and (= "selected" (:output failure))
+                             (str/includes? (:diagnostic failure) "multiline\nλ")))))))
+
 (defn- counterexample-quiet-emits-nothing [context]
   (let [[result output]
         (capture-err
@@ -789,6 +810,7 @@
   truncation, error containment, cleanup ordering, and the internal
   begin/commit/abort-attempt! checkpoint API."
   [context]
+  (capture-modes context)
   (counterexample-normal-only-final-replay context)
   (counterexample-quiet-emits-nothing context)
   (counterexample-draw-and-note-ordering context)

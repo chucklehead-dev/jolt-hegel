@@ -375,6 +375,18 @@
     :overrun hffi/status-overrun
     :interesting hffi/status-interesting))
 
+(defn- failure-detail [error message]
+  ;; Only stamped/debug failures need the stack. Leave arbitrary exception
+  ;; data out of the native text; callers already hold the original exception.
+  #?(:jank message
+     :default
+     (host/try-catch-all
+      (let [frames (:trace (Throwable->map error))]
+        (if (seq frames)
+          (str message "\n" (str/join "\n" (map pr-str frames)))
+          message))
+      _ message)))
+
 (defn- mark-outcome! [test-case outcome wants-output? wants-detail?]
   (let [error (:exception outcome)
         message (when (and error wants-output?)
@@ -384,7 +396,7 @@
                     (if more (str line " …") line)))]
     (hffi/mark-complete! (:context test-case) (:handle test-case)
                          (native-status (:status outcome)) (:origin outcome)
-                         summary (when wants-detail? message))))
+                         summary (when (and error wants-detail?) (failure-detail error message)))))
 
 (defn- count-outcome [counts outcome]
   (-> counts
@@ -501,7 +513,7 @@
          observed [] captures {} last-failure nil]
     (if-let [handle (hffi/next-test-case! ctx run)]
       (let [wants-output? (hffi/test-case-wants-output? ctx handle)
-            wants-detail? (hffi/test-case-wants-detail? ctx handle)
+            wants-detail? (and wants-output? (hffi/test-case-wants-detail? ctx handle))
             ;; A verbose sink receives every case but only stamped cases want
             ;; a full diagnostic. Debug uses a NULL sink to retain the same
             ;; distinction between exploration and confirmation.
