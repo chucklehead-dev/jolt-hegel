@@ -2,10 +2,20 @@
 
 This accompanies [the 0.51.6 migration](LIBHEGEL-051-MIGRATION.md).
 The baseline is the repository before PR #122; published v0.5.0 is unchanged.
-Sources: [Jolt 0.8.27 changelog](https://github.com/jolt-lang/jolt/blob/v0.8.27/CHANGELOG.md)
-and [libhegel 0.51.6 changelog](https://github.com/hegeldev/hegel/blob/libhegel/0.51.6/libhegel/CHANGELOG.md).
-Only released changes in those pins are included; Jolt's `Unreleased` section
-is not part of 0.8.27.
+The primary verification targets are Jolt 0.8.30 and Babashka 1.13.230.
+The adapter loads libhegel 0.51.6. A separate CI job executes the contracts
+below against the released 0.53.2 library. [Jolt changelog](https://github.com/jolt-lang/jolt/blob/v0.8.30/CHANGELOG.md) · [libhegel changelog](https://github.com/hegeldev/hegel/blob/libhegel/0.53.2/libhegel/CHANGELOG.md)
+
+## Changes since Jolt 0.8.27 and libhegel 0.51.6
+
+| Upstream change | Effect here |
+| --- | --- |
+| Jolt lowered the fixed cost of FFI allocation, free, confined arenas and bulk double writes. | Existing temporary allocation and cleanup paths benefit when run on the new runtime. The earlier measurements below are specific to 0.8.27. End-to-end speed on 0.8.30 has not been measured. |
+| Jolt exposes the exact running build. | External pilots now record `jolt.host/build-id` in the replay manifest. Two nightlies can now disagree on provenance even if they advertise the same release version. |
+| Static linking and native regions | The Linux and macOS relocation checks now target 0.8.30. The Windows bcrypt link fix concerns static OpenSSL. Windows static libhegel still needs its own relocation test. The new `defextern` targets native numeric regions. The adapter uses aggregate structs, out parameters and managed handle lifetimes, with no measured numeric kernel to move. |
+| Hegel 0.52 changed how a frontend completes and reports a failing case. | The candidate CI job runs a failing property at quiet and normal verbosity, checks rejection and retry of an incomplete diagnostic, and reads the retained output and detail. The shipping adapter still needs to change capture, printer ownership, callbacks, completion and direct replay together. |
+| Hegel 0.53 added temporal precision and calendar filters. | The candidate job exercises weekday filtering and bounds between adjacent microsecond ticks. Public generators and all native backends still need the new argument layouts before the runtime pin can advance. |
+| Hegel 0.53.1 and 0.53.2 improved sampled invariants and shrinking. | These engine fixes become available to ordinary properties once the adapter uses 0.53.2. |
 
 ## Changes made in this frontend
 
@@ -23,7 +33,7 @@ is not part of 0.8.27.
 | Grammars | `g/grammar` adds a validated Clojure data DSL; `g/grammar-str` accepts raw Lark. Both use native grammar generation/shrinking, start rule, size/depth bounds, alphabet options and explicit in-memory imports. |
 | Stateful scheduling | Sequential rules accept positive finite `:weight`; native scheduling consumes it. |
 | Antithesis | Source locations from `hegel.clojure-test`, optional `:pause-faults?` invariants, and correct observed-only failure reporting for unrecorded single-case workloads. Those failures have `:unrecorded? true`, `:reproduced? false` and no replay blob. |
-| Other dependencies | JDK 25 minimum, babashka.ffi 0.1.3, Babashka 1.13.229, Malli 0.20.3, Typed Clojure 1.4.0, ClojureCLR 1.12.6, refreshed jank package pin and compatible CI runners. |
+| Other dependencies | JDK 25 minimum, babashka.ffi 0.1.3, Babashka 1.13.230, Malli 0.20.3, Typed Clojure 1.4.0, ClojureCLR 1.12.6, refreshed jank package pin and compatible CI runners. |
 
 ## Benefits inherited from the engines
 
@@ -66,8 +76,6 @@ They are upstream improvements, not measured end-to-end speedup claims.
   low-level ABI capabilities rather than new public frontend APIs. They need
   ownership/semantics contracts and dedicated use cases; the existing public
   operations already benefit from the engine updates above.
-- **Unreleased Jolt work:** callback/pointer helpers and other changes above the
-  0.8.27 release heading are not used until released and qualified.
 - **Release migration:** old native replay blobs/databases cannot be upgraded by
   relabelling provenance. Regenerate failures or use the old deployment to
   inspect them. Merge/tag/publication remain release-owner actions.

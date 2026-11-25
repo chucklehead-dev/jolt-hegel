@@ -20,9 +20,9 @@ def main():
     args = parser.parse_args()
     jolt = shutil.which('jolt')
     if not jolt:
-        parser.error('Jolt 0.8.27 must be on PATH')
-    if subprocess.check_output([jolt, '--version'], text=True).strip() != 'jolt v0.8.27':
-        parser.error('This pilot is pinned to Jolt 0.8.27')
+        parser.error('Jolt 0.8.30 must be on PATH')
+    if subprocess.check_output([jolt, '--version'], text=True).strip() != 'jolt v0.8.30':
+        parser.error('This pilot is pinned to Jolt 0.8.30')
     sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
     dirty = subprocess.check_output(['git', 'status', '--porcelain', '--', 'src', 'resources', 'deps.edn'], cwd=ROOT, text=True)
     if dirty:

@@ -34,8 +34,8 @@ and its next-release work. It is not a release announcement; the published
 
 | Host | Contract | Continuously tested targets |
 | --- | --- | --- |
-| Jolt 0.8.1+ | Supported on current `main`; 0.8.27 is the primary qualified release | Jolt 0.8.27: Linux x86_64, Windows x86_64, macOS arm64; Jolt 0.8.1 minimum lane: Linux x86_64 |
-| FFI-capable Babashka 1.13.220+ | Supported; 1.13.229 is primary | Linux x86_64, Windows x86_64, macOS arm64 native images |
+| Jolt 0.8.1+ | Supported on current `main`; 0.8.30 is the primary CI target | Jolt 0.8.30: Linux x86_64, Windows x86_64, macOS arm64; Jolt 0.8.1 minimum lane: Linux x86_64 |
+| FFI-capable Babashka 1.13.220+ | Supported; 1.13.230 is primary | Linux x86_64, Windows x86_64, macOS arm64 native images |
 | JVM Clojure, JDK 25+ | Supported; JDK 25 minimum | Linux x86_64, Windows x86_64, macOS arm64 |
 | jank | Experimental focused suite | Linux x86_64 and macOS arm64 |
 | ClojureCLR 1.12.6 on .NET 8 | Experimental focused suite | Linux x86_64, Windows x86_64, macOS arm64 |
@@ -453,7 +453,7 @@ Run the installer with the host that will run the tests and the alias that
 contains jolt-hegel:
 
 ```bash
-# Current `main` / next release candidate: Jolt 0.8.1+ (CI's primary release is 0.8.27)
+# Current `main` / next release candidate: Jolt 0.8.1+ (CI's primary release is 0.8.30)
 jolt -A:test -m hegel.install
 
 # Babashka 1.13.220+

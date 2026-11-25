@@ -17,7 +17,7 @@ replay blobs remain available.
 Keep a plain input explicitly in the assertion's exception data:
 
 ```clojure
-(require '[hegel.core :as h] '[hegel.generator :as g])
+(require '[hegel.core :as h] '[hegel.generator :as g] '[hegel.report :as report])
 
 (defn bounded-property [_]
   (let [n (h/draw! (g/integer 0 10) "n")]
@@ -31,9 +31,22 @@ Keep a plain input explicitly in the assertion's exception data:
 
 ;; For this deliberately failing, single-origin example:
 (assert (and (= :failed (:status result)) (not (:flaky? result))))
-(def minimum (-> result :final first :exception ex-data :input))
+(def minimum (-> result report/failure-fixtures first :input))
 (spit "minimum.edn" (pr-str minimum)) ; 5 for this property
 ```
+
+For a differential property, keep the construction recipe and its input together.
+For example, retain `{:branches [:b :a] :row {:b false}}` when two nested
+bindings read fields of the same row. A worker on another runtime can rebuild
+the form in the recorded order. Two Clojure maps with the same entries compare
+equal even if those entries were written in opposite orders. Using those maps
+as the identities of the two forms can silently remove the case you meant to test.
+
+`report/failure-fixtures` returns a vector of `{:origin ... :input ...}`
+for reproduced failures without a caveat that explicitly captured the input.
+An absent input key yields no fixture. A present key whose value is nil or
+false yields a fixture. Pass a second argument for an application-specific
+input key. Choose EDN values your other workers can read.
 
 For multiple failures, handle each retained entry and its origin. Capture
 callbacks (`final?`/`when-final`) can execute repeatedly; reading the selected

@@ -25,11 +25,11 @@ jobs:
       matrix:
         include:
           - os: ubuntu-24.04
-            asset: jolt-v0.8.27-x86_64-linux.tar.gz
-            sha256: 7aedce645a5840772a74e0341da73e6e072f41107ee2b304fc7a4947021a64b4
+            asset: jolt-v0.8.30-x86_64-linux.tar.gz
+            sha256: c9eb00ce9b58e6ab19dcfc324edad2ad5127bab7339e8d018ce2c30876037bdd
           - os: macos-26
-            asset: jolt-v0.8.27-aarch64-macos.tar.gz
-            sha256: c85fb07350811d9b0762423b100796703d18a2bd6c7c4462a69b04a6f770177a
+            asset: jolt-v0.8.30-aarch64-macos.tar.gz
+            sha256: 0736bb9a3764835bdc407db81b5a442b333899752b09f8700968fc9afda85536
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -37,7 +37,7 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup-jolt
         with:
-          version: '0.8.27'
+          version: '0.8.30'
           asset: ${{ matrix.asset }}
           sha256: ${{ matrix.sha256 }}
       - uses: DeLaGuardo/setup-clojure@13.7.0

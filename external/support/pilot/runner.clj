@@ -1,6 +1,8 @@
 (ns pilot.runner
   (:require [clojure.edn :as edn]
             [hegel.core :as h]
+            [hegel.report :as report]
+            [jolt.host :as jolt-host]
             [hegel.replay-bundle :as bundle]
             [hegel.replay-bundle.codec :as codec]
             [hegel.version :as version]))
@@ -13,7 +15,7 @@
 (defn- provenance [pack id]
   {:hegel-sha (System/getenv "PILOT_HEGEL_SHA")
    :libhegel-version version/libhegel-version
-   :runtime {:host :jolt :version (System/getProperty "jolt.version")
+   :runtime {:host :jolt :version (jolt-host/build-id)
              :os (System/getProperty "os.name") :arch (System/getProperty "os.arch")}
    :property-id (str (name pack) "/" (name id))
    :generator-revision (System/getenv "PILOT_REVISION")
@@ -45,18 +47,20 @@
     (let [bad (h/run-test! base (property-body pack property true))
           failure (first (:failures bad))
           data (some-> failure :exception ex-data)
+          fixtures (report/failure-fixtures bad :pilot/input)
+          minimum (:input (first fixtures))
           expected (provenance pack id)
           prefix (str output "/" (name id))]
       (require! id (and (= :failed (:status bad)) (false? (:flaky? bad))
-                       (= id (:pilot/assertion data)) (:reproduced? failure))
+                       (= id (:pilot/assertion data)) (= 1 (count fixtures)))
                 {:kind :broken-control-not-detected :result bad})
       (spit (str prefix ".replay.edn") (codec/encode (bundle/from-result expected bad)))
       (spit (str prefix ".value.edn")
-            (pr-str {:property id :provenance expected :input (:pilot/input data)
+            (pr-str {:property id :provenance expected :input minimum
                      :assertion (dissoc data :pilot/input)}))
-      (println "PASS" pack id "and its broken control; minimum" (pr-str (:pilot/input data)))
+      (println "PASS" pack id "and its broken control; minimum" (pr-str minimum))
       {:property id :positive (summary good) :control (summary bad)
-       :minimum (:pilot/input data)})))
+       :minimum minimum})))
 
 (defn- replay-case! [pack {:keys [id check] :as property} output]
   (let [prefix (str output "/" (name id))

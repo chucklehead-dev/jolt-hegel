@@ -15,6 +15,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  candidate-engine-contract:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Check the candidate libhegel temporal and reporting contracts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download libhegel/0.53.2 --repo hegeldev/hegel \
+            --pattern hegel.h --pattern libhegel-linux-amd64.so --dir "$RUNNER_TEMP"
+          cd "$RUNNER_TEMP"
+          echo '85ed986136bb213c8904f90f920d6eb1420cad814aa229357e21b4643573512f  hegel.h' | sha256sum -c -
+          echo 'ce6cc514aac3d2c6e557bf9520b3af6280b3bb735a4d736e882d0344b1476bd2  libhegel-linux-amd64.so' | sha256sum -c -
+          cc -std=c99 -Wall -Wextra -Werror -I. "$GITHUB_WORKSPACE/script/hegel/candidate_contract_053.c" \
+            ./libhegel-linux-amd64.so -o candidate-contract
+          ./candidate-contract
   static-checks:
     name: Static checks
     runs-on: ubuntu-24.04
@@ -101,16 +117,16 @@ jobs:
         include:
           - name: Linux x86_64
             runner: ubuntu-24.04
-            asset: babashka-1.13.229-linux-amd64.tar.gz
-            sha256: a98c90a0530943dfa9a0b03bcccbc2030777a6ce094af303d5bb47d77e193299
+            asset: babashka-1.13.230-linux-amd64.tar.gz
+            sha256: 590a131ec3456c2313ebcb5ae2ee6836ca1f01f481da08320cd8c8f46d3644f9
           - name: Windows x86_64
             runner: windows-2022
-            asset: babashka-1.13.229-windows-amd64.zip
-            sha256: eda55ef005e99503f6be97966f9a956f348f29affc7b2df9142d3fc6d239c855
+            asset: babashka-1.13.230-windows-amd64.zip
+            sha256: e49f1992a3d4e73e46f2245707decb02163ce07a84b48f64bbd3c5a9ba6b5fb8
           - name: macOS arm64
             runner: macos-26
-            asset: babashka-1.13.229-macos-aarch64.tar.gz
-            sha256: 2d96ff06ce66883caa873fb717941a58c45523e3db9d91424e9f81b038896331
+            asset: babashka-1.13.230-macos-aarch64.tar.gz
+            sha256: 3adcd97eeb3ebe324cf3a0be6d969a5626a14783596d3cad911b2f4b95809cea
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -120,7 +136,7 @@ jobs:
       - name: Verify official FFI-capable Babashka
         uses: ./.github/actions/setup-babashka
         with:
-          version: 1.13.229
+          version: 1.13.230
           asset: ${{ matrix.asset }}
           sha256: ${{ matrix.sha256 }}
 
@@ -139,31 +155,31 @@ jobs:
             name: Linux x86_64
             runner: ubuntu-24.04
             shell: bash
-            # Official jolt-lang/jolt v0.8.27, source commit
-            # 0f08ec2732a0078d7523f274a1507049c06bffe6.
-            jolt-version: 0.8.27
-            jolt-asset: jolt-v0.8.27-x86_64-linux.tar.gz
-            jolt-sha256: 7aedce645a5840772a74e0341da73e6e072f41107ee2b304fc7a4947021a64b4
+            # Official jolt-lang/jolt v0.8.30, source commit
+            # f6ed60a335960dc0657f7f98457b01426ae4cf90.
+            jolt-version: 0.8.30
+            jolt-asset: jolt-v0.8.30-x86_64-linux.tar.gz
+            jolt-sha256: c9eb00ce9b58e6ab19dcfc324edad2ad5127bab7339e8d018ce2c30876037bdd
           - runtime: Jolt
             host: jolt
             name: Windows x86_64
             runner: windows-2022
             shell: pwsh
-            # Official jolt-lang/jolt v0.8.27, source commit
-            # 0f08ec2732a0078d7523f274a1507049c06bffe6.
-            jolt-version: 0.8.27
-            jolt-asset: jolt-v0.8.27-x86_64-windows.zip
-            jolt-sha256: 9980fcb13ece3ae6610fb4af3ca538a5e19a69a5443aff56aff176a90cb96a76
+            # Official jolt-lang/jolt v0.8.30, source commit
+            # f6ed60a335960dc0657f7f98457b01426ae4cf90.
+            jolt-version: 0.8.30
+            jolt-asset: jolt-v0.8.30-x86_64-windows.zip
+            jolt-sha256: db5465cb5e273134734fec7a0a1b3101f41b8b999fb8a593f1454bc319c21f96
           - runtime: Jolt
             host: jolt
             name: macOS arm64
             runner: macos-26
             shell: bash
-            # Official jolt-lang/jolt v0.8.27, source commit
-            # 0f08ec2732a0078d7523f274a1507049c06bffe6.
-            jolt-version: 0.8.27
-            jolt-asset: jolt-v0.8.27-aarch64-macos.tar.gz
-            jolt-sha256: c85fb07350811d9b0762423b100796703d18a2bd6c7c4462a69b04a6f770177a
+            # Official jolt-lang/jolt v0.8.30, source commit
+            # f6ed60a335960dc0657f7f98457b01426ae4cf90.
+            jolt-version: 0.8.30
+            jolt-asset: jolt-v0.8.30-aarch64-macos.tar.gz
+            jolt-sha256: 0736bb9a3764835bdc407db81b5a442b333899752b09f8700968fc9afda85536
           # Keep the declared compatibility floor executable without making it
           # the primary cross-platform runtime. This row runs every existing
           # Jolt gate below, including the Linux-only relocated consumer.
@@ -180,22 +196,22 @@ jobs:
             name: Linux x86_64
             runner: ubuntu-24.04
             shell: bash
-            bb-asset: babashka-1.13.229-linux-amd64.tar.gz
-            bb-sha256: a98c90a0530943dfa9a0b03bcccbc2030777a6ce094af303d5bb47d77e193299
+            bb-asset: babashka-1.13.230-linux-amd64.tar.gz
+            bb-sha256: 590a131ec3456c2313ebcb5ae2ee6836ca1f01f481da08320cd8c8f46d3644f9
           - runtime: Babashka
             host: bb
             name: Windows x86_64
             runner: windows-2022
             shell: pwsh
-            bb-asset: babashka-1.13.229-windows-amd64.zip
-            bb-sha256: eda55ef005e99503f6be97966f9a956f348f29affc7b2df9142d3fc6d239c855
+            bb-asset: babashka-1.13.230-windows-amd64.zip
+            bb-sha256: e49f1992a3d4e73e46f2245707decb02163ce07a84b48f64bbd3c5a9ba6b5fb8
           - runtime: Babashka
             host: bb
             name: macOS arm64
             runner: macos-26
             shell: bash
-            bb-asset: babashka-1.13.229-macos-aarch64.tar.gz
-            bb-sha256: 2d96ff06ce66883caa873fb717941a58c45523e3db9d91424e9f81b038896331
+            bb-asset: babashka-1.13.230-macos-aarch64.tar.gz
+            bb-sha256: 3adcd97eeb3ebe324cf3a0be6d969a5626a14783596d3cad911b2f4b95809cea
           - runtime: JVM
             host: jvm
             name: Linux x86_64
@@ -254,7 +270,7 @@ jobs:
         if: matrix.host == 'bb'
         uses: ./.github/actions/setup-babashka
         with:
-          version: 1.13.229
+          version: 1.13.230
           asset: ${{ matrix.bb-asset }}
           sha256: ${{ matrix.bb-sha256 }}
 
@@ -317,7 +333,7 @@ jobs:
         run: bash script/check-standalone-resources.sh
 
       - name: Acquire native package and check supported static relocation (current Jolt)
-        if: matrix.host == 'jolt' && matrix.jolt-version == '0.8.27'
+        if: matrix.host == 'jolt' && matrix.jolt-version == '0.8.30'
         run: bash script/check-native-package.sh
 
       - name: Check unrecorded Antithesis workload failure

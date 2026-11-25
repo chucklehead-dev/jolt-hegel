@@ -63,9 +63,9 @@ jobs:
       - name: Provision pinned Babashka
         uses: ./.github/actions/setup-babashka
         with:
-          version: 1.13.229
-          asset: babashka-1.13.229-linux-amd64.tar.gz
-          sha256: a98c90a0530943dfa9a0b03bcccbc2030777a6ce094af303d5bb47d77e193299
+          version: 1.13.230
+          asset: babashka-1.13.230-linux-amd64.tar.gz
+          sha256: 590a131ec3456c2313ebcb5ae2ee6836ca1f01f481da08320cd8c8f46d3644f9
       - name: Install verified libhegel
         env:
           HEGEL_CACHE_DIR: ${{ runner.temp }}/hegel-native

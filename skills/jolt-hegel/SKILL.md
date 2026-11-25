@@ -13,8 +13,8 @@ The guidance was reviewed on 2026-11-16 against source baseline
 `8179cb83eda81c708dc834ee38647f2354fe3d55` (libhegel 0.51.6, including the
 Clojure grammar DSL), with the external-pilot findings incorporated afterward.
 These additions target the next release, not published v0.5.0. Current source
-supports Jolt 0.8.1+ (0.8.27 is primary), FFI-capable Babashka 1.13.220+
-(1.13.229 is primary), and JVM Clojure on JDK 25+ with babashka.ffi 0.1.3.
+supports Jolt 0.8.1+ (0.8.30 is primary), FFI-capable Babashka 1.13.220+
+(1.13.230 is primary), and JVM Clojure on JDK 25+ with babashka.ffi 0.1.3.
 The historical v0.5.0 Jolt floor is 0.7.23.
 
 Check `hegel.version/libhegel-version` and the migration guide before changing
@@ -60,7 +60,7 @@ aliases to the consuming project, so activate the alias that contains the
 dependency when running the installer.
 
 ```bash
-# Current `main` / next release candidate: Jolt 0.8.1+ (0.8.27 is the primary CI release)
+# Current `main` / next release candidate: Jolt 0.8.1+ (0.8.30 is the primary CI release)
 jolt -A:test -m hegel.install
 
 # Babashka 1.13.220+ with libffi (on Linux, do not use the -static asset)

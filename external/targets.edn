@@ -1,6 +1,6 @@
 {:format :hegel/external-pilot
  :version 1
- :runtime {:host :jolt :version "v0.8.27" :platforms [:linux-amd64 :darwin-arm64]}
+ :runtime {:host :jolt :version "v0.8.30" :platforms [:linux-amd64 :darwin-arm64]}
  :libhegel "0.51.6"
  :targets
  {:instaparse {:url "https://github.com/jlt-commons/instaparse"

@@ -86,6 +86,14 @@
            (= 1 (:n-failures result) (count (:failures result))))
     (support/check! context "failure origin is stable"
            (= "hegel.test-runner:threshold" (:origin failure)))
+    (support/check! context "confirmed fixture comes from the shrunk input"
+           (= [{:origin (:origin failure) :input 500}] (report/failure-fixtures result :x)))
+    (support/check! context "only confirmed, explicitly captured inputs become fixtures"
+           (let [example (fn [data] (assoc failure :exception (ex-info "fixture" data)))
+                 failures [(example {:input nil}) (example {:input false}) (example {})
+                           (assoc (example {:input 1}) :reproduced? false)
+                           (assoc (example {:input 2}) :caveat "unstable")]]
+             (= [nil false] (mapv :input (report/failure-fixtures {:failures failures})))))
     (support/check! context "shrinker produces the known minimal reproduction blob"
            (= "AAEAAAAACgIAAAD0AQ==" (:reproduction-blob failure)))
     (support/check! context "minimal counterexample is replayed in final phase"
