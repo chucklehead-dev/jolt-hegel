@@ -12,6 +12,7 @@
             [hegel.generator-cleanup-test]
             [hegel.grammar-test]
             [hegel.internal.render :as render]
+            [hegel.report :as report]
             [hegel.sequence-generators-test]
             [hegel.temporal-test]
             [hegel.test-support :as support]))
@@ -275,6 +276,59 @@
              (g/date {:min {:year 2023 :month 2 :day 29}})
              false
              (catch Throwable _ true))))
+  (let [clock {:hour 0 :minute 0 :second 0 :microsecond 0}
+        leap {:year 2024 :month 2 :day 29}
+        march {:year 2024 :month 3 :day 1}
+        date (g/date {:min {:year 2024 :month 2 :day 28} :max march
+                      :weekdays #{:thursday :friday} :months [2]})
+        time (g/time {:min (assoc clock :microsecond 999)
+                      :max (assoc clock :microsecond 1001) :precision :milliseconds})
+        last-tick {:hour 23 :minute 59 :second 59 :microsecond 999999}
+        datetime (g/datetime {:min {:date leap :time last-tick} :max {:date march :time clock}
+                              :precision :hours})
+        nano (assoc (dissoc clock :microsecond) :nanosecond 123456789)
+        nanos (g/time {:min nano :max nano :precision :nanoseconds})
+        values (h/sample 1 (g/tuple date time datetime nanos))]
+    (support/check! context "weekday and month filters intersect; precision selects ticks inside inclusive bounds"
+                    (= [["2024-02-29" "00:00:00.001000" "2024-03-01T00:00:00" "00:00:00.123456789"]] values))
+    (doseq [constructor [#(g/date {:min leap :max leap :weekdays [:friday]})
+                         #(g/date {:months []}) #(g/date {:weekdays [:unknown]})
+                         #(g/time {:min (assoc clock :microsecond 1) :max (assoc clock :microsecond 999)
+                                   :precision :milliseconds})
+                         #(g/datetime {:precision :unknown})]]
+      (support/check! context "impossible filters and precision bounds fail at construction"
+                      (try (constructor) false
+                           (catch Throwable error
+                             (= :hegel.generator/invalid-option (:type (ex-data error))))))))
+  (let [before {:second -2 :nanosecond 500000123}
+        last-nano {:second -1 :nanosecond 999999999}
+        epoch {:second 0 :nanosecond 0}
+        next-nano {:second 0 :nanosecond 1}]
+    (support/check! context "timestamp keeps pre-epoch nanoseconds and rounds inward across the epoch"
+                    (= [[before epoch]]
+                       (h/sample 1 (g/tuple (g/timestamp {:min before :max before :precision :nanoseconds})
+                                            (g/timestamp last-nano next-nano)))))
+    (doseq [options [{:min before :max before}
+                     {:min last-nano :max before}
+                     {:min {:second 0 :nanosecond -1}}
+                     {:min {:second -9223372036854775808N :nanosecond 0}}
+                     {:precision :unknown}]]
+      (support/check! context "timestamp rejects invalid bounds or an empty precision grid before drawing"
+                      (try (g/timestamp options) false
+                           (catch Throwable error
+                             (= :hegel.generator/invalid-option (:type (ex-data error))))))))
+  (let [center {:second 946684800 :nanosecond 0}
+        instants (g/timestamp {:min (update center :second - 12)
+                               :max (update center :second + 13)
+                               :precision :seconds})
+        result (h/run-test! {:seed 4488 :test-cases 30 :database "" :verbosity :quiet}
+                            (fn [_]
+                              (throw (ex-info "Timestamp control"
+                                              {:hegel/origin "timestamp/shrink"
+                                               :input (h/draw! instants)}))))]
+    (support/check! context "timestamp shrinks to 2000-01-01 UTC and retains its confirmed instant"
+                    (= [{:origin "timestamp/shrink" :input center}]
+                       (report/failure-fixtures result))))
   (let [minimum {:year 2024 :month 2 :day 28}
         maximum {:year 2024 :month 3 :day 2}
         final-dates (atom [])

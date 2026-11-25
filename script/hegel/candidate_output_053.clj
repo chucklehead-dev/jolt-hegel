@@ -1,5 +1,7 @@
-;; Executed by Jolt against the candidate engine, independently of hegel.ffi.
-(require '[clojure.string :as str] '[jolt.ffi :as ffi])
+(ns hegel.candidate-output-053
+  "Exercise the native output contract independently of hegel.ffi."
+  (:require [clojure.string :as str]
+            [jolt.ffi :as ffi]))
 (let [[engine driver] *command-line-args*]
   (ffi/load-library engine)
   (ffi/load-library driver))

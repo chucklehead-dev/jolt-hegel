@@ -1,6 +1,7 @@
 (ns hegel.core
   "The property-test run loop and dynamic test-case API."
-  (:require [hegel.ffi :as hffi]
+  (:require [clojure.string :as str]
+            [hegel.ffi :as hffi]
             [hegel.host :as host]
             [hegel.internal.observation-policy :as observation-policy]
             [hegel.internal.observations :as observations]
@@ -39,7 +40,7 @@
   (swap! (:native-cleanups test-case) conj cleanup)
   nil)
 
-(defn- release-test-case! [test-case]
+(defn- run-native-cleanups! [test-case]
   (let [first-error (atom nil)]
     (doseq [cleanup (reverse @(:native-cleanups test-case))]
       (host/try-catch-all
@@ -47,7 +48,6 @@
        error
        (when-not @first-error
          (reset! first-error error))))
-    (hffi/test-case-free! (:context test-case) (:handle test-case))
     (when-let [error @first-error]
       (throw error))))
 
@@ -65,15 +65,10 @@
     :debug true
     final?))
 
-(defn- observed-test-case [ctx handle final? verbosity run-observations render-opts]
-  (let [render-state (render/start! ctx handle (should-log? verbosity final?) render-opts)
-        tc (cond-> (test-case ctx handle final? verbosity)
-             run-observations (assoc :observations (atom (observations/empty-case)))
-             true (assoc :render render-state))]
-    (when (render/printer-handle render-state)
-      (register-native-cleanup!
-       tc #(hffi/printer-free! ctx (render/printer-handle render-state))))
-    tc))
+(defn- observed-test-case [ctx handle final? verbosity run-observations render-opts native-output?]
+  (cond-> (test-case ctx handle final? verbosity)
+    run-observations (assoc :observations (atom (observations/empty-case)))
+    (should-log? verbosity final?) (assoc :render (render/start! ctx handle render-opts native-output?))))
 
 (defn- record-observations! [run-observations test-case outcome]
   (when run-observations
@@ -374,11 +369,28 @@
     :overrun hffi/status-overrun
     :interesting hffi/status-interesting))
 
-(defn- mark-outcome! [test-case outcome]
-  (hffi/mark-complete! (:context test-case)
-                       (:handle test-case)
-                       (native-status (:status outcome))
-                       (:origin outcome)))
+(defn- failure-detail [error message]
+  ;; Only stamped/debug failures need the stack. Leave arbitrary exception
+  ;; data out of the native text; callers already hold the original exception.
+  #?(:jank message
+     :default
+     (host/try-catch-all
+      (let [frames (:trace (Throwable->map error))]
+        (if (seq frames)
+          (str message "\n" (str/join "\n" (map pr-str frames)))
+          message))
+      _ message)))
+
+(defn- mark-outcome! [test-case outcome wants-output? wants-detail?]
+  (let [error (:exception outcome)
+        message (when (and error wants-output?)
+                  (str (exception-type-name error) ": " (ex-message error)))
+        summary (when message
+                  (let [[line more] (str/split message #"[\r\n]" 2)]
+                    (if more (str line " …") line)))]
+    (hffi/mark-complete! (:context test-case) (:handle test-case)
+                         (native-status (:status outcome)) (:origin outcome)
+                         summary (when (and error wants-detail?) (failure-detail error message)))))
 
 (defn- count-outcome [counts outcome]
   (-> counts
@@ -432,8 +444,6 @@
       :report-multiple-failures? (flag :settings-get-report-multiple-failures)
       :stop-on-first-failure? (flag :settings-get-stop-on-first-failure)
       :unbounded-choices? (flag :settings-get-unbounded-choices)
-      :print-blob? (flag :settings-get-print-blob)
-      :show-statistics? (flag :settings-get-show-statistics)
       :phases (enums phase-values (value :settings-get-phases :uint32))
       :suppress-health-checks (enums health-check-values (value :settings-get-suppress-health-check :uint32))}
       (some? seed) (assoc :seed seed))))
@@ -489,22 +499,41 @@
                  (:suppress-health-checks opts))))
   nil)
 
+(defn- execute-case! [ctx handle verbosity case-fn run-observations render-opts]
+  ;; Own the handle from the moment next-test-case! returns it. Flag reads and
+  ;; frontend setup can throw before any cleanup has been registered.
+  (try
+    (let [wants-output? (hffi/test-case-wants-output? ctx handle)
+          verbose? (= :verbose verbosity)
+          ;; Verbose streams every case but only stamped cases want detail.
+          ;; At debug, the NULL sink preserves the same capture distinction.
+          capture? (if (and verbose? wants-output?)
+                     (hffi/test-case-wants-detail? ctx handle)
+                     wants-output?)
+          test-case (observed-test-case ctx handle capture? verbosity run-observations render-opts wants-output?)]
+      (try
+        (let [outcome (run-body test-case case-fn)
+              interesting? (= :interesting (:status outcome))
+              wants-detail? (and interesting? wants-output?
+                                 (if verbose? capture?
+                                   (hffi/test-case-wants-detail? ctx handle)))
+              emit-debug? (and (= :debug verbosity) (not capture?))]
+          (mark-outcome! test-case outcome wants-output? wants-detail?)
+          (let [snapshot (when (or interesting? emit-debug?)
+                           (render/finish! (:render test-case) (not capture?)))]
+            (when emit-debug? (render/emit! snapshot))
+            (record-observations! run-observations test-case outcome)
+            [capture? outcome snapshot]))
+        (finally (run-native-cleanups! test-case))))
+    (finally (hffi/test-case-free! ctx handle))))
+
 (defn- drive-run! [ctx run verbosity case-fn run-observations render-opts]
   (loop [counts {:test-cases 0 :valid-test-cases 0 :invalid-test-cases 0
                  :overrun-test-cases 0 :interesting-test-cases 0}
          observed [] captures {} last-failure nil]
     (if-let [handle (hffi/next-test-case! ctx run)]
-      (let [capture? (hffi/test-case-should-capture? ctx handle)
-            test-case (observed-test-case ctx handle capture? verbosity run-observations render-opts)
-            [outcome snapshot]
-            (try
-              (let [outcome (run-body test-case case-fn)]
-                (mark-outcome! test-case outcome)
-                (let [snapshot (render/finish! (:render test-case))]
-                  (when-not capture? (render/emit! snapshot))
-                  (record-observations! run-observations test-case outcome)
-                  [outcome snapshot]))
-              (finally (release-test-case! test-case)))]
+      (let [[capture? outcome snapshot]
+            (execute-case! ctx handle verbosity case-fn run-observations render-opts)]
         (recur (count-outcome counts outcome)
                (record-observed-failure observed outcome)
                (if (and capture? (= :interesting (:status outcome)))
@@ -520,9 +549,14 @@
 (defn- snapshot-failure! [ctx result index]
   (let [failure (hffi/run-result-failure! ctx result index)]
     (try
-      {:origin (hffi/failure-origin! ctx failure)
-       :reproduction-blob (hffi/failure-reproduction-blob! ctx failure)
-       :caveat (hffi/failure-caveat! ctx failure)}
+      (let [output (host/try-catch-all (hffi/failure-output! ctx failure) _ ::read-error)
+            diagnostic (host/try-catch-all (hffi/failure-diagnostic! ctx failure) _ ::read-error)]
+        {:origin (hffi/failure-origin! ctx failure)
+         :reproduction-blob (hffi/failure-reproduction-blob! ctx failure)
+         :caveat (hffi/failure-caveat! ctx failure)
+         :output (when-not (= ::read-error output) output)
+         :diagnostic (when-not (= ::read-error diagnostic) diagnostic)
+         ::read-error? (or (= ::read-error output) (= ::read-error diagnostic))})
       (finally
         (hffi/failure-free! ctx failure)))))
 
@@ -538,16 +572,19 @@
             (not (contains? captures (:origin failure))))
      ;; Antithesis single-case workloads deliberately do not record or replay.
      ;; Retain one execution's evidence without claiming confirmation.
-     (merge last-failure failure {:reproduced? false :unrecorded? true})
-     (merge {:status :missing-capture :reproduced? false :counterexample nil}
-            (get captures (:origin failure)) failure))))
+     (merge last-failure (dissoc failure ::read-error?) {:reproduced? false :unrecorded? true})
+     (let [captured (get captures (:origin failure))]
+       (merge {:status :missing-capture :reproduced? false}
+              captured (dissoc failure ::read-error?)
+              {:counterexample (render/attach-failure-output
+                                (:counterexample captured) (:output failure) (::read-error? failure))})))))
 
 (defn- replay-failure!
   ([ctx settings verbosity case-fn failure render-opts]
    (replay-failure! ctx settings verbosity case-fn failure render-opts nil))
   ([ctx settings verbosity case-fn failure render-opts run-observations]
    (if-let [blob (:reproduction-blob failure)]
-     (let [run (hffi/run-start-blob! ctx settings blob)]
+     (let [run (hffi/run-start-blob! ctx settings blob (not= :debug verbosity))]
        (try
          (let [counts (drive-run! ctx run verbosity case-fn run-observations render-opts)
                result (hffi/run-result! ctx run)]
@@ -561,7 +598,7 @@
                               (captured-failure (:captures counts) (merge failure matching))
                               (assoc failure :status :not-reproduced :reproduced? false
                                              :counterexample nil))]
-               (when-let [snapshot (:counterexample replayed)] (render/emit! snapshot))
+               (when (not= :verbose verbosity) (render/emit! (:counterexample replayed)))
                replayed)
              (finally (hffi/run-result-free! ctx result))))
          (finally (hffi/run-free! ctx run))))
@@ -691,22 +728,23 @@
   :status :error, :flaky? true, and an :error explanation. Setup,
   health-check, and unexpected engine errors throw."
   [opts case-fn]
-  (let [opts (validate-run-options! opts case-fn)
-        render-opts (render/resolve-options (:counterexample opts))
-        run-observations (some-> (observation-policy/initial opts) atom)]
+  (let [overrides (validate-run-options! opts case-fn)
+        render-opts (render/resolve-options (:counterexample overrides))
+        run-observations (some-> (observation-policy/initial overrides) atom)]
     (hffi/ensure-compatible-version!)
     (let [ctx (hffi/context-new!)]
       (try
-        (let [settings (if-let [profile (:profile opts)]
+        (let [settings (if-let [profile (:profile overrides)]
                          (hffi/settings-new-for-profile! ctx profile)
                          (hffi/settings-new! ctx))]
           (try
-            (let [opts (merge (resolved-settings ctx settings) opts)
-                  opts (assoc opts :seed (resolve-seed opts)
-                                   :nondeterminism-strictness (get opts :nondeterminism-strictness :error))
+            (let [effective (merge (resolved-settings ctx settings) overrides)
+                  seed (resolve-seed effective)
+                  opts (assoc effective :seed seed
+                                        :nondeterminism-strictness (get overrides :nondeterminism-strictness :error))
                   replay-options (capture-replay-options opts)]
-              (configure-settings! ctx settings opts)
-            (let [run (hffi/run-start! ctx settings)]
+              (configure-settings! ctx settings (assoc overrides :seed seed))
+            (let [run (hffi/run-start! ctx settings (not= :debug (:verbosity opts)))]
               (try
                 (let [counts (binding [hffi/*stateful-step-count* (get opts :stateful-step-count 50)]
                                (drive-run! ctx run (or (:verbosity opts) :normal)
@@ -747,8 +785,9 @@
                                          (snapshot-failures! ctx result)
                                          [])
                               replayed (mapv #(captured-failure (:captures counts) % (:last-failure counts)) failures)]
-                          (doseq [failure replayed]
-                            (when-let [snapshot (:counterexample failure)] (render/emit! snapshot)))
+                          (when (not= :verbose (:verbosity opts))
+                            (doseq [failure replayed]
+                              (render/emit! (:counterexample failure))))
                           (observation-policy/finish
                            (merge
                            (dissoc counts :captures :last-failure)

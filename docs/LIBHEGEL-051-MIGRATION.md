@@ -1,6 +1,6 @@
 # libhegel 0.51.6 migration
 
-This checkout uses `hegeldev/hegel` tag `libhegel/0.51.6`, commit
+This historical migration used `hegeldev/hegel` tag `libhegel/0.51.6`, commit
 `a6928220ae21e2658994a9246b93f84f21557447`. The complete upstream header,
 provenance and independent SHA-256 live in `test/fixtures/hegel-0.51.6/`.
 Earlier header fixtures remain historical evidence.

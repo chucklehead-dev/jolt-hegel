@@ -147,11 +147,10 @@
   (cpp/hegel_jank_read_utf8 (cpp/unbox (:* cpp/void) pointer)
                             (cpp/cast cpp/size_t length)))
 
-(defn write-utf8 [pointer value]
-  (cpp/hegel_jank_write_utf8 (cpp/unbox (:* cpp/void) pointer) value))
-
-(defn string->native [value]
-  (cpp/box (cpp/hegel_jank_string_dup value)))
+(defn alloc-utf8 [text]
+  ;; jank strings already hold UTF-8. Read their byte count in constant time.
+  (let [length (cpp/hegel_jank_utf8_size text)]
+    [(cpp/box (cpp/hegel_jank_string_dup text)) length]))
 
 (defn native->string [pointer]
   (when-not (null? pointer)

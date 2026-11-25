@@ -54,7 +54,7 @@ From the consuming project, install the verified libhegel release with the host
 that will run the tests:
 
 ```bash
-# Current `main` / next release candidate: Jolt 0.8.1+ (0.8.30 primary)
+# Development checkout: Jolt 0.8.1+ (0.8.30 primary)
 JOLT_CACHE_DIR=.jolt-cache/jolt-hegel-<jolt-hegel-commit-sha> \
   jolt -A:test -m hegel.install
 
@@ -231,6 +231,7 @@ All generators return `(fn [test-case] value)` and are consumed with
 | `(g/date opts)` | ISO 8601 date string |
 | `(g/time opts)` | ISO 8601 local-time string |
 | `(g/datetime opts)` | ISO 8601 naive-datetime string |
+| `(g/timestamp opts)` | UTC instant as signed epoch seconds and a nonnegative nanosecond fraction |
 | `(g/string)` | Unicode string with 0 through 100 code points |
 | `(g/string opts)` | size, codec, code-point, category, character, or alphabet constraints |
 | `(g/character opts)` | one-code-point string with the string character filters |
@@ -381,12 +382,22 @@ Time bounds are inclusive maps:
 Datetime bounds are `{:date date-map :time time-map}`. Pass temporal
 bounds as `{:min minimum :max maximum}` or as two positional maps.
 
-With libhegel 0.36, these public maps and six-digit fractional strings remain
-microsecond-based. Raw `hegel.ffi` time maps use `:nanosecond` instead. The
-generator converts inclusive microsecond bounds to full nanosecond buckets
-and projects results with integer quotient by 1000; valid sub-microsecond
-draws are not rejected. Seed streams and blobs are version-specific, not
-guaranteed identical across a native upgrade.
+`g/date` accepts a nonempty collection of weekday keywords (`:monday` through
+`:sunday`) as `:weekdays` and a nonempty collection of month numbers (1–12)
+as `:months`. The generated date satisfies both filters and the inclusive bounds.
+
+`g/time` and `g/datetime` accept `:precision` of `:hours`, `:minutes`,
+`:seconds`, `:milliseconds`, `:microseconds` (default), or `:nanoseconds`.
+Each generated time lies on that grid. At nanosecond precision a bound can
+supply `:nanosecond` in place of `:microsecond`. A nonzero fractional part has
+nine digits at nanosecond precision and six at the other precisions. Bounds
+with no permitted date or tick produce a generator construction error.
+
+`g/timestamp` accepts the same precision options. Its inclusive bounds and
+generated values use `{:second ... :nanosecond ...}`. The default window
+covers civil years 1 to 9999. For example, `{:second -1 :nanosecond 500000000}`
+is half a second before the Unix epoch. Use the no-argument form, an options
+map, or two positional bounds.
 
 String options are:
 
@@ -904,8 +915,9 @@ or run-level nondeterminism has no failure blob.
          :last-data (:data last))))
 ```
 
-Retained diagnostic snapshots live on `:final` and `:failures` entries, not at
-the result's top level. Quiet verbosity disables snapshots; it does not erase
+Read the structured `:counterexample` on a retained entry in `:final` or
+`:failures`. Native report strings are available as `:output` and `:diagnostic`
+on `:failures` entries when the engine retained them. Quiet verbosity disables snapshots; it does not erase
 retained exception data or native blobs. Attach plain `:input` to assertion
 exception data when a value fixture is needed. `(hegel.report/failure-fixtures result)`
 returns one origin/input pair per confirmed failure carrying that key, including
@@ -1005,7 +1017,7 @@ Concurrent engine safety has not been verified by jolt-hegel's test suite, so
 concurrent native runs remain unsupported until that contract has a dedicated
 integration test.
 
-libhegel 0.51.6's concurrent state-machine protocol is not exposed. The current
+libhegel 0.53.2's concurrent state-machine protocol is not exposed. The current
 `hegel.stateful/run!` implementation drives the round protocol with fixed
 concurrency one so deterministic shrinking and final replay keep their
 existing contract. Upstream machines declared with maximum concurrency above

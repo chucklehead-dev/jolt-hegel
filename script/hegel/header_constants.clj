@@ -133,7 +133,9 @@
 (defn source-constants []
   (let [ffi (read-forms (str source-root "/hegel/ffi.cljc"))
         core (read-forms (str source-root "/hegel/core.cljc"))]
-    {:ffi (merge (def-literals ffi (keys ffi-enum-map))
+    {:precision-values (def-map (read-forms (str source-root "/hegel/temporal.cljc"))
+                                'precision-values)
+     :ffi (merge (def-literals ffi (keys ffi-enum-map))
                  {:state-machine-done (def-map ffi 'state-machine-done)
                   :no-max-size (def-map ffi 'no-max-size)
                   :default-max-size (def-map ffi 'default-max-size)
@@ -161,7 +163,7 @@
   "Compare source literals against a parsed header snapshot. Returns summary
    data or throws on missing mapped declarations, missing runtime defs, or a
    changed value. The expected numeric values are never duplicated here."
-  [snapshot {:keys [ffi core]}]
+  [snapshot {:keys [ffi core precision-values]}]
   (let [lookup (fn [[enum-name constant-name]]
                  (let [values (enum-values snapshot enum-name)]
                    (when-not (contains? values constant-name)
@@ -173,6 +175,15 @@
                         (when-not (contains? source source-name)
                           (throw (ex-info "runtime constant definition is missing" {:source source-name})))
                         (require-value! source-name (get source source-name) (lookup header-ref))))]
+    ;; The precision enum is exposed in full. Compare the complete domain
+    ;; and its numeric assignments so that missing and newly added units surface.
+    (let [expected (into {}
+                         (for [[label value] (enum-values snapshot "hegel_precision_t")]
+                           (let [[_ unit] (re-matches #"HEGEL_PRECISION_([A-Z]+)" label)]
+                             (when-not unit
+                               (throw (ex-info "Unknown native precision name" {:label label})))
+                             [(keyword (.toLowerCase ^String unit java.util.Locale/ROOT)) value])))]
+      (require-value! :precision-values precision-values expected))
     (compare-map ffi ffi-enum-map)
     (doseq [[map-name mapping] core-enum-maps]
       (let [source-map (get core map-name)]
@@ -204,7 +215,7 @@
                     (+ 18446744073709551616N (symbolic-value (get-in snapshot [:defines "HEGEL_MAX_SIZE_DEFAULT"]))))
     (require-value! "filter-attempts" (:filter-attempts ffi)
                     (symbolic-value (get-in snapshot [:defines "HEGEL_FILTER_ATTEMPTS"])))
-    {:status :pass :enum-count (+ (count ffi-enum-map) (reduce + (map count (vals core-enum-maps))))
+    {:status :pass :enum-count (+ (count precision-values) (count ffi-enum-map) (reduce + (map count (vals core-enum-maps))))
      :define-count 4}))
 
 (defn snapshot []

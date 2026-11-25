@@ -32,7 +32,8 @@ A returned `false` from the property body still means a passing case.
 - `:show-statistics? true` enables libhegel's human-readable statistics on its
   native stderr stream. The default is off. This output is not captured by
   rebinding Clojure `*err*`, is not a stable structured format, and is never
-  parsed to decide coverage. Native verbosity may affect emitted diagnostics.
+  parsed to decide coverage. At quiet verbosity an explicit statistics request
+  still prints the statistics block. Case notes and failure diagnostics remain silent.
 - `:observations? true` enables frontend structured result data, independently
   of native printing. `:coverage` implicitly enables the same collection even
   if `:observations?` is false. Ordinary runs without either option retain
@@ -70,7 +71,7 @@ These are case-level observations: a generator retry or discarded draw within
 an eventually valid case does not roll them back. Put final-value coverage
 events after the generator has returned when that is the intended obligation.
 
-libhegel's printed statistics cover **generation-phase** cases. Its C 0.51.6
+libhegel's printed statistics cover **generation-phase** cases. Its C 0.53.2
 ABI does not expose the native subphase of each returned test case. Therefore:
 
 - An explicitly configured `:phases [:generate]` run has frontend scope

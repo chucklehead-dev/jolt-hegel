@@ -34,6 +34,15 @@
     (is (thrown? clojure.lang.ExceptionInfo
                  (constants/compare-constants snapshot (constants/source-constants))))))
 
+(deftest temporal-precision-drift-fails
+  (let [snapshot (constants/snapshot)
+        source (constants/source-constants)]
+    (doseq [mutant [(update source :precision-values dissoc :hours)
+                    (assoc-in source [:precision-values :milliseconds]
+                              (get-in source [:precision-values :microseconds]))]]
+      (is (thrown? clojure.lang.ExceptionInfo
+                   (constants/compare-constants snapshot mutant))))))
+
 (deftest phase-flag-mutant-fails
   (let [snapshot (-> (constants/snapshot)
                      (replace-enum "hegel_phase_t" "HEGEL_PHASE_GENERATE" 8))]

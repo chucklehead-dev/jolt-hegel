@@ -97,14 +97,31 @@
       (render-redacted state (:value redacted))
       placeholder-text)))
 
-(defn- native-write! [state line output-size]
-  (swap! (:units state) + output-size)
+(defn- configure-width! [ctx handle width]
+  (let [options (hffi/printer-options-new! ctx)]
+    (try
+      (hffi/printer-options-set-max-width! ctx options width)
+      ;; The case owns the document and retains its width after this handle
+      ;; is freed. Subsequent notes go directly to the case.
+      (hffi/printer-free! ctx (hffi/test-case-printer! ctx handle options))
+      (finally (hffi/printer-options-free! ctx options)))))
+
+(defn- native-write! [state line]
   (when-not @(:native-disabled? state)
     (host/try-catch-all
-     (hffi/note! (:ctx state) (:handle state) line)
+     (do (when-let [width (:configure-width state)] @width)
+         (hffi/note! (:ctx state) (:handle state) line))
      _error
      (do (record-error! state :native-error)
          (reset! (:native-disabled? state) true)))))
+
+(defn- append-line! [state entry line size]
+  (swap! (:entries state) conj entry)
+  (swap! (:units state) + size)
+  ;; Engine notes inside a speculative region survive even when the region
+  ;; aborts. Submit them only after the outermost frontend attempt commits.
+  (when (empty? @(:checkpoints state))
+    (native-write! state line)))
 
 (defn- append!
   "Form-then-decide: `text` is already fully composed. Reject the whole entry
@@ -112,28 +129,26 @@
   truncation marker if it still fits. Never slices a string, so truncation
   cannot cut through a multi-byte/multi-unit codepoint."
   [state kind line label]
-  (when (and (:enabled? state) (not @(:truncated? state)))
+  (when (and state (not @(:truncated? state)))
     (let [size (inc (portable-data/text-size line))
           used @(:units state)
           budget (:max-output-units state)]
       (if (<= (+ used size) budget)
-        (do (swap! (:entries state) conj
-                   (cond-> {:kind kind :text (str line "\n")}
-                     label (assoc :label label)))
-            (native-write! state line size))
+        (append-line! state (cond-> {:kind kind :text (str line "\n")}
+                              label (assoc :label label))
+                      line size)
         (let [marker-size (inc (portable-data/text-size truncation-marker))]
           (reset! (:truncated? state) true)
           (when (<= (+ used marker-size) budget)
-            (swap! (:entries state) conj
-                   {:kind :truncated :text (str truncation-marker "\n")})
-            (native-write! state truncation-marker marker-size)))))))
+            (append-line! state {:kind :truncated :text (str truncation-marker "\n")}
+                          truncation-marker marker-size)))))))
 
 (defn record-note!
   "Record a note! call's diagnostic text. Preserves the historical joined
   string; note arguments are caller-authored diagnostics, not drawn values,
   so no redaction pass runs over them."
   [state message more]
-  (when (and (:enabled? state) (not @(:truncated? state)))
+  (when (and state (not @(:truncated? state)))
     (let [text (host/try-catch-all
                 (str/join " " (map str (cons message more)))
                 _error
@@ -145,78 +160,47 @@
   render-fn(redact-fn(value)). The raw value is never stored; only the
   rendered label and value text are kept."
   [state label value]
-  (when (and (:enabled? state) (not @(:truncated? state)))
+  (when (and state (not @(:truncated? state)))
     (let [label-text (safe-pr-str state label)
           value-text (render-value state value)
           text (str label-text " " value-text)]
       (append! state :draw text label-text))))
 
 (defn start!
-  "Create a render state for one test case. `enabled?` reflects the active
-  verbosity/final? policy; when false, no native printer is created and every
-  record-*! call is a silent no-op. `resolved-opts` is the map returned by
-  resolve-options. Printer-options are always freed before this returns,
-  even when construction fails."
-  [ctx handle enabled? resolved-opts]
-  (let [errors (atom [])
-        printer
-        (when enabled?
-          (host/try-catch-all
-           (let [printer-options (hffi/printer-options-new! ctx)]
-             (try
-               (hffi/printer-options-set-max-width!
-                ctx printer-options (:max-width resolved-opts))
-               (hffi/test-case-printer! ctx handle printer-options)
-               (finally
-                 (hffi/printer-options-free! ctx printer-options))))
-           _error
-           (do (swap! errors conj {:kind :native-error}) nil)))]
+  "Create bounded frontend state for a case with diagnostics enabled.
+  Configure a custom width on the first committed native write."
+  [ctx handle resolved-opts native-output?]
+  (let [width (:max-width resolved-opts)]
     {:ctx ctx
      :handle handle
-     :printer printer
-     :enabled? (boolean enabled?)
-     :native-disabled? (atom (nil? printer))
+     :configure-width (when (and native-output? (not= default-max-width width))
+                        (delay (configure-width! ctx handle width)))
+     :native-disabled? (atom (not native-output?))
      :render-fn (:render-fn resolved-opts)
      :redact-fn (:redact-fn resolved-opts)
      :max-output-units (:max-output-units resolved-opts)
      :units (atom 0)
      :entries (atom [])
      :truncated? (atom false)
-     :errors errors
+     :errors (atom [])
      :checkpoints (atom [])}))
 
-(defn printer-handle
-  "The native printer handle owned by `state`, or nil. Exposed so the caller
-  can register its cleanup (free before test-case-free) with its own
-  test-case lifecycle mechanics."
-  [state]
-  (:printer state))
-
 (defn finish!
-  "Seal and read the native printer, returning a bounded snapshot map with
-  :text, :entries, :truncated?, and :errors; or nil when this test case's
-  render state was never enabled. Never throws: a printer-value! failure is
-  recorded as a bounded diagnostic with :text nil rather than propagating."
-  [state]
-  (when (:enabled? state)
-    (let [printer (:printer state)]
-      (if-not printer
-        {:text nil
-         :entries @(:entries state)
-         :truncated? @(:truncated? state)
-         :errors @(:errors state)}
-        (host/try-catch-all
-         {:text (hffi/printer-value! (:ctx state) printer)
-          :entries @(:entries state)
-          :truncated? @(:truncated? state)
-          :errors @(:errors state)}
-         _error
-         (do
-           (record-error! state :native-error)
-           {:text nil
-            :entries @(:entries state)
-            :truncated? @(:truncated? state)
-            :errors @(:errors state)}))))))
+  "Keep bounded entries from an interesting or debug case. Construct local
+  text only when the frontend needs it; captured failures get native text."
+  [state local-text?]
+  (when state
+    (let [entries @(:entries state)]
+      {:text (when local-text? (str/join (map :text entries)))
+       :entries entries
+       :truncated? @(:truncated? state)
+       :errors @(:errors state)})))
+
+(defn attach-failure-output [snapshot output read-error?]
+  (when snapshot
+    (cond-> (assoc snapshot :text (if (seq output) (str output "\n") output))
+      (and read-error? (< (count (:errors snapshot)) max-errors))
+      (update :errors conj {:kind :native-error}))))
 
 (defn emit!
   "Print a snapshot's rendered text to *err* once. `snapshot` may be nil."
@@ -233,30 +217,14 @@
             {:type ::unbalanced-checkpoint :operation operation})))
 
 (defn begin-attempt!
-  "Push a checkpoint of this render state's bounded bookkeeping (units,
-  entries, truncation, errors) so a later abort-attempt! can roll it back.
-  Checkpoints and native speculative regions nest. Generator code must call
-  exactly one matching commit-attempt! or abort-attempt!."
+  "Save bounded entries before a generator tries a speculative draw."
   [state]
-  (when (and state (:enabled? state))
-    (let [native? (and (:enabled? state)
-                     (:printer state)
-                     (not @(:native-disabled? state))
-                     (host/try-catch-all
-                      (do (hffi/printer-begin-speculative!
-                           (:ctx state) (:printer state))
-                          true)
-                      _error
-                      (do (record-error! state :native-error)
-                          (reset! (:native-disabled? state) true)
-                          false)))]
-      (swap! (:checkpoints state) conj
-             {:units @(:units state)
-              :entries @(:entries state)
-              :truncated? @(:truncated? state)
-              :errors @(:errors state)
-              :native-disabled? @(:native-disabled? state)
-              :native? native?})))
+  (when state
+    (swap! (:checkpoints state) conj
+           {:units @(:units state)
+            :entries @(:entries state)
+            :truncated? @(:truncated? state)
+            :errors @(:errors state)}))
   nil)
 
 (defn- pop-checkpoint! [state operation]
@@ -267,39 +235,25 @@
     checkpoint))
 
 (defn commit-attempt!
-  "Discard the innermost checkpoint, keeping every change recorded since the
-  matching begin-attempt!."
+  "Keep the attempt's entries. Flush newly accepted notes to the case printer
+  after the outermost attempt commits."
   [state]
-  (when (and state (:enabled? state))
+  (when state
     (let [checkpoint (pop-checkpoint! state 'commit-attempt!)]
-      (when (:native? checkpoint)
-        (host/try-catch-all
-         (hffi/printer-commit-speculative! (:ctx state) (:printer state))
-         _error
-         (do (record-error! state :native-error)
-             (reset! (:native-disabled? state) true))))))
+      (when (empty? @(:checkpoints state))
+        (doseq [{:keys [text]} (subvec @(:entries state) (count (:entries checkpoint)))]
+          ;; Each entry includes one frontend line terminator; hegel_note
+          ;; adds its own, preserving newlines inside the user's note.
+          (native-write! state (subs text 0 (dec (count text))))))))
   nil)
 
 (defn abort-attempt!
-  "Roll units, entries, truncation, and errors back to the innermost
-  begin-attempt! checkpoint."
+  "Discard the innermost attempt's entries before they reach native output."
   [state]
-  (when (and state (:enabled? state))
-    (let [checkpoint (pop-checkpoint! state 'abort-attempt!)
-          native-error? (atom false)]
-      (when (:native? checkpoint)
-        (host/try-catch-all
-         (hffi/printer-abort-speculative! (:ctx state) (:printer state))
-         _error
-         (do (reset! native-error? true)
-             (reset! (:native-disabled? state) true))))
-      (when (and (not (:native-disabled? checkpoint))
-                 @(:native-disabled? state))
-        (reset! native-error? true))
+  (when state
+    (let [checkpoint (pop-checkpoint! state 'abort-attempt!)]
       (reset! (:units state) (:units checkpoint))
       (reset! (:entries state) (:entries checkpoint))
       (reset! (:truncated? state) (:truncated? checkpoint))
-      (reset! (:errors state) (:errors checkpoint))
-      (when @native-error?
-        (record-error! state :native-error))))
+      (reset! (:errors state) (:errors checkpoint))))
   nil)

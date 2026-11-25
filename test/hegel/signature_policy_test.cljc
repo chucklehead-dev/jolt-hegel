@@ -2,7 +2,7 @@
   "Characterization of the canonical ABI -> selected-host carrier policy.
 
   resources/hegel/abi.edn is the single canonical definition of libhegel's C
-  ABI. Nothing here restates its 159 signatures or its 6 struct layouts:
+  ABI. Nothing here restates its signatures or struct layouts:
   every traversal, including struct field order, is derived recursively from
   `hegel.abi/functions` and `hegel.abi/types`. What *is* literalized is the
   small per-target scalar carrier policy each adapter applies to that
@@ -148,13 +148,11 @@
         types (abi/types)
         functions (abi/functions)]
     (is (= 1 (:schema-version descriptor)))
-    (is (= 159 (count functions))
+    (is (= 233 (count functions))
         "the canonical descriptor is the only inventory of libhegel functions")
-    (is (= 39 (count types)))
-    ;; 12 scalar carriers plus void and string, 13 opaque handles, 6 structs
-    ;; and exactly one callback type.
+    (is (= 61 (count types)))
     (is (= {:void 1 :boolean 1 :integer 9 :float 2 :string 1
-            :opaque 18 :struct 6 :function-pointer 1}
+            :opaque 23 :struct 19 :function-pointer 5}
            (frequencies (map :kind (vals types)))))
     (is (= 12 (count (filter #(contains? #{:boolean :integer :float} (:kind %))
                              (vals types))))
@@ -211,11 +209,11 @@
                                                  (:args function))
                                        function-id))
                                    functions))]
-    (is (= 544 (count argument-forms)))
-    (is (= {:pointer 426 :scalar 78 :by-value 37 :callback 3}
+    (is (= 798 (count argument-forms)))
+    (is (= {:pointer 600 :scalar 112 :by-value 80 :string 1 :callback 5}
            (frequencies (map #(form-class types %) argument-forms))))
-    (is (= 159 (count return-forms)))
-    (is (= {:scalar 157 :pointer 1 :by-value 1}
+    (is (= 233 (count return-forms)))
+    (is (= {:scalar 230 :pointer 1 :callback 1 :by-value 1}
            (frequencies (map #(form-class types %) return-forms))))
     ;; Borrowed UTF-8 diagnostics return a struct by value. Every adapter
     ;; normalizes this to a caller-owned destination as the first argument.
@@ -224,9 +222,11 @@
     (is (empty? (filter #(= :aggregate (form-class types %)) return-forms)))
     (doseq [id [:generate-date :generate-time :generate-datetime]]
       (is (= 2 (count (filter #(= :by-value (form-class types %)) (:args (get functions id)))))))
-    (is (= [:run-start :run-start-blob :test-case-from-blob] callback-users)
-        "one callback type, used by exactly three functions")
-    (is (= [:hegel/output-callback] (type-ids-of-kind types :function-pointer)))))
+    (is (= [:run-start :run-start-blob :test-case-from-blob :zone-source-set-loader] callback-users)
+        "run output and timezone loaders take callbacks directly")
+    (is (= [:hegel/output-callback :hegel/zone-loader :hegel/zone-loader-release
+            :hegel/zone-next-transition-fn :hegel/zone-offset-fn]
+           (type-ids-of-kind types :function-pointer)))))
 
 (deftest every-declared-carrier-maps-to-the-literal-target-policy
   (let [descriptor (abi/descriptor)
@@ -253,7 +253,7 @@
       (is (= :pointer (adapter/native-type [:pointer type-id] descriptor))
           (str "[:pointer " type-id "] must collapse to :pointer")))
     (is (= :pointer (adapter/native-type :hegel/output-callback descriptor)))
-    (is (= 6 (count struct-ids))
+    (is (= 19 (count struct-ids))
         "a fixed struct census guards the recursive derivation below against silent drift")
     (doseq [type-id struct-ids]
       (let [layout (translate types target type-id)]
@@ -266,7 +266,7 @@
 (deftest bare-opaque-handles-and-unrepresentable-forms-are-rejected
   (let [descriptor (abi/descriptor)
         opaque (type-ids-of-kind (abi/types) :opaque)]
-    (is (= 18 (count opaque)))
+    (is (= 23 (count opaque)))
     (doseq [type-id opaque]
       (is (= type-id
              (:type (ex-data (rejection #(adapter/native-type type-id descriptor)))))
@@ -295,8 +295,8 @@
       (is (= (expected-type types return)
              (adapter/native-type return descriptor))
           (str function-id " return " (pr-str return))))
-    (is (= 703 @translated)
-        "544 argument forms and 159 return forms were each translated")))
+    (is (= 1031 @translated)
+        "798 argument forms and 233 return forms were each translated")))
 
 (deftest the-adapter-signature-composition-matches-the-public-translation
   (let [descriptor (abi/descriptor)
@@ -330,8 +330,7 @@
                  jolt))
         "exactly two carriers differ between the targets")
     ;; The 32-bit delta propagates into any derived struct layout that
-    ;; carries an :int32/:uint32 field; the other three structs only carry
-    ;; :pointer/:size_t fields and stay identical across targets.
+    ;; carries an :int32/:uint32 field, including nested calendar structs.
     (let [struct-ids (type-ids-of-kind types :struct)
           jolt-layouts (into {} (map (juxt identity #(translate types :jolt %))) struct-ids)
           babashka-layouts (into {} (map (juxt identity #(translate types :babashka %))) struct-ids)]
@@ -339,7 +338,11 @@
       ;; every-declared-type-id-translates-under-every-canonical-form, which
       ;; compares expected-by-value against the actual adapter/native-type
       ;; result; by-value-form is not re-asserted against itself here.
-      (is (= [:hegel/date :hegel/datetime :hegel/time]
+      (is (= [:hegel/date :hegel/datetime :hegel/duration :hegel/offset :hegel/time
+              :hegel/timestamp :hegel/timezone-info :hegel/timezone-offset
+              :hegel/timezone-resolution :hegel/zone-data :hegel/zone-oracle
+              :hegel/zone-rule-date :hegel/zone-transition :hegel/zone-type
+              :hegel/zoned-datetime]
              (sort (keep (fn [[type-id layout]]
                            (when-not (= layout (get babashka-layouts type-id))
                              type-id))

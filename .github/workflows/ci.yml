@@ -15,11 +15,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  candidate-engine-contract:
+  native-engine-contract:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - name: Check the candidate libhegel temporal and reporting contracts
+      - name: Check the pinned libhegel temporal and reporting contracts
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -44,6 +44,11 @@ jobs:
           jolt "$GITHUB_WORKSPACE/script/hegel/candidate_output_053.clj" \
             "$PWD/libhegel-linux-amd64.so" "$PWD/candidate-driver.so" 2>pointer-output.log || { cat pointer-output.log; exit 1; }
           grep -Fx 'pointer-sink: λ' pointer-output.log
+      - name: Verify by-value Jolt callback and native time zone loader ownership
+        run: |
+          cd "$RUNNER_TEMP"
+          jolt -Scp "$GITHUB_WORKSPACE/src:$GITHUB_WORKSPACE/resources" \
+            "$GITHUB_WORKSPACE/script/hegel/zone_loader_contract.clj" "$PWD/libhegel-linux-amd64.so"
   static-checks:
     name: Static checks
     runs-on: ubuntu-24.04
@@ -328,6 +333,10 @@ jobs:
       - name: Check ABI coverage (JVM)
         if: matrix.host == 'jvm'
         run: clojure -J--enable-native-access=ALL-UNNAMED -M:jvm:abi-test
+
+      - name: Check quiet and verbose process stderr
+        if: matrix.host == 'jolt' && runner.os == 'Linux'
+        run: bash script/check-run-output.sh jolt
 
       - name: Run semantic suite (Jolt)
         if: matrix.host == 'jolt'

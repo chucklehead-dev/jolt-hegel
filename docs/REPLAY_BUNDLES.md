@@ -80,7 +80,7 @@ artifact itself.
 Supply provenance from an independently recorded deployment/property manifest:
 
 - `:hegel-sha`: exact lowercase 40-character source commit SHA;
-- `:libhegel-version`: native version, currently `"0.51.6"`;
+- `:libhegel-version`: native version, currently `"0.53.2"`;
 - `:runtime`: a map requiring `:host` (`:jolt`, `:bb`, `:jvm`, `:jank`, or
   `:clr`), and nonblank `:version`, `:os`, and `:arch` strings;
 - `:property-id` and `:generator-revision`: stable nonblank identifiers;
@@ -193,6 +193,7 @@ API proposed in #56. That API still needs its own digest, completeness and
 offline-consumption contract. Types can help check these data shapes (#73),
 but neither annotations nor structural validation replaces the checks above.
 
-Blobs from 0.36.x are incompatible with 0.51.6. Keep the original runtime for
-old artifacts or regenerate failures with the new engine; do not rewrite their
-version fields. See [the migration guide](LIBHEGEL-051-MIGRATION.md).
+A bundle whose manifest names 0.51.6 fails the version check on 0.53.2.
+Replay it with the recorded deployment or rerun its original property on the
+new engine and export a new bundle. A plain EDN input fixture can be tried
+directly on either deployment. See the [upstream adoption report](UPSTREAM_ADOPTION.md).

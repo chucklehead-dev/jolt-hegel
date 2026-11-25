@@ -88,13 +88,13 @@ Review these together for each release:
 - `.github/workflows/release.yml`: release verification target matrix
 - `README.md` and `THIRD_PARTY_NOTICES.md`: documented versions and notices
 
-Current-main CI uses Jolt 0.8.30 as its primary supported matrix and retains a
+Development CI uses Jolt 0.8.30 as its primary supported matrix and retains a
 full Linux x86_64 Jolt 0.8.1 minimum-version lane; the release workflow uses
 0.8.30. The published v0.5.0 release used Jolt 0.7.23. FFI-capable Babashka
 1.13.230 assets are checksum-pinned in CI.
 The ordinary Linux asset is required; the static Linux asset has neither
 dynamic-library loading nor the libffi route required by libhegel aggregates.
 JVM Clojure uses `org.babashka/ffi` 0.1.3 and requires JDK 25 or later.
-libhegel 0.51.6 release hashes are pinned in `hegel.install`. Experimental CLR
+libhegel 0.53.2 release hashes are pinned in `hegel.install`. Experimental CLR
 CI pins ClojureCLR 1.12.6 and .NET 8. The release workflow also rejects a tag
 that does not match `hegel.version/jolt-hegel-version`.

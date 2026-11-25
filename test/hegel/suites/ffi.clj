@@ -178,7 +178,7 @@
 
 (defn- state-machine-coordinator-only-contract [context]
   (let [calls (atom [])
-        values (atom [1 0])]
+        values (atom [1 0 0])]
     (with-redefs [ffi-backend/with-native-scope (fn [call] (call))
                   ffi-backend/sizeof (constantly 8)
                   ffi-backend/alloc (fn [_size] ::out)
@@ -190,22 +190,29 @@
                                            (let [value (first @values)]
                                              (swap! values subvec 1)
                                              value))
-                  hffi/c-test-case-should-capture
+                  hffi/c-test-case-wants-output
                   (fn [ctx test-case out]
-                    (swap! calls conj [:test-case-should-capture ctx test-case out])
+                    (swap! calls conj [:test-case-wants-output ctx test-case out])
+                    0)
+                  hffi/c-test-case-wants-detail
+                  (fn [ctx test-case out]
+                    (swap! calls conj [:test-case-wants-detail ctx test-case out])
                     0)
                   hffi/c-state-machine-should-check-invariant
                   (fn [ctx test-case state-machine invariant-index out]
                     (swap! calls conj [:state-machine-should-check-invariant
                                        ctx test-case state-machine invariant-index out])
                     0)]
-      (support/check! context "the capture marker decodes the canonical boolean out value"
-             (true? (hffi/test-case-should-capture? ::ctx ::root-case)))
+      (support/check! context "output demand decodes the canonical boolean out value"
+             (true? (hffi/test-case-wants-output? ::ctx ::root-case)))
+      (support/check! context "native detail demand is independent of output demand"
+             (false? (hffi/test-case-wants-detail? ::ctx ::root-case)))
       (support/check! context "the invariant decision remains a coordinator draw with no alternate route"
              (false? (hffi/state-machine-should-check-invariant!
                       ::ctx ::root-case ::machine 4)))
       (support/check! context "coordinator-only wrappers preserve their canonical native arguments"
-             (= [[:test-case-should-capture ::ctx ::root-case ::out]
+             (= [[:test-case-wants-output ::ctx ::root-case ::out]
+                 [:test-case-wants-detail ::ctx ::root-case ::out]
                  [:state-machine-should-check-invariant
                   ::ctx ::root-case ::machine 4 ::out]]
                 @calls)))))
@@ -294,8 +301,7 @@
              (ffi-backend/with-native-scope
               (fn []
                 (let [value "a\u0000😀z"
-                      pointer (ffi-backend/string->native value)
-                      length (ffi-backend/write-utf8 pointer value)]
+                      [pointer length] (ffi-backend/alloc-utf8 value)]
                   (and (= 7 length)
                        (= value (ffi-backend/read-utf8 pointer length)))))))
       (support/check! context "arena-scoped pointers cannot be read after lexical release"

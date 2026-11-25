@@ -158,8 +158,15 @@
 (defn read-array [pointer length] (ffi/read-array pointer length))
 (defn write-array [pointer value] (ffi/write-array pointer value))
 (defn read-utf8 [pointer length] (ffi/read-bytes pointer length))
-(defn write-utf8 [pointer value] (ffi/write-bytes pointer value))
-(defn string->native [value] (ffi/string->ptr value))
+(defn alloc-utf8 [text]
+  ;; Each character occupies at most four UTF-8 bytes. write-bytes returns
+  ;; the actual byte count and preserves embedded NULs on all supported Jolts.
+  (let [data (ffi/alloc (max 1 (* 4 (count text))))]
+    (try
+      [data (ffi/write-bytes data text)]
+      (catch Throwable error
+        (ffi/free data)
+        (throw error)))))
 (defn native->string [pointer] (ffi/ptr->string pointer))
 (defn layout-size [layout] (ffi/layout-size layout))
 (defn read-field [pointer layout path] (ffi/read-field pointer layout path))
