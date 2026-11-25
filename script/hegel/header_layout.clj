@@ -9,7 +9,8 @@
            [java.util UUID]
            [java.util.concurrent TimeUnit]))
 
-(def ^:private default-timeout-ms 10000)
+(def ^:private compile-timeout-ms 60000)
+(def ^:private probe-timeout-ms 10000)
 
 (def ^:private primitive-expressions
   [["char" "char"] ["bool" "bool"]
@@ -158,8 +159,7 @@
   Logs and source are retained in a unique target/header-layout-* directory."
   ([snapshot] (measure! snapshot {}))
   ([snapshot {:keys [compiler header-path timeout-ms work-dir]
-              :or {compiler (or (System/getenv "HEGEL_ABI_CC") "cc")
-                   timeout-ms default-timeout-ms}}]
+              :or {compiler (or (System/getenv "HEGEL_ABI_CC") "cc")}}]
    (let [header-path (or header-path (str header/fixture-dir "/hegel.h"))
          work-dir (or work-dir (task-dir!))
          work-dir (if (instance? Path work-dir) work-dir (Paths/get (str work-dir) (make-array String 0)))
@@ -174,8 +174,8 @@
          run-log (.resolve work-dir "run.log")]
      (spit (.toFile source) (probe-source snapshot header-path))
      (run! :compile [compiler "-std=c11" (str source) "-o" (str executable)]
-           work-dir compile-log timeout-ms)
-     (run! :probe [(str executable)] work-dir run-log timeout-ms)
+           work-dir compile-log (or timeout-ms compile-timeout-ms))
+     (run! :probe [(str executable)] work-dir run-log (or timeout-ms probe-timeout-ms))
      (try
        (assoc (edn/read-string (read-log run-log))
               :probe {:work-dir (str work-dir)

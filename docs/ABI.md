@@ -10,11 +10,11 @@ authoritative header, named types, and named functions:
 ```clojure
 {:schema-version 1
  :library {:name "libhegel"
-           :version "0.36.3"
-           :header {:repository "hegeldev/hegel-rust"
-                    :tag "v0.36.3"
+           :version "0.53.2"
+           :header {:repository "hegeldev/hegel"
+                    :tag "libhegel/0.53.2"
                     :commit "..."
-                    :path "hegel-c/include/hegel.h"}}
+                    :path "libhegel/include/hegel.h"}}
  :types {...}
  :functions {...}}
 ```
@@ -118,7 +118,7 @@ unsupported call to fail during a property:
 (abi/check-backend backend (abi/descriptor))
 ;; => {:backend :jvm
 ;;     :supported? true
-;;     :summary {:supported 103 :unsupported 0 :total 103}
+;;     :summary {:supported 233 :unsupported 0 :total 233}
 ;;     :functions {:generate-date
 ;;                 {:status :supported :route :jvm/ffm}
 ;;                 ...}}
@@ -139,8 +139,8 @@ registered by the selected runtime. Current route names are:
 The report is intended for CI, diagnostics, and ABI upgrades. Application code
 should not branch on the route.
 
-The supported Jolt, Babashka, and JVM backends describe all 103 functions in the
-current libhegel 0.36.3 descriptor. The jank and ClojureCLR generators also cover
+The supported Jolt, Babashka, and JVM backends describe all functions in the
+current libhegel 0.53.2 descriptor. The jank and ClojureCLR generators also cover
 the complete descriptor at code-generation time, but those hosts currently run
 focused experimental semantic suites rather than the full supported-host parity
 matrix. Descriptor coverage therefore answers "can this backend express every

@@ -1,0 +1,1 @@
+{:input "(0)" :origin "arithmetic/complete-acceptance" :meaning "Parenthesized zero is valid arithmetic but the control grammar has no parentheses production."}

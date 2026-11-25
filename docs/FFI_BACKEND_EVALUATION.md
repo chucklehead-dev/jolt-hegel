@@ -221,3 +221,12 @@ explicit unqualified experimental-host control rather than trying to load the
 wrong adapter. CLR's own docs already note that `g/big-integer`/`g/float32`
 and full shrinking/replay parity are not yet qualified there — this
 evaluation does not change or extend that boundary.
+
+### Jolt 0.8.27 follow-up
+
+The released `bench/ffi_arenas.clj` was rerun on Linux amd64 with 30,000
+allocations and five samples. Raw alloc/free median: 18.63 ms; fresh arena per
+allocation: 72.61 ms (3.90x); batches of 100: 54.99 ms (2.95x). Explicit temporary
+ownership remains the policy. This allocation microbenchmark does not establish
+an end-to-end property-testing speedup or regression. See
+[the adoption report](UPSTREAM_ADOPTION.md) for other FFI and packaging changes.

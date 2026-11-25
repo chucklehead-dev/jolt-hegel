@@ -77,6 +77,13 @@
                      "-NonInteractive" "-Command" script])
       true)
     (or (mvn-http/fetch url path)
+        ;; The native Maven transport does not support every proxy/mirror.
+        ;; curl uses the host's proxy and CA configuration; arguments are never
+        ;; interpolated into a shell command. The caller still verifies SHA-256.
+        (try
+          (zero? (:exit (shell/sh "curl" "--fail" "--location" "--silent"
+                                  "--show-error" "--retry" "3" "--output" path url)))
+          (catch Throwable _ false))
         (throw (ex-info (str "failed to download " url)
                         {:type ::download-failed
                          :url url

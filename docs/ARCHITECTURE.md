@@ -16,7 +16,7 @@ confined to resource/process discovery and a narrow native boundary.
                      /       /       |       \       \
              jolt.ffi   babashka.ffi (BB/JVM)   jank C++  CLR P/Invoke
                      \       \       |       /       /
-                                libhegel 0.36.3
+                                libhegel 0.53.2
 ```
 
 ## Source layers
@@ -75,9 +75,13 @@ See [ABI.md](ABI.md) for the schema, diagnostics, and binding workflow.
 2. It resolves a seed, creates a context and settings, and starts a native run.
 3. The pull loop binds each native test-case handle while the shared Clojure
    property draws values and returns, rejects, overruns, or throws.
-4. libhegel shrinks interesting choices and returns reproduction blobs.
-5. jolt-hegel copies failure data before releasing result handles, then replays
-   each minimized blob with `final?` enabled.
+4. The runner completes the root case with its outcome. On failure it supplies
+   the stable origin, a summary when requested, and diagnostic detail when
+   requested. libhegel shrinks and confirms failing choices.
+5. For each reported failure, jolt-hegel copies the reproduction blob, output
+   and diagnostic while the native failure handle is alive. It pairs them with
+   the Clojure exception for that origin. Explicit bundle replay runs the
+   recorded choices through the same property.
 6. Nested `finally` paths release every wrapper-owned context, run, result,
    collection, state-machine, pool, and temporary allocation.
 

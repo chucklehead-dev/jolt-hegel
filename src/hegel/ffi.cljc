@@ -28,6 +28,22 @@
       :library library-path
       :cause cause}))))
 
+(def c-state-machine-add-rule (backend/function :state-machine-add-rule))
+
+(def c-state-machine-add-invariant (backend/function :state-machine-add-invariant))
+
+(def c-state-machine-start (backend/function :state-machine-start))
+
+(def c-failure-caveat (backend/function :failure-caveat))
+
+(def c-run-start-blob (backend/function :run-start-blob))
+
+(def c-run-result-error-kind (backend/function :run-result-error-kind))
+
+(def c-settings-set-nondeterminism-strictness (backend/function :settings-set-nondeterminism-strictness))
+
+(def c-settings-set-stop-on-first-failure (backend/function :settings-set-stop-on-first-failure))
+
 ;; Public wrapper names stay stable, but every signature is constructed from
 ;; the canonical EDN descriptor by hegel.ffi.jolt.
 (def c-context-new (backend/function :context-new))
@@ -37,7 +53,7 @@
 (def c-settings-free (backend/function :settings-free))
 (def c-settings-set-backend (backend/function :settings-set-backend))
 (def c-settings-set-test-cases (backend/function :settings-set-test-cases))
-(def c-settings-set-stateful-step-count (backend/function :settings-set-stateful-step-count))
+
 (def c-settings-set-verbosity (backend/function :settings-set-verbosity))
 (def c-settings-set-seed (backend/function :settings-set-seed))
 (def c-settings-set-derandomize (backend/function :settings-set-derandomize))
@@ -54,8 +70,11 @@
 (def c-run-free (backend/function :run-free))
 (def c-test-case-from-blob (backend/function :test-case-from-blob))
 (def c-test-case-free (backend/function :test-case-free))
-(def c-test-case-is-nondeterministic
-  (backend/function :test-case-is-nondeterministic))
+(def c-test-case-wants-output (backend/function :test-case-wants-output))
+(def c-test-case-wants-detail (backend/function :test-case-wants-detail))
+(def c-output-stderr-callback (backend/function :output-stderr-callback))
+(def c-failure-output (backend/function :failure-output))
+(def c-failure-diagnostic (backend/function :failure-diagnostic))
 (def c-test-case-clone (backend/function :test-case-clone))
 (def c-generate-integer (backend/function :generate-integer))
 (def c-generate-integer-big (backend/function :generate-integer-big))
@@ -70,13 +89,22 @@
 (def c-string-generator-domain (backend/function :string-generator-domain))
 (def c-string-generator-free (backend/function :string-generator-free))
 (def c-generate-string (backend/function :generate-string))
-(def c-generate-string-result-free (backend/function :generate-string-result-free))
+(def c-generate-string-result-free (backend/function :owned-string-free))
 (def c-generate-uuid (backend/function :generate-uuid))
 (def c-generate-ipv4 (backend/function :generate-ipv4))
 (def c-generate-ipv6 (backend/function :generate-ipv6))
+(def c-date-options-new (backend/function :date-options-new))
+(def c-date-options-free (backend/function :date-options-free))
+(def c-date-options-set-weekdays (backend/function :date-options-set-weekdays))
+(def c-date-options-set-months (backend/function :date-options-set-months))
+(def c-validate-date (backend/function :validate-date))
+(def c-validate-time (backend/function :validate-time))
+(def c-validate-datetime (backend/function :validate-datetime))
 (def c-generate-date (backend/function :generate-date))
 (def c-generate-time (backend/function :generate-time))
 (def c-generate-datetime (backend/function :generate-datetime))
+(def c-validate-timestamp (backend/function :validate-timestamp))
+(def c-generate-timestamp (backend/function :generate-timestamp))
 (def c-target (backend/function :target))
 (def c-event (backend/function :event))
 (def c-event-value (backend/function :event-value))
@@ -173,19 +201,19 @@
 (def run-status-passed 0)
 (def run-status-failed 1)
 (def run-status-error 2)
-(def run-status-failed-nondeterministic 3)
 
-(def label-list 1)
-(def label-set 3)
-(def label-map 5)
-(def label-tuple 7)
-(def label-one-of 8)
-(def label-optional 9)
-(def label-flat-map 11)
-(def label-filter 12)
-(def label-mapped 13)
-(def label-stateful-rule 31)
-(def label-recursive 35)
+
+(def label-list 13119983822548632080N)
+(def label-set 11358891839481870632N)
+(def label-map 16070072663295028606N)
+(def label-tuple 873836240999684414N)
+(def label-one-of 12493077146293715814N)
+(def label-optional 13104029776529188484N)
+(def label-flat-map 15845607820421195832N)
+(def label-filter 15157945300862412314N)
+(def label-mapped 7608984536048634331N)
+(def label-stateful-rule 8946221671406004969N)
+(def label-recursive 11814535412921032636N)
 
 (def state-machine-done
   "Sentinel returned at a state-machine round or machine boundary."
@@ -195,11 +223,24 @@
   "UINT64_MAX, used by libhegel for an engine-bounded collection size."
   18446744073709551615N)
 
+(def default-max-size 18446744073709551614N)
+(def filter-attempts 3)
+
+(def string-layout (backend/layout :hegel/string))
+
+(defn- read-string-view [ptr]
+  (backend/read-utf8 (backend/read-field ptr string-layout [:data])
+                     (backend/read-field ptr string-layout [:len])))
+
 (defn- context-error [ctx]
   (when (and ctx (not (backend/null? ctx)))
-    (let [ptr (c-context-last-error ctx)]
-      (when-not (backend/null? ptr)
-        (backend/native->string ptr)))))
+    (backend/with-native-scope
+     (fn []
+       (let [out (backend/alloc (backend/layout-size string-layout))]
+         (try
+           (c-context-last-error out ctx)
+           (read-string-view out)
+           (finally (backend/free out))))))))
 
 (defn check!
   "Return nil for HEGEL_OK, otherwise throw with the context diagnostic."
@@ -273,35 +314,37 @@
          (finally
            (backend/free out)))))))
 
-(defn- call-nullable-string-out!
-  [ctx operation call]
+(defn- call-string-out! [ctx operation call]
+  (backend/with-native-scope
+   (fn []
+     (let [out (backend/alloc (backend/layout-size string-layout))]
+       (try (check! ctx operation (call out))
+            (read-string-view out)
+            (finally (backend/free out)))))))
+
+(defn- call-nullable-string-out! [ctx operation call]
   (let [ptr (call-out! ctx operation :pointer call)]
-    (when-not (backend/null? ptr)
-      (backend/native->string ptr))))
+    (when-not (backend/null? ptr) (read-string-view ptr))))
 
-(defn- with-c-string
-  [value call]
-  (if (nil? value)
-    (call backend/null)
-    (backend/with-native-scope
-     (fn []
-       (let [ptr (backend/string->native (str value))]
-         (try
-           (call ptr)
-           (finally
-             (backend/free ptr))))))))
+(defn- with-string-view [value call]
+  (backend/with-native-scope
+   (fn []
+     (let [[data length] (backend/alloc-utf8 (str (or value "")))]
+       (try
+         (let [view (backend/alloc (backend/layout-size string-layout))]
+           (try
+             (backend/write-field view string-layout [:data] data)
+             (backend/write-field view string-layout [:len] length)
+             (call view)
+             (finally (backend/free view))))
+         (finally (backend/free data)))))))
 
-(defn- allocate-c-strings [values]
-  (let [pointers (atom [])]
-    (host/try-catch-all
-     (do
-       (doseq [value values]
-         (swap! pointers conj (backend/string->native value)))
-       @pointers)
-     error
-     (doseq [ptr @pointers]
-       (backend/free ptr))
-     (throw error))))
+(defn- with-c-string [value call]
+  ;; Optional UTF-8 strings distinguish nil from present-but-empty.
+  (if (nil? value) (call backend/null) (with-string-view value call)))
+
+(defn- with-string-value [value call]
+  (with-string-view value #(call (backend/by-value % string-layout))))
 
 (defn- with-c-string-array
   "Pass nil as a NULL list and a collection, including empty, as a real list."
@@ -310,33 +353,21 @@
     (call backend/null 0)
     (backend/with-native-scope
      (fn []
-       (let [pointers (allocate-c-strings values)]
+       (let [n (count values)
+             stride (backend/layout-size string-layout)
+             array (backend/alloc (max 1 (* stride n)))
+             buffers (volatile! [])]
          (try
-           (let [pointer-size (backend/sizeof :pointer)
-                 ;; A non-NULL pointer distinguishes [] from an unspecified list.
-                 array (backend/alloc (max 1 (* pointer-size (count pointers))))]
-             (try
-               (doseq [[index ptr] (map-indexed vector pointers)]
-                 (backend/write-value array :pointer (* index pointer-size) ptr))
-               (call array (count pointers))
-               (finally
-                 (backend/free array))))
+           (doseq [[index text] (map-indexed vector values)]
+             (let [[data length] (backend/alloc-utf8 text)
+                   offset (* index stride)]
+               (vswap! buffers conj data)
+               (backend/write-value array :pointer offset data)
+               (backend/write-value array :size_t (+ offset (backend/sizeof :pointer)) length)))
+           (call array n)
            (finally
-             (doseq [ptr pointers]
-               (backend/free ptr)))))))))
-
-(defn- with-utf8-buffer
-  "Pass a length-delimited UTF-8 buffer, preserving empty strings and U+0000."
-  [value call]
-  (if (nil? value)
-    (call backend/null 0)
-    (backend/with-native-scope
-     (fn []
-       (let [ptr (backend/string->native value)]
-         (try
-           (call ptr (backend/write-utf8 ptr value))
-           (finally
-             (backend/free ptr))))))))
+             (doseq [data @buffers] (backend/free data))
+             (backend/free array))))))))
 
 (defn context-new! []
   (let [ctx (c-context-new)]
@@ -367,9 +398,17 @@
   (check! ctx :settings-set-test-cases
           (c-settings-set-test-cases ctx settings value)))
 
-(defn settings-set-stateful-step-count! [ctx settings value]
-  (check! ctx :settings-set-stateful-step-count
-          (c-settings-set-stateful-step-count ctx settings value)))
+(def ^:dynamic *stateful-step-count*
+  "Per-run state-machine round budget; libhegel now takes it at construction."
+  50)
+
+(defn settings-set-nondeterminism-strictness! [ctx settings value]
+  (check! ctx :settings-set-nondeterminism-strictness
+          (c-settings-set-nondeterminism-strictness ctx settings value)))
+
+(defn settings-set-stop-on-first-failure! [ctx settings value]
+  (check! ctx :settings-set-stop-on-first-failure
+          (c-settings-set-stop-on-first-failure ctx settings (if value 1 0))))
 
 (defn settings-set-verbosity! [ctx settings value]
   (check! ctx :settings-set-verbosity
@@ -412,9 +451,14 @@
   (check! ctx :settings-set-suppress-health-check
           (c-settings-set-suppress-health-check ctx settings checks)))
 
-(defn run-start! [ctx settings]
-  (call-out! ctx :run-start :pointer
-             #(c-run-start ctx settings backend/null backend/null %)))
+(defn- run-output-sink [stderr?]
+  (if stderr? (c-output-stderr-callback) backend/null))
+
+(defn run-start!
+  ([ctx settings] (run-start! ctx settings false))
+  ([ctx settings stderr?]
+   (call-out! ctx :run-start :pointer
+              #(c-run-start ctx settings (run-output-sink stderr?) backend/null %))))
 
 (defn next-test-case! [ctx run]
   (let [handle (call-out! ctx :next-test-case :pointer
@@ -435,7 +479,7 @@
     (throw (ex-info "a reproduction blob is required"
                     {:type ::invalid-argument
                      :argument :blob})))
-  (with-c-string
+  (with-string-value
     blob
     (fn [blob-ptr]
       (call-out! ctx :test-case-from-blob :pointer
@@ -446,15 +490,16 @@
   (c-test-case-free ctx test-case)
   nil)
 
-(defn test-case-nondeterministic?
-  "True when TEST-CASE belongs to a run already declared nondeterministic."
-  [ctx test-case]
-  (not (zero?
-        (call-out! ctx :test-case-is-nondeterministic :uint8
-                   #(c-test-case-is-nondeterministic ctx test-case %)))))
+(defn test-case-wants-output? [ctx test-case]
+  (not (zero? (call-out! ctx :test-case-wants-output :uint8
+                         #(c-test-case-wants-output ctx test-case %)))))
+
+(defn test-case-wants-detail? [ctx test-case]
+  (not (zero? (call-out! ctx :test-case-wants-detail :uint8
+                         #(c-test-case-wants-detail ctx test-case %)))))
 
 (defn test-case-clone! [ctx test-case]
-  (call-out! ctx :test-case-clone :pointer
+  (call-draw-out! ctx :test-case-clone :pointer
              #(c-test-case-clone ctx test-case %)))
 
 (defn generate-integer! [ctx test-case min-value max-value]
@@ -565,6 +610,13 @@
 (def datetime-layout
   (backend/layout :hegel/datetime))
 
+(def timestamp-layout
+  (backend/layout :hegel/timestamp))
+
+(defn- write-timestamp! [ptr {:keys [second nanosecond]}]
+  (backend/write-field ptr timestamp-layout [:second] (long second))
+  (backend/write-field ptr timestamp-layout [:nanosecond] nanosecond))
+
 (defn- write-date! [ptr layout prefix value]
   (doseq [field [:year :month :day]]
     (backend/write-field ptr layout (conj prefix field) (get value field))))
@@ -645,12 +697,12 @@
           (with-c-string-array
             exclude-categories
             (fn [exclude-categories-ptr exclude-categories-count]
-              (with-utf8-buffer
+              (with-string-value
                 include-characters
-                (fn [include-ptr include-length]
-                  (with-utf8-buffer
+                (fn [include-ptr]
+                  (with-string-value
                     exclude-characters
-                    (fn [exclude-ptr exclude-length]
+                    (fn [exclude-ptr]
                       (call-out!
                        ctx :string-generator-text :pointer
                        #(c-string-generator-text
@@ -658,11 +710,11 @@
                          min-codepoint max-codepoint
                          categories-ptr categories-count
                          exclude-categories-ptr exclude-categories-count
-                         include-ptr include-length
-                         exclude-ptr exclude-length %)))))))))))))
+                         include-ptr
+                         exclude-ptr %)))))))))))))
 
 (defn string-generator-regex! [ctx pattern full-match?]
-  (with-c-string
+  (with-string-value
     pattern
     (fn [pattern-ptr]
       (call-out! ctx :string-generator-regex :pointer
@@ -826,60 +878,34 @@
   nil)
 
 (defn new-state-machine-with-concurrency!
-  "Low-level, concurrency-aware state-machine constructor. `rule-groups` is a
-  sequence of int64 group ids parallel to `rule-names`. All arguments are
-  threaded through to libhegel exactly as given.
-  Returns {:state-machine <owned handle> :concurrency <int64>}, where
-  :concurrency is libhegel's selected concurrency, which may differ from
-  `max-concurrency`. The machine is freed rather than leaked if anything
-  fails after a successful native creation."
-  [ctx test-case rule-names rule-groups invariant-names
-   min-concurrency max-concurrency]
-  (let [rule-names (vec rule-names)
-        rule-groups (vec rule-groups)
-        invariant-names (vec invariant-names)]
-    (when-not (= (count rule-names) (count rule-groups))
-      (throw
-       (ex-info
-        "state-machine rule groups must be parallel to rule names"
-        {:type ::invalid-argument
-         :argument :rule-groups
-         :expected (count rule-names)
-         :actual (count rule-groups)})))
-    (with-c-string-array
-      rule-names
-      (fn [rules rule-count]
-        (with-int64-array
-          rule-groups
-          (fn [rule-groups-ptr]
-            (with-c-string-array
-              invariant-names
-              (fn [invariants invariant-count]
-                (backend/with-native-scope
-                 (fn []
-                   (with-out-buffer
-                    :pointer
-                    (fn [machine-out]
-                      (with-out-buffer
-                       :int64
-                       (fn [concurrency-out]
-                       (check-draw!
-                        ctx :new-state-machine
-                        (c-new-state-machine
-                         ctx test-case rules rule-groups-ptr rule-count
-                         invariants invariant-count
-                         min-concurrency max-concurrency
-                         machine-out concurrency-out))
-                       (let [machine (backend/read-value machine-out :pointer)]
-                         (host/try-catch-all
-                          {:state-machine machine
-                           :concurrency (backend/read-value concurrency-out :int64)}
-                          error
-                          (do
-                            (host/try-catch-all
-                             (state-machine-free! ctx machine)
-                             _cleanup nil)
-                            (throw error))))))))))))))))))
+  "Declare and start a native machine. Rule numbering follows declaration order."
+  [ctx test-case rule-names rule-groups invariant-names min-concurrency max-concurrency]
+  (when-not (= (count rule-names) (count rule-groups))
+    (throw (ex-info "state-machine rule groups must be parallel to rule names"
+                    {:type ::invalid-argument :argument :rule-groups})))
+  (let [machine (call-draw-out! ctx :new-state-machine :pointer
+                 #(c-new-state-machine ctx test-case min-concurrency max-concurrency
+                                       *stateful-step-count* %))]
+    (host/try-catch-all
+     (do
+       (doseq [[rule group] (map vector rule-names rule-groups)]
+         (with-string-value (if (map? rule) (:name rule) rule)
+           (fn [name]
+             (with-int64-array [group]
+               #(check-draw! ctx :state-machine-add-rule
+                  (c-state-machine-add-rule ctx test-case machine name
+                                            (if (map? rule) (:weight rule) 1.0) % 1))))))
+       (doseq [invariant invariant-names]
+         (with-string-value invariant
+           #(check-draw! ctx :state-machine-add-invariant
+              ;; Preserve the public every-step invariant policy.
+              (c-state-machine-add-invariant ctx test-case machine % 1))))
+       {:state-machine machine
+        :concurrency (call-draw-out! ctx :state-machine-start :int64
+                       #(c-state-machine-start ctx test-case machine %))})
+     error
+     (host/try-catch-all (state-machine-free! ctx machine) _cleanup nil)
+     (throw error))))
 
 (defn new-state-machine!
   "Sequential compatibility wrapper: zero rule groups, min = max = 1
@@ -904,12 +930,13 @@
     state-machine))
 
 (defn state-machine-next-group! [ctx test-case state-machine]
-  (let [group
-        (call-draw-out!
-         ctx :state-machine-next-group :int64
-         #(c-state-machine-next-group ctx test-case state-machine %))]
-    (when-not (= state-machine-done group)
-      group)))
+  (backend/with-native-scope
+   (fn []
+     (with-out-buffer :int64
+       (fn [concurrency]
+         (let [group (call-draw-out! ctx :state-machine-next-group :int64
+                       #(c-state-machine-next-group ctx test-case state-machine % concurrency))]
+           (when-not (= state-machine-done group) group)))))))
 
 (defn state-machine-should-check-invariant!
   "Return libhegel's coordinator-only invariant decision for INVARIANT-INDEX.
@@ -987,68 +1014,103 @@
    ctx :generate-ipv6 16
    #(c-generate-ipv6 ctx test-case %)))
 
-(defn generate-date! [ctx test-case min-value max-value]
-  (with-aggregate-buffers
-    date-layout
-    (fn [min-ptr max-ptr out-ptr]
-      (write-date! min-ptr date-layout [] min-value)
-      (write-date! max-ptr date-layout [] max-value)
-      (check-draw! ctx :generate-date
-                   (c-generate-date
-                    ctx test-case
-                    (backend/by-value min-ptr date-layout)
-                    (backend/by-value max-ptr date-layout)
-                    out-ptr))
-      (read-date out-ptr date-layout []))))
+(defn- with-date-options [ctx weekdays months call]
+  (if (or weekdays months)
+    (let [options (call-out! ctx :date-options-new :pointer #(c-date-options-new ctx %))]
+      (try
+        (when weekdays
+          (check! ctx :date-options-set-weekdays (c-date-options-set-weekdays ctx options weekdays)))
+        (when months
+          (check! ctx :date-options-set-months (c-date-options-set-months ctx options months)))
+        (call options)
+        (finally
+          (check! ctx :date-options-free (c-date-options-free ctx options)))))
+    (call backend/null)))
 
-(defn generate-time! [ctx test-case min-value max-value]
-  (with-aggregate-buffers
-    time-layout
-    (fn [min-ptr max-ptr out-ptr]
-      (write-time! min-ptr time-layout [] min-value)
-      (write-time! max-ptr time-layout [] max-value)
-      (check-draw! ctx :generate-time
-                   (c-generate-time
-                    ctx test-case
-                    (backend/by-value min-ptr time-layout)
-                    (backend/by-value max-ptr time-layout)
-                    out-ptr))
-      (read-time out-ptr time-layout []))))
+(defn- with-temporal-bounds [kind minimum maximum call]
+  (let [layout (case kind :date date-layout :time time-layout :datetime datetime-layout
+                     :timestamp timestamp-layout)]
+    (with-aggregate-buffers layout
+      (fn [lo hi out]
+        (case kind
+          :date (do (write-date! lo layout [] minimum) (write-date! hi layout [] maximum))
+          :time (do (write-time! lo layout [] minimum) (write-time! hi layout [] maximum))
+          :datetime (do (write-datetime! lo minimum) (write-datetime! hi maximum))
+          :timestamp (do (write-timestamp! lo minimum) (write-timestamp! hi maximum)))
+        (call (backend/by-value lo layout) (backend/by-value hi layout) out)))))
 
-(defn generate-datetime! [ctx test-case min-value max-value]
-  (with-aggregate-buffers
-    datetime-layout
-    (fn [min-ptr max-ptr out-ptr]
-      (write-datetime! min-ptr min-value)
-      (write-datetime! max-ptr max-value)
-      (check-draw! ctx :generate-datetime
-                   (c-generate-datetime
-                    ctx test-case
-                    (backend/by-value min-ptr datetime-layout)
-                    (backend/by-value max-ptr datetime-layout)
-                    out-ptr))
-      (read-datetime out-ptr))))
+(defn validate-temporal-bounds!
+  "Validate a filtered date or a precision-constrained temporal range without a draw."
+  [kind minimum maximum precision weekdays months]
+  (let [ctx (context-new!)]
+    (try
+      (with-temporal-bounds kind minimum maximum
+        (fn [lo hi _out]
+          (case kind
+            :date (with-date-options ctx weekdays months
+                    (fn [options]
+                      (check! ctx :validate-date (c-validate-date ctx lo hi options))))
+            :time (check! ctx :validate-time (c-validate-time ctx lo hi precision))
+            :datetime (check! ctx :validate-datetime (c-validate-datetime ctx lo hi precision))
+            :timestamp (check! ctx :validate-timestamp (c-validate-timestamp ctx lo hi precision)))))
+      (finally (context-free! ctx)))))
+
+(defn generate-date!
+  ([ctx tc minimum maximum] (generate-date! ctx tc minimum maximum nil nil))
+  ([ctx tc minimum maximum weekdays months]
+   (with-date-options ctx weekdays months
+     (fn [options]
+       (with-temporal-bounds :date minimum maximum
+         (fn [lo hi out]
+           (check-draw! ctx :generate-date (c-generate-date ctx tc lo hi options out))
+           (read-date out date-layout [])))))))
+
+(defn generate-time!
+  ([ctx tc minimum maximum] (generate-time! ctx tc minimum maximum 0))
+  ([ctx tc minimum maximum precision]
+   (with-temporal-bounds :time minimum maximum
+     (fn [lo hi out]
+       (check-draw! ctx :generate-time (c-generate-time ctx tc lo hi precision out))
+       (read-time out time-layout [])))))
+
+(defn generate-datetime!
+  ([ctx tc minimum maximum] (generate-datetime! ctx tc minimum maximum 0))
+  ([ctx tc minimum maximum precision]
+   (with-temporal-bounds :datetime minimum maximum
+     (fn [lo hi out]
+       (check-draw! ctx :generate-datetime (c-generate-datetime ctx tc lo hi precision out))
+       (read-datetime out)))))
+
+(defn generate-timestamp! [ctx tc minimum maximum precision]
+  (with-temporal-bounds :timestamp minimum maximum
+    (fn [lo hi out]
+      (check-draw! ctx :generate-timestamp (c-generate-timestamp ctx tc lo hi precision out))
+      {:second (backend/read-field out timestamp-layout [:second])
+       :nanosecond (backend/read-field out timestamp-layout [:nanosecond])})))
 
 (defn target! [ctx test-case value label]
-  (with-c-string
+  (with-string-value
     label
     #(check! ctx :target (c-target ctx test-case value %))))
 
 (defn event! [ctx test-case label]
-  (with-c-string
+  (with-string-value
     label
     #(check! ctx :event (c-event ctx test-case %))))
 
 (defn event-value! [ctx test-case value label]
-  (with-c-string
+  (with-string-value
     label
     #(check! ctx :event-value (c-event-value ctx test-case value %))))
 
-(defn mark-complete! [ctx test-case status origin]
-  (with-c-string
-    origin
-    #(check! ctx :mark-complete
-             (c-mark-complete ctx test-case status %))))
+(defn mark-complete! [ctx test-case status origin summary detail]
+  (with-c-string origin
+    (fn [origin-ptr]
+      (with-c-string summary
+        (fn [summary-ptr]
+          (with-c-string detail
+            #(check! ctx :mark-complete
+                     (c-mark-complete ctx test-case status origin-ptr summary-ptr %))))))))
 
 (defn run-result-free! [ctx result]
   (c-run-result-free ctx result)
@@ -1075,7 +1137,7 @@
   nil)
 
 (defn failure-origin! [ctx failure]
-  (call-nullable-string-out!
+  (call-string-out!
    ctx :failure-origin #(c-failure-origin ctx failure %)))
 
 (defn failure-reproduction-blob! [ctx failure]
@@ -1084,9 +1146,9 @@
    #(c-failure-reproduction-blob ctx failure %)))
 
 (defn note! [ctx test-case text]
-  (with-utf8-buffer
+  (with-string-value
     text
-    #(check! ctx :note (c-note ctx test-case %1 %2))))
+    #(check! ctx :note (c-note ctx test-case %))))
 
 (defn- printer-options-arg [options]
   (if (nil? options) backend/null options))
@@ -1114,38 +1176,38 @@
   nil)
 
 (defn printer-text! [ctx printer text]
-  (with-utf8-buffer
+  (with-string-value
     text
-    #(check! ctx :printer-text (c-printer-text ctx printer %1 %2))))
+    #(check! ctx :printer-text (c-printer-text ctx printer %))))
 
 (defn printer-breakable! [ctx printer text]
-  (with-utf8-buffer
+  (with-string-value
     text
-    #(check! ctx :printer-breakable (c-printer-breakable ctx printer %1 %2))))
+    #(check! ctx :printer-breakable (c-printer-breakable ctx printer %))))
 
 (defn printer-if-break! [ctx printer text]
-  (with-utf8-buffer
+  (with-string-value
     text
-    #(check! ctx :printer-if-break (c-printer-if-break ctx printer %1 %2))))
+    #(check! ctx :printer-if-break (c-printer-if-break ctx printer %))))
 
 (defn printer-comment! [ctx printer text]
-  (with-utf8-buffer
+  (with-string-value
     text
-    #(check! ctx :printer-comment (c-printer-comment ctx printer %1 %2))))
+    #(check! ctx :printer-comment (c-printer-comment ctx printer %))))
 
 (defn printer-hard-break! [ctx printer]
   (check! ctx :printer-hard-break (c-printer-hard-break ctx printer)))
 
 (defn printer-begin-group! [ctx printer indent text]
-  (with-utf8-buffer
+  (with-string-value
     text
     #(check! ctx :printer-begin-group
-             (c-printer-begin-group ctx printer indent %1 %2))))
+             (c-printer-begin-group ctx printer indent %))))
 
 (defn printer-end-group! [ctx printer text]
-  (with-utf8-buffer
+  (with-string-value
     text
-    #(check! ctx :printer-end-group (c-printer-end-group ctx printer %1 %2))))
+    #(check! ctx :printer-end-group (c-printer-end-group ctx printer %))))
 
 (defn printer-shift-indent! [ctx printer delta]
   (check! ctx :printer-shift-indent (c-printer-shift-indent ctx printer delta)))
@@ -1223,7 +1285,7 @@
   []
   (let [ctx (context-new!)]
     (try
-      (call-nullable-string-out! ctx :version #(c-version ctx %))
+      (call-string-out! ctx :version #(c-version ctx %))
       (finally
         (context-free! ctx)))))
 
@@ -1252,3 +1314,153 @@
        :default (locking compatible-version-checked?
                   (check-compatible-version!))))
   true)
+
+(defn failure-caveat! [ctx failure]
+  (call-nullable-string-out! ctx :failure-caveat #(c-failure-caveat ctx failure %)))
+
+(defn failure-output! [ctx failure]
+  (call-nullable-string-out! ctx :failure-output #(c-failure-output ctx failure %)))
+
+(defn failure-diagnostic! [ctx failure]
+  (call-nullable-string-out! ctx :failure-diagnostic #(c-failure-diagnostic ctx failure %)))
+
+(defn run-start-blob!
+  ([ctx settings blob] (run-start-blob! ctx settings blob false))
+  ([ctx settings blob stderr?]
+   (with-string-value blob
+     (fn [value]
+       (call-out! ctx :run-start-blob :pointer
+                  #(c-run-start-blob ctx settings value (run-output-sink stderr?) backend/null %))))))
+
+(defn run-result-error-kind! [ctx result]
+  (call-out! ctx :run-result-error-kind :int32
+             #(c-run-result-error-kind ctx result % backend/null)))
+
+(def c-label-from-name (backend/function :label-from-name))
+
+(defn label-from-name!
+  "Derive a stable span label from a frontend-qualified UTF-8 name."
+  [ctx name]
+  (with-string-value name
+    (fn [value]
+      ;; Normalize the unsigned word so hosts with a signed uint64 carrier
+      ;; still return the same mathematical integer.
+      (backend/with-native-scope
+       (fn []
+         (let [out (backend/alloc 8)]
+           (try
+             (check! ctx :label-from-name (c-label-from-name (or ctx backend/null) value out))
+             (let [value (backend/read-value out :uint64)]
+               (if (neg? value) (+ 18446744073709551616N value) value))
+             (finally (backend/free out)))))))))
+
+(def c-pool-restore (backend/function :pool-restore))
+(defn pool-restore! [ctx test-case pool variable-id]
+  (check-draw! ctx :pool-restore (c-pool-restore ctx test-case pool variable-id)))
+
+(defn settings-new-for-profile! [ctx profile]
+  (with-string-value profile
+    #(call-out! ctx :settings-new-for-profile :pointer
+                (fn [out] ((backend/function :settings-new-for-profile) ctx % out)))))
+
+(defn settings-value! [ctx settings function-id type]
+  (call-out! ctx function-id type #((backend/function function-id) ctx settings %)))
+
+(defn settings-seed! [ctx settings]
+  (backend/with-native-scope
+   (fn []
+     (with-out-buffer :uint8
+       (fn [specified]
+         (let [seed (call-out! ctx :settings-get-seed :uint64
+                      #((backend/function :settings-get-seed) ctx settings % specified))]
+           (when-not (zero? (backend/read-value specified :uint8))
+             (if (neg? seed) (+ 18446744073709551616N seed) seed))))))))
+
+(defn settings-set-unbounded-choices! [ctx settings enabled?]
+  (check! ctx :settings-set-unbounded-choices
+          ((backend/function :settings-set-unbounded-choices) ctx settings (if enabled? 1 0))))
+
+(defn settings-set-print-blob! [ctx settings enabled?]
+  (check! ctx :settings-set-print-blob
+          ((backend/function :settings-set-print-blob) ctx settings (if enabled? 1 0))))
+
+(def c-label-combine (backend/function :label-combine))
+(defn label-combine! [labels]
+  (backend/with-native-scope
+   (fn []
+     (let [labels (vec labels)
+           data (backend/alloc (max 1 (* 8 (count labels))))]
+       (try
+         (doseq [[index label] (map-indexed vector labels)]
+           (backend/write-value data :int64 (* 8 index)
+                                (long (if (> label 9223372036854775807N)
+                                        (- label 18446744073709551616N)
+                                        #?(:cljr (System.Convert/ToInt64 label)
+                                           :default label)))))
+         (let [value (call-out! backend/null :label-combine :uint64
+                       #(c-label-combine backend/null data (count labels) %))]
+           (if (neg? value) (+ 18446744073709551616N value) value))
+         (finally (backend/free data)))))))
+
+(defn settings-set-test-location! [ctx settings {:keys [file line namespace name]}]
+  (with-string-value file
+    (fn [file]
+      (with-string-value namespace
+        (fn [namespace]
+          (with-string-value name
+            #(check! ctx :settings-set-test-location
+                     ((backend/function :settings-set-test-location)
+                      ctx settings file line namespace %))))))))
+
+(defn pause-faults! [ctx]
+  (check! ctx :pause-faults ((backend/function :pause-faults) ctx)))
+
+(defn unpause-faults! [ctx]
+  (check! ctx :unpause-faults ((backend/function :unpause-faults) ctx)))
+
+(defn grammar-new! [ctx source {:keys [start max-size max-depth imports alphabet]}]
+  (let [builder (with-string-value source
+                  #(call-out! ctx :grammar-builder-new :pointer
+                              (fn [out] ((backend/function :grammar-builder-new) ctx % out))))]
+    (try
+      (loop [index 0]
+        (let [path (backend/with-native-scope
+                    (fn []
+                      (let [out (backend/alloc (backend/layout-size string-layout))]
+                        (try
+                          (let [rc ((backend/function :grammar-builder-file) ctx builder index out)]
+                            (when-not (= -11 rc)
+                              (check! ctx :grammar-builder-file rc)
+                              (read-string-view out)))
+                          (finally (backend/free out))))))]
+          (when path
+            (with-c-string (get imports path)
+              #(check! ctx :grammar-builder-provide
+                       ((backend/function :grammar-builder-provide) ctx builder index %)))
+            (recur (inc index)))))
+      (let [alphabet-handle (when alphabet (string-generator-text! ctx alphabet))]
+        (try
+          (with-c-string start
+            #(call-out! ctx :grammar-new :pointer
+                        (fn [out] ((backend/function :grammar-new) ctx builder %
+                                    max-size max-depth (or alphabet-handle backend/null)
+                                    backend/null 0 out))))
+          (finally (when alphabet-handle (string-generator-free! ctx alphabet-handle)))))
+      (finally ((backend/function :grammar-builder-free) ctx builder)))))
+
+(defn grammar-free! [ctx grammar]
+  (check! ctx :grammar-free ((backend/function :grammar-free) ctx grammar)))
+
+(defn generate-grammar! [ctx test-case grammar]
+  (backend/with-native-scope
+   (fn []
+     (let [size (backend/layout-size string-layout)
+           out (backend/alloc size)]
+       (zero-memory! out size)
+       (try
+         (check-draw! ctx :generate-grammar
+                      ((backend/function :generate-grammar) ctx test-case grammar 0 out))
+         (read-string-view out)
+         (finally
+           (c-generate-string-result-free ctx out)
+           (backend/free out)))))))

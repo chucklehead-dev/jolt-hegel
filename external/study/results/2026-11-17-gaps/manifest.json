@@ -1,0 +1,28 @@
+{
+  "hegel_sha": "6321d5ab485db656a48823030453bc4b2d0af1cc",
+  "runtime": "jolt v0.8.27",
+  "native": "0.51.6",
+  "platform": "linux-amd64",
+  "targets": {
+    "instaparse": {
+      "sha": "6105ad194ab5f52c255fe475fb20c59f0dde64e9",
+      "url": "https://github.com/jlt-commons/instaparse",
+      "matched_remote_HEAD_at_study_start": true
+    },
+    "yyjson-jolt": {
+      "sha": "e9562890a5f74b1cfd8added087860e7533df605",
+      "url": "https://github.com/jlt-commons/yyjson-jolt",
+      "matched_remote_HEAD_at_study_start": true
+    },
+    "augur": {
+      "sha": "58fef3f2077515c216cd7a295e4599e8579ad5bb",
+      "url": "https://github.com/jlt-commons/augur",
+      "matched_remote_HEAD_at_study_start": true
+    },
+    "glitter-core": {
+      "sha": "95b4d94322e4d901091d9d45b15b52b8c9146d54",
+      "url": "https://github.com/jlt-commons/glitter-core",
+      "matched_remote_HEAD_at_study_start": true
+    }
+  }
+}

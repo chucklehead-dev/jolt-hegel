@@ -7,6 +7,7 @@
 - [`clojure.test` property template](#clojuretest-property-template)
 - [Custom-runner property template](#custom-runner-property-template)
 - [Generators](#generators)
+  - [Grammar strings](#grammar-strings)
   - [Optional Malli adapter](#optional-malli-adapter)
 - [Combinators and collections](#combinators-and-collections)
 - [Core controls](#core-controls)
@@ -20,15 +21,16 @@
 - [Materialized corpora](#materialized-corpora)
 - [Concurrency](#concurrency)
 - [Verification commands](#verification-commands)
+- [External pilots and DX probes](external-pilots.md)
 
 ## Install
 
 Use the runtime selected by the consuming project's toolchain contract: Jolt
-0.8.1 or later on current `main` and next-release work, with 0.8.3 as the
+0.8.1 or later on current `main` and next-release work, with 0.8.30 as the
 primary qualified release (the published `v0.5.0` tag retains its historical
 Jolt 0.7.23+ contract), an FFI-capable Babashka
 1.13.220 or later build with the official `babashka.ffi`, or JVM Clojure on
-JDK 22 or later. On Linux, use the
+JDK 25 or later. On Linux, use the
 ordinary release asset rather than the `-static` asset and confirm `bb describe`
 reports a non-nil `:libffi/version`. Do not substitute a
 convenient global executable for a project-selected binary. Add the public
@@ -45,16 +47,14 @@ project's test alias:
     {:git/url "https://github.com/chucklehead-dev/jolt-hegel.git"
      :git/sha "<jolt-hegel-commit-sha>"}
     ;; JVM Clojure only; omit for Jolt and Babashka.
-    io.github.babashka/ffi
-    {:git/url "https://github.com/babashka/ffi.git"
-     :git/sha "aacb153618bc39ca1e4c397b8f30fb81c76d0c4c"}}}}}
+    org.babashka/ffi {:mvn/version "0.1.3"}}}}}
 ```
 
 From the consuming project, install the verified libhegel release with the host
 that will run the tests:
 
 ```bash
-# Current `main` / next release candidate: Jolt 0.8.1+ (0.8.3 primary)
+# Development checkout: Jolt 0.8.1+ (0.8.30 primary)
 JOLT_CACHE_DIR=.jolt-cache/jolt-hegel-<jolt-hegel-commit-sha> \
   jolt -A:test -m hegel.install
 
@@ -118,11 +118,11 @@ unavailable; a source-only test can conceal missing packaging.
 
 | Host | Status and current evidence |
 | --- | --- |
-| Jolt 0.8.1+ on current `main` | Jolt 0.8.3 is primary on Linux x86_64, Windows x86_64, and macOS arm64; Jolt 0.8.1 retains a full Linux minimum lane |
+| Jolt 0.8.1+ on current `main` | Jolt 0.8.30 is primary on Linux x86_64, Windows x86_64, and macOS arm64; Jolt 0.8.1 retains a full Linux minimum lane |
 | FFI-capable Babashka 1.13.220+ | Supported on the same three-OS native-image matrix; Linux `-static` assets are excluded |
-| JVM Clojure on JDK 22+ | Supported on the same matrix with JDK 25 primary and a Linux JDK 22 minimum gate |
+| JVM Clojure on JDK 25+ | Supported on the same matrix with JDK 25 primary and a Linux JDK 25 minimum gate |
 | jank | Experimental focused Linux and macOS suites; see `docs/JANK.md` |
-| ClojureCLR 1.12.2 on .NET 8 | Experimental focused three-OS suite; see `docs/CLR.md` |
+| ClojureCLR 1.12.6 on .NET 8 | Experimental focused three-OS suite; see `docs/CLR.md` |
 
 The experimental hosts reuse shared property behavior, but their focused CI is
 not equivalent to the complete supported-host semantic and consumer matrix.
@@ -231,9 +231,12 @@ All generators return `(fn [test-case] value)` and are consumed with
 | `(g/date opts)` | ISO 8601 date string |
 | `(g/time opts)` | ISO 8601 local-time string |
 | `(g/datetime opts)` | ISO 8601 naive-datetime string |
+| `(g/timestamp opts)` | UTC instant as signed epoch seconds and a nonnegative nanosecond fraction |
 | `(g/string)` | Unicode string with 0 through 100 code points |
 | `(g/string opts)` | size, codec, code-point, category, character, or alphabet constraints |
 | `(g/character opts)` | one-code-point string with the string character filters |
+| `(g/grammar spec opts)` | Clojure data grammar; options are optional |
+| `(g/grammar-str source opts)` | raw Lark grammar; options are optional |
 | `(g/regex-str pattern)` | full-match regex string |
 | `(g/regex-str pattern {:full-match? false})` | string containing a regex match |
 | `(g/email)` | RFC 5321/5322 email-address string |
@@ -273,19 +276,40 @@ These new numeric contracts are qualified on BB/JVM/Jolt, not yet on
 experimental jank or ClojureCLR. Do not infer arbitrary-width numeric semantics
 from successful symbol resolution or a focused host smoke test.
 
+### Grammar strings
+
+```clojure
+(def digits
+  (g/grammar {:rules {:start [:repeat {:min 1 :max 4}
+                              [:char-range "0" "9"]]}}))
+```
+
+`:start` defaults to `:start`; `:rules` maps rule keywords to expressions.
+Strings are literal text, keywords reference rules, and operator vectors use
+`:cat`, `:alt`, `:optional`, `:repeat {:min n :max n}`, or `:char-range`.
+Whitespace is explicit. `g/grammar` options are `:max-size`, `:max-depth` and
+`:alphabet`; select the start rule in the grammar data. The result is an
+ordinary Hegel generator. For inspection, `(hegel.grammar/compile spec)` returns
+`{:source ... :start ...}` without loading native code.
+
+Use `grammar-str` for existing Lark, imports, regex terminals and directives
+outside the DSL. Neither API automatically converts Instaparse grammars, Malli
+schemas or test.check generators. See [the grammar contract](../../../docs/GRAMMARS.md)
+for name/bound validation, recursion and Unicode rules.
+
 ### Optional Malli adapter
 
 Consumers that supply Malli may require `hegel.malli` and build a generator
 with `(hegel.malli/generator schema)`. Malli is deliberately absent from
 jolt-hegel's runtime dependencies; add `metosin/malli` explicitly to the same
-consumer alias. The adapter test suite uses Malli 0.20.1.
+consumer alias. The adapter test suite uses Malli 0.20.3.
 
 ```clojure
 {:extra-deps
  {io.github.chucklehead-dev/jolt-hegel
   {:git/url "https://github.com/chucklehead-dev/jolt-hegel.git"
    :git/sha "<jolt-hegel-commit-sha>"}
-  metosin/malli {:mvn/version "0.20.1"}}}
+  metosin/malli {:mvn/version "0.20.3"}}}
 ```
 
 ```clojure
@@ -358,12 +382,22 @@ Time bounds are inclusive maps:
 Datetime bounds are `{:date date-map :time time-map}`. Pass temporal
 bounds as `{:min minimum :max maximum}` or as two positional maps.
 
-With libhegel 0.36, these public maps and six-digit fractional strings remain
-microsecond-based. Raw `hegel.ffi` time maps use `:nanosecond` instead. The
-generator converts inclusive microsecond bounds to full nanosecond buckets
-and projects results with integer quotient by 1000; valid sub-microsecond
-draws are not rejected. Seed streams and blobs are version-specific, not
-guaranteed identical across a native upgrade.
+`g/date` accepts a nonempty collection of weekday keywords (`:monday` through
+`:sunday`) as `:weekdays` and a nonempty collection of month numbers (1–12)
+as `:months`. The generated date satisfies both filters and the inclusive bounds.
+
+`g/time` and `g/datetime` accept `:precision` of `:hours`, `:minutes`,
+`:seconds`, `:milliseconds`, `:microseconds` (default), or `:nanoseconds`.
+Each generated time lies on that grid. At nanosecond precision a bound can
+supply `:nanosecond` in place of `:microsecond`. A nonzero fractional part has
+nine digits at nanosecond precision and six at the other precisions. Bounds
+with no permitted date or tick produce a generator construction error.
+
+`g/timestamp` accepts the same precision options. Its inclusive bounds and
+generated values use `{:second ... :nanosecond ...}`. The default window
+covers civil years 1 to 9999. For example, `{:second -1 :nanosecond 500000000}`
+is half a second before the Unix epoch. Use the no-argument form, an options
+map, or two positional bounds.
 
 String options are:
 
@@ -453,6 +487,19 @@ oversized or mispriced attempts, and labels every subtree so shrinking can
 replace a tree with one of its descendants. Do not add a separate generated
 depth counter around `g/recursive`.
 
+For a reusable dependent generator defined at top level, use `g/bind`:
+
+```clojure
+(def sized-booleans
+  (g/bind (fn [size] (g/vector {:size size} (g/boolean)))
+          (g/integer 1 10)))
+;; Later, inside a property: (h/draw! sized-booleans)
+```
+
+`g/bind` constructs a generator; `g/let` executes draws immediately in the
+current test case. A top-level `g/let` with generator bindings therefore fails
+with `no Hegel test case is currently bound`.
+
 `g/let` draws tagged generator right-hand sides and leaves ordinary expressions
 alone. It must execute inside an active `run-test!` or
 `hegel.clojure-test/with` property; it returns its body value and is not a
@@ -492,9 +539,9 @@ namespace load time.
 | `(h/assume! condition)` | reject the current case when false |
 | `(h/target! score)` | guide targeting toward a finite score |
 | `(h/target! score label)` | target with a stable label |
-| `(h/final?)` | true only during minimal failure replay |
-| `(h/when-final ...)` | evaluate diagnostics only during final replay |
-| `(h/fprn ...)` | print values to stderr only during final replay |
+| `(h/final?)` | true during native diagnostic capture; may repeat |
+| `(h/when-final ...)` | evaluate diagnostics during capture passes |
+| `(h/fprn ...)` | print values to stderr during capture passes |
 | `(h/note! ...)` | print according to configured verbosity |
 | `(h/sample n generator)` | inspect up to `n` values |
 
@@ -523,8 +570,8 @@ never parse that report to decide coverage or confuse it with `*err*` capture.
 ```
 
 Coverage implicitly enables collection. Requirements use completed valid
-exploration cases only; rejected, overrun, interesting and explicit final replay
-cannot supply hits. Zero valid cases or missing labels fail, and numeric values
+exploration cases only; rejected, overrun, interesting and native diagnostic-
+capture cases cannot supply hits. Zero valid cases or missing labels fail, and numeric values
 do not satisfy categorical requirements. Both thresholds apply; defaults are
 one hit and zero fraction. A missed requirement changes an otherwise passing
 result to `:passed? false`, `:status :coverage-failed`, without a native failure
@@ -533,7 +580,10 @@ blob or extra shrink run. Existing native failures/errors remain primary.
 The C API does not expose each case's native subphase. Choose `:exploration`
 explicitly for mixed phases. `:generation-only` coverage requires the caller's
 explicit `:phases [:generate]`, which disables normal native reuse/target/shrink
-work; never make that choice silently. Final replay is separately summarized.
+work; never make that choice silently. The `:final-replay` bucket separately
+summarizes cases stamped for native diagnostic capture. Capture may happen
+repeatedly during shrinking/confirmation; these are not independent generated
+samples or necessarily the one selected minimum.
 Discarded draws within a valid case do not roll back frontend events: emit
 final-value coverage after a successful draw when that is the intended check.
 
@@ -830,6 +880,12 @@ Common `run-test!` options:
 | `:database` | database path; `""` disables persistence |
 | `:verbosity` | `:quiet`, `:normal`, `:verbose`, or `:debug` |
 | `:report-multiple-failures?` | retain multiple stable failure origins |
+| `:profile` | native profile name; explicit options override resolved defaults |
+| `:stop-on-first-failure?` | stop exploration after finding a failure, then shrink |
+| `:nondeterminism-strictness` | `:quiet`, `:warn`, or `:error`; frontend default `:error` |
+| `:unbounded-choices?` | native choice-recording limit option |
+| `:print-blob?` | native reproduction-blob printing |
+| `:test-location` | `:file`, `:line`, `:namespace`, `:name` for source-aware reporting |
 
 libhegel 0.36 removes `:mode`, including `:single-test-case`. Supplying it is
 an actionable pre-native usage error. Use `:test-cases 1` only when a one-valid-
@@ -859,13 +915,27 @@ or run-level nondeterminism has no failure blob.
          :last-data (:data last))))
 ```
 
+Read the structured `:counterexample` on a retained entry in `:final` or
+`:failures`. Native report strings are available as `:output` and `:diagnostic`
+on `:failures` entries when the engine retained them. Quiet verbosity disables snapshots; it does not erase
+retained exception data or native blobs. Attach plain `:input` to assertion
+exception data when a value fixture is needed. `(hegel.report/failure-fixtures result)`
+returns one origin/input pair per confirmed failure carrying that key, including
+nil and false inputs. For generated source forms, retain an ordered construction
+recipe together with its input. Do not infer the selected
+minimum from whichever `final?` callback happened last. See
+[ordinary minimized input capture](../../../docs/REPLAY_BUNDLES.md#retaining-an-ordinary-minimized-input).
+
 There are two flakiness shapes. A shrunk failure that does not reproduce with
 the same stable origin keeps its failure entry, records `:replay-origin`, and
 sets `:flaky? true`. If libhegel detects different
 outcomes or different generation for the same choice prefix, the result has
 `:status :error`, `:passed? false`, `:flaky? true`, and the explanation in
 `:error`; it has no counterexample to replay. Other run-level errors, including
-health-check failures, still throw `:hegel.core/run-error`.
+health-check failures, still throw `:hegel.core/run-error`. An unrecorded
+single-case Antithesis workload instead retains its observed failure with
+`:unrecorded? true`, `:reproduced? false` and no native blob; the absence of
+confirmation in that mode is not itself flakiness.
 
 ## Replay bundles
 
@@ -873,7 +943,10 @@ Current source adds `hegel.replay-bundle/from-result` for stable, reproduced
 failed results and `hegel.replay-bundle.codec/encode` / `decode` for bounded
 schema-v1 EDN. These pure namespaces need no native library or type checker.
 Export requires the new result's captured `:replay-options`; do not invent
-settings for older results. Keep uint64 seeds as decimal strings.
+settings for older results. Replay captures resolved semantic settings, not a
+mutable profile name. Keep uint64 seeds as decimal strings. A printed entire
+result may contain `#error` forms and is not a portable bundle; use the codec
+and retain ordinary input fixtures separately.
 
 `(h/replay-bundle! expected-provenance bundle case-fn)` compares every
 provenance field and replays native blobs directly with captured settings and
@@ -944,7 +1017,7 @@ Concurrent engine safety has not been verified by jolt-hegel's test suite, so
 concurrent native runs remain unsupported until that contract has a dedicated
 integration test.
 
-libhegel 0.36.3's concurrent state-machine protocol is not exposed. The current
+libhegel 0.53.2's concurrent state-machine protocol is not exposed. The current
 `hegel.stateful/run!` implementation drives the round protocol with fixed
 concurrency one so deterministic shrinking and final replay keep their
 existing contract. Upstream machines declared with maximum concurrency above
@@ -979,3 +1052,19 @@ Use the consuming project's established test command and selected executable
 when they differ from these examples. For process-backed properties, pre-resolve
 every parent and worker dependency set before generation and preserve the first
 worker transcript when infrastructure setup fails.
+
+## Next-release upstream additions
+
+The [adoption report](../../../docs/UPSTREAM_ADOPTION.md) documents the optional
+Jolt native package and examples for `grammar-str`, `:profile`,
+`:unbounded-choices?`, `:print-blob?`, rule `:weight` and invariant
+`:pause-faults?`. Run options also accept `:test-location` with `:file`, `:line`,
+`:namespace` and `:name`; `hegel.clojure-test` supplies this automatically.
+Replay captures resolved semantic settings rather than a mutable profile name.
+String and byte default maximum sizes are 100, or minimum + 100 when the minimum
+exceeds 100. Native compiled generators are reused within each test case.
+
+`g/grammar` accepts Clojure grammar data (`:rules`, optional `:start`). See
+[the grammar DSL](../../../docs/GRAMMARS.md) for operators and examples.
+`hegel.grammar/compile` returns inspectable `{:source ... :start ...}` without
+loading native code. Use `grammar-str` for existing Lark source.

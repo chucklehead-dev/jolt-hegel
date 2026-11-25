@@ -175,14 +175,17 @@
 
 (defn- call-wrapper [descriptor function-id function]
   (let [id (identifier function-id)
+        aggregate? (= :by-value (first (when (vector? (:return function)) (:return function))))
         args (map-indexed (fn [index type]
-                            (str (cpp-type descriptor type) " arg" index))
-                          (:args function))
+                           (str (cpp-type descriptor type) " arg" index)) (:args function))
         values (map #(str "arg" %) (range (count (:args function))))]
-    (str "inline " (cpp-type descriptor (:return function))
+    (str "inline " (if aggregate? "void" (cpp-type descriptor (:return function)))
          " hegel_jank_call_" id "(hegel_jank_bindings *bindings"
+         (when aggregate? ", void *destination")
          (when (seq args) (str ", " (str/join ", " args))) ")\n{\n  "
-         (when-not (= :c/void (:return function)) "return ")
+         (if aggregate?
+           (str "*static_cast<" (cpp-type descriptor (:return function)) " *>(destination) = ")
+           (when-not (= :c/void (:return function)) "return "))
          "bindings->" id "(" (str/join ", " values) ");\n}")))
 
 (defn- ordered-struct-types [types]
@@ -224,17 +227,17 @@
          (apply str
                 (map (fn [[type-id _]]
                        (str "struct " (cpp-type-name type-id) ";\n"))
-                     opaque-types))
+                     (concat opaque-types struct-types)))
          "\n"
-         (str/join "\n\n"
-                   (map (fn [[type-id type-descriptor]]
-                          (struct-declaration descriptor type-id type-descriptor))
-                        struct-types))
-         "\n\n"
          (str/join "\n"
                    (map (fn [[type-id type-descriptor]]
                           (function-pointer-declaration descriptor type-id type-descriptor))
                         callback-types))
+         "\n\n"
+         (str/join "\n\n"
+                   (map (fn [[type-id type-descriptor]]
+                          (struct-declaration descriptor type-id type-descriptor))
+                        struct-types))
          "\n\n"
          (str/join "\n"
                    (map (fn [[function-id function]]
@@ -292,7 +295,7 @@
                               "inline void hegel_jank_write_" id "(void *pointer, std::size_t offset, " cpp-type " value) { *reinterpret_cast<" cpp-type " *>(static_cast<std::uint8_t *>(pointer) + offset) = value; }\n")))
                      (sort-by key (dissoc scalar-cpp-types :c/void :c/string))))
          "inline std::string hegel_jank_read_utf8(void *pointer, std::size_t length) { return std::string{static_cast<char const *>(pointer), length}; }\n"
-         "inline std::size_t hegel_jank_write_utf8(void *pointer, ::jank::runtime::object_ref value) { auto string = ::jank::runtime::try_object<::jank::runtime::obj::persistent_string>(value); std::memcpy(pointer, string->data.data(), string->data.size()); return string->data.size(); }\n"
+         "inline std::size_t hegel_jank_utf8_size(::jank::runtime::object_ref value) { return ::jank::runtime::try_object<::jank::runtime::obj::persistent_string>(value)->data.size(); }\n"
          "inline void *hegel_jank_string_dup(::jank::runtime::object_ref value) { auto string = ::jank::runtime::try_object<::jank::runtime::obj::persistent_string>(value); auto *result = static_cast<char *>(hegel_jank_alloc(string->data.size() + 1)); std::memcpy(result, string->data.data(), string->data.size()); result[string->data.size()] = '\\0'; return result; }\n"
          "inline std::string hegel_jank_native_string(void *pointer) { return pointer == nullptr ? std::string{} : std::string{static_cast<char const *>(pointer)}; }\n\n"
          "inline std::uint64_t hegel_jank_to_uint64(::jank::runtime::object_ref value) { if(value.get_type() == ::jank::runtime::object_type::big_integer) { return ::jank::runtime::try_object<::jank::runtime::obj::big_integer>(value)->data.convert_to<std::uint64_t>(); } return ::jank::runtime::convert<std::uint64_t>::from_object(value); }\n\n"
@@ -380,12 +383,14 @@
       (str "(cpp/cast " (jank-type-form descriptor type) " " value ")"))))
 
 (defn- jank-invoker [descriptor function-id function]
-  (let [call (str "(cpp/hegel_jank_call_" (identifier function-id)
+  (let [aggregate? (= :by-value (first (when (vector? (:return function)) (:return function))))
+        call (str "(cpp/hegel_jank_call_" (identifier function-id)
                   " native-bindings"
+                  (when aggregate? " (cpp/unbox (:* cpp/void) (nth values 0))")
                   (when (seq (:args function))
                     (str "\n     "
                          (str/join "\n     "
-                                   (map-indexed #(jank-argument descriptor %2 %1)
+                                   (map-indexed #(jank-argument descriptor %2 (+ %1 (if aggregate? 1 0)))
                                                 (:args function)))))
                   ")")
         return (:return function)

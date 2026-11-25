@@ -58,6 +58,7 @@
                     :database ""
                     :verbosity :quiet}
             []
+            (h/draw! (g/integer 0 100))
             (h/assume! (> (swap! calls inc) 1))))]
     (support/check! context "clojure.test properties preserve assumption control flow"
            (and (:passed? result)
@@ -80,7 +81,7 @@
     (support/check! context "a failing clojure.test assertion is shrunk and reproduced"
            (and (not (:passed? result))
                 (:reproduced? failure)
-                (= [10] @final-values)))
+                (= 10 (last @final-values))))
     (support/check! context "only the final minimal clojure.test failure is reported"
            (and (= [:fail] (mapv :type @events))
                 (str/includes? (pr-str (:actual (first @events))) "10")

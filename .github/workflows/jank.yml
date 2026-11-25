@@ -28,7 +28,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: DeLaGuardo/setup-clojure@13.5
+      - uses: DeLaGuardo/setup-clojure@13.7.0
         with:
           bb: latest
       - name: Verify generated ABI artifacts
@@ -46,11 +46,11 @@ jobs:
           - name: Linux x86_64
             runner: ubuntu-24.04
             library-name: libhegel_c.so
-            library-sha256: 12d804f8767f926f8ec22a733e57af265f0b79f383ce78cc8d9fcbae2a8a3ad7
+            library-sha256: ce6cc514aac3d2c6e557bf9520b3af6280b3bb735a4d736e882d0344b1476bd2
           - name: macOS arm64
             runner: macos-26
             library-name: libhegel_c.dylib
-            library-sha256: ac3939a523ca5d98ed741e5894c3b44d0c7b0fa8baaa3deabc5653bb1d754df9
+            library-sha256: bc1956d1514ad95dbe8099bf785a142f3b99de47cd26838a4ad9af4358217975
 
     env:
       HEGEL_CACHE_DIR: ${{ github.workspace }}/.hegel-lib
@@ -59,16 +59,16 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: DeLaGuardo/setup-clojure@13.5
+      - uses: DeLaGuardo/setup-clojure@13.7.0
         with:
           bb: latest
       - name: Install pinned jank package (Linux)
         if: runner.os == 'Linux'
         env:
           # The PPA publishes continuous builds at this stable URL. This digest
-          # was verified against its 2026-09-06 signed noble package index
+          # was verified against its 2026-11-24 signed noble package index
           # (signing fingerprint 3914A6761EC1FF9C8F735BBABB90C586E7196C2B).
-          JANK_DEB_SHA256: 93024e81e8f3ab2b29b3480f5cc5ae5da2a5e6361d411fd79f7450a5db1c6a66
+          JANK_DEB_SHA256: e02148e3b362b3539c297b0195a6326addbdd6afe76b36117db32bdafb42dbf5
         run: |
           curl -fsSLo "$RUNNER_TEMP/jank.deb" \
             https://ppa.jank-lang.org/pool/main/j/jank/jank_0.1-noble_amd64.deb

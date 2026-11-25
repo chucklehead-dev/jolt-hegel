@@ -1,0 +1,2 @@
+:actual ["0" "1" "2" "0"]
+:events [[:append-child "li" :to "ul"]]

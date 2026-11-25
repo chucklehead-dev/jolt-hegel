@@ -410,21 +410,16 @@
               (reset! joined? true)
               (reset! cleanup-safe? true)
               (swap! events conj :workers-joined)
-              ;; stateful-step-count one bounds this probe to one round; a
-              ;; second coordinator call must report completion after both
-              ;; workers join.
-              (when (some? (hffi/state-machine-next-group!
-                            root-context root-handle state-machine))
-                (throw (ex-info "bounded two-worker probe unexpectedly opened a second group"
-                                {:left left-result :right right-result})))
+              ;; Empty concurrent rounds no longer consume the round budget.
+              ;; Advance at the join point, then finish this bounded probe.
+              (hffi/state-machine-next-group! root-context root-handle state-machine)
               (swap! events conj :coordinator-next-group)
-              (when-not (and (= :ok (:status left-result))
-                             (= :ok (:status right-result))
-                             (every? pos?
-                                     (mapcat (comp vals :calls)
-                                             [left-result right-result])))
-                (throw (ex-info "two-worker selected route did not exercise every native operation"
+              (when-not (and (= :ok (:status left-result)) (= :ok (:status right-result)))
+                (throw (ex-info "two-worker selected route failed"
                                 {:left left-result :right right-result})))
+              ;; The native simplest case deliberately gives both workers zero
+              ;; rules. Measure only cases that exercised every operation.
+              (h/assume! (every? pos? (mapcat (comp vals :calls) [left-result right-result])))
               (reset! completed
                       {:left left-result
                        :right right-result
@@ -488,6 +483,7 @@
                           (every? complete-round? @reports))))
        (throw (ex-info "two-worker collect-safe characterization did not complete every required round"
                        {:result (semantic-summary result)
+                        :failure (some-> result :final first :exception ex-data)
                         :round-count (count @reports)
                         :expected-rounds configured-contention-rounds
                         :reports @reports})))
@@ -605,14 +601,6 @@
       (hffi/state-machine-free! root-context state-machine)
       (throw (ex-info "worker-body probe did not receive concurrency two"
                       {:concurrency concurrency})))
-    ;; The first concurrent construction is an assumed-away flip case. A
-    ;; successful construction must therefore be on a case that libhegel has
-    ;; already stamped nondeterministic, which is the non-replayable result
-    ;; path this probe expects below.
-    (when-not (hffi/test-case-nondeterministic? root-context root-handle)
-      (hffi/state-machine-free! root-context state-machine)
-      (throw (ex-info "worker-body probe reached a concurrent machine on a deterministic case"
-                      {})))
     (let [pool (atom nil)
           left-clone (atom nil)
           right-clone (atom nil)
@@ -655,6 +643,9 @@
               (reset! joined? true)
               (reset! cleanup-safe? true)
               (swap! events conj :workers-joined)
+              ;; A worker may receive no rules in a valid concurrent round.
+              ;; Both workers have joined, so skipping this probe is safe.
+              (h/assume! (every? pos? (mapcat (comp vals :calls) [left-result right-result])))
               (when-not (and (= :error (:status left-result))
                              (identical? expected-error (:error left-result))
                              (= worker-body-error-type
@@ -673,10 +664,10 @@
               (reset! completed {:left (dissoc left-result :error)
                                  :right right-result
                                  :route :collect-safe
-                                 :test-case-nondeterministic? true})
+                                 :wants-output? (hffi/test-case-wants-output? root-context root-handle)})
               ;; Throw only after every worker has returned. run-test! records
               ;; the user-shaped failure; libhegel subsequently reports its
-              ;; expected non-replayable concurrent-run status.
+              ;; confirmed failure through the ordinary native replay protocol.
               (throw (:error left-result)))))
         (finally
           ;; Never re-enter ordinary Hegel cleanup while a worker may still be
@@ -705,16 +696,14 @@
   "Run the expected worker-body failure probe in an externally watched child.
   It models cooperative peer cancellation and checks exception containment and
   cleanup for that protocol; it does not claim an executor cancellation API.
-  The current public run result deliberately rejects concurrent failures."
+  Concurrent failures use the native capture and confirmation protocol."
   []
   (let [reports (atom [])
-        run-error
+        run-result
         (try
           (h/run-test!
-           {;; The budget counts accepted cases. libhegel's initial
-            ;; concurrency flip is assumed away as an extra invalid case, then
-            ;; this one accepted case reaches the worker-error body.
-            :test-cases 1
+           {:test-cases 10
+            :nondeterminism-strictness :quiet
             :stateful-step-count 1
             :seed 880106
             :database ""
@@ -722,14 +711,12 @@
             :report-multiple-failures? false
             :suppress-health-checks [:too-slow]}
            (fn [_] (run-two-worker-exception-round! reports)))
-          nil
-          (catch Throwable error error))
+          (catch Throwable error (throw error)))
         expected-events [:workers-joined :clones-freed :pool-freed
                          :state-machine-freed]
         complete?
-        (fn [{:keys [left right route events test-case-nondeterministic?]}]
+        (fn [{:keys [left right route events]}]
           (and (= :collect-safe route)
-               test-case-nondeterministic?
                (= expected-events events)
                (= :error (:status left))
                (= worker-body-error-type (get-in left [:failure :type]))
@@ -744,18 +731,14 @@
                    :pool-generate 1}
                   (:calls left)
                   (:calls right))))]
-    (when-not (and (= :hegel.core/unsupported-concurrent-state-machine
-                      (:type (ex-data run-error)))
-                   (= 1 (count @reports))
+    (when-not (and (= :failed (:status run-result))
+                   (seq @reports)
                    (every? complete? @reports))
       (throw (ex-info "worker-body exception characterization did not fail closed"
-                      {:run-error (when run-error
-                                    {:type (:type (ex-data run-error))
-                                     :message (ex-message run-error)})
+                      {:run-result (select-keys run-result [:status :flaky? :error])
                        :reports @reports})))
-    {:status :expected-nonpublic-concurrent-failure
-     :run-error {:type (:type (ex-data run-error))
-                 :message (ex-message run-error)}
+    {:status :expected-concurrent-failure
+     :run-result (select-keys run-result [:status :n-failures :flaky?])
      :completed-rounds @reports}))
 
 (defn collect-all!

@@ -1,0 +1,4 @@
+{:paths ["/workspace/pilot-targets/yyjson-jolt/test"]
+ :deps {yyjson/yyjson {:local/root "/workspace/pilot-targets/yyjson-jolt"}
+ org.clojure/data.json {:git/url "https://github.com/clojure/data.json" :git/sha "1fce9070ee851f49a6c4ce6e1c0bb0db4d7594a0"}
+ io.github.jolt-lang/time {:git/url "https://github.com/jolt-lang/time.git" :git/sha "33c5e9831c046cfcbe68bc0c9c33e92568eaebb1"}}}

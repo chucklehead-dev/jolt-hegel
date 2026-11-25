@@ -1,0 +1,3 @@
+WARNING: let already refers to: #'clojure.core/let in namespace: hegel.generator, being replaced by: #'hegel.generator/let
+WARNING: run! already refers to: #'clojure.core/run! in namespace: parser-meaning, being replaced by: #'parser-meaning/run!
+{:correct {:ast [:add 0 1], :text "(0+1)", :tree [:expr [:add [:expr [:number "0"]] [:expr [:number "1"]]]], :expected 1, :actual 1, :parse-failed? false}, :broken {:ast [:add 0 1], :text "(0+1)", :tree [:expr [:add [:expr [:number "0"]] [:expr [:number "1"]]]], :expected 1, :actual -1, :parse-failed? false}}

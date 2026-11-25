@@ -9,18 +9,15 @@ Use jolt-hegel to write property-based and model-based tests on Jolt,
 Babashka, or JVM Clojure. The public API and behavioral contract are shared;
 runtime choice affects installation and native diagnostics, not property code.
 
-The public API guidance was verified on 2026-09-05 against production source
-revision `116d4c4126db6ffd461ab41158c12b0abf5b49f5`; the runtime guidance was
-additionally checked against released Jolt v0.8.3 at
-`343f730922cf16fafe673b466cedcdcfe0596854`. Current `main` has a Jolt 0.8.1
-compatibility floor and qualifies 0.8.3 as its primary Linux x86_64, Windows
-x86_64, and macOS arm64 release; the published `v0.5.0` release retains its
-historical Jolt 0.7.23+ contract. The supported FFI-capable Babashka floor is
-1.13.220 with libffi.
+This guidance targets the development checkout with libhegel 0.53.2. The
+published v0.5.0 tag records the contract for that release. Current source
+supports Jolt 0.8.1+ (0.8.30 is primary), FFI-capable Babashka 1.13.220+
+(1.13.230 is primary), and JVM Clojure on JDK 25+ with babashka.ffi 0.1.3.
+The historical v0.5.0 Jolt floor is 0.7.23.
 
-API additions below follow the accompanying source, not the published v0.5.0
-API. Check `hegel.version/libhegel-version` when migrating native dependencies;
-the 0.36 migration changes raw temporal fields and removes `:mode`.
+Check `hegel.version/libhegel-version` and the migration guide before changing
+native dependencies. A saved replay bundle requires the engine and deployment in its manifest.
+Replay an old failure there or generate a fresh bundle on 0.53.2.
 
 jank and ClojureCLR implementations are merged but experimental. Do not select
 one for a consumer merely because its source branch exists: first read
@@ -28,9 +25,11 @@ one for a consumer merely because its source branch exists: first read
 suite, packaging, and platform limitations. The supported release contract is
 Jolt, an FFI-capable Babashka 1.13.220 or later build, and JVM Clojure.
 
-Read [references/api.md](references/api.md) before writing tests. It lists the
-exact supported generators, options, result keys, Malli subset, and stateful
-contracts. Do not borrow names from another Hegel binding.
+Use the contents of [references/api.md](references/api.md) to read the relevant
+API sections before writing tests. Check exact signatures, options and result
+paths; do not borrow names or arities from another Hegel binding or test.check.
+For external consumer packs and DX probes, also read
+[references/external-pilots.md](references/external-pilots.md).
 
 ## Workflow
 
@@ -44,8 +43,11 @@ contracts. Do not borrow names from another Hegel binding.
 4. Add the property beside examples for the same behavior. Prefer
    `hegel.clojure-test/with` in a `clojure.test` suite; use `run-test!` for a
    custom runner.
-5. Run the narrow test, inspect the minimized counterexample, and replay the
-   reported seed before changing code or narrowing a generator.
+5. Run the narrow test and inspect the retained failure in `:final`/`:failures`.
+   Preserve its ordinary input and, for a stable reproduced failure, a native
+   replay bundle. Reproduce in a fresh process with independent provenance
+   before changing code or narrowing the generator. A seed rerun is useful
+   evidence but is not replay of the saved minimized choices.
 6. Run the project's established suite on every host it claims to support.
 
 ## Host setup
@@ -55,13 +57,13 @@ aliases to the consuming project, so activate the alias that contains the
 dependency when running the installer.
 
 ```bash
-# Current `main` / next release candidate: Jolt 0.8.1+ (0.8.3 is the primary CI release)
+# Development checkout: Jolt 0.8.1+ (0.8.30 is the primary CI release)
 jolt -A:test -m hegel.install
 
 # Babashka 1.13.220+ with libffi (on Linux, do not use the -static asset)
 bb -m hegel.install
 
-# JVM Clojure, JDK 22+
+# JVM Clojure, JDK 25+
 clojure -J--enable-native-access=ALL-UNNAMED -M:test -m hegel.install
 
 # Experimental jank 0.1-alpha on Linux/macOS; curl must be on PATH.
@@ -71,9 +73,8 @@ jank -I generated --module-path src:resources:script \
 
 The direct Babashka command assumes the pin is in top-level `:deps` in
 `bb.edn`, or otherwise on Babashka's classpath. Activate the consuming
-project's alias when it is alias-scoped. Babashka 1.13.220 embeds the upstream
-FFI library. The standalone JVM dependency is pinned to the same embedded
-`babashka/ffi` commit, `aacb153618bc39ca1e4c397b8f30fb81c76d0c4c`.
+project's alias when it is alias-scoped. Babashka embeds the upstream FFI library. The standalone JVM dependency is
+`org.babashka/ffi` version `0.1.3` and requires JDK 25+.
 It lives in this repository's `:jvm` alias so Babashka consumers do not fetch a
 duplicate copy. Dependency aliases do not propagate, so JVM consumers must add
 that FFI dependency beside jolt-hegel. Babashka consumers must use a build whose
@@ -103,10 +104,12 @@ code must not branch on it.
 
 Do not replace jolt-hegel's scoped temporary allocation with a fresh Jolt arena
 per wrapper or per FFI call. The landed evaluation measured that strategy as
-substantially slower for the adapter-scale workload. Jolt 0.8.3 includes the
+substantially slower for the adapter-scale workload. Jolt 0.8.27 includes the
 confined-arena optimization and sibling-fiber publication fix, but an exact
-release remeasurement still found a fresh arena 5.38x raw allocation and a
-100-allocation batch 3.64x raw. Consider arenas only for a real lexical batch
+release remeasurement found a fresh arena about 3.90x raw allocation and a
+100-allocation batch about 2.95x raw (Linux amd64 allocation microbenchmark).
+These are not end-to-end property-testing speedup measurements. Consider arenas
+only for a real lexical batch
 that amortizes one close across many allocations, and require a
 `System/nanoTime` gate with an above-noise-floor workload plus a bounded,
 regression-sensitive negative control before changing ownership.
@@ -114,8 +117,11 @@ regression-sensitive negative control before changing ownership.
 ## Write reliable properties
 
 - Generate the broadest valid domain. Boundary cases are part of the test.
-- Construct related values with `g/bind` or `g/let`; use `h/assume!` only when
-  rejection is uncommon.
+- Construct reusable dependent generators with `g/bind`. Use `g/let` only
+  inside an active property: it draws immediately and returns a value. Use
+  `h/assume!` only when rejection is uncommon.
+- Check combinator signatures: `(g/bind f generator)` is function-first;
+  `g/one-of` takes a collection of generators; `g/tuple` is variadic.
 - Use `clojure.test/is` inside `hegel.clojure-test/with`. In a direct
   `run-test!` property, throw on failure; returning `false` passes the case.
 - Give exceptions a stable `:hegel/origin` based on the property or assertion
@@ -124,7 +130,7 @@ regression-sensitive negative control before changing ownership.
   `hegel.report/run!` provide a continue-and-count policy for custom suites.
 - Keep expensive diagnostics behind `h/final?`, `h/when-final`, `h/fprn`, or
   `h/note!`.
-- Preserve the result's string `:seed`; replay it as a number with
+- Preserve the result's string `:seed`; rerun it as a number with
   `(bigint (:seed result))`; uint64 seeds can exceed `parse-long`'s range.
 - Treat every `:flaky? true` result as a failed, untrusted counterexample until
   shared state, timing, or generation nondeterminism is fixed.
@@ -137,9 +143,31 @@ regression-sensitive negative control before changing ownership.
   result snapshot. It does not sanitize text already passed to `h/note!`.
   These presentation hooks are deliberately absent from replay bundles.
 
+## Retain and reproduce failures
+
+There is no top-level `:counterexample` snapshot. Read a retained entry, e.g.
+`(-> result :final first :counterexample)`. With `:verbosity :quiet`, that
+snapshot is nil; the retained exception and native blob are still available.
+For a plain fixture, explicitly attach the bounded domain input to assertion
+exception data and read `(-> result :final first :exception ex-data :input)`.
+Handle each origin separately when multiple failures are enabled.
+
+Capture callbacks can run repeatedly. Do not assume an arbitrary or last
+`final?` callback is the selected minimum. Do not serialize the entire result
+as a portable artifact: printed exceptions can contain `#error` forms. Use the
+bundle codec for native replay and plain data for ordinary regression fixtures.
+The expected replay manifest comes from the deployment/property, independently
+of the supplied bundle. See [the replay reference](references/api.md#replay-bundles).
+
 ## Choose generators that shrink structurally
 
-Use `g/string`, `g/regex-str`, and formatted generators for text. Build
+Use `g/string`, `g/regex-str`, and formatted generators for ordinary text.
+For language-shaped strings, use `g/grammar` with Clojure data, or `g/grammar-str`
+for existing Lark source. `hegel.grammar/compile` inspects the data DSL without
+loading native code. For a parser's semantic property, generating an AST and
+printing/evaluating it independently may provide a stronger oracle than
+acceptance alone. There is no automatic Instaparse/Malli grammar conversion or
+test.check generator interchange. Build
 structured values with `g/vector`, `g/set`, `g/map`, `g/tuple`, or `g/hmap`.
 Use `g/bind` for a reusable dependent generator. Use `g/let` inside an active
 property when later draws depend on earlier values; it draws immediately and is
@@ -161,11 +189,11 @@ and flaky verdicts throw `::h/sample-failed` with the complete run result and
 original cause data instead of returning a partial sample. Usage, setup, and
 native harness exceptions from `run-test!` propagate directly.
 
-Public `g/time` and `g/datetime` retain microsecond bounds and six-digit
-fractional strings with libhegel 0.36. Raw FFI time maps instead use
-nanoseconds. The generator adapter rounds native sub-microsecond precision
-down; do not reject those native draws or reinterpret a microsecond value as
-nanoseconds. Native upgrades may change seed streams and reproduction blobs.
+`g/time` and `g/datetime` draw on the requested `:precision` grid.
+The default is `:microseconds`. Use `:milliseconds` for a clock that records
+whole milliseconds, or `:nanoseconds` to exercise distinct values within a
+microsecond. `g/date` accepts `:weekdays` and `:months` within its inclusive bounds. Use `g/timestamp` for comparable
+UTC instant maps across hosts.
 
 Use `g/recursive` for trees, ASTs, nested workflows, and recursive documents.
 Pass a leaf generator plus a branch function that consumes the supplied
@@ -201,7 +229,10 @@ Current source adds `h/event!` and `h/observe!`; use stable string labels and
 keep measurements separate from targeting. Read the observation section of
 [references/api.md](references/api.md) before adding `:coverage` requirements.
 Native printed statistics are not structured coverage data, and non-final
-cases are not necessarily generation cases. Keep explicit witness families;
+cases are not necessarily generation cases. The `:final-replay` observation
+bucket contains native diagnostic-capture cases and may include repeated
+capture/confirmation; it is not one minimum or a set of independent samples.
+Keep explicit witness families;
 do not retry random runs until a coverage threshold happens to pass.
 
 ## Stateful testing

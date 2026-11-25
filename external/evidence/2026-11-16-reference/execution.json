@@ -1,0 +1,34 @@
+{
+  "hegel_sha": "8179cb83eda81c708dc834ee38647f2354fe3d55",
+  "source_revision": "6bcc5be51b130a6df7d965067de1ed3811d50b9b31e7ae989cf66ad485d76e88",
+  "processes": [
+    {
+      "pack": "instaparse",
+      "mode": "run",
+      "exit": 0,
+      "seconds_including_startup": 1.519,
+      "log": "/workspace/jolt-hegel/target/external-pilot/instaparse/run.log"
+    },
+    {
+      "pack": "instaparse",
+      "mode": "replay",
+      "exit": 0,
+      "seconds_including_startup": 0.616,
+      "log": "/workspace/jolt-hegel/target/external-pilot/instaparse/replay.log"
+    },
+    {
+      "pack": "yyjson",
+      "mode": "run",
+      "exit": 0,
+      "seconds_including_startup": 0.871,
+      "log": "/workspace/jolt-hegel/target/external-pilot/yyjson/run.log"
+    },
+    {
+      "pack": "yyjson",
+      "mode": "replay",
+      "exit": 0,
+      "seconds_including_startup": 0.466,
+      "log": "/workspace/jolt-hegel/target/external-pilot/yyjson/replay.log"
+    }
+  ]
+}

@@ -11,10 +11,10 @@
 
 (deftest pinned-header-counts-and-callback
   (let [result (snapshot/snapshot)]
-    (is (= 103 (count (:functions result))))
-    (is (= 6 (count (:structs result))))
-    (is (= 13 (count (:opaque-handles result))))
-    (is (= 1 (count (:callbacks result))))
+    (is (= 233 (count (:functions result))))
+    (is (= 19 (count (:structs result))))
+    (is (= 23 (count (:opaque-handles result))))
+    (is (= 5 (count (:callbacks result))))
     (is (some #(= "hegel_printer_value" (:name %)) (:functions result)))
     (is (not-any? #(= "hegel_settings_set_mode" (:name %)) (:functions result)))
     (is (= {:return "void"

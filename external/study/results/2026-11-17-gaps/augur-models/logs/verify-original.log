@@ -1,0 +1,12 @@
+jolt v0.8.27
+error[read/invalid-syntax]: Unmatched delimiter: )
+  --> ././target_repro.clj:4:68
+   |
+ 2 | (defn near [a b] (< (Math/abs (- a b)) 1e-10))
+ 3 | (defn -main [& _]
+ 4 |   (let [{:keys [p ys]} (edn/read-string (slurp "tied-minimum.edn")))
+   |                                                                    ^
+  trace:
+    ldr-load-body
+    ns-require+use
+    jfn$jolt.main/run-ns$0

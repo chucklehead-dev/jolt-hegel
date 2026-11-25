@@ -1,0 +1,2 @@
+jolt v0.8.27
+Linux 537b3294517a 6.18.57 #1 SMP Tue Oct 20 21:56:04 UTC 2026 x86_64 GNU/Linux

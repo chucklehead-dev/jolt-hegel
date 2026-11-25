@@ -11,29 +11,37 @@
             [hegel.version :as version]))
 
 (def ^:private libhegel-release-base
-  (str "https://github.com/hegeldev/hegel-rust/releases/download/v"
+  (str "https://github.com/hegeldev/hegel/releases/download/libhegel/"
        version/libhegel-version))
 
 (def ^:private libhegel-assets
   {[:linux "amd64"]
    {:name "libhegel-linux-amd64.so"
-    :sha256 "12d804f8767f926f8ec22a733e57af265f0b79f383ce78cc8d9fcbae2a8a3ad7"}
+    :sha256 "ce6cc514aac3d2c6e557bf9520b3af6280b3bb735a4d736e882d0344b1476bd2"}
 
    [:linux "arm64"]
    {:name "libhegel-linux-arm64.so"
-    :sha256 "9cc5725fae13f9d79708dbce4d3c2343a193f2029fed7002f88e0f08f26a2efa"}
+    :sha256 "b5b95a80af4bdee0e70b7dc89428bde13c1afa8e21a17374cfcbd45ea986115b"}
 
    [:darwin "arm64"]
    {:name "libhegel-darwin-arm64.dylib"
-    :sha256 "ac3939a523ca5d98ed741e5894c3b44d0c7b0fa8baaa3deabc5653bb1d754df9"}
+    :sha256 "bc1956d1514ad95dbe8099bf785a142f3b99de47cd26838a4ad9af4358217975"}
 
    [:windows "amd64"]
    {:name "libhegel-windows-amd64.dll"
-    :sha256 "b0d334228b46177d93f7dd92a9da0882d23b0cea15927b3707d8562d3395741b"}
+    :sha256 "b545b523a52b2ab0737f2f8cc8df36950042991d5e45263860465319d00d9acc"}
 
    [:windows "arm64"]
    {:name "libhegel-windows-arm64.dll"
-    :sha256 "e7837056eb3de1b3842e98805e6e4cb85b22ddcd5f8e246dea1f52046f71d600"}})
+    :sha256 "79768b1d171da6255af082fdafc5817d2e9ea0b984eb27dce746d2888435de57"}})
+
+(def ^:private libhegel-static-assets
+  {[:linux "amd64"] {:name "libhegel-linux-amd64.a"
+                     :sha256 "8099b23baafdf1fc2efe01979d9795e1effa43db9cad4182ffff934b14a4e0cb"}
+   [:linux "arm64"] {:name "libhegel-linux-arm64.a"
+                     :sha256 "5bfc734c01fe1720c50393a0bf0686a0d5f95534d49a51d8a6e965c599858903"}
+   [:darwin "arm64"] {:name "libhegel-darwin-arm64.a"
+                      :sha256 "4afe8a37bad7ae3ae105293d8900ef2037f885e52fbb92a49d7306426e6869b8"}})
 
 (def ^:private jolt? (= :jolt (host/runtime)))
 
@@ -272,6 +280,28 @@
   (println "libhegel:" native/library-path)
   nil)
 
+(defn setup-packaged!
+  "Materialize verified artifacts at the paths declared by packaging/jolt.
+  The package is opt-in; ordinary portable consumers retain their own cache."
+  []
+  (verify-source-version!)
+  (let [{:keys [os library-name]} (native/platform)
+        target [os (architecture)]
+        directory (native/join-path native/project-root-path ".hegel-lib")
+        shared (get libhegel-assets target)
+        archive (get libhegel-static-assets target)]
+    (when-not shared
+      (throw (ex-info "no packaged libhegel for this platform" {:target target})))
+    (ensure-directory! directory)
+    (doseq [[asset filename] (cond-> [[shared library-name]]
+                              archive (conj [archive "libhegel_c.a"]))]
+      (let [path (native/join-path directory filename)]
+        (when-not (checksum-matches? path (:sha256 asset))
+          (download-verified!
+           (str (or (native/nonblank-env "HEGEL_LIBHEGEL_RELEASE_BASE") libhegel-release-base)
+                "/" (:name asset)) path (:sha256 asset))))))
+  nil)
+
 (defn- print-version! []
   (println (verify-source-version!))
   nil)
@@ -279,13 +309,14 @@
 (defn- usage! []
   (println
    (str "Usage: " (name (host/runtime)) " -m hegel.install "
-        "[setup|fetch-libhegel|verify-source|paths|version]"))
+        "[setup|setup-packaged|fetch-libhegel|verify-source|paths|version]"))
   nil)
 
 (defn -main [& arguments]
   (case (first arguments)
     (nil "setup") (setup!)
     "fetch-libhegel" (fetch-libhegel!)
+    "setup-packaged" (setup-packaged!)
     "verify-source" (println (verify-source-version!))
     "paths" (print-paths!)
     "version" (print-version!)

@@ -1,0 +1,6 @@
+WARNING: let already refers to: #'clojure.core/let in namespace: hegel.generator, being replaced by: #'hegel.generator/let
+"expiry" {:passed? false, :status :failed, :seed "414", :test-cases 37, :valid-test-cases 8, :invalid-test-cases 0, :overrun-test-cases 16, :interesting-test-cases 13, :n-failures 1, :flaky? false}
+:minimum {:hegel/origin "expiry-key-bound", :input {:n 2, :cap 1, :overflow? false}, :details {:live 2, :state {:opts {:max-open 4, :max-rows 3, :max-keys 1, :forget 1.0, :calibration {:edges [0.02 0.05 0.1 0.15 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 0.95 1.0], :shrink 10.0, :forget 1.0}}, :open {}, :by-key {0 {:expired 1, :last 0}, 1 {:expired 1, :last 1}}, :unknown 0, :dropped-keys 0}}}
+"benchmark" {:passed? false, :status :failed, :seed "414", :test-cases 70, :valid-test-cases 21, :invalid-test-cases 0, :overrun-test-cases 32, :interesting-test-cases 17, :n-failures 1, :flaky? false}
+:minimum {:hegel/origin "benchmark-eviction-total", :input {:n 3, :cap 1, :p 0.0}, :details {:exception "java.lang.IllegalArgumentException: Don't know how to create ISeq from: java.lang.Double"}}
+"model" {:passed? true, :status :passed, :seed "414", :test-cases 200, :valid-test-cases 200, :invalid-test-cases 0, :overrun-test-cases 0, :interesting-test-cases 0, :n-failures 0, :flaky? false}

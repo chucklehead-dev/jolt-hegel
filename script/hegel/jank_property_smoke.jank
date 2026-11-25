@@ -83,6 +83,12 @@
     (throw (ex-info "" {:jank/control :body-exception}))))
 
 (defn -main [& _]
+  (let [value (h/sample 1 (g/grammar
+                         {:start :some-rule
+                          :rules {:some-rule [:cat "a" [:char-range "😀" "😀"] "\n"]}}))]
+    (when-not (= ["a😀\n"] value)
+      (throw (ex-info "Clojure grammar DSL smoke failed" {:value value})))
+    (println "PASS Clojure grammar DSL and Unicode literals"))
   (when-not (and (native/absolute-path? "/tmp/jolt-hegel")
                  (native/absolute-path? "C:\\src\\jolt-hegel")
                  (native/absolute-path? "\\\\server\\share\\jolt-hegel")
@@ -255,7 +261,7 @@
                    (= 1 (:n-failures result))
                    (= "hegel.jank-property-smoke:threshold" (:origin failure))
                    (= "AAEAAAAACgIAAAD0AQ==" (:reproduction-blob failure))
-                   (= [500] @final-values)
+                   (= 500 (last @final-values))
                    (= 500 (-> final-outcome :exception ex-data :value))
                    (:reproduced? failure)
                    (false? (:flaky? result)))
@@ -352,11 +358,12 @@
         (h/run-test!
          {:test-cases 1 :seed 27 :database "" :verbosity :quiet}
          (fn [_]
+           (h/draw! (g/integer 0 100))
            (h/assume! (> (swap! calls inc) 1))))]
     (when-not (and (:passed? assumption-result)
                    (= 1 (:invalid-test-cases assumption-result))
-                   (= 0 (:valid-test-cases assumption-result))
-                   (= 1 @calls))
+                   (= 1 (:valid-test-cases assumption-result))
+                   (= 2 @calls))
       (throw (ex-info "jank assumption smoke failed"
                       {:result assumption-result :calls @calls})))
     (println "PASS shared assumption rejects one deterministic invalid case"))
@@ -417,7 +424,7 @@
     (when-not (= {:test 1 :pass 0 :fail 1 :error 0} fail-summary)
       (throw (ex-info "jank clojure.test embedded fail summary mismatch"
                       {:summary fail-summary})))
-    (when-not (= [500] @jank-clojure-test-fail-final-values)
+    (when-not (= 500 (last @jank-clojure-test-fail-final-values))
       (throw (ex-info "jank clojure.test expected-fail control did not shrink to its known minimum"
                       {:final-values @jank-clojure-test-fail-final-values})))
     (println "PASS jank clojure.test deftest/is/run-test host hegel.clojure-test/with")

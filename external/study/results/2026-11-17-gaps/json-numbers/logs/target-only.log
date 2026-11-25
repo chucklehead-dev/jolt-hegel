@@ -1,0 +1,6 @@
+{:input "-9223372036854775808", :value -9223372036854775808, :type "class java.lang.Long", :rewritten "-9223372036854775808"}
+{:input "-9223372036854775809", :value -9.223372036854776E18, :type "class java.lang.Double", :rewritten "-9223372036854776000.0"}
+{:input "9223372036854775808", :value 9223372036854775808N, :type "class clojure.lang.BigInt", :rewritten "9223372036854775808"}
+{:input "18446744073709551615", :value 18446744073709551615N, :type "class clojure.lang.BigInt", :rewritten "18446744073709551615"}
+{:input "18446744073709551616", :value 1.8446744073709552E19, :type "class java.lang.Double", :rewritten "18446744073709552000.0"}
+{:input "18446744073709551617", :value 1.8446744073709552E19, :type "class java.lang.Double", :rewritten "18446744073709552000.0"}

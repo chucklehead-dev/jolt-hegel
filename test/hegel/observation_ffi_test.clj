@@ -8,9 +8,13 @@
   (let [calls (atom [])
         frees (atom [])]
     (with-redefs [backend/with-native-scope (fn [call] (call))
-                  backend/string->native (fn [value]
+                  backend/alloc (constantly :view)
+                  backend/layout-size (constantly 16)
+                  backend/write-field (fn [& _] nil)
+                  backend/by-value (fn [_ _] :by-value-view)
+                  backend/alloc-utf8 (fn [value]
                                            (swap! calls conj [:string value])
-                                           [:native value])
+                                           [[:native value] (count value)])
                   backend/free #(swap! frees conj %)
                   hffi/c-settings-set-show-statistics
                   (fn [ctx settings enabled]
@@ -30,24 +34,28 @@
       (is (= [[:settings :ctx :settings 1]
               [:settings :ctx :settings 0]
               [:string "coverage/branch"]
-              [:event :ctx :case [:native "coverage/branch"]]
+              [:event :ctx :case :by-value-view]
               [:string "coverage/size"]
-              [:event-value :ctx :case 42.5 [:native "coverage/size"]]]
+              [:event-value :ctx :case 42.5 :by-value-view]]
              @calls))
-      (is (= [[:native "coverage/branch"] [:native "coverage/size"]]
+      (is (= [:view [:native "coverage/branch"] :view [:native "coverage/size"]]
              @frees)))))
 
 (deftest observation-wrapper-errors-retain-operation-and-release-label
   (doseq [[operation call expected-frees]
-          [[:event #(hffi/event! nil :case "coverage/event") [:label]]
+          [[:event #(hffi/event! nil :case "coverage/event") [:view :label]]
            [:event-value #(hffi/event-value! nil :case 1.0 "coverage/value")
-            [:label]]
+            [:view :label]]
            [:settings-set-show-statistics
             #(hffi/settings-set-show-statistics! nil :settings true) []]]]
     (let [free (atom [])
         error
         (with-redefs [backend/with-native-scope (fn [call] (call))
-                      backend/string->native (constantly :label)
+                  backend/alloc (constantly :view)
+                  backend/layout-size (constantly 16)
+                  backend/write-field (fn [& _] nil)
+                  backend/by-value (fn [_ _] :by-value-view)
+                      backend/alloc-utf8 (constantly [:label 1])
                       backend/free #(swap! free conj %)
                       hffi/c-event (fn [& _] 7)
                       hffi/c-settings-set-show-statistics (fn [& _] 7)
@@ -62,6 +70,29 @@
     (is (= operation (:operation (ex-data error))))
     (is (= "no libhegel diagnostic" (:diagnostic (ex-data error))))
     (is (= expected-frees @free)))))
+
+(deftest string-view-arrays-preserve-byte-counts
+  (let [texts ["" "a\u0000b" "😀" "λ"]
+        lists (atom [])
+        stride (backend/layout-size (backend/layout :hegel/string))
+        length-offset (backend/sizeof :pointer)]
+    (with-redefs [hffi/c-string-generator-text
+                  (fn [_ctx _min-size _max-size _codec _min-codepoint _max-codepoint
+                       included n excluded m _include-text _exclude-text out]
+                    (let [read-list (fn [start size]
+                                      (when-not (backend/null? start)
+                                        (mapv (fn [i]
+                                                (let [offset (* i stride)
+                                                      data (backend/read-value start :pointer offset)
+                                                      len (backend/read-value start :size_t (+ offset length-offset))]
+                                                  [len (backend/read-utf8 data len)]))
+                                              (range size))))]
+                      (swap! lists conj [(read-list included n) (read-list excluded m)])
+                      (backend/write-value out :pointer 0 backend/null)
+                      0))]
+      (hffi/string-generator-text! nil {:categories texts :exclude-categories []})
+      (hffi/string-generator-text! nil {}))
+    (is (= [[(mapv vector [0 3 4 2] texts) []] [nil nil]] @lists))))
 
 (deftest native-observations-allow-repeated-labels
   ;; Exercise actual descriptor-backed native calls as well as the mocks.

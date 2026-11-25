@@ -32,7 +32,8 @@ A returned `false` from the property body still means a passing case.
 - `:show-statistics? true` enables libhegel's human-readable statistics on its
   native stderr stream. The default is off. This output is not captured by
   rebinding Clojure `*err*`, is not a stable structured format, and is never
-  parsed to decide coverage. Native verbosity may affect emitted diagnostics.
+  parsed to decide coverage. At quiet verbosity an explicit statistics request
+  still prints the statistics block. Case notes and failure diagnostics remain silent.
 - `:observations? true` enables frontend structured result data, independently
   of native printing. `:coverage` implicitly enables the same collection even
   if `:observations?` is false. Ordinary runs without either option retain
@@ -70,17 +71,20 @@ These are case-level observations: a generator retry or discarded draw within
 an eventually valid case does not roll them back. Put final-value coverage
 events after the generator has returned when that is the intended obligation.
 
-libhegel's printed statistics cover **generation-phase** cases. Its C 0.36.3
+libhegel's printed statistics cover **generation-phase** cases. Its C 0.53.2
 ABI does not expose the native subphase of each returned test case. Therefore:
 
 - An explicitly configured `:phases [:generate]` run has frontend scope
-  `:generation-only` (automatic final failure replay is still separate).
+  `:generation-only` (native diagnostic-capture cases are still separate).
 - Other runs have frontend scope `:exploration`: native reuse, generation,
   targeting and shrinking are not individually identifiable. `:phases` records
   the caller's supplied collection, or `:all` for the native default.
-- `:final-replay` counts the wrapper's explicit minimal-failure replay only.
-  Non-final is **not** a synonym for generation. Direct `replay-bundle!` does
-  not collect or assert run coverage.
+- `:final-replay` is the retained name for cases where native Hegel requests
+  diagnostic capture. Capture can happen repeatedly during shrinking and
+  confirmation; this bucket is not limited to one selected minimum. The
+  `:exploration` bucket contains cases without that capture flag, including
+  shrinking attempts. Do not count these buckets as independent random inputs.
+  Direct `replay-bundle!` does not collect or assert run coverage.
 
 No phase is silently disabled to obtain easier coverage accounting. For a
 generation-only coverage experiment, explicitly request `:phases [:generate]`;

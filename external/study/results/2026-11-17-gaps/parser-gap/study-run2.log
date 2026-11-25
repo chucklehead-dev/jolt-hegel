@@ -1,0 +1,6 @@
+WARNING: let already refers to: #'clojure.core/let in namespace: hegel.generator, being replaced by: #'hegel.generator/let
+:broken-control :detected-shifted-column
+"visible-annotation" {:passed? true, :status :passed, :seed "42017", :test-cases 250, :valid-test-cases 250, :invalid-test-cases 0, :overrun-test-cases 0, :interesting-test-cases 0, :n-failures 0, :flaky? false}
+"optimized-tree-and-spans" {:passed? true, :status :passed, :seed "42017", :test-cases 250, :valid-test-cases 250, :invalid-test-cases 0, :overrun-test-cases 0, :interesting-test-cases 0, :n-failures 0, :flaky? false}
+"hidden-root-annotation" {:passed? false, :status :failed, :seed "42017", :test-cases 289, :valid-test-cases 1, :invalid-test-cases 0, :overrun-test-cases 266, :interesting-test-cases 22, :n-failures 1, :flaky? false}
+:minimum {:text "", :format :hiccup, :line 1, :col 1}

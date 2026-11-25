@@ -1,4 +1,4 @@
-(ns hegel.typed.controls.validate-result-identity-mismatch
+(ns ^:typed.clojure hegel.typed.controls.validate-result-identity-mismatch
   "Intentionally invalid control: `validate!` is annotated to return exactly
   the type of its input (an unconstrained polymorphic identity, not `t/Any`).
   Calling it with a Long and binding the result to a `t/Str`-annotated var

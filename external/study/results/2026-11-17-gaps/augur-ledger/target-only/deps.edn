@@ -1,0 +1,1 @@
+{:paths [".." "." "/workspace/pilot-targets/augur/test"] :deps {augur/augur {:local/root "/workspace/pilot-targets/augur"}}}

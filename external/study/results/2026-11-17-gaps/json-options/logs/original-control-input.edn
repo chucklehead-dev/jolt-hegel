@@ -1,0 +1,1 @@
+{:hegel/origin "control/first-wins", :input "", :expected {"" true}, :actual {"" false}}

@@ -42,6 +42,10 @@
 
 (deftest validates-a-portable-versioned-literal
   (is (= valid-bundle (bundle/validate! valid-bundle)))
+  (doseq [strictness [:quiet :warn :error]]
+    (let [options {:nondeterminism-strictness strictness :stop-on-first-failure? true}]
+      (is (= options (bundle/snapshot-options options)))
+      (is (= options (:options (bundle/validate! (assoc valid-bundle :options options)))))))
   (is (= provenance (bundle/validate-provenance! provenance)))
   (is (= {:test-cases 10
           :phases [:generate :shrink]
@@ -101,6 +105,8 @@
                    {:test-cases 18446744073709551616N}
                    {:stateful-step-count 0}
                    {:derandomize? :truthy}
+                   {:stop-on-first-failure? :truthy}
+                   {:nondeterminism-strictness :unknown}
                    {:phases [:unknown]}
                    {:suppress-health-checks #{:too-slow}}]]
     (let [data (error-data #(bundle/validate! (assoc valid-bundle

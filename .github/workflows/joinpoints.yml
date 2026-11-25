@@ -22,8 +22,15 @@ jobs:
           repository: casselc/jolt
           ref: 09f4218828f93320f3b43eb4e8ae5df76fc65210
           path: target/aspect-compiler
-          submodules: recursive
+          submodules: false
           persist-credentials: false
+      - name: Restore pinned compiler submodules from maintained upstreams
+        working-directory: target/aspect-compiler
+        run: |
+          # The deleted fork's exact pinned process commit exists upstream.
+          git submodule init
+          git config submodule.vendor/process.url https://github.com/babashka/process.git
+          git submodule update --init --recursive
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: cisco/ChezScheme
@@ -56,9 +63,9 @@ jobs:
       - name: Provision pinned Babashka
         uses: ./.github/actions/setup-babashka
         with:
-          version: 1.13.220
-          asset: babashka-1.13.220-linux-amd64.tar.gz
-          sha256: 5211ebf6267be2dbbf4857611cb01331b865bf6b0a8c9bc500c83a816df1a769
+          version: 1.13.230
+          asset: babashka-1.13.230-linux-amd64.tar.gz
+          sha256: 590a131ec3456c2313ebcb5ae2ee6836ca1f01f481da08320cd8c8f46d3644f9
       - name: Install verified libhegel
         env:
           HEGEL_CACHE_DIR: ${{ runner.temp }}/hegel-native
@@ -66,7 +73,7 @@ jobs:
           bb -m hegel.install
           native="$HEGEL_CACHE_DIR/libhegel_c.so"
           test -f "$native"
-          echo "12d804f8767f926f8ec22a733e57af265f0b79f383ce78cc8d9fcbae2a8a3ad7  $native" | sha256sum --check
+          echo "ce6cc514aac3d2c6e557bf9520b3af6280b3bb735a4d736e882d0344b1476bd2  $native" | sha256sum --check
           echo "HEGEL_LIBHEGEL_LIBRARY=$native" >> "$GITHUB_ENV"
       - name: Check actual manifest, compiler reports and runtime controls
         run: bash script/check-joinpoints.sh

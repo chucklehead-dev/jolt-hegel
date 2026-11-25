@@ -14,7 +14,7 @@ internal static class Program
         }
 
         Bridge.Load(args[0]);
-        Require("all descriptor symbols loaded", Bridge.ExpectedSymbols.Count == 103);
+        Require("all descriptor symbols loaded", Bridge.ExpectedSymbols.Count == 233);
         CheckLayouts();
         CheckMemory();
         CheckNativeCalls();
@@ -64,19 +64,36 @@ internal static class Program
             settings = OutPointer("settings-new", context);
             Ok("settings-set-test-cases", context, settings, 1UL);
 
-            var versionOut = Bridge.Alloc((ulong)IntPtr.Size);
+            var versionOut = Bridge.Alloc(16);
             try
             {
                 Ok("version", context, versionOut);
                 var versionPointer = (IntPtr)Bridge.ReadValue("pointer", versionOut);
-                Require("libhegel version", Bridge.NativeToString(versionPointer) == "0.36.3");
+                Require("libhegel version", Bridge.ReadUtf8(versionPointer, checked((int)(ulong)Bridge.ReadValue("uint64", IntPtr.Add(versionOut, 8)))) == "0.53.2");
             }
             finally
             {
                 Bridge.Free(versionOut);
             }
 
-            run = OutPointer("run-start", context, settings, IntPtr.Zero, IntPtr.Zero);
+            var errorOut = Bridge.Alloc(16);
+            try
+            {
+                Require("invalid setting rejected", Convert.ToInt32(Bridge.Invoke(
+                    "settings-set-backend", new object?[] { context, settings, 999 })) != 0);
+                Bridge.Invoke("context-last-error", new object?[] { errorOut, context });
+                var data = (IntPtr)Bridge.ReadValue("pointer", errorOut);
+                var length = checked((int)(ulong)Bridge.ReadValue("uint64", IntPtr.Add(errorOut, 8)));
+                Require("context error aggregate return", length > 0 && Bridge.ReadUtf8(data, length).Length > 0);
+            }
+            finally
+            {
+                Bridge.Free(errorOut);
+            }
+
+            var outputCallback = PointerResult("output-stderr-callback");
+            Require("native output callback pointer", outputCallback != IntPtr.Zero);
+            run = OutPointer("run-start", context, settings, outputCallback, IntPtr.Zero);
             testCase = OutPointer("next-test-case", context, run);
 
             Ok("start-span", context, testCase, ulong.MaxValue);
@@ -130,11 +147,11 @@ internal static class Program
             WriteDate(minDatetime, 0); WriteDate(maxDatetime, 0);
             WriteTime(minDatetime, 8); WriteTime(maxDatetime, 8);
 
-            Ok("generate-date", context, testCase, minDate, maxDate, dateOut);
+            Ok("generate-date", context, testCase, minDate, maxDate, IntPtr.Zero, dateOut);
             Require("date by value", ReadDate(dateOut, 0));
-            Ok("generate-time", context, testCase, minTime, maxTime, timeOut);
+            Ok("generate-time", context, testCase, minTime, maxTime, 0U, timeOut);
             Require("time by value", ReadTime(timeOut, 0));
-            Ok("generate-datetime", context, testCase, minDatetime, maxDatetime, datetimeOut);
+            Ok("generate-datetime", context, testCase, minDatetime, maxDatetime, 0U, datetimeOut);
             Require("nested datetime by value", ReadDate(datetimeOut, 0) && ReadTime(datetimeOut, 8));
         }
         finally

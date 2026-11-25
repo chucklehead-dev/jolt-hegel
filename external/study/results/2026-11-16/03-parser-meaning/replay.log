@@ -1,0 +1,11 @@
+WARNING: let already refers to: #'clojure.core/let in namespace: hegel.generator, being replaced by: #'hegel.generator/let
+WARNING: run! already refers to: #'clojure.core/run! in namespace: parser-meaning, being replaced by: #'parser-meaning/run!
+{:status :reproduced, :reproduced? true, :flaky? false, :seed "20261116", :replay-options {:backend :default, :unbounded-choices? false, :test-cases 300, :verbosity :quiet, :derandomize? false, :report-multiple-failures? false, :stop-on-first-failure? true, :nondeterminism-strictness :error, :phases [:explicit :reuse :generate :target :shrink], :suppress-health-checks []}, :n-failures 1, :failures [{:status :interesting, :reproduced? true, :counterexample nil, :origin "parser-meaning/evaluation", :exception #error {
+ :cause "Printed AST meaning changed"
+ :data {:ast [:add 0 1], :text "(0+1)", :tree [:expr [:add [:expr [:number "0"]] [:expr [:number "1"]]]], :expected 1, :actual -1, :parse-failed? false, :hegel/origin "parser-meaning/evaluation"}
+ :via [ {:type clojure.lang.ExceptionInfo :message "Printed AST meaning changed" :data {:ast [:add 0 1], :text "(0+1)", :tree [:expr [:add [:expr [:number "0"]] [:expr [:number "1"]]]], :expected 1, :actual -1, :parse-failed? false, :hegel/origin "parser-meaning/evaluation"} :at nil}]
+ :trace []}, :replay-origin "parser-meaning/evaluation", :reproduction-blob nil, :caveat nil}], :final [{:status :interesting, :origin "parser-meaning/evaluation", :replay-origin "parser-meaning/evaluation", :exception #error {
+ :cause "Printed AST meaning changed"
+ :data {:ast [:add 0 1], :text "(0+1)", :tree [:expr [:add [:expr [:number "0"]] [:expr [:number "1"]]]], :expected 1, :actual -1, :parse-failed? false, :hegel/origin "parser-meaning/evaluation"}
+ :via [ {:type clojure.lang.ExceptionInfo :message "Printed AST meaning changed" :data {:ast [:add 0 1], :text "(0+1)", :tree [:expr [:add [:expr [:number "0"]] [:expr [:number "1"]]]], :expected 1, :actual -1, :parse-failed? false, :hegel/origin "parser-meaning/evaluation"} :at nil}]
+ :trace []}, :counterexample nil}]}

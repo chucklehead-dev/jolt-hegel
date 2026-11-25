@@ -1,0 +1,11 @@
+All commands executed from /workspace/hegel-gap-study/parser-gap, bounded by timeout 120s.
+Export JOLT_CACHE_DIR=$PWD/.jolt-cache and HEGEL_LIBHEGEL_LIBRARY=/workspace/jolt-hegel/.hegel-lib/libhegel_c.so.
+JOLT=/workspace/tooling/jolt/jolt
+$JOLT probe.clj > probe.log 2>&1                         # exploratory equality scan, exit 0
+$JOLT repro.clj > repro.log 2>&1                         # target-only calls, exit 0 (initial consumer includes Hegel on classpath)
+$JOLT -m study run > study-original.log 2>&1             # compile failed: g/elements does not exist
+$JOLT -m study run > study-run.log 2>&1                  # exit 1, invalid strict enlive shape oracle on empty content
+$JOLT -m study run > study-run2.log 2>&1                 # exit 0 after documented corrections
+$JOLT -m study replay > replay-original.log 2>&1         # exit 0 fresh-process native replay
+./verify.sh > verification-original.log 2>&1            # exit 0, target-only repro uses separate deps
+$JOLT -A:target-tests target_tests.clj > target-tests-original.log 2>&1 # exit 0

@@ -5,7 +5,7 @@
             [clojure.string :as str])
   (:import [java.security MessageDigest]))
 
-(def fixture-dir "test/fixtures/hegel-0.36.3")
+(def fixture-dir "test/fixtures/hegel-0.53.2")
 (defn fail! [message data] (throw (ex-info (str "header snapshot parse failed: " message) data)))
 (defn read-utf8 [path] (slurp (io/file path) :encoding "UTF-8"))
 (defn sha256 [bytes]
@@ -25,7 +25,7 @@
 (defn validate-directives! [text]
   (doseq [line (str/split-lines text)
           :when (str/starts-with? (str/trim line) "#")]
-    (when-not (re-matches #"\s*#(?:ifndef HEGEL_H|define HEGEL_H|include <(?:stddef|stdint|stdbool)\.h>|define HEGEL_STATE_MACHINE_DONE INT64_MIN|ifdef __cplusplus|endif(?: // __cplusplus| /\* HEGEL_H \*/)?)[ \t]*" line)
+    (when-not (re-matches #"\s*#(?:ifndef HEGEL_H|define HEGEL_H|include <(?:stddef|stdint|stdbool)\.h>|define HEGEL_STATE_MACHINE_DONE INT64_MIN|define HEGEL_FILTER_ATTEMPTS 3|define HEGEL_RECURSION_ATTEMPTS 9|define HEGEL_MAX_SIZE_DEFAULT \(UINT64_MAX - 1\)|define HEGEL_TIMEZONE_TAG_[A-Z_]+ \(1 << \d+\)|ifdef __cplusplus|endif(?: // __cplusplus| /\* HEGEL_H \*/)?)[ \t]*" line)
       (fail! "unsupported preprocessor directive" {:line line}))))
 (defn strip-comments [text]
   (-> text (str/replace #"(?s)/\*.*?\*/" "") (str/replace #"(?m)//.*$" "")))
@@ -36,7 +36,7 @@
       (re-matches #"0[xX][0-9a-fA-F]+" s) (Long/parseLong (subs s 2) 16)
       (re-matches #"\(1 << \d+\)" s)
       (bit-shift-left 1 (Long/parseLong (second (re-matches #"\(1 << (\d+)\)" s))))
-      (#{"INT64_MIN" "UINT64_MAX"} s) s
+      (#{"INT64_MIN" "UINT64_MAX" "(UINT64_MAX - 1)"} s) s
       :else (fail! (str "unsupported constant expression " (pr-str s)) {:expression s}))))
 (defn unique! [kind entries]
   (let [duplicates (->> entries frequencies (keep (fn [[k n]] (when (> n 1) k))) seq)]
@@ -71,6 +71,7 @@
       (= s "int64_t") "int64" (= s "uint64_t") "uint64"
       (= s "size_t") "size" (= s "float") "float" (= s "double") "double"
       (= s "bool *") "bool*"
+      (= s "const double *") "const double *"
       (= s "double *") "double*" (= s "float *") "float*"
       (re-matches #"HegelRecursion \*+" s) s
       (re-matches #"(?:const )?(?:u?int(?:8|16|32|64)_t|size_t) \*" s) s
@@ -98,19 +99,22 @@
                (re-seq #"typedef\s+struct\s+(HegelRecursion)\s+\1\s*;" text))
        (map second) sort vec))
 (declare parse-arg)
+(def callback-declaration
+  #"typedef\s+(void|int32_t)\s+\(\*(hegel_[a-z0-9_]+_t)\)\(([^;]+)\);")
+
 (defn parse-callbacks [text]
-  (let [matches (re-seq #"typedef\s+void\s+\(\*hegel_output_callback_t\)\(([^;]+)\);" text)]
-    (when (and (str/includes? text "hegel_output_callback_t") (empty? matches))
-      (fail! "malformed callback typedef" {}))
-    (when (> (count matches) 1) (fail! "duplicate callback typedef" {}))
-    (into {} (map (fn [[_ args]]
-                    (let [parsed (mapv parse-arg (str/split args #","))
-                          expected [{:name "user_data" :type "void*"}
-                                    {:name "line" :type "const-char*"}
-                                    {:name "len" :type "size"}]]
-                      (when-not (= expected parsed)
-                        (fail! "unsupported callback signature" {:args parsed}))
-                      ["hegel_output_callback_t" {:return "void" :args parsed}])) matches))))
+  (let [entries (for [[_ return name args] (re-seq callback-declaration text)]
+                  [name {:return (normalize-type return)
+                         :args (mapv parse-arg (str/split args #","))}])
+        callbacks (into {} (unique-names! "callback typedef" entries))]
+    (when (and (str/includes? text "hegel_output_callback_t")
+               (not= {:return "void"
+                      :args [{:name "user_data" :type "void*"}
+                             {:name "line" :type "const-char*"}
+                             {:name "len" :type "size"}]}
+                     (get callbacks "hegel_output_callback_t")))
+      (fail! "unsupported output callback signature" {}))
+    callbacks))
 (defn parse-arg [arg]
   (let [arg (-> arg str/trim (str/replace #"\s+" " "))]
     (if (or (str/blank? arg) (= arg "void")) nil
@@ -121,7 +125,7 @@
   (let [entries (map (fn [[_ return name args]]
                        [name {:name name :return (normalize-type return)
                               :args (->> (str/split args #",") (map parse-arg) (remove nil?) vec)}])
-                     (re-seq #"(?m)(hegel_result_t|hegel_context_t \*|const char \*)\s*(hegel_[a-z0-9_]+)\s*\(([^;]*?)\)\s*;" text))]
+                     (re-seq #"(?m)(void|hegel_output_callback_t|hegel_string_t|hegel_result_t|hegel_context_t \*|const char \*)\s*(hegel_[a-z0-9_]+)\s*\(([^;]*?)\)\s*;" text))]
     (mapv second (unique-names! "functions" entries))))
 (defn remove-recognized [text]
   (-> text
@@ -130,9 +134,10 @@
       (str/replace #"(?s)typedef\s+struct\s*\{.*?\}\s*hegel_[a-z0-9_]+_t\s*;" "")
       (str/replace #"typedef\s+struct\s+(hegel_[a-z0-9_]+_t)\s+\1\s*;" "")
       (str/replace #"typedef\s+struct\s+(HegelRecursion)\s+\1\s*;" "")
-      (str/replace #"typedef\s+void\s+\(\*hegel_output_callback_t\)\([^;]+\);" "")
-      (str/replace #"(?m)(hegel_result_t|hegel_context_t \*|const char \*)\s+hegel_[a-z0-9_]+\s*\([^;]*?\)\s*;" "")
+      (str/replace callback-declaration "")
+      (str/replace #"(?m)(void|hegel_output_callback_t|hegel_string_t|hegel_result_t|hegel_context_t \*|const char \*)\s+hegel_[a-z0-9_]+\s*\([^;]*?\)\s*;" "")
       (str/replace #"(?m)(?:hegel_context_t \*|const char \*)hegel_[a-z0-9_]+\([^;]*?\);" "")
+      (str/replace #"typedef hegel_string_t hegel_owned_string_t;" "")
       (str/replace #"extern\s+\"C\"\s*\{" "")
       (str/replace #"(?m)^\s*#(?:ifndef|define|include|ifdef|endif).*?$" "")
       (str/replace #"\}" "")))
@@ -141,7 +146,8 @@
     (when-not (str/blank? residual)
       (fail! "unsupported top-level declaration" {:residual (subs residual 0 (min 240 (count residual)))}))))
 (defn parse-header [raw]
-  (let [text (strip-comments raw)]
+  (let [text (str/replace (strip-comments raw) "hegel_owned_string_t" "hegel_string_t")
+        text (str/replace text "typedef hegel_string_t hegel_string_t;" "")]
     (validate-directives! text)
     (let [result {:defines (parse-defines text) :enums (parse-enums text)
                   :structs (parse-structs text) :opaque-handles (parse-opaque-handles text)

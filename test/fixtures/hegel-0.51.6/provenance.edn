@@ -1,0 +1,11 @@
+{:repository "hegeldev/hegel"
+ :tag "libhegel/0.51.6"
+ :commit "a6928220ae21e2658994a9246b93f84f21557447"
+ :path "libhegel/include/hegel.h"
+ :git-blob "aefb937073231a8b09d46f4e70fdc220611caaf2"
+ :sha256 "e47c09a1b779280d5c2e8f6a3e13d585d3ff87ba042ba4845cc643a4765c1726"
+ :bytes 160159
+ :lines 3721
+ :encoding "UTF-8"
+ :line-endings "LF"
+ :license-preserved? true}

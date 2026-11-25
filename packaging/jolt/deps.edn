@@ -1,0 +1,10 @@
+{:paths ["../../src" "../../resources"]
+ :jolt/min-version "0.8.27"
+ :jolt/native [{:name "hegel"
+                :linux ["../../.hegel-lib/libhegel_c.so"]
+                :darwin ["../../.hegel-lib/libhegel_c.dylib"]
+                :windows ["../../.hegel-lib/libhegel_c.dll"]
+                :static {:linux {:archive "../../.hegel-lib/libhegel_c.a"}
+                         :darwin {:archive "../../.hegel-lib/libhegel_c.a"}}
+                :build "native"}]
+ :tasks {native "jolt -m hegel.install setup-packaged"}}

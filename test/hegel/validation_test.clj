@@ -37,6 +37,8 @@
    {:label "time" :type ::g/invalid-option :thunk #(g/time {:unknown true})}
    {:label "datetime" :type ::g/invalid-option :thunk #(g/datetime {:unknown true})}
    {:label "string" :type ::g/invalid-option :thunk #(g/string {:alphabet ["a"]})}
+   {:label "false grammar alphabet" :type ::g/invalid-option
+    :thunk #(g/grammar-str "start: \"x\"" {:alphabet false})}
    {:label "character" :type ::g/invalid-option :thunk #(g/character {:unknown true})}
    {:label "character fixed-size contract" :type ::g/invalid-option
     :thunk #(g/character {:min-size 1})}
@@ -68,6 +70,8 @@
     :thunk #(history/linearization nil 42 [] {})}
    {:label "history rule" :type ::history/invalid-options
     :thunk #(history/rule :x {:step 42})}
+   {:label "stateful weight underflows double" :type ::stateful/invalid-argument
+    :thunk #(stateful/rule :x {:weight 1e-400M} identity)}
    {:label "stateful callable" :type ::stateful/invalid-argument
     :thunk #(stateful/rule :x {:precondition :no} identity)}
    {:label "report runner" :type ::report/invalid-option
@@ -253,6 +257,7 @@
     (let [first-case? (atom true)
           result (h/run-test! (assoc run-opts :suppress-health-checks [:filter-too-much])
                               (fn [_]
+                                (h/draw! (g/integer 0 100))
                                 (when (compare-and-set! first-case? true false)
                                   (h/assume! false))))]
       (is (:passed? result))

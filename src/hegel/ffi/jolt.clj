@@ -2,6 +2,7 @@
   "Jolt implementation of the narrow native boundary. Signatures and layouts
   are derived from hegel/abi.edn."
   (:require [hegel.abi :as abi]
+            [hegel.native :as native]
             [jolt.ffi :as ffi]))
 
 (defn- scalar-type [type-id]
@@ -106,7 +107,14 @@
               (when-not (:supported? coverage)
                 (throw (ex-info "Jolt cannot express the canonical libhegel ABI"
                                 coverage)))
-              (ffi/load-library library-path)
+              (when-let [probe (ns-resolve 'jolt.ffi 'stack-args-correct?)]
+                (when (false? (probe))
+                  (throw (ex-info "This Jolt/Chez build misplaces native stack arguments; use an official Jolt release with the FFI ABI fixes"
+                                  {:type :hegel.ffi/unsupported-runtime-build
+                                   :capability :stack-arguments}))))
+              (when (or (native/nonblank-env "HEGEL_LIBHEGEL_LIBRARY")
+                        (nil? (ffi/find-symbol "hegel_version")))
+                (ffi/load-library library-path))
               (let [bindings
                     (into {}
                           (map (fn [[function-id function]]
@@ -150,8 +158,15 @@
 (defn read-array [pointer length] (ffi/read-array pointer length))
 (defn write-array [pointer value] (ffi/write-array pointer value))
 (defn read-utf8 [pointer length] (ffi/read-bytes pointer length))
-(defn write-utf8 [pointer value] (ffi/write-bytes pointer value))
-(defn string->native [value] (ffi/string->ptr value))
+(defn alloc-utf8 [text]
+  ;; Each character occupies at most four UTF-8 bytes. write-bytes returns
+  ;; the actual byte count and preserves embedded NULs on all supported Jolts.
+  (let [data (ffi/alloc (max 1 (* 4 (count text))))]
+    (try
+      [data (ffi/write-bytes data text)]
+      (catch Throwable error
+        (ffi/free data)
+        (throw error)))))
 (defn native->string [pointer] (ffi/ptr->string pointer))
 (defn layout-size [layout] (ffi/layout-size layout))
 (defn read-field [pointer layout path] (ffi/read-field pointer layout path))

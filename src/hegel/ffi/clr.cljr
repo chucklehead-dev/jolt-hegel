@@ -250,12 +250,6 @@
 (defn read-utf8 [pointer length]
   (bridge-call "ReadUtf8" pointer (System.Convert/ToInt32 length)))
 
-(defn write-utf8 [pointer value]
-  (bridge-call "WriteUtf8" pointer (str value)))
-
-(defn string->native [value]
-  (bridge-call "StringToNative" (str value)))
-
 (defn native->string [pointer]
   (when-not (null? pointer)
     (bridge-call "NativeToString" pointer)))

@@ -6,6 +6,7 @@
             [hegel.ffi :as hffi]
             [hegel.generator :as g]
             [hegel.host :as host]
+            [hegel.internal.draw-attempt :as attempt]
             [hegel.validation :as validation]))
 
 (defn- invalid-argument [message data]
@@ -40,20 +41,26 @@
 
   step receives the current state and must return the next state. The optional
   :precondition predicate is checked before step; a false result skips that
-  attempted rule without running invariants."
+  attempted rule without running invariants. :weight (default 1.0) is a finite,
+  positive relative selection weight among currently enabled swarm rules."
   ([name step]
    (rule name {} step))
   ([name opts step]
    (when-not (map? opts)
      (invalid-argument "rule options must be a map"
                        {:name name :options opts}))
-   (let [unknown (seq (remove #{:precondition} (keys opts)))
+   (let [unknown (seq (remove #{:precondition :weight} (keys opts)))
+         weight (get opts :weight 1.0)
+         native-weight (when (number? weight) (double weight))
          precondition (if (contains? opts :precondition)
                         (:precondition opts)
                         (constantly true))]
      (when unknown
        (invalid-argument "unknown rule options"
                          {:name name :options (vec unknown)}))
+     (when-not (and (some? native-weight) (pos? native-weight)
+                    (<= native-weight 1.7976931348623157E308))
+       (invalid-argument "rule weight must be finite and positive" {:name name :weight weight}))
      (when-not (fn? precondition)
        (invalid-argument "rule precondition must be a function"
                          {:name name :precondition precondition}))
@@ -63,22 +70,23 @@
      {::kind ::rule
       :name name
       ::native-name (normalized-name :rule name)
+      ::weight native-weight
       ::precondition precondition
       ::step step})))
 
 (defn invariant
-  "Declare a named invariant predicate over state.
-
-  Invariants must return truthy for valid state. They run before the first rule
-  and after every successfully applied rule."
-  [name pred]
-  (when-not (fn? pred)
-    (invalid-argument "invariant predicate must be a function"
-                      {:name name :predicate pred}))
-  {::kind ::invariant
-   :name name
-   ::native-name (normalized-name :invariant name)
-   ::predicate pred})
+  "Declare a named invariant predicate. It runs before the first rule and after
+  every applied rule. :pause-faults? brackets checks with native Antithesis fault
+  control; outside Antithesis those native calls do nothing."
+  ([name pred] (invariant name {} pred))
+  ([name opts pred]
+   (validation/reject-unknown-keys! ::invalid-argument "invariant options" #{:pause-faults?} opts)
+   (when (contains? opts :pause-faults?)
+     (validation/require-boolean! ::invalid-argument :pause-faults? (:pause-faults? opts)))
+   (when-not (fn? pred)
+     (invalid-argument "invariant predicate must be a function" {:name name :predicate pred}))
+   {::kind ::invariant :name name ::native-name (normalized-name :invariant name)
+    ::pause-faults? (:pause-faults? opts) ::predicate pred}))
 
 (defn- require-pool! [value]
   (when-not (= ::pool (::kind value))
@@ -163,7 +171,13 @@
                     :variable-id variable-id})))
        (let [value (val entry)]
          (when consume?
-           (swap! (::values pool) dissoc variable-id))
+           (swap! (::values pool) dissoc variable-id)
+           (attempt/on-discard!
+            test-case
+            (fn []
+              (hffi/pool-restore! (:context test-case) (:handle test-case)
+                                  (::pool-handle pool) variable-id)
+              (swap! (::values pool) assoc variable-id value))))
          value)))))
 
 (defn values-reusable
@@ -197,7 +211,7 @@
             ::trace trace)
      error)))
 
-(defn- check-invariant! [item state trace]
+(defn- check-invariant-body! [item state trace]
   (let [valid?
         (host/try-catch-all
          ((::predicate item) state)
@@ -216,6 +230,19 @@
          ::name (:name item)
          ::trace trace}))))
   nil)
+
+(defn- check-invariant! [item state trace]
+  (if (::pause-faults? item)
+    (let [ctx (:context (h/current-test-case!))]
+      (hffi/pause-faults! ctx)
+      (let [result (host/try-catch-all
+                    (do (check-invariant-body! item state trace) nil)
+                    error
+                    (do (host/try-catch-all (hffi/unpause-faults! ctx) _cleanup-error nil)
+                        (throw error)))]
+        (hffi/unpause-faults! ctx)
+        result))
+    (check-invariant-body! item state trace)))
 
 (defn- check-invariants! [invariants state trace]
   (doseq [item invariants]
@@ -360,7 +387,7 @@
           (hffi/new-state-machine!
            (:context test-case)
            (:handle test-case)
-           (mapv ::native-name rules)
+           (mapv (fn [rule] {:name (::native-name rule) :weight (::weight rule)}) rules)
            (mapv ::native-name invariants))]
       (try
         (h/note! "Initial invariant check.")

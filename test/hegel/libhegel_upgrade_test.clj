@@ -1,17 +1,18 @@
 (ns hegel.libhegel-upgrade-test
-  "Focused libhegel v0.36.3 regression checks. Run only with the verified
+  "Focused libhegel v0.53.2 regression checks. Run only with the verified
   upgrade asset selected by HEGEL_LIBHEGEL_LIBRARY."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.edn :as edn]
+            [clojure.test :refer [deftest is testing]]
             [hegel.core :as h]
             [hegel.ffi :as hffi]
             [hegel.generator :as g]
+            [hegel.host :as host]
             [hegel.stateful :as hs]))
 
-;; Generated with libhegel v0.36.3 (release tag caafb40), seed 1, and the
-;; exact property below.  It is deliberately not a migration claim for the
-;; historical v0.32.3 blob in test/fixtures/hegel-0.32.3.
-(def ^:private v0363-step-51-blob
-  "AXic7cahEQAACMNAYtlfMS0g6jtAI3I/dTV/EMLQ4AKH1ANw")
+;; Generated independently with the released C library and a one-rule state
+;; machine. The native choices for this property still encode identically.
+(def ^:private step-51-blob
+  (:reproduction-blob (edn/read-string (host/resource-text "fixtures/hegel-0.53.2/step-51.edn"))))
 
 (defn- step-51-machine []
   {:initial-state {:count 0}
@@ -23,12 +24,12 @@
     (try
       (let [settings (hffi/settings-new! context)]
         (try
-          (hffi/settings-set-stateful-step-count! context settings step-count)
           (let [handle (hffi/test-case-from-blob! context settings
-                                                  v0363-step-51-blob)
+                                                  step-51-blob)
                 test-case (h/->TestCase context handle true :quiet)]
             (try
-              (binding [h/*test-case* test-case]
+              (binding [h/*test-case* test-case
+                        hffi/*stateful-step-count* step-count]
                 (try
                   {:outcome :completed
                    :value (hs/run! (step-51-machine))}
@@ -171,7 +172,7 @@
     (is (zero? @starts))
     (is (= 1 @frees))))
 
-(deftest v0363-seeded-generation-and-replay-preserve-a-51-step-property-failure
+(deftest seeded-generation-and-replay-preserve-a-51-step-property-failure
   (let [result (h/run-test! {:test-cases 1
                              :stateful-step-count 52
                              :seed 1
@@ -181,10 +182,10 @@
         failure (first (:failures result))
         direct-52 (replay-step-51 52)
         direct-50 (replay-step-51 50)]
-    (testing "the recorded v0.36.3 seed produces the bounded property failure"
+    (testing "the recorded v0.53.2 seed produces the bounded property failure"
       (is (false? (:passed? result)))
       (is (= :failed (:status result)))
-      (is (= v0363-step-51-blob (:reproduction-blob failure)))
+      (is (= step-51-blob (:reproduction-blob failure)))
       (is (true? (:reproduced? failure)))
       (is (property-failure-at-51? (:exception failure))))
     (testing "direct replay with the recorded budget is the same property failure"
@@ -195,7 +196,7 @@
       (is (= {:count 50} (:value direct-50)))
       (is (not (property-failure-at-51? (:error direct-50)))))))
 
-(deftest v0363-stateful-step-count-has-a-seeded-positive-variation-control
+(deftest stateful-step-count-has-a-seeded-positive-variation-control
   (doseq [step-count (range 1 8)]
     (let [observations (atom [])
           result (h/run-test! {:test-cases 48
@@ -229,7 +230,7 @@
         (when (> step-count 1)
           (is (some #(< % step-count) lengths)))))))
 
-(deftest v0363-one-valid-case-retains-a-shrunk-drawn-property-failure
+(deftest one-valid-case-retains-a-shrunk-drawn-property-failure
   (let [first-value (atom nil)
         result (h/run-test! {:test-cases 1
                              ;; This seed is pinned after the focused probe to
@@ -256,7 +257,7 @@
     (is (true? (:reproduced? failure)))
     (is (= :interesting (:status failure)))))
 
-(deftest v0363-raw-aggregate-time-and-datetime-preserve-nanoseconds
+(deftest raw-aggregate-time-and-datetime-preserve-nanoseconds
   (let [time-minimum {:hour 0 :minute 0 :second 0 :nanosecond 0}
         time-fixed {:hour 14 :minute 30 :second 15 :nanosecond 123456789}
         time-maximum {:hour 23 :minute 59 :second 59 :nanosecond 999999999}
@@ -267,8 +268,7 @@
                              :verbosity :quiet}
                             (fn [test-case]
                               ;; Call the aggregate FFI directly: public
-                              ;; generators intentionally project to
-                              ;; microseconds after this boundary.
+                              ;; generators default to microsecond precision.
                               (swap! seen conj
                                      {:minimum
                                       (hffi/generate-time!
@@ -307,7 +307,7 @@
     (+ (upgrade-tree-leaves (second tree))
        (upgrade-tree-leaves (nth tree 2)))))
 
-(deftest v0363-recursion-spans-a-meaningful-fraction-of-its-leaf-budget
+(deftest recursion-spans-a-meaningful-fraction-of-its-leaf-budget
   (let [leaf-counts (atom [])
         result (h/run-test! {:test-cases 160 :seed 20260906 :database ""
                              :verbosity :quiet}
@@ -336,7 +336,7 @@
      (h/draw! (g/vector {:size 10} (g/integer 0 100)))
      (transition state))))
 
-(deftest v0363-stateful-shrinking-deletes-a-redundant-draw-heavy-step-region
+(deftest stateful-shrinking-deletes-a-redundant-draw-heavy-step-region
   (let [discovered-traces (atom [])
         result (h/run-test!
                 {:test-cases 240 :seed 20260907 :database "" :verbosity :quiet}
@@ -375,3 +375,169 @@
   (let [{:keys [fail error]} (clojure.test/run-tests 'hegel.libhegel-upgrade-test)]
     (when (pos? (+ fail error))
       (throw (ex-info "libhegel upgrade regression failed" {:fail fail :error error})))))
+
+(deftest budget-can-continue-after-the-first-failure
+  (let [run (fn [stop?]
+              (let [generation-calls (atom 0)
+                    result (h/run-test!
+                            {:test-cases 10 :seed 1 :database "" :verbosity :quiet
+                             :phases [:generate] :stop-on-first-failure? stop?}
+                            (fn [_]
+                              (when-not (h/final?) (swap! generation-calls inc))
+                              (h/draw! (g/integer 0 100))
+                              (throw (ex-info "budget failure" {:hegel/origin "upgrade/budget"}))))]
+                {:calls @generation-calls :result result}))
+        stopped (run true) continued (run false)]
+    (is (= 1 (:calls stopped)))
+    (is (= 10 (:calls continued)))
+    (doseq [result (map :result [stopped continued])]
+      (is (= :failed (:status result)))
+      (is (= 1 (:n-failures result)))
+      (is (true? (get-in result [:failures 0 :reproduced?]))))))
+
+(deftest length-delimited-regex-preserves-nul-and-multibyte-text
+  (let [text "a\u0000😀é"
+        values (h/sample 5 (g/regex-str text))]
+    (is (= (repeat 5 text) values))))
+
+(deftest context-diagnostic-is-a-borrowed-struct-return
+  (let [ctx (hffi/context-new!)]
+    (try
+      (let [error (caught-error #(hffi/string-generator-regex! ctx "[" true))]
+        (is (= ::hffi/error (:type (ex-data error))))
+        (is (= :string-generator-regex (:operation (ex-data error))))
+        (is (seq (:diagnostic (ex-data error)))))
+      (finally (hffi/context-free! ctx)))))
+
+(deftest span-labels-match-native-name-hashes
+  ;; These constants avoid an FFI call per generator draw. Check them against
+  ;; the native algorithm, rather than copying a second table of numbers.
+  (let [ctx (hffi/context-new!)]
+    (try
+      (doseq [[name expected] [["list" hffi/label-list] ["set" hffi/label-set]
+                              ["map" hffi/label-map] ["tuple" hffi/label-tuple]
+                              ["one-of" hffi/label-one-of] ["optional" hffi/label-optional]
+                              ["flat-map" hffi/label-flat-map] ["filter" hffi/label-filter]
+                              ["mapped" hffi/label-mapped] ["recursive" hffi/label-recursive]
+                              ["stateful-rule" hffi/label-stateful-rule]]]
+        (is (= expected (hffi/label-from-name! ctx (str "jolt-hegel." name)))))
+      (finally (hffi/context-free! ctx)))))
+
+(deftest rejected-consumed-pool-draws-are-restored
+  (let [result (h/run-test!
+                {:test-cases 1 :seed 42 :database "" :verbosity :quiet}
+                (fn [_]
+                  (let [pool (hs/pool)
+                        attempts (atom 0)]
+                    (hs/add! pool :only)
+                    (is (= :only (h/draw! (g/filter
+                                          (fn [_] (= 3 (swap! attempts inc)))
+                                          (hs/values-consumed pool)))))
+                    (is (= 3 @attempts))
+                    (is (hs/pool-empty? pool)))))]
+    (is (:passed? result))))
+
+(deftest engine-text-and-binary-defaults-grow-above-large-minima
+  (doseq [generator [(g/bytes {:min-size 150}) (g/string {:min-size 150 :alphabet "a"})]]
+    (let [sizes (map count (let [values (atom [])]
+                          (h/run-test! {:test-cases 20 :seed 76 :database "" :verbosity :quiet}
+                                       (fn [_] (swap! values conj (h/draw! generator))))
+                          @values))]
+      (is (every? #(<= 150 % 250) sizes))
+      (is (some #(< 150 %) sizes)))))
+
+(deftest profiles-resolve-and-snapshot-replay-settings
+  (let [run (h/run-test! {:profile "ci" :name "profile-test" :test-cases 1
+                          :verbosity :quiet :print-blob? false :unbounded-choices? true}
+                         (fn [_] (h/draw! (g/integer 0 10))))]
+    (is (:passed? run))
+    (is (true? (get-in run [:replay-options :derandomize?])))
+    (is (true? (get-in run [:replay-options :unbounded-choices?])))
+    (is (= [:too-slow] (get-in run [:replay-options :suppress-health-checks])))
+    (is (not (contains? (:replay-options run) :profile)))
+    (is (= (:seed run)
+           (:seed (h/run-test! {:profile "ci" :name "profile-test" :test-cases 1
+                                 :verbosity :quiet :print-blob? false} (fn [_] true)))))))
+
+(deftest ordinary-runs-only-write-explicit-profile-overrides
+  (let [calls (atom [])
+        setter hffi/settings-set-derandomize!
+        opts {:profile "ci" :test-cases 1 :seed 1 :database "" :verbosity :quiet}]
+    (with-redefs [hffi/settings-set-derandomize!
+                  (fn [ctx settings enabled?]
+                    (swap! calls conj enabled?)
+                    (setter ctx settings enabled?))]
+      (is (true? (get-in (h/run-test! opts (fn [_] true))
+                         [:replay-options :derandomize?])))
+      (is (empty? @calls))
+      (is (false? (get-in (h/run-test! (assoc opts :derandomize? false) (fn [_] true))
+                          [:replay-options :derandomize?])))
+      (is (= [false] @calls)))))
+
+(deftest composed-labels-track-components
+  (let [label #(-> % meta :hegel.generator/label)]
+    (is (= (label (g/vector (g/integer))) (label (g/vector (g/integer)))))
+    (is (not= (label (g/vector (g/integer))) (label (g/vector (g/string)))))
+    (is (not= (label (g/tuple (g/integer) (g/string)))
+              (label (g/tuple (g/string) (g/integer)))))))
+
+(deftest invariant-fault-brackets-unpause-on-failure
+  (let [events (atom [])]
+    (with-redefs [hffi/pause-faults! (fn [_] (swap! events conj :pause))
+                  hffi/unpause-faults! (fn [_] (swap! events conj :unpause))]
+      (let [run (h/run-test! {:test-cases 1 :seed 1 :database "" :verbosity :quiet}
+                             (fn [_]
+                               (hs/run! {:initial-state 0
+                                         :rules [(hs/rule :inc {:weight 4.0} inc)]
+                                         :invariants [(hs/invariant :fails {:pause-faults? true}
+                                                                    (constantly false))]})))]
+        (is (false? (:passed? run)))
+        (is (seq @events))
+        (is (every? #(= [:pause :unpause] %) (partition 2 @events)))))))
+
+(deftest grammar-strings-use-native-parsing-and-shrinking
+  (let [generator (g/grammar-str "start: \"ab\" | \"c\"" {:max-size 8})
+        run (h/run-test! {:test-cases 20 :seed 9 :database "" :verbosity :quiet}
+                         (fn [_] (let [value (h/draw! generator)]
+                                   (throw (ex-info "grammar failure" {:value value :hegel/origin "grammar"})))))]
+    (is (= "c" (-> run :final first :exception ex-data :value)))
+    (is (false? (:flaky? run))))
+  (is (= ["hello"] (h/sample 1 (g/grammar-str "%import .words.word\nstart: word"
+                                                         {:imports {"words.lark" "word: \"hello\""}})))))
+
+(deftest native-generators-compile-once-per-case-and-release-their-cache
+  (let [builds (atom 0) frees (atom 0)
+        build hffi/string-generator-regex! release hffi/string-generator-free!]
+    (with-redefs [hffi/string-generator-regex! (fn [& args] (swap! builds inc) (apply build args))
+                  hffi/string-generator-free! (fn [& args] (swap! frees inc) (apply release args))]
+      (let [generator (g/regex-str "[ab]")
+            result (h/run-test! {:test-cases 1 :seed 99 :database "" :verbosity :quiet}
+                                (fn [_] (dotimes [_ 20] (h/draw! generator))))]
+        (is (:passed? result))
+        (is (= 2 @builds))
+        (is (= @builds @frees))))))
+
+(deftest dynamically-created-native-generators-have-bounded-retention
+  (let [builds (atom 0) frees (atom 0)
+        build hffi/string-generator-regex! release hffi/string-generator-free!]
+    (with-redefs [hffi/string-generator-regex! (fn [& args] (swap! builds inc) (apply build args))
+                  hffi/string-generator-free! (fn [& args] (swap! frees inc) (apply release args))]
+      (let [result (h/run-test! {:test-cases 1 :seed 17 :database "" :verbosity :quiet}
+                                (fn [_]
+                                  (dotimes [_ 100] (h/draw! (g/regex-str "a")))
+                                  (is (<= (- @builds @frees) 64))))]
+        (is (:passed? result))
+        (is (= @builds @frees))))))
+
+(deftest accepted-inner-consumption-rolls-back-with-its-outer-filter
+  (let [run (h/run-test! {:test-cases 1 :seed 42 :database "" :verbosity :quiet}
+                         (fn [_]
+                           (let [pool (hs/pool) attempts (atom 0)]
+                             (hs/add! pool :only)
+                             (is (= :only
+                                    (h/draw! (g/filter
+                                              (fn [_] (= 3 (swap! attempts inc)))
+                                              (g/filter (constantly true)
+                                                        (hs/values-consumed pool))))))
+                             (is (hs/pool-empty? pool)))))]
+    (is (:passed? run))))

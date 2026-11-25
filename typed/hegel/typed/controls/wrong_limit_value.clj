@@ -1,4 +1,4 @@
-(ns hegel.typed.controls.wrong-limit-value
+(ns ^:typed.clojure hegel.typed.controls.wrong-limit-value
   "Intentionally invalid control: supplies a non-numeric `:max-depth` in the
   limits map, violating `hegel.typed.portable-data/Limits`. Must be rejected
   by `script/hegel/typed_check.clj`; see docs/TYPED_CLOJURE.md."
