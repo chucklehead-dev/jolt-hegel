@@ -405,19 +405,16 @@
        (<= 1 (:day value)
            (days-in-month (:year value) (:month value)))))
 
-(defn- valid-time? [value]
+(defn- valid-time? [value precision]
   (and (map? value)
-       (every? #(integer? (get value %))
-               [:hour :minute :second :microsecond])
+       (every? #(integer? (get value %)) [:hour :minute :second])
        (<= 0 (:hour value) 23)
        (<= 0 (:minute value) 59)
        (<= 0 (:second value) 59)
-       (<= 0 (:microsecond value) 999999)))
-
-(defn- valid-datetime? [value]
-  (and (map? value)
-       (valid-date? (:date value))
-       (valid-time? (:time value))))
+       (if (and (= precision :nanoseconds) (contains? value :nanosecond))
+         (and (not (contains? value :microsecond))
+              (integer? (:nanosecond value)) (<= 0 (:nanosecond value) 999999999))
+         (and (integer? (:microsecond value)) (<= 0 (:microsecond value) 999999)))))
 
 (defn- ordered-fields? [minimum maximum fields]
   (loop [[field & more] fields]
@@ -433,11 +430,12 @@
   (ordered-fields? minimum maximum [:year :month :day]))
 
 (defn- ordered-times? [minimum maximum]
-  (ordered-fields? minimum maximum
-                   [:hour :minute :second :microsecond]))
+  (ordered-fields? (temporal/native-time minimum) (temporal/native-time maximum)
+                   [:hour :minute :second :nanosecond]))
 
 (defn- ordered-datetimes? [minimum maximum]
-  (if (= (:date minimum) (:date maximum))
+  (if (= (select-keys (:date minimum) [:year :month :day])
+         (select-keys (:date maximum) [:year :month :day]))
     (ordered-times? (:time minimum) (:time maximum))
     (ordered-dates? (:date minimum) (:date maximum))))
 
@@ -458,79 +456,132 @@
        "-" (zero-pad 2 (:month value))
        "-" (zero-pad 2 (:day value))))
 
-(defn- format-time [value]
-  (let [base (str (zero-pad 2 (:hour value))
-                  ":" (zero-pad 2 (:minute value))
-                  ":" (zero-pad 2 (:second value)))]
-    (if (zero? (:microsecond value))
+(defn- format-time [native nanos?]
+  (let [{:keys [hour minute second nanosecond]} native
+        base (str (zero-pad 2 hour) ":" (zero-pad 2 minute) ":" (zero-pad 2 second))]
+    (if (zero? nanosecond)
       base
-      (str base "." (zero-pad 6 (:microsecond value))))))
+      (str base "." (if nanos?
+                      (zero-pad 9 nanosecond)
+                      (zero-pad 6 (quot nanosecond 1000)))))))
+
+(defn- calendar-mask [opts option positions]
+  (when (contains? opts option)
+    (let [values (get opts option)]
+      (when-not (and (or (sequential? values) (set? values)) (seq values)
+                     (every? #(contains? positions %) values))
+        (invalid-option (str (name option) " requires a nonempty collection of allowed values")
+                        {option values :allowed (keys positions)}))
+      (reduce (fn [mask value] (bit-set mask (get positions value))) 0 values))))
+
+(def ^:private weekday-positions
+  (zipmap [:monday :tuesday :wednesday :thursday :friday :saturday :sunday] (range)))
+(def ^:private month-positions (zipmap (range 1 13) (range)))
+
+(defn- validate-domain! [kind minimum maximum precision weekdays months opts]
+  (host/try-catch-all
+   (hffi/validate-temporal-bounds! kind minimum maximum precision weekdays months)
+   error
+   (if (= -5 (:result (ex-data error)))
+     (invalid-option (str (name kind) " bounds contain no permitted value") opts)
+     (throw error))))
 
 (defn date
-  "Generate an ISO 8601 calendar-date string.
-
-  Options :min and :max are inclusive maps with :year, :month, and :day.
-  The default range is 0001-01-01 through 9999-12-31."
-  ([]
-   (date {}))
+  "Generate an ISO 8601 date from inclusive :min and :max calendar maps.
+  Optional :weekdays (:monday through :sunday) and :months (1 through 12)
+  restrict the draw to their intersection. Each is a nonempty collection."
+  ([] (date {}))
   ([opts]
-   (options! "date options" #{:min :max} opts)
-   (let [minimum (if (contains? opts :min) (:min opts) minimum-date)
-         maximum (if (contains? opts :max) (:max opts) maximum-date)]
+   (options! "date options" #{:min :max :weekdays :months} opts)
+   (let [minimum (get opts :min minimum-date)
+         maximum (get opts :max maximum-date)
+         weekdays (calendar-mask opts :weekdays weekday-positions)
+         months (calendar-mask opts :months month-positions)]
      (validate-bounds! "date" valid-date? ordered-dates? minimum maximum)
+     (when (or weekdays months)
+       (validate-domain! :date minimum maximum nil weekdays months opts))
      (composite-fn
       (fn [test-case]
-        (format-date
-         (hffi/generate-date! (:context test-case) (:handle test-case)
-                              minimum maximum))))))
-  ([minimum maximum]
-   (date {:min minimum :max maximum})))
+        (format-date (hffi/generate-date! (:context test-case) (:handle test-case)
+                                          minimum maximum weekdays months))))))
+  ([minimum maximum] (date {:min minimum :max maximum})))
+
+(defn- clock-generator [kind opts]
+  (options! (str (name kind) " options") #{:min :max :precision} opts)
+  (let [precision (get opts :precision :microseconds)
+        code (get temporal/precision-values precision)
+        nanos? (= precision :nanoseconds)
+        datetime? (= kind :datetime)
+        default-clock (if nanos?
+                        (assoc (dissoc maximum-time :microsecond) :nanosecond 999999999)
+                        maximum-time)
+        lo (get opts :min (if datetime? minimum-datetime minimum-time))
+        hi (get opts :max (if datetime? (assoc maximum-datetime :time default-clock) default-clock))]
+    (when-not (some? code)
+      (invalid-option "unsupported temporal precision" {:precision precision}))
+    (validate-bounds! (name kind)
+                      (if datetime?
+                        #(and (valid-date? (:date %)) (valid-time? (:time %) precision))
+                        #(valid-time? % precision))
+                      (if datetime? ordered-datetimes? ordered-times?) lo hi)
+    (let [native (if datetime? #(update % :time temporal/native-time) temporal/native-time)
+          minimum (native lo)
+          maximum (native hi)]
+      ;; Every admissible endpoint is already on a microsecond or nanosecond tick.
+      (when (> code 1)
+        (validate-domain! kind minimum maximum code nil nil opts))
+      (if datetime?
+        (composite-fn
+         (fn [{:keys [context handle]}]
+           (let [{:keys [date time]} (hffi/generate-datetime! context handle minimum maximum code)]
+             (str (format-date date) "T" (format-time time nanos?)))))
+        (composite-fn
+         (fn [{:keys [context handle]}]
+           (format-time (hffi/generate-time! context handle minimum maximum code) nanos?)))))))
 
 (defn time
-  "Generate an ISO 8601 local-time string.
-
-  Options :min and :max are inclusive maps with :hour, :minute, :second, and
-  :microsecond. A nonzero fractional part is always rendered with six digits."
-  ([]
-   (time {}))
-  ([opts]
-   (options! "time options" #{:min :max} opts)
-   (let [minimum (if (contains? opts :min) (:min opts) minimum-time)
-         maximum (if (contains? opts :max) (:max opts) maximum-time)]
-     (validate-bounds! "time" valid-time? ordered-times? minimum maximum)
-     (let [[native-min native-max] (temporal/native-time-bounds minimum maximum)]
-       (composite-fn
-        (fn [test-case]
-          (format-time
-           (temporal/public-time
-            (hffi/generate-time! (:context test-case) (:handle test-case)
-                                native-min native-max))))))))
-  ([minimum maximum]
-   (time {:min minimum :max maximum})))
+  "Generate an ISO local time within inclusive :min/:max clock maps.
+  :precision accepts :hours, :minutes, :seconds, :milliseconds, :microseconds
+  (default), or :nanoseconds. The last accepts :nanosecond instead of
+  :microsecond in a bound and prints nine fractional digits when nonzero."
+  ([] (time {}))
+  ([opts] (clock-generator :time opts))
+  ([minimum maximum] (time {:min minimum :max maximum})))
 
 (defn datetime
-  "Generate an ISO 8601 naive-datetime string.
+  "Generate an ISO naive datetime from inclusive {:date ... :time ...} bounds.
+  :precision and fractional fields follow time."
+  ([] (datetime {}))
+  ([opts] (clock-generator :datetime opts))
+  ([minimum maximum] (datetime {:min minimum :max maximum})))
 
-  Options :min and :max are inclusive {:date {...} :time {...}} maps using the
-  fields accepted by `date` and `time`. No timezone component is produced."
-  ([]
-   (datetime {}))
+(defn- timestamp-bound? [value]
+  (and (map? value) (= 2 (count value))
+       (integer? (:second value)) (<= min-int64 (:second value) max-int64)
+       (integer? (:nanosecond value)) (<= 0 (:nanosecond value) 999999999)))
+
+(defn timestamp
+  "Draw a UTC instant as {:second Unix-epoch-seconds :nanosecond 0..999999999}.
+  Nanoseconds count forward from the second, including before the epoch.
+  :min and :max are inclusive instant maps and default to years 0001..9999.
+  :precision sets the grid from the Unix epoch: :hours, :minutes, :seconds,
+  :milliseconds, :microseconds (default), or :nanoseconds."
+  ([] (timestamp {}))
   ([opts]
-   (options! "datetime options" #{:min :max} opts)
-   (let [minimum (if (contains? opts :min) (:min opts) minimum-datetime)
-         maximum (if (contains? opts :max) (:max opts) maximum-datetime)]
-     (validate-bounds!
-      "datetime" valid-datetime? ordered-datetimes? minimum maximum)
-     (let [[native-min native-max] (temporal/native-datetime-bounds minimum maximum)]
-       (composite-fn
-        (fn [test-case]
-          (let [{:keys [date time]}
-                (temporal/public-datetime
-                 (hffi/generate-datetime!
-                  (:context test-case) (:handle test-case) native-min native-max))]
-            (str (format-date date) "T" (format-time time))))))))
-  ([minimum maximum]
-   (datetime {:min minimum :max maximum})))
+   (options! "timestamp options" #{:min :max :precision} opts)
+   (let [minimum (get opts :min {:second -62135596800 :nanosecond 0})
+         maximum (get opts :max {:second 253402300799 :nanosecond 999999999})
+         precision (get opts :precision :microseconds)
+         code (get temporal/precision-values precision)]
+     (when-not (some? code)
+       (invalid-option "unsupported temporal precision" {:precision precision}))
+     (validate-bounds! "timestamp" timestamp-bound?
+                       #(ordered-fields? %1 %2 [:second :nanosecond]) minimum maximum)
+     (validate-domain! :timestamp minimum maximum code nil nil opts)
+     (composite-fn
+      (fn [{:keys [context handle]}]
+        (hffi/generate-timestamp! context handle minimum maximum code)))))
+  ([minimum maximum] (timestamp {:min minimum :max maximum})))
 
 ;; String generators ---------------------------------------------------------
 
@@ -714,7 +765,7 @@
      (when (and (some? (:start opts)) (not (string? (:start opts))))
        (invalid-option "grammar start must be a string" {:start (:start opts)}))
      (let [options {:start (:start opts) :max-size max-size :max-depth max-depth
-                    :imports imports :alphabet (when (:alphabet opts) (normalize-text-options (:alphabet opts)))}]
+                    :imports imports :alphabet (some-> (:alphabet opts) normalize-text-options)}]
        (native-generator :grammar #(hffi/grammar-new! % source options)
                          hffi/grammar-free! hffi/generate-grammar!)))))
 

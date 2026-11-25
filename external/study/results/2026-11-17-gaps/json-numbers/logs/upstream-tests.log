@@ -1,0 +1,8 @@
+Unhandled exception: Error building classpath. The following artifacts could not be resolved:
+  com.widdindustries/cljc.java-time 0.1.22 — could not be fetched: https://repo.clojars.org — could not connect to repo.clojars.org:443 (errno 101: Network is unreachable); https://repo1.maven.org/maven2 — could not connect to repo1.maven.org:443 (errno 101: Network is unreachable)
+  com.widdindustries/time-literals 0.1.10 — could not be fetched: https://repo.clojars.org — could not connect to repo.clojars.org:443 (errno 101: Network is unreachable); https://repo1.maven.org/maven2 — could not connect to repo1.maven.org:443 (errno 101: Network is unreachable)
+  ex-data: {:unresolved [{:coord com.widdindustries/cljc.java-time, :version 0.1.22, :detail could not be fetched: https://repo.clojars.org — could not connect to repo.clojars.org:443 (errno 101: Network is unreachable); https://repo1.maven.org/maven2 — could not connect to repo1.maven.org:443 (errno 101: Network is unreachable)} {:coord com.widdindustries/time-literals, :version 0.1.10, :detail could not be fetched: https://repo.clojars.org — could not connect to repo.clojars.org:443 (errno 101: Network is unreachable); https://repo1.maven.org/maven2 — could not connect to repo1.maven.org:443 (errno 101: Network is unreachable)}]}
+  trace:
+    resolve-deps-cached
+    resolve-project
+    -main

@@ -46,11 +46,11 @@ jobs:
           - name: Linux x86_64
             runner: ubuntu-24.04
             library-name: libhegel_c.so
-            library-sha256: 0f76c0f11e1a1a044b7921e9c16ac8d51ae91878a1fd5c3e19b0f6b4eaebfaf0
+            library-sha256: ce6cc514aac3d2c6e557bf9520b3af6280b3bb735a4d736e882d0344b1476bd2
           - name: macOS arm64
             runner: macos-26
             library-name: libhegel_c.dylib
-            library-sha256: 81029db7c270fe110fb039bfd249b95d07d9862f0de796cfb3ec132ca7ec8528
+            library-sha256: bc1956d1514ad95dbe8099bf785a142f3b99de47cd26838a4ad9af4358217975
 
     env:
       HEGEL_CACHE_DIR: ${{ github.workspace }}/.hegel-lib
@@ -66,9 +66,9 @@ jobs:
         if: runner.os == 'Linux'
         env:
           # The PPA publishes continuous builds at this stable URL. This digest
-          # was verified against its 2026-11-16 signed noble package index
+          # was verified against its 2026-11-24 signed noble package index
           # (signing fingerprint 3914A6761EC1FF9C8F735BBABB90C586E7196C2B).
-          JANK_DEB_SHA256: 95c564ef43c6dc096b6c35a8f0a7c2c1a4391158e523d536fc0d636853a13edf
+          JANK_DEB_SHA256: e02148e3b362b3539c297b0195a6326addbdd6afe76b36117db32bdafb42dbf5
         run: |
           curl -fsSLo "$RUNNER_TEMP/jank.deb" \
             https://ppa.jank-lang.org/pool/main/j/jank/jank_0.1-noble_amd64.deb

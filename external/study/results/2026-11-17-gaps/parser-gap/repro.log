@@ -1,0 +1,4 @@
+:format :hiccup :tree ("a")
+:exception "class java.lang.IllegalArgumentException" :message "Invalid parse-tree, not recognized as either enlive or hiccup format."
+:format :enlive :tree ("a")
+:exception "class java.lang.IllegalArgumentException" :message "Invalid parse-tree, not recognized as either enlive or hiccup format."

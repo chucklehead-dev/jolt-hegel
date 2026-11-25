@@ -30,6 +30,19 @@
              (or (ex-message exception) (str exception))
              (pr-str (ex-data exception)))))
 
+(defn failure-fixtures
+  "Return [{:origin ... :input ...}] for confirmed failures that carry an
+  explicit input in their exception data. The input key defaults to :input.
+  Preserves nil and false inputs. Choose plain EDN inputs for cross-host use."
+  ([result] (failure-fixtures result :input))
+  ([result input-key]
+   (into []
+         (keep (fn [{:keys [origin reproduced? caveat exception]}]
+                 (let [data (when exception (ex-data exception))]
+                   (when (and reproduced? (not caveat) (contains? data input-key))
+                     {:origin origin :input (get data input-key)}))))
+         (:failures result))))
+
 (defn counting-runner
   "Create an isolated runner that counts property failures without aborting.
 

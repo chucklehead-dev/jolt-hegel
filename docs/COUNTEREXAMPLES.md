@@ -1,10 +1,20 @@
 # Structured counterexample diagnostics
 
-Labelled draws and `note!` calls are assembled in libhegel's test-case
-document. At normal verbosity native capture passes build snapshots; the runner
-retains and emits the snapshot selected for each reported failure. Verbose and debug runs also emit one document for every
-exploration case; quiet runs create no printer and return no counterexample
-snapshot.
+Labelled draws and `h/note!` calls describe what happened before an assertion
+failed. Read `:counterexample` on the retained failure for the bounded,
+structured snapshot. At normal verbosity the runner emits the selected
+snapshot through Clojure's `*err*`. At verbose verbosity libhegel can stream
+the test case through its process stderr callback as it runs. At debug
+verbosity the frontend emits draw and note text through Clojure’s `*err*`.
+The runner leaves the native debug sink unset to keep `h/final?` meaningful
+during exploration. Use verbose mode for the engine’s live reporting.
+
+Each entry in `(:failures result)` also has `:output` for the captured native
+test-case text and `:diagnostic` for the exception type and full message.
+A multiline exception keeps its lines in `:diagnostic`. The verbose summary
+uses the first line. Redaction of drawn values applies to the test-case text;
+the property controls what goes into its exception message. Quiet runs keep the original exception and reproduction blob.
+Their `:counterexample`, `:output` and `:diagnostic` are nil.
 
 `g/let` supplies stable labels derived from the printed binding form. A direct
 two-argument `draw!` supplies an explicit label; the one-argument form remains
@@ -86,9 +96,10 @@ aborted together with the rejected draw. Accepted attempts commit. Nested
 regions remain nested, so an inner rejection cannot discard an accepted outer
 document.
 
-The document is sealed and copied only after `mark-complete!`, then its
-caller-owned printer handle is freed before the test-case handle. Reading or
-rendering never changes generation choices, shrinking, origins, or verdicts.
+Completing the root test case seals its native document. The runner copies
+the reported output and detail from the retained native failure before
+releasing its handle. The Clojure exception and any explicit fixture input
+remain available on the retained failure.
 
 Counterexample settings and functions are deliberately omitted from portable
 replay bundles. They are presentation policy, not reproduction input. Apply

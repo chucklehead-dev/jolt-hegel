@@ -1,0 +1,3 @@
+:defect :append-move :expected ["1" "2" "0"] :actual ["0" "1" "2" "0"] :events [[:append-child "li" :to "ul"]]
+:defect :descendant-unmount :expected [:glitter.life-cycle/mount :glitter.life-cycle/unmount] :actual [:glitter.life-cycle/mount]
+Target-only known-defect assertions passed; Hegel not loaded.

@@ -256,21 +256,6 @@
 (defn read-utf8 [pointer length]
   (String. ^bytes (read-array pointer length) StandardCharsets/UTF_8))
 
-(defn write-utf8 [pointer value]
-  (let [bytes (.getBytes ^String (str value) StandardCharsets/UTF_8)]
-    (write-array pointer bytes)
-    (alength bytes)))
-
-(defn string->native [value]
-  ;; Allocate explicitly instead of ffi/string->ptr: the same allocation also
-  ;; serves length-delimited buffers containing U+0000 before the common layer
-  ;; supplies their byte length to C.
-  (let [bytes (.getBytes ^String (str value) StandardCharsets/UTF_8)
-        pointer (alloc (inc (alength bytes)))]
-    (write-array pointer bytes)
-    (write-value pointer :uint8 (alength bytes) 0)
-    pointer))
-
 (defn native->string [pointer] (ffi/ptr->string pointer))
 (defn layout [type-id] (native-type type-id (abi/descriptor)))
 (defn layout-size [layout] (ffi/sizeof layout))

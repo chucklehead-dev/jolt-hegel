@@ -1,0 +1,72 @@
+{
+  "kind": "parent-executed-command-verification",
+  "hegel_source_baseline": "8179cb83eda81c708dc834ee38647f2354fe3d55",
+  "runs": [
+    {
+      "task": "01-parser-acceptance",
+      "exit_code": 0,
+      "verified": [
+        "baseline",
+        "semantic-control",
+        "fresh-process-native-replay",
+        "ordinary-fixture"
+      ],
+      "log": "01-parser-acceptance/parent-verification.txt"
+    },
+    {
+      "task": "02-parser-optimization",
+      "exit_code": 0,
+      "verified": [
+        "baseline",
+        "semantic-control",
+        "fresh-process-native-replay",
+        "ordinary-fixture"
+      ],
+      "log": "02-parser-optimization/parent-verification.txt"
+    },
+    {
+      "task": "03-parser-meaning",
+      "exit_code": 0,
+      "verified": [
+        "baseline",
+        "semantic-control",
+        "fresh-process-native-replay",
+        "ordinary-fixture"
+      ],
+      "log": "03-parser-meaning/parent-verification.txt"
+    },
+    {
+      "task": "04-json-roundtrip",
+      "exit_code": 0,
+      "verified": [
+        "baseline",
+        "semantic-control",
+        "fresh-process-native-replay",
+        "ordinary-fixture"
+      ],
+      "log": "04-json-roundtrip/parent-verification.txt"
+    },
+    {
+      "task": "05-json-unicode",
+      "exit_code": 0,
+      "verified": [
+        "baseline",
+        "semantic-control",
+        "fresh-process-native-replay",
+        "ordinary-fixture"
+      ],
+      "log": "05-json-unicode/parent-verification.txt"
+    },
+    {
+      "task": "06-json-error-offset",
+      "exit_code": 0,
+      "verified": [
+        "baseline",
+        "semantic-control",
+        "fresh-process-native-replay",
+        "ordinary-fixture"
+      ],
+      "log": "06-json-error-offset/parent-verification.txt"
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+{:hegel/origin "keyed/snapshot", :input [[0 1] [1 2 0]], :expected [["li" "1" [{:text "1"}]] ["li" "2" [{:text "2"}]] ["li" "0" [{:text "0"}]]], :actual [["li" "0" [{:text "0"}]] ["li" "2" [{:text "2"}]] ["li" "1" [{:text "1"}]] ["li" "0" [{:text "0"}]]]}

@@ -1,0 +1,8 @@
+WARNING: let already refers to: #'clojure.core/let in namespace: hegel.generator, being replaced by: #'hegel.generator/let
+error[analyze/no-such-var]: No such var: g/elements
+  --> ././study.clj:30:65
+    |
+ 28 |    (check! (= tree annotated) "annotation/shape" {:input input})
+ 29 |    (verify-annotations! text annotated line col))))
+ 30 | (def input-gen (g/tuple (g/integer 0 8) (g/vector {:max-size 8} (g/elements ["b" "\n"]))
+    |                                                                 ^^^^^^^^^^^^^^^^^^^^^^^

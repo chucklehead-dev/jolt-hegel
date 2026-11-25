@@ -1,6 +1,7 @@
 (ns hegel.ffi.backend
   "Selected runtime implementation of the small native boundary."
-  (:require #?(:cljr [hegel.ffi.clr :as impl]
+  (:require [hegel.host :as host]
+            #?(:cljr [hegel.ffi.clr :as impl]
                :jolt [hegel.ffi.jolt :as impl]
                :bb [hegel.ffi.babashka :as impl]
                :jank [hegel.ffi.jank-backend :as impl]
@@ -29,8 +30,23 @@
 (defn read-array [pointer length] (impl/read-array pointer length))
 (defn write-array [pointer value] (impl/write-array pointer value))
 (defn read-utf8 [pointer length] (impl/read-utf8 pointer length))
-(defn write-utf8 [pointer value] (impl/write-utf8 pointer value))
-(defn string->native [value] (impl/string->native value))
+
+(defn alloc-utf8
+  "Return [pointer byte-count] for one UTF-8 copy. The caller frees the pointer.
+  Present empty strings have a non-NULL pointer and a zero byte count."
+  [text]
+  #?(:jolt (impl/alloc-utf8 text)
+     :jank (impl/alloc-utf8 text)
+     :default
+     (let [bytes #?(:cljr (.GetBytes System.Text.Encoding/UTF8 text)
+                    :default (.getBytes ^String text "UTF-8"))
+           n (alength bytes)
+           pointer (alloc (max 1 n))]
+       (host/try-catch-all
+        (do (write-array pointer bytes) [pointer n])
+        error
+        (do (free pointer) (throw error))))))
+
 (defn native->string [pointer] (impl/native->string pointer))
 (defn layout-size [layout] (impl/layout-size layout))
 (defn read-field [pointer layout path] (impl/read-field pointer layout path))

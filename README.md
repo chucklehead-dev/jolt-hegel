@@ -10,7 +10,7 @@ before the result is reported. The seed in every result makes the run
 repeatable.
 
 jolt-hegel exposes one Clojure API on all three hosts. It calls the same
-libhegel 0.51.6 C ABI directly through `jolt.ffi` or the upstream
+libhegel 0.53.2 C ABI directly through `jolt.ffi` or the upstream
 `babashka.ffi` library (which uses the final JDK Foreign Function & Memory API
 on the JVM). There is no service to start and no subprocess protocol.
 
@@ -19,23 +19,22 @@ ClojureCLR. They have focused cross-platform CI but are not yet part of the
 supported release contract.
 
 See the [upstream adoption report](docs/UPSTREAM_ADOPTION.md) for the full
-0.51.6 migration, native Jolt packaging, new generator/settings APIs, inherited
+0.53.2 migration, native Jolt packaging, new generator/settings APIs, inherited
 engine improvements, measured allocation tradeoffs, and remaining work.
 
 For parser inputs, [define grammars as Clojure data](docs/GRAMMARS.md) with
 `g/grammar`, or keep existing Lark source with `g/grammar-str`.
 
-## Current main status
+## Development and release versions
 
-This table describes the support floor exercised by the current `main` source
-and its next-release work. It is not a release announcement; the published
-`v0.5.0` contract remains the one recorded by that tag, including Jolt
-0.7.23+.
+This table describes the development checkout. Published v0.5.0 has its own
+version contract, including Jolt 0.7.23+. For a Git dependency, use the
+installer from the same commit as the library.
 
 | Host | Contract | Continuously tested targets |
 | --- | --- | --- |
-| Jolt 0.8.1+ | Supported on current `main`; 0.8.27 is the primary qualified release | Jolt 0.8.27: Linux x86_64, Windows x86_64, macOS arm64; Jolt 0.8.1 minimum lane: Linux x86_64 |
-| FFI-capable Babashka 1.13.220+ | Supported; 1.13.229 is primary | Linux x86_64, Windows x86_64, macOS arm64 native images |
+| Jolt 0.8.1+ | Supported on current `main`; 0.8.30 is the primary CI target | Jolt 0.8.30: Linux x86_64, Windows x86_64, macOS arm64; Jolt 0.8.1 minimum lane: Linux x86_64 |
+| FFI-capable Babashka 1.13.220+ | Supported; 1.13.230 is primary | Linux x86_64, Windows x86_64, macOS arm64 native images |
 | JVM Clojure, JDK 25+ | Supported; JDK 25 minimum | Linux x86_64, Windows x86_64, macOS arm64 |
 | jank | Experimental focused suite | Linux x86_64 and macOS arm64 |
 | ClojureCLR 1.12.6 on .NET 8 | Experimental focused suite | Linux x86_64, Windows x86_64, macOS arm64 |
@@ -135,7 +134,8 @@ When a property throws, jolt-hegel gives the failure a stable identity, lets
 libhegel minimize the choices that produced it, and retains the selected failure
 capture. Put expensive diagnostics behind `h/final?`, `h/when-final`, or `h/fprn`
 to skip exploration. Native capture and confirmation may execute them repeatedly;
-use result `:counterexample` data for the retained failure.
+use the retained entries in `(:final result)` or `(:failures result)`, rather
+than assuming the last capture callback is the minimum.
 
 Every result includes its selected seed as a decimal string. Rerun it with
 the same engine, property contract and settings:
@@ -173,8 +173,13 @@ state, timing, or other nondeterminism before trusting its counterexample.
 Labelled `h/draw!` calls (including bindings produced by `g/let`) and
 `h/note!` use libhegel's bounded test-case document. Rejected filter,
 duplicate collection, and recursive retry output is rolled back with the draw.
-Final failures expose a redacted, rendered `:counterexample` snapshot; quiet
-runs remain silent. See [structured counterexample diagnostics](docs/COUNTEREXAMPLES.md)
+Each retained failure entry can expose a redacted, rendered `:counterexample`
+snapshot. The `:output` and `:diagnostic` fields on entries in `:failures`
+carry native text when present. There is no top-level snapshot field. `:verbosity :quiet` disables
+these snapshots, so they are nil even when labelled draws occurred; it does
+not remove the retained failure exception or native replay blob. Attach a
+plain `:input` to your assertion exception when you need an ordinary value
+fixture; see [minimized input capture](docs/REPLAY_BUNDLES.md#retaining-an-ordinary-minimized-input). See [structured counterexample diagnostics](docs/COUNTEREXAMPLES.md)
 for custom rendering, redaction, output bounds, and replay limitations.
 
 ### Portable counterexample bundles
@@ -408,10 +413,10 @@ The supported schema contract is listed in the
 
 ## Installation
 
-For the native mode removal, temporal precision adapter, and replay-version
-boundary, see [libhegel 0.36 migration](docs/LIBHEGEL-036-MIGRATION.md).
+For the current native pin, temporal options and replay-version boundary,
+see the [upstream adoption report](docs/UPSTREAM_ADOPTION.md).
 
-jolt-hegel uses libhegel 0.51.6. Prebuilt upstream libraries are available for
+jolt-hegel uses libhegel 0.53.2. Prebuilt upstream libraries are available for
 Linux x86_64/arm64, Windows x86_64/arm64, and macOS arm64; the supported CI
 matrix remains Linux x86_64, Windows x86_64, and macOS arm64. The installer chooses the asset,
 verifies its pinned SHA-256, and caches it. The same SHA-pinned Git dependency
@@ -448,7 +453,7 @@ Run the installer with the host that will run the tests and the alias that
 contains jolt-hegel:
 
 ```bash
-# Current `main` / next release candidate: Jolt 0.8.1+ (CI's primary release is 0.8.27)
+# Development checkout: Jolt 0.8.1+ (CI's primary release is 0.8.30)
 jolt -A:test -m hegel.install
 
 # Babashka 1.13.220+
@@ -722,3 +727,6 @@ adding evidence-backed property and stateful tests to another project.
 jolt-hegel is licensed under the [Eclipse Public License 2.0](LICENSE).
 libhegel remains under its upstream MIT license; see
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+External integration tests and the first agent-based DX study are documented in
+[the external pilot packs](external/README.md).

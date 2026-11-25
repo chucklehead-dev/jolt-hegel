@@ -1,0 +1,6 @@
+{:paths ["src" "../../support"]
+ :jolt/min-version "0.8.30"
+ :deps {io.github.chucklehead-dev/jolt-hegel {:local/root "../../.."}
+        io.github.jlt-commons/yyjson-jolt
+        {:git/url "https://github.com/jlt-commons/yyjson-jolt"
+         :git/sha "e9562890a5f74b1cfd8added087860e7533df605"}}}

@@ -1,0 +1,3 @@
+WARNING: let already refers to: #'clojure.core/let in namespace: hegel.generator, being replaced by: #'hegel.generator/let
+:unmodified {:codepoints [65536], :raw "\"𐀀\"", :escaped "\"\\ud800\\udc00\""}
+:control-detected {:hegel/origin "json-unicode/equivalence", :codepoints [65536], :raw "\"𐀀\"", :escaped "\"\\ud800\\udc01\"", :expected "𐀀", :raw-decoded "𐀀", :escaped-decoded "𐀁"}

@@ -1,0 +1,10 @@
+WARNING: let already refers to: #'clojure.core/let in namespace: hegel.generator, being replaced by: #'hegel.generator/let
+{:passed? false, :status :failed, :seed "424242", :valid-test-cases 174, :invalid-test-cases 0, :overrun-test-cases 1617, :n-failures 1, :flaky? false, :observations {:scope :exploration, :phases :all, :exploration {:cases {:valid 174, :invalid 0, :overrun 1617, :interesting 26}, :events {"nonrecursive" {:valid 174}, "no-spaces" {:valid 129, :interesting 7}, "multi-digit" {:interesting 11, :valid 1}, "spaces" {:interesting 19, :valid 45}, "parentheses" {:interesting 26}, "recursive" {:interesting 26}}, :numeric {"input-length" {:valid {:count 174, :min 1.0, :max 5.0}, :interesting {:count 26, :min 3.0, :max 24.0}}}}, :final-replay {:cases {:valid 0, :invalid 0, :overrun 0, :interesting 5}, :events {"multi-digit" {:interesting 4}, "spaces" {:interesting 4}, "parentheses" {:interesting 5}, "recursive" {:interesting 5}, "no-spaces" {:interesting 1}}, :numeric {"input-length" {:interesting {:count 5, :min 3.0, :max 24.0}}}}}, :final [{:status :interesting, :origin "arithmetic/complete-acceptance", :replay-origin "arithmetic/complete-acceptance", :exception #error {
+ :cause "Generated arithmetic input rejected"
+ :data {:hegel/origin "arithmetic/complete-acceptance", :input "(0)"}
+ :via [ {:type clojure.lang.ExceptionInfo :message "Generated arithmetic input rejected" :data {:hegel/origin "arithmetic/complete-acceptance", :input "(0)"} :at nil}]
+ :trace []}, :counterexample nil}], :failures [{:status :interesting, :reproduced? true, :counterexample nil, :origin "arithmetic/complete-acceptance", :exception #error {
+ :cause "Generated arithmetic input rejected"
+ :data {:hegel/origin "arithmetic/complete-acceptance", :input "(0)"}
+ :via [ {:type clojure.lang.ExceptionInfo :message "Generated arithmetic input rejected" :data {:hegel/origin "arithmetic/complete-acceptance", :input "(0)"} :at nil}]
+ :trace []}, :replay-origin "arithmetic/complete-acceptance", :reproduction-blob "AXicbcahDQAADMOwhPb/gycNVkV2AFEi387kAAlzAFI=", :caveat nil}], :error nil}

@@ -1,0 +1,1 @@
+{:paths ["src"] :deps {io.github.chucklehead-dev/jolt-hegel {:local/root "/workspace/jolt-hegel"} io.github.jlt-commons/instaparse {:local/root "/workspace/pilot-targets/instaparse"}}}

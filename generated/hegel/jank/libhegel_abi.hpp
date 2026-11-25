@@ -22,6 +22,7 @@ extern "C"
 {
 struct hegel_jank_hegel_collection;
 struct hegel_jank_hegel_context;
+struct hegel_jank_hegel_date_options;
 struct hegel_jank_hegel_failure;
 struct hegel_jank_hegel_grammar;
 struct hegel_jank_hegel_grammar_builder;
@@ -35,9 +36,38 @@ struct hegel_jank_hegel_repeat;
 struct hegel_jank_hegel_run;
 struct hegel_jank_hegel_run_result;
 struct hegel_jank_hegel_settings;
+struct hegel_jank_hegel_span_spec;
 struct hegel_jank_hegel_state_machine;
 struct hegel_jank_hegel_string_generator;
 struct hegel_jank_hegel_test_case;
+struct hegel_jank_hegel_timezone_spec;
+struct hegel_jank_hegel_zone_source;
+struct hegel_jank_hegel_zoned_spec;
+struct hegel_jank_hegel_bytes_result;
+struct hegel_jank_hegel_date;
+struct hegel_jank_hegel_duration;
+struct hegel_jank_hegel_offset;
+struct hegel_jank_hegel_printer_value_result;
+struct hegel_jank_hegel_span;
+struct hegel_jank_hegel_string;
+struct hegel_jank_hegel_time;
+struct hegel_jank_hegel_timestamp;
+struct hegel_jank_hegel_zone_oracle;
+struct hegel_jank_hegel_zone_rule_date;
+struct hegel_jank_hegel_datetime;
+struct hegel_jank_hegel_timezone_info;
+struct hegel_jank_hegel_timezone_offset;
+struct hegel_jank_hegel_timezone_resolution;
+struct hegel_jank_hegel_zone_type;
+struct hegel_jank_hegel_zone_data;
+struct hegel_jank_hegel_zone_transition;
+struct hegel_jank_hegel_zoned_datetime;
+
+using hegel_jank_hegel_output_callback = void (*) (void *, char const *, std::size_t);
+using hegel_jank_hegel_zone_loader = std::int32_t (*) (void *, hegel_jank_hegel_context *, hegel_jank_hegel_zone_source *, hegel_jank_hegel_string);
+using hegel_jank_hegel_zone_loader_release = void (*) (void *);
+using hegel_jank_hegel_zone_next_transition_fn = std::int32_t (*) (void *, hegel_jank_hegel_context *, std::int64_t, std::uint8_t *, std::int64_t *);
+using hegel_jank_hegel_zone_offset_fn = std::int32_t (*) (void *, hegel_jank_hegel_context *, std::int64_t, hegel_jank_hegel_zone_type *);
 
 struct hegel_jank_hegel_bytes_result
 {
@@ -52,10 +82,36 @@ struct hegel_jank_hegel_date
   std::uint8_t day;
 };
 
+struct hegel_jank_hegel_duration
+{
+  std::int64_t seconds;
+  std::int32_t nanoseconds;
+};
+
+struct hegel_jank_hegel_offset
+{
+  std::int32_t seconds;
+  std::uint8_t known;
+};
+
 struct hegel_jank_hegel_printer_value_result
 {
   std::int8_t * data;
   std::size_t len;
+};
+
+struct hegel_jank_hegel_span
+{
+  std::int64_t years;
+  std::int64_t months;
+  std::int64_t weeks;
+  std::int64_t days;
+  std::int64_t hours;
+  std::int64_t minutes;
+  std::int64_t seconds;
+  std::int64_t milliseconds;
+  std::int64_t microseconds;
+  std::int64_t nanoseconds;
 };
 
 struct hegel_jank_hegel_string
@@ -72,13 +128,103 @@ struct hegel_jank_hegel_time
   std::uint32_t nanosecond;
 };
 
+struct hegel_jank_hegel_timestamp
+{
+  std::int64_t second;
+  std::uint32_t nanosecond;
+};
+
+struct hegel_jank_hegel_zone_oracle
+{
+  hegel_jank_hegel_zone_offset_fn offset_at;
+  hegel_jank_hegel_zone_next_transition_fn next_transition;
+  void * user_data;
+  std::int32_t first_year;
+  std::int32_t last_year;
+  std::uint32_t after;
+};
+
+struct hegel_jank_hegel_zone_rule_date
+{
+  std::uint32_t kind;
+  std::uint16_t day;
+  std::uint8_t month;
+  std::uint8_t week;
+  std::uint8_t weekday;
+  std::int32_t time;
+};
+
 struct hegel_jank_hegel_datetime
 {
   hegel_jank_hegel_date date;
   hegel_jank_hegel_time time;
 };
 
-using hegel_jank_hegel_output_callback = void (*) (void *, char const *, std::size_t);
+struct hegel_jank_hegel_timezone_info
+{
+  std::uint8_t known;
+  hegel_jank_hegel_string primary_name;
+  std::uint8_t is_link;
+  std::uint16_t rank;
+  std::uint32_t tags;
+};
+
+struct hegel_jank_hegel_timezone_offset
+{
+  std::int32_t offset_seconds;
+  std::uint8_t offset_known;
+  std::uint8_t is_dst;
+  hegel_jank_hegel_string abbreviation;
+};
+
+struct hegel_jank_hegel_timezone_resolution
+{
+  std::int32_t kind;
+  std::int32_t offset_before;
+  std::int32_t offset_after;
+  std::int32_t offset_seconds;
+  std::uint8_t offset_known;
+  hegel_jank_hegel_timestamp timestamp;
+};
+
+struct hegel_jank_hegel_zone_type
+{
+  std::int32_t utoff;
+  std::uint8_t is_dst;
+  hegel_jank_hegel_string abbreviation;
+};
+
+struct hegel_jank_hegel_zone_data
+{
+  hegel_jank_hegel_zone_type initial;
+  hegel_jank_hegel_zone_transition * transitions;
+  std::size_t transition_count;
+  std::uint32_t after;
+  hegel_jank_hegel_zone_type standard;
+  std::uint8_t has_dst;
+  hegel_jank_hegel_zone_type dst;
+  hegel_jank_hegel_zone_rule_date dst_start;
+  hegel_jank_hegel_zone_rule_date dst_end;
+  std::int32_t last_year;
+};
+
+struct hegel_jank_hegel_zone_transition
+{
+  std::int64_t instant;
+  hegel_jank_hegel_zone_type local_type;
+};
+
+struct hegel_jank_hegel_zoned_datetime
+{
+  hegel_jank_hegel_datetime civil;
+  std::int32_t offset_seconds;
+  std::uint8_t offset_known;
+  std::uint8_t fold;
+  std::int32_t kind;
+  std::int32_t offset_before;
+  std::int32_t offset_after;
+  hegel_jank_hegel_timestamp timestamp;
+};
 
 using hegel_jank_fn_collection_free = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_collection *); // hegel_collection_free
 using hegel_jank_fn_collection_more = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, hegel_jank_hegel_collection *, std::uint8_t *); // hegel_collection_more
@@ -86,26 +232,48 @@ using hegel_jank_fn_collection_reject = std::int32_t (*) (hegel_jank_hegel_conte
 using hegel_jank_fn_context_free = std::int32_t (*) (hegel_jank_hegel_context *); // hegel_context_free
 using hegel_jank_fn_context_last_error = hegel_jank_hegel_string (*) (hegel_jank_hegel_context *); // hegel_context_last_error
 using hegel_jank_fn_context_new = hegel_jank_hegel_context * (*) (void); // hegel_context_new
+using hegel_jank_fn_context_set_error = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_string); // hegel_context_set_error
+using hegel_jank_fn_date_options_free = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_date_options *); // hegel_date_options_free
+using hegel_jank_fn_date_options_new = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_date_options * *); // hegel_date_options_new
+using hegel_jank_fn_date_options_set_months = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_date_options *, std::uint32_t); // hegel_date_options_set_months
+using hegel_jank_fn_date_options_set_weekdays = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_date_options *, std::uint32_t); // hegel_date_options_set_weekdays
 using hegel_jank_fn_event = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, hegel_jank_hegel_string); // hegel_event
 using hegel_jank_fn_event_value = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, double, hegel_jank_hegel_string); // hegel_event_value
 using hegel_jank_fn_failure_caveat = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_failure *, hegel_jank_hegel_string * *); // hegel_failure_caveat
+using hegel_jank_fn_failure_diagnostic = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_failure *, hegel_jank_hegel_string * *); // hegel_failure_diagnostic
 using hegel_jank_fn_failure_free = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_failure *); // hegel_failure_free
 using hegel_jank_fn_failure_origin = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_failure *, hegel_jank_hegel_string *); // hegel_failure_origin
+using hegel_jank_fn_failure_output = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_failure *, hegel_jank_hegel_string * *); // hegel_failure_output
 using hegel_jank_fn_failure_reproduction_blob = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_failure *, hegel_jank_hegel_string * *); // hegel_failure_reproduction_blob
+using hegel_jank_fn_format_date = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_date, hegel_jank_hegel_string *); // hegel_format_date
+using hegel_jank_fn_format_datetime = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_datetime, hegel_jank_hegel_string *); // hegel_format_datetime
+using hegel_jank_fn_format_duration = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_duration, hegel_jank_hegel_string *); // hegel_format_duration
+using hegel_jank_fn_format_offset = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_offset, hegel_jank_hegel_string *); // hegel_format_offset
+using hegel_jank_fn_format_span = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_span *, hegel_jank_hegel_string *); // hegel_format_span
+using hegel_jank_fn_format_time = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_time, hegel_jank_hegel_string *); // hegel_format_time
+using hegel_jank_fn_format_timestamp = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_timestamp, hegel_jank_hegel_string *); // hegel_format_timestamp
+using hegel_jank_fn_format_zoned_datetime = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_zoned_datetime *, hegel_jank_hegel_string, hegel_jank_hegel_string *); // hegel_format_zoned_datetime
 using hegel_jank_fn_generate_boolean = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, double, std::uint8_t, std::uint8_t, std::uint8_t *); // hegel_generate_boolean
 using hegel_jank_fn_generate_bytes = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, std::uint64_t, std::uint64_t, hegel_jank_hegel_bytes_result *); // hegel_generate_bytes
 using hegel_jank_fn_generate_bytes_result_free = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_bytes_result *); // hegel_generate_bytes_result_free
-using hegel_jank_fn_generate_date = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, hegel_jank_hegel_date, hegel_jank_hegel_date, hegel_jank_hegel_date *); // hegel_generate_date
-using hegel_jank_fn_generate_datetime = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, hegel_jank_hegel_datetime, hegel_jank_hegel_datetime, hegel_jank_hegel_datetime *); // hegel_generate_datetime
+using hegel_jank_fn_generate_date = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, hegel_jank_hegel_date, hegel_jank_hegel_date, hegel_jank_hegel_date_options *, hegel_jank_hegel_date *); // hegel_generate_date
+using hegel_jank_fn_generate_datetime = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, hegel_jank_hegel_datetime, hegel_jank_hegel_datetime, std::uint32_t, hegel_jank_hegel_datetime *); // hegel_generate_datetime
+using hegel_jank_fn_generate_duration = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, hegel_jank_hegel_duration, hegel_jank_hegel_duration, std::uint32_t, hegel_jank_hegel_duration *); // hegel_generate_duration
 using hegel_jank_fn_generate_float = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, std::uint32_t, double, double, std::uint8_t, std::uint8_t, std::uint8_t, std::uint8_t, double, double *); // hegel_generate_float
 using hegel_jank_fn_generate_grammar = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, hegel_jank_hegel_grammar *, std::uint64_t, hegel_jank_hegel_string *); // hegel_generate_grammar
 using hegel_jank_fn_generate_integer = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, std::int64_t, std::int64_t, std::int64_t *); // hegel_generate_integer
 using hegel_jank_fn_generate_integer_big = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, std::uint8_t *, std::size_t, std::uint8_t *, std::size_t, std::uint8_t *, std::size_t, std::size_t *); // hegel_generate_integer_big
 using hegel_jank_fn_generate_ipv4 = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, std::uint8_t *); // hegel_generate_ipv4
 using hegel_jank_fn_generate_ipv6 = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, std::uint8_t *); // hegel_generate_ipv6
+using hegel_jank_fn_generate_offset = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, std::int32_t, std::int32_t, std::uint32_t, std::uint8_t, hegel_jank_hegel_offset *); // hegel_generate_offset
+using hegel_jank_fn_generate_span = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, hegel_jank_hegel_span_spec *, hegel_jank_hegel_span *); // hegel_generate_span
 using hegel_jank_fn_generate_string = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, hegel_jank_hegel_string_generator *, hegel_jank_hegel_string *); // hegel_generate_string
-using hegel_jank_fn_generate_time = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, hegel_jank_hegel_time, hegel_jank_hegel_time, hegel_jank_hegel_time *); // hegel_generate_time
+using hegel_jank_fn_generate_time = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, hegel_jank_hegel_time, hegel_jank_hegel_time, std::uint32_t, hegel_jank_hegel_time *); // hegel_generate_time
+using hegel_jank_fn_generate_timestamp = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, hegel_jank_hegel_timestamp, hegel_jank_hegel_timestamp, std::uint32_t, hegel_jank_hegel_timestamp *); // hegel_generate_timestamp
+using hegel_jank_fn_generate_timezone = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, hegel_jank_hegel_timezone_spec *, hegel_jank_hegel_string *); // hegel_generate_timezone
 using hegel_jank_fn_generate_uuid = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, std::uint8_t, std::uint8_t, std::uint8_t *); // hegel_generate_uuid
+using hegel_jank_fn_generate_zoned_datetime = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, hegel_jank_hegel_timezone_spec *, hegel_jank_hegel_zoned_spec *, hegel_jank_hegel_zoned_datetime *, hegel_jank_hegel_string *); // hegel_generate_zoned_datetime
+using hegel_jank_fn_generate_zoned_datetime_for_zone = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, hegel_jank_hegel_zone_source *, hegel_jank_hegel_string, hegel_jank_hegel_zoned_spec *, hegel_jank_hegel_zoned_datetime *); // hegel_generate_zoned_datetime_for_zone
 using hegel_jank_fn_grammar_builder_file = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_grammar_builder *, std::size_t, hegel_jank_hegel_string *); // hegel_grammar_builder_file
 using hegel_jank_fn_grammar_builder_free = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_grammar_builder *); // hegel_grammar_builder_free
 using hegel_jank_fn_grammar_builder_new = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_string, hegel_jank_hegel_grammar_builder * *); // hegel_grammar_builder_new
@@ -120,7 +288,7 @@ using hegel_jank_fn_grammar_new = std::int32_t (*) (hegel_jank_hegel_context *, 
 using hegel_jank_fn_grammar_placeholder = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_grammar *, hegel_jank_hegel_string, hegel_jank_hegel_string *); // hegel_grammar_placeholder
 using hegel_jank_fn_label_combine = std::int32_t (*) (hegel_jank_hegel_context *, std::uint64_t *, std::size_t, std::uint64_t *); // hegel_label_combine
 using hegel_jank_fn_label_from_name = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_string, std::uint64_t *); // hegel_label_from_name
-using hegel_jank_fn_mark_complete = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, std::uint32_t, hegel_jank_hegel_string *); // hegel_mark_complete
+using hegel_jank_fn_mark_complete = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, std::uint32_t, hegel_jank_hegel_string *, hegel_jank_hegel_string *, hegel_jank_hegel_string *); // hegel_mark_complete
 using hegel_jank_fn_new_collection = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, std::uint64_t, std::uint64_t, hegel_jank_hegel_collection * *); // hegel_new_collection
 using hegel_jank_fn_new_pool = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, hegel_jank_hegel_pool * *); // hegel_new_pool
 using hegel_jank_fn_new_recursion = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, std::uint64_t, std::uint64_t, hegel_jank_hegel_recursion * *); // hegel_new_recursion
@@ -128,6 +296,8 @@ using hegel_jank_fn_new_repeat = std::int32_t (*) (hegel_jank_hegel_context *, h
 using hegel_jank_fn_new_state_machine = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, std::int64_t, std::int64_t, std::int64_t, hegel_jank_hegel_state_machine * *); // hegel_new_state_machine
 using hegel_jank_fn_next_test_case = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_run *, hegel_jank_hegel_test_case * *); // hegel_next_test_case
 using hegel_jank_fn_note = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, hegel_jank_hegel_string); // hegel_note
+using hegel_jank_fn_output_stderr = void (*) (void *, char const *, std::size_t); // hegel_output_stderr
+using hegel_jank_fn_output_stderr_callback = hegel_jank_hegel_output_callback (*) (void); // hegel_output_stderr_callback
 using hegel_jank_fn_owned_string_free = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_string *); // hegel_owned_string_free
 using hegel_jank_fn_pause_faults = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *); // hegel_pause_faults
 using hegel_jank_fn_pool_add = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, hegel_jank_hegel_pool *, std::int64_t *); // hegel_pool_add
@@ -177,6 +347,7 @@ using hegel_jank_fn_run_result_status = std::int32_t (*) (hegel_jank_hegel_conte
 using hegel_jank_fn_run_start = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, hegel_jank_hegel_output_callback, void *, hegel_jank_hegel_run * *); // hegel_run_start
 using hegel_jank_fn_run_start_blob = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, hegel_jank_hegel_string, hegel_jank_hegel_output_callback, void *, hegel_jank_hegel_run * *); // hegel_run_start_blob
 using hegel_jank_fn_set_default_profile = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_string); // hegel_set_default_profile
+using hegel_jank_fn_set_default_zone_source = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_zone_source *); // hegel_set_default_zone_source
 using hegel_jank_fn_set_unicode_version = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_string); // hegel_set_unicode_version
 using hegel_jank_fn_settings_free = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *); // hegel_settings_free
 using hegel_jank_fn_settings_get_backend = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, std::int32_t *); // hegel_settings_get_backend
@@ -213,6 +384,11 @@ using hegel_jank_fn_settings_set_test_cases = std::int32_t (*) (hegel_jank_hegel
 using hegel_jank_fn_settings_set_test_location = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, hegel_jank_hegel_string, std::uint32_t, hegel_jank_hegel_string, hegel_jank_hegel_string); // hegel_settings_set_test_location
 using hegel_jank_fn_settings_set_unbounded_choices = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, std::uint8_t); // hegel_settings_set_unbounded_choices
 using hegel_jank_fn_settings_set_verbosity = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, std::uint32_t); // hegel_settings_set_verbosity
+using hegel_jank_fn_span_spec_free = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_span_spec *); // hegel_span_spec_free
+using hegel_jank_fn_span_spec_new = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_span_spec * *); // hegel_span_spec_new
+using hegel_jank_fn_span_spec_set_sign = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_span_spec *, std::uint32_t); // hegel_span_spec_set_sign
+using hegel_jank_fn_span_spec_set_unit_bounds = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_span_spec *, std::uint32_t, std::int64_t, std::int64_t); // hegel_span_spec_set_unit_bounds
+using hegel_jank_fn_span_spec_validate = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_span_spec *); // hegel_span_spec_validate
 using hegel_jank_fn_start_span = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, std::uint64_t); // hegel_start_span
 using hegel_jank_fn_state_machine_add_invariant = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, hegel_jank_hegel_state_machine *, hegel_jank_hegel_string, std::uint8_t); // hegel_state_machine_add_invariant
 using hegel_jank_fn_state_machine_add_rule = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, hegel_jank_hegel_state_machine *, hegel_jank_hegel_string, double, std::int64_t *, std::size_t); // hegel_state_machine_add_rule
@@ -236,9 +412,53 @@ using hegel_jank_fn_test_case_free = std::int32_t (*) (hegel_jank_hegel_context 
 using hegel_jank_fn_test_case_from_blob = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_settings *, hegel_jank_hegel_string, hegel_jank_hegel_output_callback, void *, hegel_jank_hegel_test_case * *); // hegel_test_case_from_blob
 using hegel_jank_fn_test_case_printer = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, hegel_jank_hegel_printer_options *, hegel_jank_hegel_printer * *); // hegel_test_case_printer
 using hegel_jank_fn_test_case_set_worker = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, std::int64_t); // hegel_test_case_set_worker
-using hegel_jank_fn_test_case_should_capture = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, std::uint8_t *); // hegel_test_case_should_capture
+using hegel_jank_fn_test_case_wants_detail = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, std::uint8_t *); // hegel_test_case_wants_detail
+using hegel_jank_fn_test_case_wants_output = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *, std::uint8_t *); // hegel_test_case_wants_output
+using hegel_jank_fn_timezone_info = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_string, hegel_jank_hegel_timezone_info *); // hegel_timezone_info
+using hegel_jank_fn_timezone_info_in = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_zone_source *, hegel_jank_hegel_string, hegel_jank_hegel_timezone_info *); // hegel_timezone_info_in
+using hegel_jank_fn_timezone_offset_at = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_string, hegel_jank_hegel_timestamp, hegel_jank_hegel_timezone_offset *); // hegel_timezone_offset_at
+using hegel_jank_fn_timezone_offset_at_in = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_zone_source *, hegel_jank_hegel_string, hegel_jank_hegel_timestamp, hegel_jank_hegel_timezone_offset *); // hegel_timezone_offset_at_in
+using hegel_jank_fn_timezone_resolve = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_string, hegel_jank_hegel_datetime, hegel_jank_hegel_timezone_resolution *); // hegel_timezone_resolve
+using hegel_jank_fn_timezone_resolve_in = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_zone_source *, hegel_jank_hegel_string, hegel_jank_hegel_datetime, hegel_jank_hegel_timezone_resolution *); // hegel_timezone_resolve_in
+using hegel_jank_fn_timezone_spec_free = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_timezone_spec *); // hegel_timezone_spec_free
+using hegel_jank_fn_timezone_spec_new = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_timezone_spec * *); // hegel_timezone_spec_new
+using hegel_jank_fn_timezone_spec_set_legacy = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_timezone_spec *, std::uint8_t); // hegel_timezone_spec_set_legacy
+using hegel_jank_fn_timezone_spec_set_links = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_timezone_spec *, std::uint8_t); // hegel_timezone_spec_set_links
+using hegel_jank_fn_timezone_spec_set_names = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_timezone_spec *, hegel_jank_hegel_string *, std::size_t); // hegel_timezone_spec_set_names
+using hegel_jank_fn_timezone_spec_set_opaque = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_timezone_spec *, std::uint8_t); // hegel_timezone_spec_set_opaque
+using hegel_jank_fn_timezone_spec_set_source = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_timezone_spec *, hegel_jank_hegel_zone_source *); // hegel_timezone_spec_set_source
+using hegel_jank_fn_timezone_spec_set_unknown = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_timezone_spec *, std::uint8_t); // hegel_timezone_spec_set_unknown
+using hegel_jank_fn_timezone_spec_validate = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_timezone_spec *); // hegel_timezone_spec_validate
+using hegel_jank_fn_tzdb_version = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_string *); // hegel_tzdb_version
 using hegel_jank_fn_unpause_faults = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_test_case *); // hegel_unpause_faults
+using hegel_jank_fn_validate_date = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_date, hegel_jank_hegel_date, hegel_jank_hegel_date_options *); // hegel_validate_date
+using hegel_jank_fn_validate_datetime = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_datetime, hegel_jank_hegel_datetime, std::uint32_t); // hegel_validate_datetime
+using hegel_jank_fn_validate_duration = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_duration, hegel_jank_hegel_duration, std::uint32_t); // hegel_validate_duration
+using hegel_jank_fn_validate_offset = std::int32_t (*) (hegel_jank_hegel_context *, std::int32_t, std::int32_t, std::uint32_t, std::uint8_t); // hegel_validate_offset
+using hegel_jank_fn_validate_time = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_time, hegel_jank_hegel_time, std::uint32_t); // hegel_validate_time
+using hegel_jank_fn_validate_timestamp = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_timestamp, hegel_jank_hegel_timestamp, std::uint32_t); // hegel_validate_timestamp
 using hegel_jank_fn_version = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_string *); // hegel_version
+using hegel_jank_fn_zone_source_add_link = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_zone_source *, hegel_jank_hegel_string, hegel_jank_hegel_string); // hegel_zone_source_add_link
+using hegel_jank_fn_zone_source_add_oracle = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_zone_source *, hegel_jank_hegel_string, hegel_jank_hegel_zone_oracle *); // hegel_zone_source_add_oracle
+using hegel_jank_fn_zone_source_add_tzif = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_zone_source *, hegel_jank_hegel_string, std::uint8_t *, std::size_t); // hegel_zone_source_add_tzif
+using hegel_jank_fn_zone_source_add_zone = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_zone_source *, hegel_jank_hegel_string, hegel_jank_hegel_zone_data *); // hegel_zone_source_add_zone
+using hegel_jank_fn_zone_source_bundled = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_zone_source * *); // hegel_zone_source_bundled
+using hegel_jank_fn_zone_source_declare = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_zone_source *, hegel_jank_hegel_string *, std::size_t); // hegel_zone_source_declare
+using hegel_jank_fn_zone_source_free = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_zone_source *); // hegel_zone_source_free
+using hegel_jank_fn_zone_source_name = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_zone_source *, std::size_t, hegel_jank_hegel_string *); // hegel_zone_source_name
+using hegel_jank_fn_zone_source_name_count = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_zone_source *, std::size_t *); // hegel_zone_source_name_count
+using hegel_jank_fn_zone_source_new = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_zone_source * *); // hegel_zone_source_new
+using hegel_jank_fn_zone_source_set_loader = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_zone_source *, hegel_jank_hegel_zone_loader, void *, hegel_jank_hegel_zone_loader_release); // hegel_zone_source_set_loader
+using hegel_jank_fn_zone_source_set_version = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_zone_source *, hegel_jank_hegel_string); // hegel_zone_source_set_version
+using hegel_jank_fn_zone_source_version = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_zone_source *, hegel_jank_hegel_string *); // hegel_zone_source_version
+using hegel_jank_fn_zoned_spec_free = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_zoned_spec *); // hegel_zoned_spec_free
+using hegel_jank_fn_zoned_spec_new = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_zoned_spec * *); // hegel_zoned_spec_new
+using hegel_jank_fn_zoned_spec_set_ambiguous = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_zoned_spec *, std::uint32_t); // hegel_zoned_spec_set_ambiguous
+using hegel_jank_fn_zoned_spec_set_civil_bounds = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_zoned_spec *, hegel_jank_hegel_datetime, hegel_jank_hegel_datetime); // hegel_zoned_spec_set_civil_bounds
+using hegel_jank_fn_zoned_spec_set_imaginary = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_zoned_spec *, std::uint32_t); // hegel_zoned_spec_set_imaginary
+using hegel_jank_fn_zoned_spec_set_instant_bounds = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_zoned_spec *, hegel_jank_hegel_timestamp, hegel_jank_hegel_timestamp); // hegel_zoned_spec_set_instant_bounds
+using hegel_jank_fn_zoned_spec_set_precision = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_zoned_spec *, std::uint32_t); // hegel_zoned_spec_set_precision
+using hegel_jank_fn_zoned_spec_validate = std::int32_t (*) (hegel_jank_hegel_context *, hegel_jank_hegel_zoned_spec *); // hegel_zoned_spec_validate
 }
 
 struct hegel_jank_bindings
@@ -250,26 +470,48 @@ struct hegel_jank_bindings
   hegel_jank_fn_context_free context_free{};
   hegel_jank_fn_context_last_error context_last_error{};
   hegel_jank_fn_context_new context_new{};
+  hegel_jank_fn_context_set_error context_set_error{};
+  hegel_jank_fn_date_options_free date_options_free{};
+  hegel_jank_fn_date_options_new date_options_new{};
+  hegel_jank_fn_date_options_set_months date_options_set_months{};
+  hegel_jank_fn_date_options_set_weekdays date_options_set_weekdays{};
   hegel_jank_fn_event event{};
   hegel_jank_fn_event_value event_value{};
   hegel_jank_fn_failure_caveat failure_caveat{};
+  hegel_jank_fn_failure_diagnostic failure_diagnostic{};
   hegel_jank_fn_failure_free failure_free{};
   hegel_jank_fn_failure_origin failure_origin{};
+  hegel_jank_fn_failure_output failure_output{};
   hegel_jank_fn_failure_reproduction_blob failure_reproduction_blob{};
+  hegel_jank_fn_format_date format_date{};
+  hegel_jank_fn_format_datetime format_datetime{};
+  hegel_jank_fn_format_duration format_duration{};
+  hegel_jank_fn_format_offset format_offset{};
+  hegel_jank_fn_format_span format_span{};
+  hegel_jank_fn_format_time format_time{};
+  hegel_jank_fn_format_timestamp format_timestamp{};
+  hegel_jank_fn_format_zoned_datetime format_zoned_datetime{};
   hegel_jank_fn_generate_boolean generate_boolean{};
   hegel_jank_fn_generate_bytes generate_bytes{};
   hegel_jank_fn_generate_bytes_result_free generate_bytes_result_free{};
   hegel_jank_fn_generate_date generate_date{};
   hegel_jank_fn_generate_datetime generate_datetime{};
+  hegel_jank_fn_generate_duration generate_duration{};
   hegel_jank_fn_generate_float generate_float{};
   hegel_jank_fn_generate_grammar generate_grammar{};
   hegel_jank_fn_generate_integer generate_integer{};
   hegel_jank_fn_generate_integer_big generate_integer_big{};
   hegel_jank_fn_generate_ipv4 generate_ipv4{};
   hegel_jank_fn_generate_ipv6 generate_ipv6{};
+  hegel_jank_fn_generate_offset generate_offset{};
+  hegel_jank_fn_generate_span generate_span{};
   hegel_jank_fn_generate_string generate_string{};
   hegel_jank_fn_generate_time generate_time{};
+  hegel_jank_fn_generate_timestamp generate_timestamp{};
+  hegel_jank_fn_generate_timezone generate_timezone{};
   hegel_jank_fn_generate_uuid generate_uuid{};
+  hegel_jank_fn_generate_zoned_datetime generate_zoned_datetime{};
+  hegel_jank_fn_generate_zoned_datetime_for_zone generate_zoned_datetime_for_zone{};
   hegel_jank_fn_grammar_builder_file grammar_builder_file{};
   hegel_jank_fn_grammar_builder_free grammar_builder_free{};
   hegel_jank_fn_grammar_builder_new grammar_builder_new{};
@@ -292,6 +534,8 @@ struct hegel_jank_bindings
   hegel_jank_fn_new_state_machine new_state_machine{};
   hegel_jank_fn_next_test_case next_test_case{};
   hegel_jank_fn_note note{};
+  hegel_jank_fn_output_stderr output_stderr{};
+  hegel_jank_fn_output_stderr_callback output_stderr_callback{};
   hegel_jank_fn_owned_string_free owned_string_free{};
   hegel_jank_fn_pause_faults pause_faults{};
   hegel_jank_fn_pool_add pool_add{};
@@ -341,6 +585,7 @@ struct hegel_jank_bindings
   hegel_jank_fn_run_start run_start{};
   hegel_jank_fn_run_start_blob run_start_blob{};
   hegel_jank_fn_set_default_profile set_default_profile{};
+  hegel_jank_fn_set_default_zone_source set_default_zone_source{};
   hegel_jank_fn_set_unicode_version set_unicode_version{};
   hegel_jank_fn_settings_free settings_free{};
   hegel_jank_fn_settings_get_backend settings_get_backend{};
@@ -377,6 +622,11 @@ struct hegel_jank_bindings
   hegel_jank_fn_settings_set_test_location settings_set_test_location{};
   hegel_jank_fn_settings_set_unbounded_choices settings_set_unbounded_choices{};
   hegel_jank_fn_settings_set_verbosity settings_set_verbosity{};
+  hegel_jank_fn_span_spec_free span_spec_free{};
+  hegel_jank_fn_span_spec_new span_spec_new{};
+  hegel_jank_fn_span_spec_set_sign span_spec_set_sign{};
+  hegel_jank_fn_span_spec_set_unit_bounds span_spec_set_unit_bounds{};
+  hegel_jank_fn_span_spec_validate span_spec_validate{};
   hegel_jank_fn_start_span start_span{};
   hegel_jank_fn_state_machine_add_invariant state_machine_add_invariant{};
   hegel_jank_fn_state_machine_add_rule state_machine_add_rule{};
@@ -400,9 +650,53 @@ struct hegel_jank_bindings
   hegel_jank_fn_test_case_from_blob test_case_from_blob{};
   hegel_jank_fn_test_case_printer test_case_printer{};
   hegel_jank_fn_test_case_set_worker test_case_set_worker{};
-  hegel_jank_fn_test_case_should_capture test_case_should_capture{};
+  hegel_jank_fn_test_case_wants_detail test_case_wants_detail{};
+  hegel_jank_fn_test_case_wants_output test_case_wants_output{};
+  hegel_jank_fn_timezone_info timezone_info{};
+  hegel_jank_fn_timezone_info_in timezone_info_in{};
+  hegel_jank_fn_timezone_offset_at timezone_offset_at{};
+  hegel_jank_fn_timezone_offset_at_in timezone_offset_at_in{};
+  hegel_jank_fn_timezone_resolve timezone_resolve{};
+  hegel_jank_fn_timezone_resolve_in timezone_resolve_in{};
+  hegel_jank_fn_timezone_spec_free timezone_spec_free{};
+  hegel_jank_fn_timezone_spec_new timezone_spec_new{};
+  hegel_jank_fn_timezone_spec_set_legacy timezone_spec_set_legacy{};
+  hegel_jank_fn_timezone_spec_set_links timezone_spec_set_links{};
+  hegel_jank_fn_timezone_spec_set_names timezone_spec_set_names{};
+  hegel_jank_fn_timezone_spec_set_opaque timezone_spec_set_opaque{};
+  hegel_jank_fn_timezone_spec_set_source timezone_spec_set_source{};
+  hegel_jank_fn_timezone_spec_set_unknown timezone_spec_set_unknown{};
+  hegel_jank_fn_timezone_spec_validate timezone_spec_validate{};
+  hegel_jank_fn_tzdb_version tzdb_version{};
   hegel_jank_fn_unpause_faults unpause_faults{};
+  hegel_jank_fn_validate_date validate_date{};
+  hegel_jank_fn_validate_datetime validate_datetime{};
+  hegel_jank_fn_validate_duration validate_duration{};
+  hegel_jank_fn_validate_offset validate_offset{};
+  hegel_jank_fn_validate_time validate_time{};
+  hegel_jank_fn_validate_timestamp validate_timestamp{};
   hegel_jank_fn_version version{};
+  hegel_jank_fn_zone_source_add_link zone_source_add_link{};
+  hegel_jank_fn_zone_source_add_oracle zone_source_add_oracle{};
+  hegel_jank_fn_zone_source_add_tzif zone_source_add_tzif{};
+  hegel_jank_fn_zone_source_add_zone zone_source_add_zone{};
+  hegel_jank_fn_zone_source_bundled zone_source_bundled{};
+  hegel_jank_fn_zone_source_declare zone_source_declare{};
+  hegel_jank_fn_zone_source_free zone_source_free{};
+  hegel_jank_fn_zone_source_name zone_source_name{};
+  hegel_jank_fn_zone_source_name_count zone_source_name_count{};
+  hegel_jank_fn_zone_source_new zone_source_new{};
+  hegel_jank_fn_zone_source_set_loader zone_source_set_loader{};
+  hegel_jank_fn_zone_source_set_version zone_source_set_version{};
+  hegel_jank_fn_zone_source_version zone_source_version{};
+  hegel_jank_fn_zoned_spec_free zoned_spec_free{};
+  hegel_jank_fn_zoned_spec_new zoned_spec_new{};
+  hegel_jank_fn_zoned_spec_set_ambiguous zoned_spec_set_ambiguous{};
+  hegel_jank_fn_zoned_spec_set_civil_bounds zoned_spec_set_civil_bounds{};
+  hegel_jank_fn_zoned_spec_set_imaginary zoned_spec_set_imaginary{};
+  hegel_jank_fn_zoned_spec_set_instant_bounds zoned_spec_set_instant_bounds{};
+  hegel_jank_fn_zoned_spec_set_precision zoned_spec_set_precision{};
+  hegel_jank_fn_zoned_spec_validate zoned_spec_validate{};
 };
 
 inline hegel_jank_bindings *hegel_jank_active_bindings{};
@@ -443,26 +737,48 @@ inline hegel_jank_bindings *hegel_jank_load_bindings(std::string const &path)
   bindings->context_free = reinterpret_cast<hegel_jank_fn_context_free>(hegel_jank_find_symbol(bindings->library, "hegel_context_free"));
   bindings->context_last_error = reinterpret_cast<hegel_jank_fn_context_last_error>(hegel_jank_find_symbol(bindings->library, "hegel_context_last_error"));
   bindings->context_new = reinterpret_cast<hegel_jank_fn_context_new>(hegel_jank_find_symbol(bindings->library, "hegel_context_new"));
+  bindings->context_set_error = reinterpret_cast<hegel_jank_fn_context_set_error>(hegel_jank_find_symbol(bindings->library, "hegel_context_set_error"));
+  bindings->date_options_free = reinterpret_cast<hegel_jank_fn_date_options_free>(hegel_jank_find_symbol(bindings->library, "hegel_date_options_free"));
+  bindings->date_options_new = reinterpret_cast<hegel_jank_fn_date_options_new>(hegel_jank_find_symbol(bindings->library, "hegel_date_options_new"));
+  bindings->date_options_set_months = reinterpret_cast<hegel_jank_fn_date_options_set_months>(hegel_jank_find_symbol(bindings->library, "hegel_date_options_set_months"));
+  bindings->date_options_set_weekdays = reinterpret_cast<hegel_jank_fn_date_options_set_weekdays>(hegel_jank_find_symbol(bindings->library, "hegel_date_options_set_weekdays"));
   bindings->event = reinterpret_cast<hegel_jank_fn_event>(hegel_jank_find_symbol(bindings->library, "hegel_event"));
   bindings->event_value = reinterpret_cast<hegel_jank_fn_event_value>(hegel_jank_find_symbol(bindings->library, "hegel_event_value"));
   bindings->failure_caveat = reinterpret_cast<hegel_jank_fn_failure_caveat>(hegel_jank_find_symbol(bindings->library, "hegel_failure_caveat"));
+  bindings->failure_diagnostic = reinterpret_cast<hegel_jank_fn_failure_diagnostic>(hegel_jank_find_symbol(bindings->library, "hegel_failure_diagnostic"));
   bindings->failure_free = reinterpret_cast<hegel_jank_fn_failure_free>(hegel_jank_find_symbol(bindings->library, "hegel_failure_free"));
   bindings->failure_origin = reinterpret_cast<hegel_jank_fn_failure_origin>(hegel_jank_find_symbol(bindings->library, "hegel_failure_origin"));
+  bindings->failure_output = reinterpret_cast<hegel_jank_fn_failure_output>(hegel_jank_find_symbol(bindings->library, "hegel_failure_output"));
   bindings->failure_reproduction_blob = reinterpret_cast<hegel_jank_fn_failure_reproduction_blob>(hegel_jank_find_symbol(bindings->library, "hegel_failure_reproduction_blob"));
+  bindings->format_date = reinterpret_cast<hegel_jank_fn_format_date>(hegel_jank_find_symbol(bindings->library, "hegel_format_date"));
+  bindings->format_datetime = reinterpret_cast<hegel_jank_fn_format_datetime>(hegel_jank_find_symbol(bindings->library, "hegel_format_datetime"));
+  bindings->format_duration = reinterpret_cast<hegel_jank_fn_format_duration>(hegel_jank_find_symbol(bindings->library, "hegel_format_duration"));
+  bindings->format_offset = reinterpret_cast<hegel_jank_fn_format_offset>(hegel_jank_find_symbol(bindings->library, "hegel_format_offset"));
+  bindings->format_span = reinterpret_cast<hegel_jank_fn_format_span>(hegel_jank_find_symbol(bindings->library, "hegel_format_span"));
+  bindings->format_time = reinterpret_cast<hegel_jank_fn_format_time>(hegel_jank_find_symbol(bindings->library, "hegel_format_time"));
+  bindings->format_timestamp = reinterpret_cast<hegel_jank_fn_format_timestamp>(hegel_jank_find_symbol(bindings->library, "hegel_format_timestamp"));
+  bindings->format_zoned_datetime = reinterpret_cast<hegel_jank_fn_format_zoned_datetime>(hegel_jank_find_symbol(bindings->library, "hegel_format_zoned_datetime"));
   bindings->generate_boolean = reinterpret_cast<hegel_jank_fn_generate_boolean>(hegel_jank_find_symbol(bindings->library, "hegel_generate_boolean"));
   bindings->generate_bytes = reinterpret_cast<hegel_jank_fn_generate_bytes>(hegel_jank_find_symbol(bindings->library, "hegel_generate_bytes"));
   bindings->generate_bytes_result_free = reinterpret_cast<hegel_jank_fn_generate_bytes_result_free>(hegel_jank_find_symbol(bindings->library, "hegel_generate_bytes_result_free"));
   bindings->generate_date = reinterpret_cast<hegel_jank_fn_generate_date>(hegel_jank_find_symbol(bindings->library, "hegel_generate_date"));
   bindings->generate_datetime = reinterpret_cast<hegel_jank_fn_generate_datetime>(hegel_jank_find_symbol(bindings->library, "hegel_generate_datetime"));
+  bindings->generate_duration = reinterpret_cast<hegel_jank_fn_generate_duration>(hegel_jank_find_symbol(bindings->library, "hegel_generate_duration"));
   bindings->generate_float = reinterpret_cast<hegel_jank_fn_generate_float>(hegel_jank_find_symbol(bindings->library, "hegel_generate_float"));
   bindings->generate_grammar = reinterpret_cast<hegel_jank_fn_generate_grammar>(hegel_jank_find_symbol(bindings->library, "hegel_generate_grammar"));
   bindings->generate_integer = reinterpret_cast<hegel_jank_fn_generate_integer>(hegel_jank_find_symbol(bindings->library, "hegel_generate_integer"));
   bindings->generate_integer_big = reinterpret_cast<hegel_jank_fn_generate_integer_big>(hegel_jank_find_symbol(bindings->library, "hegel_generate_integer_big"));
   bindings->generate_ipv4 = reinterpret_cast<hegel_jank_fn_generate_ipv4>(hegel_jank_find_symbol(bindings->library, "hegel_generate_ipv4"));
   bindings->generate_ipv6 = reinterpret_cast<hegel_jank_fn_generate_ipv6>(hegel_jank_find_symbol(bindings->library, "hegel_generate_ipv6"));
+  bindings->generate_offset = reinterpret_cast<hegel_jank_fn_generate_offset>(hegel_jank_find_symbol(bindings->library, "hegel_generate_offset"));
+  bindings->generate_span = reinterpret_cast<hegel_jank_fn_generate_span>(hegel_jank_find_symbol(bindings->library, "hegel_generate_span"));
   bindings->generate_string = reinterpret_cast<hegel_jank_fn_generate_string>(hegel_jank_find_symbol(bindings->library, "hegel_generate_string"));
   bindings->generate_time = reinterpret_cast<hegel_jank_fn_generate_time>(hegel_jank_find_symbol(bindings->library, "hegel_generate_time"));
+  bindings->generate_timestamp = reinterpret_cast<hegel_jank_fn_generate_timestamp>(hegel_jank_find_symbol(bindings->library, "hegel_generate_timestamp"));
+  bindings->generate_timezone = reinterpret_cast<hegel_jank_fn_generate_timezone>(hegel_jank_find_symbol(bindings->library, "hegel_generate_timezone"));
   bindings->generate_uuid = reinterpret_cast<hegel_jank_fn_generate_uuid>(hegel_jank_find_symbol(bindings->library, "hegel_generate_uuid"));
+  bindings->generate_zoned_datetime = reinterpret_cast<hegel_jank_fn_generate_zoned_datetime>(hegel_jank_find_symbol(bindings->library, "hegel_generate_zoned_datetime"));
+  bindings->generate_zoned_datetime_for_zone = reinterpret_cast<hegel_jank_fn_generate_zoned_datetime_for_zone>(hegel_jank_find_symbol(bindings->library, "hegel_generate_zoned_datetime_for_zone"));
   bindings->grammar_builder_file = reinterpret_cast<hegel_jank_fn_grammar_builder_file>(hegel_jank_find_symbol(bindings->library, "hegel_grammar_builder_file"));
   bindings->grammar_builder_free = reinterpret_cast<hegel_jank_fn_grammar_builder_free>(hegel_jank_find_symbol(bindings->library, "hegel_grammar_builder_free"));
   bindings->grammar_builder_new = reinterpret_cast<hegel_jank_fn_grammar_builder_new>(hegel_jank_find_symbol(bindings->library, "hegel_grammar_builder_new"));
@@ -485,6 +801,8 @@ inline hegel_jank_bindings *hegel_jank_load_bindings(std::string const &path)
   bindings->new_state_machine = reinterpret_cast<hegel_jank_fn_new_state_machine>(hegel_jank_find_symbol(bindings->library, "hegel_new_state_machine"));
   bindings->next_test_case = reinterpret_cast<hegel_jank_fn_next_test_case>(hegel_jank_find_symbol(bindings->library, "hegel_next_test_case"));
   bindings->note = reinterpret_cast<hegel_jank_fn_note>(hegel_jank_find_symbol(bindings->library, "hegel_note"));
+  bindings->output_stderr = reinterpret_cast<hegel_jank_fn_output_stderr>(hegel_jank_find_symbol(bindings->library, "hegel_output_stderr"));
+  bindings->output_stderr_callback = reinterpret_cast<hegel_jank_fn_output_stderr_callback>(hegel_jank_find_symbol(bindings->library, "hegel_output_stderr_callback"));
   bindings->owned_string_free = reinterpret_cast<hegel_jank_fn_owned_string_free>(hegel_jank_find_symbol(bindings->library, "hegel_owned_string_free"));
   bindings->pause_faults = reinterpret_cast<hegel_jank_fn_pause_faults>(hegel_jank_find_symbol(bindings->library, "hegel_pause_faults"));
   bindings->pool_add = reinterpret_cast<hegel_jank_fn_pool_add>(hegel_jank_find_symbol(bindings->library, "hegel_pool_add"));
@@ -534,6 +852,7 @@ inline hegel_jank_bindings *hegel_jank_load_bindings(std::string const &path)
   bindings->run_start = reinterpret_cast<hegel_jank_fn_run_start>(hegel_jank_find_symbol(bindings->library, "hegel_run_start"));
   bindings->run_start_blob = reinterpret_cast<hegel_jank_fn_run_start_blob>(hegel_jank_find_symbol(bindings->library, "hegel_run_start_blob"));
   bindings->set_default_profile = reinterpret_cast<hegel_jank_fn_set_default_profile>(hegel_jank_find_symbol(bindings->library, "hegel_set_default_profile"));
+  bindings->set_default_zone_source = reinterpret_cast<hegel_jank_fn_set_default_zone_source>(hegel_jank_find_symbol(bindings->library, "hegel_set_default_zone_source"));
   bindings->set_unicode_version = reinterpret_cast<hegel_jank_fn_set_unicode_version>(hegel_jank_find_symbol(bindings->library, "hegel_set_unicode_version"));
   bindings->settings_free = reinterpret_cast<hegel_jank_fn_settings_free>(hegel_jank_find_symbol(bindings->library, "hegel_settings_free"));
   bindings->settings_get_backend = reinterpret_cast<hegel_jank_fn_settings_get_backend>(hegel_jank_find_symbol(bindings->library, "hegel_settings_get_backend"));
@@ -570,6 +889,11 @@ inline hegel_jank_bindings *hegel_jank_load_bindings(std::string const &path)
   bindings->settings_set_test_location = reinterpret_cast<hegel_jank_fn_settings_set_test_location>(hegel_jank_find_symbol(bindings->library, "hegel_settings_set_test_location"));
   bindings->settings_set_unbounded_choices = reinterpret_cast<hegel_jank_fn_settings_set_unbounded_choices>(hegel_jank_find_symbol(bindings->library, "hegel_settings_set_unbounded_choices"));
   bindings->settings_set_verbosity = reinterpret_cast<hegel_jank_fn_settings_set_verbosity>(hegel_jank_find_symbol(bindings->library, "hegel_settings_set_verbosity"));
+  bindings->span_spec_free = reinterpret_cast<hegel_jank_fn_span_spec_free>(hegel_jank_find_symbol(bindings->library, "hegel_span_spec_free"));
+  bindings->span_spec_new = reinterpret_cast<hegel_jank_fn_span_spec_new>(hegel_jank_find_symbol(bindings->library, "hegel_span_spec_new"));
+  bindings->span_spec_set_sign = reinterpret_cast<hegel_jank_fn_span_spec_set_sign>(hegel_jank_find_symbol(bindings->library, "hegel_span_spec_set_sign"));
+  bindings->span_spec_set_unit_bounds = reinterpret_cast<hegel_jank_fn_span_spec_set_unit_bounds>(hegel_jank_find_symbol(bindings->library, "hegel_span_spec_set_unit_bounds"));
+  bindings->span_spec_validate = reinterpret_cast<hegel_jank_fn_span_spec_validate>(hegel_jank_find_symbol(bindings->library, "hegel_span_spec_validate"));
   bindings->start_span = reinterpret_cast<hegel_jank_fn_start_span>(hegel_jank_find_symbol(bindings->library, "hegel_start_span"));
   bindings->state_machine_add_invariant = reinterpret_cast<hegel_jank_fn_state_machine_add_invariant>(hegel_jank_find_symbol(bindings->library, "hegel_state_machine_add_invariant"));
   bindings->state_machine_add_rule = reinterpret_cast<hegel_jank_fn_state_machine_add_rule>(hegel_jank_find_symbol(bindings->library, "hegel_state_machine_add_rule"));
@@ -593,9 +917,53 @@ inline hegel_jank_bindings *hegel_jank_load_bindings(std::string const &path)
   bindings->test_case_from_blob = reinterpret_cast<hegel_jank_fn_test_case_from_blob>(hegel_jank_find_symbol(bindings->library, "hegel_test_case_from_blob"));
   bindings->test_case_printer = reinterpret_cast<hegel_jank_fn_test_case_printer>(hegel_jank_find_symbol(bindings->library, "hegel_test_case_printer"));
   bindings->test_case_set_worker = reinterpret_cast<hegel_jank_fn_test_case_set_worker>(hegel_jank_find_symbol(bindings->library, "hegel_test_case_set_worker"));
-  bindings->test_case_should_capture = reinterpret_cast<hegel_jank_fn_test_case_should_capture>(hegel_jank_find_symbol(bindings->library, "hegel_test_case_should_capture"));
+  bindings->test_case_wants_detail = reinterpret_cast<hegel_jank_fn_test_case_wants_detail>(hegel_jank_find_symbol(bindings->library, "hegel_test_case_wants_detail"));
+  bindings->test_case_wants_output = reinterpret_cast<hegel_jank_fn_test_case_wants_output>(hegel_jank_find_symbol(bindings->library, "hegel_test_case_wants_output"));
+  bindings->timezone_info = reinterpret_cast<hegel_jank_fn_timezone_info>(hegel_jank_find_symbol(bindings->library, "hegel_timezone_info"));
+  bindings->timezone_info_in = reinterpret_cast<hegel_jank_fn_timezone_info_in>(hegel_jank_find_symbol(bindings->library, "hegel_timezone_info_in"));
+  bindings->timezone_offset_at = reinterpret_cast<hegel_jank_fn_timezone_offset_at>(hegel_jank_find_symbol(bindings->library, "hegel_timezone_offset_at"));
+  bindings->timezone_offset_at_in = reinterpret_cast<hegel_jank_fn_timezone_offset_at_in>(hegel_jank_find_symbol(bindings->library, "hegel_timezone_offset_at_in"));
+  bindings->timezone_resolve = reinterpret_cast<hegel_jank_fn_timezone_resolve>(hegel_jank_find_symbol(bindings->library, "hegel_timezone_resolve"));
+  bindings->timezone_resolve_in = reinterpret_cast<hegel_jank_fn_timezone_resolve_in>(hegel_jank_find_symbol(bindings->library, "hegel_timezone_resolve_in"));
+  bindings->timezone_spec_free = reinterpret_cast<hegel_jank_fn_timezone_spec_free>(hegel_jank_find_symbol(bindings->library, "hegel_timezone_spec_free"));
+  bindings->timezone_spec_new = reinterpret_cast<hegel_jank_fn_timezone_spec_new>(hegel_jank_find_symbol(bindings->library, "hegel_timezone_spec_new"));
+  bindings->timezone_spec_set_legacy = reinterpret_cast<hegel_jank_fn_timezone_spec_set_legacy>(hegel_jank_find_symbol(bindings->library, "hegel_timezone_spec_set_legacy"));
+  bindings->timezone_spec_set_links = reinterpret_cast<hegel_jank_fn_timezone_spec_set_links>(hegel_jank_find_symbol(bindings->library, "hegel_timezone_spec_set_links"));
+  bindings->timezone_spec_set_names = reinterpret_cast<hegel_jank_fn_timezone_spec_set_names>(hegel_jank_find_symbol(bindings->library, "hegel_timezone_spec_set_names"));
+  bindings->timezone_spec_set_opaque = reinterpret_cast<hegel_jank_fn_timezone_spec_set_opaque>(hegel_jank_find_symbol(bindings->library, "hegel_timezone_spec_set_opaque"));
+  bindings->timezone_spec_set_source = reinterpret_cast<hegel_jank_fn_timezone_spec_set_source>(hegel_jank_find_symbol(bindings->library, "hegel_timezone_spec_set_source"));
+  bindings->timezone_spec_set_unknown = reinterpret_cast<hegel_jank_fn_timezone_spec_set_unknown>(hegel_jank_find_symbol(bindings->library, "hegel_timezone_spec_set_unknown"));
+  bindings->timezone_spec_validate = reinterpret_cast<hegel_jank_fn_timezone_spec_validate>(hegel_jank_find_symbol(bindings->library, "hegel_timezone_spec_validate"));
+  bindings->tzdb_version = reinterpret_cast<hegel_jank_fn_tzdb_version>(hegel_jank_find_symbol(bindings->library, "hegel_tzdb_version"));
   bindings->unpause_faults = reinterpret_cast<hegel_jank_fn_unpause_faults>(hegel_jank_find_symbol(bindings->library, "hegel_unpause_faults"));
+  bindings->validate_date = reinterpret_cast<hegel_jank_fn_validate_date>(hegel_jank_find_symbol(bindings->library, "hegel_validate_date"));
+  bindings->validate_datetime = reinterpret_cast<hegel_jank_fn_validate_datetime>(hegel_jank_find_symbol(bindings->library, "hegel_validate_datetime"));
+  bindings->validate_duration = reinterpret_cast<hegel_jank_fn_validate_duration>(hegel_jank_find_symbol(bindings->library, "hegel_validate_duration"));
+  bindings->validate_offset = reinterpret_cast<hegel_jank_fn_validate_offset>(hegel_jank_find_symbol(bindings->library, "hegel_validate_offset"));
+  bindings->validate_time = reinterpret_cast<hegel_jank_fn_validate_time>(hegel_jank_find_symbol(bindings->library, "hegel_validate_time"));
+  bindings->validate_timestamp = reinterpret_cast<hegel_jank_fn_validate_timestamp>(hegel_jank_find_symbol(bindings->library, "hegel_validate_timestamp"));
   bindings->version = reinterpret_cast<hegel_jank_fn_version>(hegel_jank_find_symbol(bindings->library, "hegel_version"));
+  bindings->zone_source_add_link = reinterpret_cast<hegel_jank_fn_zone_source_add_link>(hegel_jank_find_symbol(bindings->library, "hegel_zone_source_add_link"));
+  bindings->zone_source_add_oracle = reinterpret_cast<hegel_jank_fn_zone_source_add_oracle>(hegel_jank_find_symbol(bindings->library, "hegel_zone_source_add_oracle"));
+  bindings->zone_source_add_tzif = reinterpret_cast<hegel_jank_fn_zone_source_add_tzif>(hegel_jank_find_symbol(bindings->library, "hegel_zone_source_add_tzif"));
+  bindings->zone_source_add_zone = reinterpret_cast<hegel_jank_fn_zone_source_add_zone>(hegel_jank_find_symbol(bindings->library, "hegel_zone_source_add_zone"));
+  bindings->zone_source_bundled = reinterpret_cast<hegel_jank_fn_zone_source_bundled>(hegel_jank_find_symbol(bindings->library, "hegel_zone_source_bundled"));
+  bindings->zone_source_declare = reinterpret_cast<hegel_jank_fn_zone_source_declare>(hegel_jank_find_symbol(bindings->library, "hegel_zone_source_declare"));
+  bindings->zone_source_free = reinterpret_cast<hegel_jank_fn_zone_source_free>(hegel_jank_find_symbol(bindings->library, "hegel_zone_source_free"));
+  bindings->zone_source_name = reinterpret_cast<hegel_jank_fn_zone_source_name>(hegel_jank_find_symbol(bindings->library, "hegel_zone_source_name"));
+  bindings->zone_source_name_count = reinterpret_cast<hegel_jank_fn_zone_source_name_count>(hegel_jank_find_symbol(bindings->library, "hegel_zone_source_name_count"));
+  bindings->zone_source_new = reinterpret_cast<hegel_jank_fn_zone_source_new>(hegel_jank_find_symbol(bindings->library, "hegel_zone_source_new"));
+  bindings->zone_source_set_loader = reinterpret_cast<hegel_jank_fn_zone_source_set_loader>(hegel_jank_find_symbol(bindings->library, "hegel_zone_source_set_loader"));
+  bindings->zone_source_set_version = reinterpret_cast<hegel_jank_fn_zone_source_set_version>(hegel_jank_find_symbol(bindings->library, "hegel_zone_source_set_version"));
+  bindings->zone_source_version = reinterpret_cast<hegel_jank_fn_zone_source_version>(hegel_jank_find_symbol(bindings->library, "hegel_zone_source_version"));
+  bindings->zoned_spec_free = reinterpret_cast<hegel_jank_fn_zoned_spec_free>(hegel_jank_find_symbol(bindings->library, "hegel_zoned_spec_free"));
+  bindings->zoned_spec_new = reinterpret_cast<hegel_jank_fn_zoned_spec_new>(hegel_jank_find_symbol(bindings->library, "hegel_zoned_spec_new"));
+  bindings->zoned_spec_set_ambiguous = reinterpret_cast<hegel_jank_fn_zoned_spec_set_ambiguous>(hegel_jank_find_symbol(bindings->library, "hegel_zoned_spec_set_ambiguous"));
+  bindings->zoned_spec_set_civil_bounds = reinterpret_cast<hegel_jank_fn_zoned_spec_set_civil_bounds>(hegel_jank_find_symbol(bindings->library, "hegel_zoned_spec_set_civil_bounds"));
+  bindings->zoned_spec_set_imaginary = reinterpret_cast<hegel_jank_fn_zoned_spec_set_imaginary>(hegel_jank_find_symbol(bindings->library, "hegel_zoned_spec_set_imaginary"));
+  bindings->zoned_spec_set_instant_bounds = reinterpret_cast<hegel_jank_fn_zoned_spec_set_instant_bounds>(hegel_jank_find_symbol(bindings->library, "hegel_zoned_spec_set_instant_bounds"));
+  bindings->zoned_spec_set_precision = reinterpret_cast<hegel_jank_fn_zoned_spec_set_precision>(hegel_jank_find_symbol(bindings->library, "hegel_zoned_spec_set_precision"));
+  bindings->zoned_spec_validate = reinterpret_cast<hegel_jank_fn_zoned_spec_validate>(hegel_jank_find_symbol(bindings->library, "hegel_zoned_spec_validate"));
   hegel_jank_active_bindings = bindings;
   return bindings;
 }
@@ -636,6 +1004,31 @@ inline hegel_jank_hegel_context * hegel_jank_call_context_new(hegel_jank_binding
   return bindings->context_new();
 }
 
+inline std::int32_t hegel_jank_call_context_set_error(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_string arg1)
+{
+  return bindings->context_set_error(arg0, arg1);
+}
+
+inline std::int32_t hegel_jank_call_date_options_free(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_date_options * arg1)
+{
+  return bindings->date_options_free(arg0, arg1);
+}
+
+inline std::int32_t hegel_jank_call_date_options_new(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_date_options * * arg1)
+{
+  return bindings->date_options_new(arg0, arg1);
+}
+
+inline std::int32_t hegel_jank_call_date_options_set_months(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_date_options * arg1, std::uint32_t arg2)
+{
+  return bindings->date_options_set_months(arg0, arg1, arg2);
+}
+
+inline std::int32_t hegel_jank_call_date_options_set_weekdays(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_date_options * arg1, std::uint32_t arg2)
+{
+  return bindings->date_options_set_weekdays(arg0, arg1, arg2);
+}
+
 inline std::int32_t hegel_jank_call_event(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, hegel_jank_hegel_string arg2)
 {
   return bindings->event(arg0, arg1, arg2);
@@ -651,6 +1044,11 @@ inline std::int32_t hegel_jank_call_failure_caveat(hegel_jank_bindings *bindings
   return bindings->failure_caveat(arg0, arg1, arg2);
 }
 
+inline std::int32_t hegel_jank_call_failure_diagnostic(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_failure * arg1, hegel_jank_hegel_string * * arg2)
+{
+  return bindings->failure_diagnostic(arg0, arg1, arg2);
+}
+
 inline std::int32_t hegel_jank_call_failure_free(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_failure * arg1)
 {
   return bindings->failure_free(arg0, arg1);
@@ -661,9 +1059,54 @@ inline std::int32_t hegel_jank_call_failure_origin(hegel_jank_bindings *bindings
   return bindings->failure_origin(arg0, arg1, arg2);
 }
 
+inline std::int32_t hegel_jank_call_failure_output(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_failure * arg1, hegel_jank_hegel_string * * arg2)
+{
+  return bindings->failure_output(arg0, arg1, arg2);
+}
+
 inline std::int32_t hegel_jank_call_failure_reproduction_blob(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_failure * arg1, hegel_jank_hegel_string * * arg2)
 {
   return bindings->failure_reproduction_blob(arg0, arg1, arg2);
+}
+
+inline std::int32_t hegel_jank_call_format_date(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_date arg1, hegel_jank_hegel_string * arg2)
+{
+  return bindings->format_date(arg0, arg1, arg2);
+}
+
+inline std::int32_t hegel_jank_call_format_datetime(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_datetime arg1, hegel_jank_hegel_string * arg2)
+{
+  return bindings->format_datetime(arg0, arg1, arg2);
+}
+
+inline std::int32_t hegel_jank_call_format_duration(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_duration arg1, hegel_jank_hegel_string * arg2)
+{
+  return bindings->format_duration(arg0, arg1, arg2);
+}
+
+inline std::int32_t hegel_jank_call_format_offset(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_offset arg1, hegel_jank_hegel_string * arg2)
+{
+  return bindings->format_offset(arg0, arg1, arg2);
+}
+
+inline std::int32_t hegel_jank_call_format_span(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_span * arg1, hegel_jank_hegel_string * arg2)
+{
+  return bindings->format_span(arg0, arg1, arg2);
+}
+
+inline std::int32_t hegel_jank_call_format_time(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_time arg1, hegel_jank_hegel_string * arg2)
+{
+  return bindings->format_time(arg0, arg1, arg2);
+}
+
+inline std::int32_t hegel_jank_call_format_timestamp(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_timestamp arg1, hegel_jank_hegel_string * arg2)
+{
+  return bindings->format_timestamp(arg0, arg1, arg2);
+}
+
+inline std::int32_t hegel_jank_call_format_zoned_datetime(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_zoned_datetime * arg1, hegel_jank_hegel_string arg2, hegel_jank_hegel_string * arg3)
+{
+  return bindings->format_zoned_datetime(arg0, arg1, arg2, arg3);
 }
 
 inline std::int32_t hegel_jank_call_generate_boolean(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, double arg2, std::uint8_t arg3, std::uint8_t arg4, std::uint8_t * arg5)
@@ -681,14 +1124,19 @@ inline std::int32_t hegel_jank_call_generate_bytes_result_free(hegel_jank_bindin
   return bindings->generate_bytes_result_free(arg0, arg1);
 }
 
-inline std::int32_t hegel_jank_call_generate_date(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, hegel_jank_hegel_date arg2, hegel_jank_hegel_date arg3, hegel_jank_hegel_date * arg4)
+inline std::int32_t hegel_jank_call_generate_date(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, hegel_jank_hegel_date arg2, hegel_jank_hegel_date arg3, hegel_jank_hegel_date_options * arg4, hegel_jank_hegel_date * arg5)
 {
-  return bindings->generate_date(arg0, arg1, arg2, arg3, arg4);
+  return bindings->generate_date(arg0, arg1, arg2, arg3, arg4, arg5);
 }
 
-inline std::int32_t hegel_jank_call_generate_datetime(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, hegel_jank_hegel_datetime arg2, hegel_jank_hegel_datetime arg3, hegel_jank_hegel_datetime * arg4)
+inline std::int32_t hegel_jank_call_generate_datetime(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, hegel_jank_hegel_datetime arg2, hegel_jank_hegel_datetime arg3, std::uint32_t arg4, hegel_jank_hegel_datetime * arg5)
 {
-  return bindings->generate_datetime(arg0, arg1, arg2, arg3, arg4);
+  return bindings->generate_datetime(arg0, arg1, arg2, arg3, arg4, arg5);
+}
+
+inline std::int32_t hegel_jank_call_generate_duration(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, hegel_jank_hegel_duration arg2, hegel_jank_hegel_duration arg3, std::uint32_t arg4, hegel_jank_hegel_duration * arg5)
+{
+  return bindings->generate_duration(arg0, arg1, arg2, arg3, arg4, arg5);
 }
 
 inline std::int32_t hegel_jank_call_generate_float(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, std::uint32_t arg2, double arg3, double arg4, std::uint8_t arg5, std::uint8_t arg6, std::uint8_t arg7, std::uint8_t arg8, double arg9, double * arg10)
@@ -721,19 +1169,49 @@ inline std::int32_t hegel_jank_call_generate_ipv6(hegel_jank_bindings *bindings,
   return bindings->generate_ipv6(arg0, arg1, arg2);
 }
 
+inline std::int32_t hegel_jank_call_generate_offset(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, std::int32_t arg2, std::int32_t arg3, std::uint32_t arg4, std::uint8_t arg5, hegel_jank_hegel_offset * arg6)
+{
+  return bindings->generate_offset(arg0, arg1, arg2, arg3, arg4, arg5, arg6);
+}
+
+inline std::int32_t hegel_jank_call_generate_span(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, hegel_jank_hegel_span_spec * arg2, hegel_jank_hegel_span * arg3)
+{
+  return bindings->generate_span(arg0, arg1, arg2, arg3);
+}
+
 inline std::int32_t hegel_jank_call_generate_string(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, hegel_jank_hegel_string_generator * arg2, hegel_jank_hegel_string * arg3)
 {
   return bindings->generate_string(arg0, arg1, arg2, arg3);
 }
 
-inline std::int32_t hegel_jank_call_generate_time(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, hegel_jank_hegel_time arg2, hegel_jank_hegel_time arg3, hegel_jank_hegel_time * arg4)
+inline std::int32_t hegel_jank_call_generate_time(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, hegel_jank_hegel_time arg2, hegel_jank_hegel_time arg3, std::uint32_t arg4, hegel_jank_hegel_time * arg5)
 {
-  return bindings->generate_time(arg0, arg1, arg2, arg3, arg4);
+  return bindings->generate_time(arg0, arg1, arg2, arg3, arg4, arg5);
+}
+
+inline std::int32_t hegel_jank_call_generate_timestamp(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, hegel_jank_hegel_timestamp arg2, hegel_jank_hegel_timestamp arg3, std::uint32_t arg4, hegel_jank_hegel_timestamp * arg5)
+{
+  return bindings->generate_timestamp(arg0, arg1, arg2, arg3, arg4, arg5);
+}
+
+inline std::int32_t hegel_jank_call_generate_timezone(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, hegel_jank_hegel_timezone_spec * arg2, hegel_jank_hegel_string * arg3)
+{
+  return bindings->generate_timezone(arg0, arg1, arg2, arg3);
 }
 
 inline std::int32_t hegel_jank_call_generate_uuid(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, std::uint8_t arg2, std::uint8_t arg3, std::uint8_t * arg4)
 {
   return bindings->generate_uuid(arg0, arg1, arg2, arg3, arg4);
+}
+
+inline std::int32_t hegel_jank_call_generate_zoned_datetime(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, hegel_jank_hegel_timezone_spec * arg2, hegel_jank_hegel_zoned_spec * arg3, hegel_jank_hegel_zoned_datetime * arg4, hegel_jank_hegel_string * arg5)
+{
+  return bindings->generate_zoned_datetime(arg0, arg1, arg2, arg3, arg4, arg5);
+}
+
+inline std::int32_t hegel_jank_call_generate_zoned_datetime_for_zone(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, hegel_jank_hegel_zone_source * arg2, hegel_jank_hegel_string arg3, hegel_jank_hegel_zoned_spec * arg4, hegel_jank_hegel_zoned_datetime * arg5)
+{
+  return bindings->generate_zoned_datetime_for_zone(arg0, arg1, arg2, arg3, arg4, arg5);
 }
 
 inline std::int32_t hegel_jank_call_grammar_builder_file(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_grammar_builder * arg1, std::size_t arg2, hegel_jank_hegel_string * arg3)
@@ -806,9 +1284,9 @@ inline std::int32_t hegel_jank_call_label_from_name(hegel_jank_bindings *binding
   return bindings->label_from_name(arg0, arg1, arg2);
 }
 
-inline std::int32_t hegel_jank_call_mark_complete(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, std::uint32_t arg2, hegel_jank_hegel_string * arg3)
+inline std::int32_t hegel_jank_call_mark_complete(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, std::uint32_t arg2, hegel_jank_hegel_string * arg3, hegel_jank_hegel_string * arg4, hegel_jank_hegel_string * arg5)
 {
-  return bindings->mark_complete(arg0, arg1, arg2, arg3);
+  return bindings->mark_complete(arg0, arg1, arg2, arg3, arg4, arg5);
 }
 
 inline std::int32_t hegel_jank_call_new_collection(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, std::uint64_t arg2, std::uint64_t arg3, hegel_jank_hegel_collection * * arg4)
@@ -844,6 +1322,16 @@ inline std::int32_t hegel_jank_call_next_test_case(hegel_jank_bindings *bindings
 inline std::int32_t hegel_jank_call_note(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, hegel_jank_hegel_string arg2)
 {
   return bindings->note(arg0, arg1, arg2);
+}
+
+inline void hegel_jank_call_output_stderr(hegel_jank_bindings *bindings, void * arg0, char const * arg1, std::size_t arg2)
+{
+  bindings->output_stderr(arg0, arg1, arg2);
+}
+
+inline hegel_jank_hegel_output_callback hegel_jank_call_output_stderr_callback(hegel_jank_bindings *bindings)
+{
+  return bindings->output_stderr_callback();
 }
 
 inline std::int32_t hegel_jank_call_owned_string_free(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_string * arg1)
@@ -1091,6 +1579,11 @@ inline std::int32_t hegel_jank_call_set_default_profile(hegel_jank_bindings *bin
   return bindings->set_default_profile(arg0, arg1);
 }
 
+inline std::int32_t hegel_jank_call_set_default_zone_source(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_zone_source * arg1)
+{
+  return bindings->set_default_zone_source(arg0, arg1);
+}
+
 inline std::int32_t hegel_jank_call_set_unicode_version(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_string arg1)
 {
   return bindings->set_unicode_version(arg0, arg1);
@@ -1271,6 +1764,31 @@ inline std::int32_t hegel_jank_call_settings_set_verbosity(hegel_jank_bindings *
   return bindings->settings_set_verbosity(arg0, arg1, arg2);
 }
 
+inline std::int32_t hegel_jank_call_span_spec_free(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_span_spec * arg1)
+{
+  return bindings->span_spec_free(arg0, arg1);
+}
+
+inline std::int32_t hegel_jank_call_span_spec_new(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_span_spec * * arg1)
+{
+  return bindings->span_spec_new(arg0, arg1);
+}
+
+inline std::int32_t hegel_jank_call_span_spec_set_sign(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_span_spec * arg1, std::uint32_t arg2)
+{
+  return bindings->span_spec_set_sign(arg0, arg1, arg2);
+}
+
+inline std::int32_t hegel_jank_call_span_spec_set_unit_bounds(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_span_spec * arg1, std::uint32_t arg2, std::int64_t arg3, std::int64_t arg4)
+{
+  return bindings->span_spec_set_unit_bounds(arg0, arg1, arg2, arg3, arg4);
+}
+
+inline std::int32_t hegel_jank_call_span_spec_validate(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_span_spec * arg1)
+{
+  return bindings->span_spec_validate(arg0, arg1);
+}
+
 inline std::int32_t hegel_jank_call_start_span(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, std::uint64_t arg2)
 {
   return bindings->start_span(arg0, arg1, arg2);
@@ -1386,9 +1904,94 @@ inline std::int32_t hegel_jank_call_test_case_set_worker(hegel_jank_bindings *bi
   return bindings->test_case_set_worker(arg0, arg1, arg2);
 }
 
-inline std::int32_t hegel_jank_call_test_case_should_capture(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, std::uint8_t * arg2)
+inline std::int32_t hegel_jank_call_test_case_wants_detail(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, std::uint8_t * arg2)
 {
-  return bindings->test_case_should_capture(arg0, arg1, arg2);
+  return bindings->test_case_wants_detail(arg0, arg1, arg2);
+}
+
+inline std::int32_t hegel_jank_call_test_case_wants_output(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1, std::uint8_t * arg2)
+{
+  return bindings->test_case_wants_output(arg0, arg1, arg2);
+}
+
+inline std::int32_t hegel_jank_call_timezone_info(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_string arg1, hegel_jank_hegel_timezone_info * arg2)
+{
+  return bindings->timezone_info(arg0, arg1, arg2);
+}
+
+inline std::int32_t hegel_jank_call_timezone_info_in(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_zone_source * arg1, hegel_jank_hegel_string arg2, hegel_jank_hegel_timezone_info * arg3)
+{
+  return bindings->timezone_info_in(arg0, arg1, arg2, arg3);
+}
+
+inline std::int32_t hegel_jank_call_timezone_offset_at(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_string arg1, hegel_jank_hegel_timestamp arg2, hegel_jank_hegel_timezone_offset * arg3)
+{
+  return bindings->timezone_offset_at(arg0, arg1, arg2, arg3);
+}
+
+inline std::int32_t hegel_jank_call_timezone_offset_at_in(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_zone_source * arg1, hegel_jank_hegel_string arg2, hegel_jank_hegel_timestamp arg3, hegel_jank_hegel_timezone_offset * arg4)
+{
+  return bindings->timezone_offset_at_in(arg0, arg1, arg2, arg3, arg4);
+}
+
+inline std::int32_t hegel_jank_call_timezone_resolve(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_string arg1, hegel_jank_hegel_datetime arg2, hegel_jank_hegel_timezone_resolution * arg3)
+{
+  return bindings->timezone_resolve(arg0, arg1, arg2, arg3);
+}
+
+inline std::int32_t hegel_jank_call_timezone_resolve_in(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_zone_source * arg1, hegel_jank_hegel_string arg2, hegel_jank_hegel_datetime arg3, hegel_jank_hegel_timezone_resolution * arg4)
+{
+  return bindings->timezone_resolve_in(arg0, arg1, arg2, arg3, arg4);
+}
+
+inline std::int32_t hegel_jank_call_timezone_spec_free(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_timezone_spec * arg1)
+{
+  return bindings->timezone_spec_free(arg0, arg1);
+}
+
+inline std::int32_t hegel_jank_call_timezone_spec_new(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_timezone_spec * * arg1)
+{
+  return bindings->timezone_spec_new(arg0, arg1);
+}
+
+inline std::int32_t hegel_jank_call_timezone_spec_set_legacy(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_timezone_spec * arg1, std::uint8_t arg2)
+{
+  return bindings->timezone_spec_set_legacy(arg0, arg1, arg2);
+}
+
+inline std::int32_t hegel_jank_call_timezone_spec_set_links(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_timezone_spec * arg1, std::uint8_t arg2)
+{
+  return bindings->timezone_spec_set_links(arg0, arg1, arg2);
+}
+
+inline std::int32_t hegel_jank_call_timezone_spec_set_names(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_timezone_spec * arg1, hegel_jank_hegel_string * arg2, std::size_t arg3)
+{
+  return bindings->timezone_spec_set_names(arg0, arg1, arg2, arg3);
+}
+
+inline std::int32_t hegel_jank_call_timezone_spec_set_opaque(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_timezone_spec * arg1, std::uint8_t arg2)
+{
+  return bindings->timezone_spec_set_opaque(arg0, arg1, arg2);
+}
+
+inline std::int32_t hegel_jank_call_timezone_spec_set_source(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_timezone_spec * arg1, hegel_jank_hegel_zone_source * arg2)
+{
+  return bindings->timezone_spec_set_source(arg0, arg1, arg2);
+}
+
+inline std::int32_t hegel_jank_call_timezone_spec_set_unknown(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_timezone_spec * arg1, std::uint8_t arg2)
+{
+  return bindings->timezone_spec_set_unknown(arg0, arg1, arg2);
+}
+
+inline std::int32_t hegel_jank_call_timezone_spec_validate(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_timezone_spec * arg1)
+{
+  return bindings->timezone_spec_validate(arg0, arg1);
+}
+
+inline std::int32_t hegel_jank_call_tzdb_version(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_string * arg1)
+{
+  return bindings->tzdb_version(arg0, arg1);
 }
 
 inline std::int32_t hegel_jank_call_unpause_faults(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_test_case * arg1)
@@ -1396,9 +1999,144 @@ inline std::int32_t hegel_jank_call_unpause_faults(hegel_jank_bindings *bindings
   return bindings->unpause_faults(arg0, arg1);
 }
 
+inline std::int32_t hegel_jank_call_validate_date(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_date arg1, hegel_jank_hegel_date arg2, hegel_jank_hegel_date_options * arg3)
+{
+  return bindings->validate_date(arg0, arg1, arg2, arg3);
+}
+
+inline std::int32_t hegel_jank_call_validate_datetime(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_datetime arg1, hegel_jank_hegel_datetime arg2, std::uint32_t arg3)
+{
+  return bindings->validate_datetime(arg0, arg1, arg2, arg3);
+}
+
+inline std::int32_t hegel_jank_call_validate_duration(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_duration arg1, hegel_jank_hegel_duration arg2, std::uint32_t arg3)
+{
+  return bindings->validate_duration(arg0, arg1, arg2, arg3);
+}
+
+inline std::int32_t hegel_jank_call_validate_offset(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, std::int32_t arg1, std::int32_t arg2, std::uint32_t arg3, std::uint8_t arg4)
+{
+  return bindings->validate_offset(arg0, arg1, arg2, arg3, arg4);
+}
+
+inline std::int32_t hegel_jank_call_validate_time(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_time arg1, hegel_jank_hegel_time arg2, std::uint32_t arg3)
+{
+  return bindings->validate_time(arg0, arg1, arg2, arg3);
+}
+
+inline std::int32_t hegel_jank_call_validate_timestamp(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_timestamp arg1, hegel_jank_hegel_timestamp arg2, std::uint32_t arg3)
+{
+  return bindings->validate_timestamp(arg0, arg1, arg2, arg3);
+}
+
 inline std::int32_t hegel_jank_call_version(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_string * arg1)
 {
   return bindings->version(arg0, arg1);
+}
+
+inline std::int32_t hegel_jank_call_zone_source_add_link(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_zone_source * arg1, hegel_jank_hegel_string arg2, hegel_jank_hegel_string arg3)
+{
+  return bindings->zone_source_add_link(arg0, arg1, arg2, arg3);
+}
+
+inline std::int32_t hegel_jank_call_zone_source_add_oracle(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_zone_source * arg1, hegel_jank_hegel_string arg2, hegel_jank_hegel_zone_oracle * arg3)
+{
+  return bindings->zone_source_add_oracle(arg0, arg1, arg2, arg3);
+}
+
+inline std::int32_t hegel_jank_call_zone_source_add_tzif(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_zone_source * arg1, hegel_jank_hegel_string arg2, std::uint8_t * arg3, std::size_t arg4)
+{
+  return bindings->zone_source_add_tzif(arg0, arg1, arg2, arg3, arg4);
+}
+
+inline std::int32_t hegel_jank_call_zone_source_add_zone(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_zone_source * arg1, hegel_jank_hegel_string arg2, hegel_jank_hegel_zone_data * arg3)
+{
+  return bindings->zone_source_add_zone(arg0, arg1, arg2, arg3);
+}
+
+inline std::int32_t hegel_jank_call_zone_source_bundled(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_zone_source * * arg1)
+{
+  return bindings->zone_source_bundled(arg0, arg1);
+}
+
+inline std::int32_t hegel_jank_call_zone_source_declare(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_zone_source * arg1, hegel_jank_hegel_string * arg2, std::size_t arg3)
+{
+  return bindings->zone_source_declare(arg0, arg1, arg2, arg3);
+}
+
+inline std::int32_t hegel_jank_call_zone_source_free(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_zone_source * arg1)
+{
+  return bindings->zone_source_free(arg0, arg1);
+}
+
+inline std::int32_t hegel_jank_call_zone_source_name(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_zone_source * arg1, std::size_t arg2, hegel_jank_hegel_string * arg3)
+{
+  return bindings->zone_source_name(arg0, arg1, arg2, arg3);
+}
+
+inline std::int32_t hegel_jank_call_zone_source_name_count(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_zone_source * arg1, std::size_t * arg2)
+{
+  return bindings->zone_source_name_count(arg0, arg1, arg2);
+}
+
+inline std::int32_t hegel_jank_call_zone_source_new(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_zone_source * * arg1)
+{
+  return bindings->zone_source_new(arg0, arg1);
+}
+
+inline std::int32_t hegel_jank_call_zone_source_set_loader(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_zone_source * arg1, hegel_jank_hegel_zone_loader arg2, void * arg3, hegel_jank_hegel_zone_loader_release arg4)
+{
+  return bindings->zone_source_set_loader(arg0, arg1, arg2, arg3, arg4);
+}
+
+inline std::int32_t hegel_jank_call_zone_source_set_version(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_zone_source * arg1, hegel_jank_hegel_string arg2)
+{
+  return bindings->zone_source_set_version(arg0, arg1, arg2);
+}
+
+inline std::int32_t hegel_jank_call_zone_source_version(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_zone_source * arg1, hegel_jank_hegel_string * arg2)
+{
+  return bindings->zone_source_version(arg0, arg1, arg2);
+}
+
+inline std::int32_t hegel_jank_call_zoned_spec_free(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_zoned_spec * arg1)
+{
+  return bindings->zoned_spec_free(arg0, arg1);
+}
+
+inline std::int32_t hegel_jank_call_zoned_spec_new(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_zoned_spec * * arg1)
+{
+  return bindings->zoned_spec_new(arg0, arg1);
+}
+
+inline std::int32_t hegel_jank_call_zoned_spec_set_ambiguous(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_zoned_spec * arg1, std::uint32_t arg2)
+{
+  return bindings->zoned_spec_set_ambiguous(arg0, arg1, arg2);
+}
+
+inline std::int32_t hegel_jank_call_zoned_spec_set_civil_bounds(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_zoned_spec * arg1, hegel_jank_hegel_datetime arg2, hegel_jank_hegel_datetime arg3)
+{
+  return bindings->zoned_spec_set_civil_bounds(arg0, arg1, arg2, arg3);
+}
+
+inline std::int32_t hegel_jank_call_zoned_spec_set_imaginary(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_zoned_spec * arg1, std::uint32_t arg2)
+{
+  return bindings->zoned_spec_set_imaginary(arg0, arg1, arg2);
+}
+
+inline std::int32_t hegel_jank_call_zoned_spec_set_instant_bounds(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_zoned_spec * arg1, hegel_jank_hegel_timestamp arg2, hegel_jank_hegel_timestamp arg3)
+{
+  return bindings->zoned_spec_set_instant_bounds(arg0, arg1, arg2, arg3);
+}
+
+inline std::int32_t hegel_jank_call_zoned_spec_set_precision(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_zoned_spec * arg1, std::uint32_t arg2)
+{
+  return bindings->zoned_spec_set_precision(arg0, arg1, arg2);
+}
+
+inline std::int32_t hegel_jank_call_zoned_spec_validate(hegel_jank_bindings *bindings, hegel_jank_hegel_context * arg0, hegel_jank_hegel_zoned_spec * arg1)
+{
+  return bindings->zoned_spec_validate(arg0, arg1);
 }
 
 inline void *hegel_jank_null_pointer() { return nullptr; }
@@ -1432,7 +2170,7 @@ inline void hegel_jank_write_c_uint64(void *pointer, std::size_t offset, std::ui
 inline std::uint8_t hegel_jank_read_c_uint8(void *pointer, std::size_t offset) { return *reinterpret_cast<std::uint8_t *>(static_cast<std::uint8_t *>(pointer) + offset); }
 inline void hegel_jank_write_c_uint8(void *pointer, std::size_t offset, std::uint8_t value) { *reinterpret_cast<std::uint8_t *>(static_cast<std::uint8_t *>(pointer) + offset) = value; }
 inline std::string hegel_jank_read_utf8(void *pointer, std::size_t length) { return std::string{static_cast<char const *>(pointer), length}; }
-inline std::size_t hegel_jank_write_utf8(void *pointer, ::jank::runtime::object_ref value) { auto string = ::jank::runtime::try_object<::jank::runtime::obj::persistent_string>(value); std::memcpy(pointer, string->data.data(), string->data.size()); return string->data.size(); }
+inline std::size_t hegel_jank_utf8_size(::jank::runtime::object_ref value) { return ::jank::runtime::try_object<::jank::runtime::obj::persistent_string>(value)->data.size(); }
 inline void *hegel_jank_string_dup(::jank::runtime::object_ref value) { auto string = ::jank::runtime::try_object<::jank::runtime::obj::persistent_string>(value); auto *result = static_cast<char *>(hegel_jank_alloc(string->data.size() + 1)); std::memcpy(result, string->data.data(), string->data.size()); result[string->data.size()] = '\0'; return result; }
 inline std::string hegel_jank_native_string(void *pointer) { return pointer == nullptr ? std::string{} : std::string{static_cast<char const *>(pointer)}; }
 
@@ -1451,11 +2189,37 @@ static_assert(offsetof(hegel_jank_hegel_date, year) == 0);
 static_assert(offsetof(hegel_jank_hegel_date, month) == 4);
 static_assert(offsetof(hegel_jank_hegel_date, day) == 5);
 
+static_assert(std::is_standard_layout_v<hegel_jank_hegel_duration>);
+static_assert(sizeof(hegel_jank_hegel_duration) == 16);
+static_assert(alignof(hegel_jank_hegel_duration) == 8);
+static_assert(offsetof(hegel_jank_hegel_duration, seconds) == 0);
+static_assert(offsetof(hegel_jank_hegel_duration, nanoseconds) == 8);
+
+static_assert(std::is_standard_layout_v<hegel_jank_hegel_offset>);
+static_assert(sizeof(hegel_jank_hegel_offset) == 8);
+static_assert(alignof(hegel_jank_hegel_offset) == 4);
+static_assert(offsetof(hegel_jank_hegel_offset, seconds) == 0);
+static_assert(offsetof(hegel_jank_hegel_offset, known) == 4);
+
 static_assert(std::is_standard_layout_v<hegel_jank_hegel_printer_value_result>);
 static_assert(sizeof(hegel_jank_hegel_printer_value_result) == 16);
 static_assert(alignof(hegel_jank_hegel_printer_value_result) == 8);
 static_assert(offsetof(hegel_jank_hegel_printer_value_result, data) == 0);
 static_assert(offsetof(hegel_jank_hegel_printer_value_result, len) == 8);
+
+static_assert(std::is_standard_layout_v<hegel_jank_hegel_span>);
+static_assert(sizeof(hegel_jank_hegel_span) == 80);
+static_assert(alignof(hegel_jank_hegel_span) == 8);
+static_assert(offsetof(hegel_jank_hegel_span, years) == 0);
+static_assert(offsetof(hegel_jank_hegel_span, months) == 8);
+static_assert(offsetof(hegel_jank_hegel_span, weeks) == 16);
+static_assert(offsetof(hegel_jank_hegel_span, days) == 24);
+static_assert(offsetof(hegel_jank_hegel_span, hours) == 32);
+static_assert(offsetof(hegel_jank_hegel_span, minutes) == 40);
+static_assert(offsetof(hegel_jank_hegel_span, seconds) == 48);
+static_assert(offsetof(hegel_jank_hegel_span, milliseconds) == 56);
+static_assert(offsetof(hegel_jank_hegel_span, microseconds) == 64);
+static_assert(offsetof(hegel_jank_hegel_span, nanoseconds) == 72);
 
 static_assert(std::is_standard_layout_v<hegel_jank_hegel_string>);
 static_assert(sizeof(hegel_jank_hegel_string) == 16);
@@ -1471,8 +2235,100 @@ static_assert(offsetof(hegel_jank_hegel_time, minute) == 1);
 static_assert(offsetof(hegel_jank_hegel_time, second) == 2);
 static_assert(offsetof(hegel_jank_hegel_time, nanosecond) == 4);
 
+static_assert(std::is_standard_layout_v<hegel_jank_hegel_timestamp>);
+static_assert(sizeof(hegel_jank_hegel_timestamp) == 16);
+static_assert(alignof(hegel_jank_hegel_timestamp) == 8);
+static_assert(offsetof(hegel_jank_hegel_timestamp, second) == 0);
+static_assert(offsetof(hegel_jank_hegel_timestamp, nanosecond) == 8);
+
+static_assert(std::is_standard_layout_v<hegel_jank_hegel_zone_oracle>);
+static_assert(sizeof(hegel_jank_hegel_zone_oracle) == 40);
+static_assert(alignof(hegel_jank_hegel_zone_oracle) == 8);
+static_assert(offsetof(hegel_jank_hegel_zone_oracle, offset_at) == 0);
+static_assert(offsetof(hegel_jank_hegel_zone_oracle, next_transition) == 8);
+static_assert(offsetof(hegel_jank_hegel_zone_oracle, user_data) == 16);
+static_assert(offsetof(hegel_jank_hegel_zone_oracle, first_year) == 24);
+static_assert(offsetof(hegel_jank_hegel_zone_oracle, last_year) == 28);
+static_assert(offsetof(hegel_jank_hegel_zone_oracle, after) == 32);
+
+static_assert(std::is_standard_layout_v<hegel_jank_hegel_zone_rule_date>);
+static_assert(sizeof(hegel_jank_hegel_zone_rule_date) == 16);
+static_assert(alignof(hegel_jank_hegel_zone_rule_date) == 4);
+static_assert(offsetof(hegel_jank_hegel_zone_rule_date, kind) == 0);
+static_assert(offsetof(hegel_jank_hegel_zone_rule_date, day) == 4);
+static_assert(offsetof(hegel_jank_hegel_zone_rule_date, month) == 6);
+static_assert(offsetof(hegel_jank_hegel_zone_rule_date, week) == 7);
+static_assert(offsetof(hegel_jank_hegel_zone_rule_date, weekday) == 8);
+static_assert(offsetof(hegel_jank_hegel_zone_rule_date, time) == 12);
+
 static_assert(std::is_standard_layout_v<hegel_jank_hegel_datetime>);
 static_assert(sizeof(hegel_jank_hegel_datetime) == 16);
 static_assert(alignof(hegel_jank_hegel_datetime) == 4);
 static_assert(offsetof(hegel_jank_hegel_datetime, date) == 0);
 static_assert(offsetof(hegel_jank_hegel_datetime, time) == 8);
+
+static_assert(std::is_standard_layout_v<hegel_jank_hegel_timezone_info>);
+static_assert(sizeof(hegel_jank_hegel_timezone_info) == 32);
+static_assert(alignof(hegel_jank_hegel_timezone_info) == 8);
+static_assert(offsetof(hegel_jank_hegel_timezone_info, known) == 0);
+static_assert(offsetof(hegel_jank_hegel_timezone_info, primary_name) == 8);
+static_assert(offsetof(hegel_jank_hegel_timezone_info, is_link) == 24);
+static_assert(offsetof(hegel_jank_hegel_timezone_info, rank) == 26);
+static_assert(offsetof(hegel_jank_hegel_timezone_info, tags) == 28);
+
+static_assert(std::is_standard_layout_v<hegel_jank_hegel_timezone_offset>);
+static_assert(sizeof(hegel_jank_hegel_timezone_offset) == 24);
+static_assert(alignof(hegel_jank_hegel_timezone_offset) == 8);
+static_assert(offsetof(hegel_jank_hegel_timezone_offset, offset_seconds) == 0);
+static_assert(offsetof(hegel_jank_hegel_timezone_offset, offset_known) == 4);
+static_assert(offsetof(hegel_jank_hegel_timezone_offset, is_dst) == 5);
+static_assert(offsetof(hegel_jank_hegel_timezone_offset, abbreviation) == 8);
+
+static_assert(std::is_standard_layout_v<hegel_jank_hegel_timezone_resolution>);
+static_assert(sizeof(hegel_jank_hegel_timezone_resolution) == 40);
+static_assert(alignof(hegel_jank_hegel_timezone_resolution) == 8);
+static_assert(offsetof(hegel_jank_hegel_timezone_resolution, kind) == 0);
+static_assert(offsetof(hegel_jank_hegel_timezone_resolution, offset_before) == 4);
+static_assert(offsetof(hegel_jank_hegel_timezone_resolution, offset_after) == 8);
+static_assert(offsetof(hegel_jank_hegel_timezone_resolution, offset_seconds) == 12);
+static_assert(offsetof(hegel_jank_hegel_timezone_resolution, offset_known) == 16);
+static_assert(offsetof(hegel_jank_hegel_timezone_resolution, timestamp) == 24);
+
+static_assert(std::is_standard_layout_v<hegel_jank_hegel_zone_type>);
+static_assert(sizeof(hegel_jank_hegel_zone_type) == 24);
+static_assert(alignof(hegel_jank_hegel_zone_type) == 8);
+static_assert(offsetof(hegel_jank_hegel_zone_type, utoff) == 0);
+static_assert(offsetof(hegel_jank_hegel_zone_type, is_dst) == 4);
+static_assert(offsetof(hegel_jank_hegel_zone_type, abbreviation) == 8);
+
+static_assert(std::is_standard_layout_v<hegel_jank_hegel_zone_data>);
+static_assert(sizeof(hegel_jank_hegel_zone_data) == 144);
+static_assert(alignof(hegel_jank_hegel_zone_data) == 8);
+static_assert(offsetof(hegel_jank_hegel_zone_data, initial) == 0);
+static_assert(offsetof(hegel_jank_hegel_zone_data, transitions) == 24);
+static_assert(offsetof(hegel_jank_hegel_zone_data, transition_count) == 32);
+static_assert(offsetof(hegel_jank_hegel_zone_data, after) == 40);
+static_assert(offsetof(hegel_jank_hegel_zone_data, standard) == 48);
+static_assert(offsetof(hegel_jank_hegel_zone_data, has_dst) == 72);
+static_assert(offsetof(hegel_jank_hegel_zone_data, dst) == 80);
+static_assert(offsetof(hegel_jank_hegel_zone_data, dst_start) == 104);
+static_assert(offsetof(hegel_jank_hegel_zone_data, dst_end) == 120);
+static_assert(offsetof(hegel_jank_hegel_zone_data, last_year) == 136);
+
+static_assert(std::is_standard_layout_v<hegel_jank_hegel_zone_transition>);
+static_assert(sizeof(hegel_jank_hegel_zone_transition) == 32);
+static_assert(alignof(hegel_jank_hegel_zone_transition) == 8);
+static_assert(offsetof(hegel_jank_hegel_zone_transition, instant) == 0);
+static_assert(offsetof(hegel_jank_hegel_zone_transition, local_type) == 8);
+
+static_assert(std::is_standard_layout_v<hegel_jank_hegel_zoned_datetime>);
+static_assert(sizeof(hegel_jank_hegel_zoned_datetime) == 56);
+static_assert(alignof(hegel_jank_hegel_zoned_datetime) == 8);
+static_assert(offsetof(hegel_jank_hegel_zoned_datetime, civil) == 0);
+static_assert(offsetof(hegel_jank_hegel_zoned_datetime, offset_seconds) == 16);
+static_assert(offsetof(hegel_jank_hegel_zoned_datetime, offset_known) == 20);
+static_assert(offsetof(hegel_jank_hegel_zoned_datetime, fold) == 21);
+static_assert(offsetof(hegel_jank_hegel_zoned_datetime, kind) == 24);
+static_assert(offsetof(hegel_jank_hegel_zoned_datetime, offset_before) == 28);
+static_assert(offsetof(hegel_jank_hegel_zoned_datetime, offset_after) == 32);
+static_assert(offsetof(hegel_jank_hegel_zoned_datetime, timestamp) == 40);

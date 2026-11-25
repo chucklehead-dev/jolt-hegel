@@ -86,6 +86,14 @@
            (= 1 (:n-failures result) (count (:failures result))))
     (support/check! context "failure origin is stable"
            (= "hegel.test-runner:threshold" (:origin failure)))
+    (support/check! context "confirmed fixture comes from the shrunk input"
+           (= [{:origin (:origin failure) :input 500}] (report/failure-fixtures result :x)))
+    (support/check! context "only confirmed, explicitly captured inputs become fixtures"
+           (let [example (fn [data] (assoc failure :exception (ex-info "fixture" data)))
+                 failures [(example {:input nil}) (example {:input false}) (example {})
+                           (assoc (example {:input 1}) :reproduced? false)
+                           (assoc (example {:input 2}) :caveat "unstable")]]
+             (= [nil false] (mapv :input (report/failure-fixtures {:failures failures})))))
     (support/check! context "shrinker produces the known minimal reproduction blob"
            (= "AAEAAAAACgIAAAD0AQ==" (:reproduction-blob failure)))
     (support/check! context "minimal counterexample is replayed in final phase"
@@ -478,13 +486,36 @@
     (support/check! context "normal verbosity emits only the final-replay counterexample text"
            (and (not (:passed? result))
                 (str/includes? output ":x 500")
-                (str/includes? output "checking 500")))
+                (= 1 (count (re-seq #"checking 500" output)))))
     (support/check! context "the final replay snapshot is attached to the failure and to public-final"
-           (and (map? (:counterexample failure))
+           (and (= (str (:output failure) "\n") (:text (:counterexample failure)))
+                (str/includes? (:diagnostic failure) "threshold violated")
+                (map? (:counterexample failure))
                 (string? (:text (:counterexample failure)))
                 (str/includes? (:text (:counterexample failure)) "checking 500")
                 (= (:counterexample failure)
                    (:counterexample (first (:final result))))))))
+
+(defn- capture-modes [context]
+  (doseq [verbosity [:quiet :normal :verbose :debug]]
+    (let [stamps (atom #{})
+          [run _] (capture-err
+                   #(h/run-test!
+                     {:verbosity verbosity :test-cases 1 :seed 5 :database ""}
+                     (fn [_]
+                       (swap! stamps conj (h/final?))
+                       (h/note! "selected")
+                       (throw (ex-info "multiline\nλ" {:input false})))))
+          failure (first (:failures run))]
+      (support/check! context (str verbosity " distinguishes exploration and stamped failures")
+                      (and (= #{false true} @stamps)
+                           (:reproduced? failure)
+                           (= false (-> failure :exception ex-data :input))))
+      (support/check! context (str verbosity " captures the selected execution's diagnostic")
+                      (if (= :quiet verbosity)
+                        (and (nil? (:diagnostic failure)) (nil? (:output failure)))
+                        (and (= "selected" (:output failure))
+                             (str/includes? (:diagnostic failure) "multiline\nλ")))))))
 
 (defn- counterexample-quiet-emits-nothing [context]
   (let [[result output]
@@ -506,7 +537,10 @@
     (support/check! context "quiet verbosity emits nothing to stderr"
            (= "" output))
     (support/check! context "quiet verbosity produces no counterexample snapshot"
-           (nil? (:counterexample (first (:failures result)))))))
+           (let [failure (first (:failures result))]
+             (and (:reproduced? failure) (:exception failure)
+                  (nil? (:counterexample failure))
+                  (nil? (:output failure)) (nil? (:diagnostic failure)))))))
 
 (defn- counterexample-draw-and-note-ordering [context]
   (let [result (h/run-test!
@@ -625,7 +659,7 @@
                      entries)))))
   (let [[result _output]
         (capture-err
-         #(with-redefs [hffi/printer-value!
+         #(with-redefs [hffi/failure-output!
                         (fn [& _]
                           (throw (ex-info "mocked native read failure" {})))]
             (h/run-test!
@@ -646,36 +680,74 @@
     (support/check! context "counterexample diagnostics remain capped when final native extraction also fails"
            (and (= "hegel.test-runner:bounded-counterexample-errors"
                    (:origin failure))
+                (nil? (-> failure :counterexample :text))
                 (= 16 (count (-> failure :counterexample :errors)))))))
 
-(defn- counterexample-cleanup-order [context]
+(defn- counterexample-lifecycle [context]
   (let [events (atom [])
-        real-printer-free hffi/printer-free!
-        real-test-case-free hffi/test-case-free!]
-    (with-redefs [hffi/printer-free! (fn [ctx printer]
-                                       (swap! events conj :printer-free)
-                                       (real-printer-free ctx printer))
+        get-printer hffi/test-case-printer!
+        free-printer hffi/printer-free!
+        real-note hffi/note!
+        opts {:test-cases 1 :seed 21 :database "" :verbosity :normal}
+        body (fn [_]
+               (h/note! "one")
+               (h/note! "two")
+               (throw (ex-info "lifecycle" {:hegel/origin "runner/lifecycle"})))]
+    (with-redefs [hffi/test-case-printer! (fn [ctx handle options]
+                                            (swap! events conj :open)
+                                            (get-printer ctx handle options))
+                  hffi/printer-free! (fn [ctx printer]
+                                       (swap! events conj :free)
+                                       (free-printer ctx printer))
+                  hffi/note! (fn [ctx handle line]
+                               (swap! events conj :note)
+                               (real-note ctx handle line))]
+      (capture-err #(h/run-test! opts body))
+      (support/check! context "default-width diagnostics write notes without opening a printer handle"
+                      (and (seq @events) (every? #{:note} @events)))
+      (reset! events [])
+      (capture-err #(h/run-test! (assoc opts :counterexample {:max-width 30}) body))
+      (support/check! context "custom width is set once and its handle freed before either note"
+                      (and (seq @events)
+                           (zero? (mod (count @events) 4))
+                           (every? #(= [:open :free :note :note] %)
+                                   (partition 4 @events))))
+      (reset! events [])
+      (capture-err #(h/run-test! (assoc opts :verbosity :debug :counterexample {:max-width 30})
+                                 (fn [_] :ok)))
+      (support/check! context "a custom width with no output never opens a printer handle"
+                      (empty? @events)))))
+
+(defn- case-setup-cleanup [context]
+  (let [acquired (atom 0)
+        freed (atom 0)
+        real-next hffi/next-test-case!
+        real-free hffi/test-case-free!
+        injected (ex-info "injected setup fault" {})
+        fault (fn [& _] (throw injected))
+        run #(try (h/run-test! {:verbosity :verbose :test-cases 1 :seed 21 :database ""}
+                               (fn [_] (throw (ex-info "body unexpectedly ran" {}))))
+                  nil
+                  (catch Throwable e e))]
+    (with-redefs [hffi/next-test-case! (fn [ctx native-run]
+                                         (let [handle (real-next ctx native-run)]
+                                           (when handle (swap! acquired inc))
+                                           handle))
                   hffi/test-case-free! (fn [ctx handle]
-                                         (swap! events conj :test-case-free)
-                                         (real-test-case-free ctx handle))]
-      (h/run-test!
-       {:test-cases 1
-        :seed 21
-        :database ""
-        :verbosity :normal}
-       (fn [_]
-         (h/draw! (g/integer 0 1) :x)
-         (throw
-          (ex-info "cleanup order"
-                   {:hegel/origin "hegel.test-runner:counterexample-cleanup-order"})))))
-    (support/check! context "the native printer for a case is freed immediately before its test-case handle"
-           (and (pos? (count (filter #{:printer-free} @events)))
-                (every? #(= :test-case-free (second %))
-                        (filter #(= :printer-free (first %)) (partition 2 1 @events)))))))
+                                         (swap! freed inc)
+                                         (real-free ctx handle))]
+      (doseq [[description observed]
+              [["wants-output" (with-redefs [hffi/test-case-wants-output? fault] (run))]
+               ["wants-detail" (with-redefs [hffi/test-case-wants-detail? fault] (run))]
+               ["render setup" (with-redefs [render/start! fault] (run))]]]
+        (support/check! context (str description " preserves the original setup error")
+                        (identical? injected observed)))
+      (support/check! context "every allocated case handle is freed when setup throws"
+                      (= 3 @acquired @freed)))))
 
 (defn- counterexample-checkpoint-rollback [context]
   (with-redefs [hffi/note! (fn [& _] nil)]
-    (let [state {:ctx ::ctx :handle ::handle :printer nil :enabled? true
+    (let [state {:ctx ::ctx :handle ::handle
                  :native-disabled? (atom true)
                  :render-fn pr-str :redact-fn identity
                  :max-output-units 65536
@@ -728,7 +800,10 @@
              (h/draw! (g/filter #(= 3 %) source) :filtered))))
         notes (mapv :text (filter #(= :note (:kind %)) (:entries snapshot)))]
     (support/check! context "filter rendering retains only the accepted attempt"
-           (= ["filter-attempt 3\n"] notes)))
+           (and (= ["filter-attempt 3\n"] notes)
+                (str/includes? (:text snapshot) "filter-attempt 3")
+                (not (str/includes? (:text snapshot) "filter-attempt 1"))
+                (not (str/includes? (:text snapshot) "filter-attempt 2")))))
   (doseq [[kind build]
           [[:vector (fn [source] (g/vector {:size 2 :unique? true} source))]
            [:set (fn [source] (g/set {:size 2} source))]]]
@@ -772,12 +847,14 @@
   truncation, error containment, cleanup ordering, and the internal
   begin/commit/abort-attempt! checkpoint API."
   [context]
+  (capture-modes context)
   (counterexample-normal-only-final-replay context)
   (counterexample-quiet-emits-nothing context)
   (counterexample-draw-and-note-ordering context)
   (counterexample-custom-redaction context)
   (counterexample-oversize-rejection context)
   (counterexample-renderer-error-safety context)
-  (counterexample-cleanup-order context)
+  (counterexample-lifecycle context)
+  (case-setup-cleanup context)
   (counterexample-checkpoint-rollback context)
   (counterexample-rejected-attempt-rollback context))

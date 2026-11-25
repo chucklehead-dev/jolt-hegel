@@ -1,0 +1,57 @@
+{
+  "independent_parent_reruns": [
+    {
+      "task": "parser-gap",
+      "command": "bash /workspace/hegel-gap-study/parser-gap/verify.sh",
+      "exit_code": 0,
+      "log": "parent-verification/parser-gap-verify.log"
+    },
+    {
+      "task": "json-numbers",
+      "command": "bash /workspace/hegel-gap-study/json-numbers/verify.sh",
+      "exit_code": 0,
+      "log": "parent-verification/json-numbers-verify.log"
+    },
+    {
+      "task": "json-options",
+      "command": "bash /workspace/hegel-gap-study/json-options/verify.sh",
+      "exit_code": 0,
+      "log": "parent-verification/json-options-verify.log"
+    },
+    {
+      "task": "augur-models",
+      "command": "bash /workspace/hegel-gap-study/augur-models/verify.sh",
+      "exit_code": 0,
+      "log": "parent-verification/augur-models-verify.log"
+    },
+    {
+      "task": "augur-ledger",
+      "command": "bash /workspace/hegel-gap-study/augur-ledger/verify.sh",
+      "exit_code": 0,
+      "log": "parent-verification/augur-ledger-verify.log"
+    },
+    {
+      "task": "glitter-reconcile",
+      "command": "bash /workspace/hegel-gap-study/glitter-reconcile/verify.sh",
+      "exit_code": 0,
+      "log": "parent-verification/glitter-reconcile-verify.log"
+    }
+  ],
+  "baseline_runs": {
+    "augur_full": {
+      "exit_code": 0,
+      "tests": 196,
+      "assertions": 748
+    },
+    "glitter_full": {
+      "exit_code": 1,
+      "stage": "dependency-resolution",
+      "tests_ran": false
+    },
+    "glitter_focused": {
+      "exit_code": 0,
+      "tests": 9,
+      "assertions": 17
+    }
+  }
+}

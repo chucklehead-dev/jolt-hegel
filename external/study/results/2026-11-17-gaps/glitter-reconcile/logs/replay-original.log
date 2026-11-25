@@ -1,0 +1,8 @@
+WARNING: let already refers to: #'clojure.core/let in namespace: hegel.generator, being replaced by: #'hegel.generator/let
+"size" 3
+"order" [1 2 0]
+"permutation" :replay {:status :reproduced, :reproduced? true, :flaky? false}
+"frames" [[0 1] [1 2 0]]
+"keyed" :replay {:status :reproduced, :reproduced? true, :flaky? false}
+"lifecycle" {:depth 1, :remove? true}
+"lifecycle" :replay {:status :reproduced, :reproduced? true, :flaky? false}

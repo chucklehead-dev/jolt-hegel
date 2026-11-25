@@ -1,0 +1,2 @@
+WARNING: let already refers to: #'clojure.core/let in namespace: hegel.generator, being replaced by: #'hegel.generator/let
+{:baseline {:indices [1], :prefix "é", :expected 3, :actual {:yyjson/error :invalid, :position 3}, :recovery {"ok" [true 42 "😀"]}, :safe "éz"}, :control {:indices [1], :prefix "é", :expected 3, :actual {:yyjson/error :invalid, :position 2}, :recovery {"ok" [true 42 "😀"]}, :safe "éz", :hegel/origin "raw-nul/offset-and-recovery"}}

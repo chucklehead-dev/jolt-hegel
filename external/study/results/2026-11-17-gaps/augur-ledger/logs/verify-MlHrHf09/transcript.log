@@ -1,0 +1,30 @@
+++ timeout 120s git -C /workspace/jolt-hegel rev-parse HEAD
+++ cat hegel-sha.txt
++ test 6321d5ab485db656a48823030453bc4b2d0af1cc = 6321d5ab485db656a48823030453bc4b2d0af1cc
+++ timeout 120s git -C /workspace/pilot-targets/augur rev-parse HEAD
+++ cat target-sha.txt
++ test 58fef3f2077515c216cd7a295e4599e8579ad5bb = 58fef3f2077515c216cd7a295e4599e8579ad5bb
+++ timeout 120s /workspace/tooling/jolt/jolt --version
++ test 'jolt v0.8.27' = 'jolt v0.8.27'
++ timeout 120s /workspace/tooling/jolt/jolt -m study replay
+WARNING: let already refers to: #'clojure.core/let in namespace: hegel.generator, being replaced by: #'hegel.generator/let
+"expiry" :replay {:status :reproduced, :reproduced? true, :flaky? false}
+"benchmark" :replay {:status :reproduced, :reproduced? true, :flaky? false}
++ timeout 120s /workspace/tooling/jolt/jolt witnesses.clj
+WARNING: let already refers to: #'clojure.core/let in namespace: hegel.generator, being replaced by: #'hegel.generator/let
+:boundary-witnesses [[:register 0 0.0] [:register 1 1.0] [:resolve 0 false] [:resolve 1 true] [:register 1 0.5] [:resolve 4 false] [:register 2 0.25] [:expire 2] [:roundtrip]] :passed
+:semantic-broken-control-detected
++ timeout 120s /workspace/tooling/jolt/jolt -e '(require (quote study)) (let [r (hegel.core/run-test! {:test-cases 200 :stateful-step-count 35 :seed 414 :database "" :verbosity :normal} study/model-property)] (prn (select-keys r [:passed? :status :valid-test-cases :flaky?])) (assert (:passed? r)))'
+WARNING: let already refers to: #'clojure.core/let in namespace: hegel.generator, being replaced by: #'hegel.generator/let
+{:passed? true, :status :passed, :valid-test-cases 200, :flaky? false}
++ cd target-only
++ unset HEGEL_LIBHEGEL_LIBRARY
++ timeout 120s /workspace/tooling/jolt/jolt repro.clj
+:expiry-input {:n 2, :cap 1, :overflow? false} :state {:opts {:max-open 4, :max-rows 3, :max-keys 1, :forget 1.0, :calibration {:edges [0.02 0.05 0.1 0.15 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 0.95 1.0], :shrink 10.0, :forget 1.0}}, :open {}, :by-key {0 {:expired 1, :last 0}, 1 {:expired 1, :last 1}}, :unknown 0, :dropped-keys 0}
+:benchmark-input {:n 3, :cap 1, :p 0.0} :exception "java.lang.IllegalArgumentException: Don't know how to create ISeq from: java.lang.Double"
+:automatic-expiry {0 {:expired 1, :last 1}, 1 {:expired 1, :last 2}}
+:expiry-growth 100
+:target-only-reproduced
++ timeout 120s /workspace/tooling/jolt/jolt tests.clj
+
+Ran 7 tests. 29 assertions passed, 0 failures, 0 errors.

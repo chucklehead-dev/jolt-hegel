@@ -3,8 +3,65 @@
 Replay bundles retain native failure blobs together with a versioned property
 and deployment contract. They are not seed-only reruns. This API is additive;
 ordinary `run-test!` calls continue to work and now include `:replay-options`
-in their result, capturing present replay-relevant settings without inventing
-defaults. Transport bounds apply when exporting, not to ordinary runs.
+in their result, capturing resolved replay-relevant settings, including native profile
+defaults and explicit overrides. Transport bounds apply when exporting, not to ordinary runs.
+
+## Retaining an ordinary minimized input
+
+A structured diagnostic snapshot lives on each retained failure, for example
+`(-> result :final first :counterexample)`. It is rendered/redacted diagnostic
+data, not the original generated value. There is no top-level `:counterexample`.
+Quiet verbosity disables snapshots, but stable failure exceptions and native
+replay blobs remain available.
+
+Keep a plain input explicitly in the assertion's exception data:
+
+```clojure
+(require '[hegel.core :as h] '[hegel.generator :as g] '[hegel.report :as report])
+
+(defn bounded-property [_]
+  (let [n (h/draw! (g/integer 0 10) "n")]
+    (when (>= n 5)
+      (throw (ex-info "Expected n below five"
+                      {:hegel/origin "example/below-five" :input n})))))
+
+(def result
+  (h/run-test! {:test-cases 100 :seed 42 :database "" :verbosity :quiet}
+               bounded-property))
+
+;; For this deliberately failing, single-origin example:
+(assert (and (= :failed (:status result)) (not (:flaky? result))))
+(def minimum (-> result report/failure-fixtures first :input))
+(spit "minimum.edn" (pr-str minimum)) ; 5 for this property
+```
+
+For a differential property, keep the construction recipe and its input together.
+For example, retain `{:branches [:b :a] :row {:b false}}` when two nested
+bindings read fields of the same row. A worker on another runtime can rebuild
+the form in the recorded order. Two Clojure maps with the same entries compare
+equal even if those entries were written in opposite orders. Using those maps
+as the identities of the two forms can silently remove the case you meant to test.
+
+`report/failure-fixtures` returns a vector of `{:origin ... :input ...}`
+for reproduced failures without a caveat that explicitly captured the input.
+An absent input key yields no fixture. A present key whose value is nil or
+false yields a fixture. Pass a second argument for an application-specific
+input key. Choose EDN values your other workers can read.
+
+For multiple failures, handle each retained entry and its origin. Capture
+callbacks (`final?`/`when-final`) can execute repeatedly; reading the selected
+result avoids treating an arbitrary callback as the final minimum. A plain
+fixture can test your domain assertion directly without regenerating choices.
+The native bundle below instead reruns the property from its saved choices.
+
+Do not treat `(pr-str result)` as a replay format: exceptions can print as
+`#error` forms and result maps contain other diagnostic data. Export a validated
+bundle with the codec and keep ordinary input fixtures as separate plain data.
+For a complete executable run/export/new-process-replay example, see the
+[external pilot runner](../external/support/pilot/runner.clj) and its
+[commands](../external/README.md). Reusing it requires the independently pinned
+manifest described below; expected provenance must not come from the input
+artifact itself.
 
 ## Export and replay
 
@@ -23,7 +80,7 @@ defaults. Transport bounds apply when exporting, not to ordinary runs.
 Supply provenance from an independently recorded deployment/property manifest:
 
 - `:hegel-sha`: exact lowercase 40-character source commit SHA;
-- `:libhegel-version`: native version, currently `"0.51.6"`;
+- `:libhegel-version`: native version, currently `"0.53.2"`;
 - `:runtime`: a map requiring `:host` (`:jolt`, `:bb`, `:jvm`, `:jank`, or
   `:clr`), and nonblank `:version`, `:os`, and `:arch` strings;
 - `:property-id` and `:generator-revision`: stable nonblank identifiers;
@@ -136,6 +193,7 @@ API proposed in #56. That API still needs its own digest, completeness and
 offline-consumption contract. Types can help check these data shapes (#73),
 but neither annotations nor structural validation replaces the checks above.
 
-Blobs from 0.36.x are incompatible with 0.51.6. Keep the original runtime for
-old artifacts or regenerate failures with the new engine; do not rewrite their
-version fields. See [the migration guide](LIBHEGEL-051-MIGRATION.md).
+A bundle whose manifest names 0.51.6 fails the version check on 0.53.2.
+Replay it with the recorded deployment or rerun its original property on the
+new engine and export a new bundle. A plain EDN input fixture can be tried
+directly on either deployment. See the [upstream adoption report](UPSTREAM_ADOPTION.md).

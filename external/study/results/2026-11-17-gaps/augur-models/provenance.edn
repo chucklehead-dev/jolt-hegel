@@ -1,0 +1,1 @@
+{:hegel-sha "6321d5ab485db656a48823030453bc4b2d0af1cc" :libhegel-version "0.51.6" :runtime {:host :jolt :version "0.8.27" :os "Linux" :arch "amd64"} :generator-revision "augur-models-v1" :model-revision "independent-calibration-v1"}

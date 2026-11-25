@@ -1,0 +1,6 @@
+{:paths ["src" "../../support"]
+ :jolt/min-version "0.8.30"
+ :deps {io.github.chucklehead-dev/jolt-hegel {:local/root "../../.."}
+        io.github.jlt-commons/instaparse
+        {:git/url "https://github.com/jlt-commons/instaparse"
+         :git/sha "6105ad194ab5f52c255fe475fb20c59f0dde64e9"}}}

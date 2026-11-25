@@ -1,0 +1,64 @@
+name: External Hegel pilots
+on:
+  pull_request:
+    paths:
+      - 'external/**'
+      - 'script/check-external-pilots.py'
+      - 'src/**'
+      - 'resources/**'
+      - 'deps.edn'
+      - '.github/actions/setup-jolt/**'
+      - '.github/workflows/external-pilots.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: external-pilots-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  pilot:
+    name: External pilots / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            asset: jolt-v0.8.30-x86_64-linux.tar.gz
+            sha256: c9eb00ce9b58e6ab19dcfc324edad2ad5127bab7339e8d018ce2c30876037bdd
+          - os: macos-26
+            asset: jolt-v0.8.30-aarch64-macos.tar.gz
+            sha256: 0736bb9a3764835bdc407db81b5a442b333899752b09f8700968fc9afda85536
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/setup-jolt
+        with:
+          version: '0.8.30'
+          asset: ${{ matrix.asset }}
+          sha256: ${{ matrix.sha256 }}
+      - uses: DeLaGuardo/setup-clojure@13.7.0
+        with:
+          clj-kondo: latest
+      - name: Lint maintained pack sources
+        run: clj-kondo --fail-level warning --lint external/packs external/support external/test
+      - name: Acquire verified Hegel library
+        run: jolt -m hegel.install setup
+      - name: Verify replay rejects unrelated failures and incomplete fixtures
+        working-directory: external/packs/instaparse
+        env:
+          PILOT_HEGEL_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          PILOT_REVISION: runner-controls
+        run: jolt ../../test/pilot/runner_test.clj "$(mktemp -d)"
+      - name: Run properties, broken controls and fresh-process replay
+        run: python3 script/check-external-pilots.py
+      - name: Preserve execution and replay evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: external-pilot-${{ matrix.os }}
+          path: target/external-pilot/
+          if-no-files-found: warn
