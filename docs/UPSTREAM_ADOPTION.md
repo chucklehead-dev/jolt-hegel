@@ -10,7 +10,7 @@ below against the released 0.53.2 library. [Jolt changelog](https://github.com/j
 
 | Upstream change | Effect here |
 | --- | --- |
-| Jolt lowered the fixed cost of FFI allocation, free, confined arenas and bulk double writes. | Existing temporary allocation and cleanup paths benefit when run on the new runtime. The earlier measurements below are specific to 0.8.27. End-to-end speed on 0.8.30 has not been measured. |
+| Jolt lowered the fixed cost of FFI allocation, free, confined arenas and bulk double writes. | Existing temporary allocation and cleanup paths benefit when run on the new runtime. The allocation comparison below supports keeping explicit cleanup. End-to-end speed has not been measured. |
 | Jolt exposes the exact running build. | External pilots now record `jolt.host/build-id` in the replay manifest. Two nightlies can now disagree on provenance even if they advertise the same release version. |
 | Static linking and native regions | The Linux and macOS relocation checks now target 0.8.30. The Windows bcrypt link fix concerns static OpenSSL. Windows static libhegel still needs its own relocation test. The new `defextern` targets native numeric regions. The adapter uses aggregate structs, out parameters and managed handle lifetimes, with no measured numeric kernel to move. |
 | Hegel 0.52 changed how a frontend completes and reports a failing case. | The candidate CI job runs a failing property at quiet and normal verbosity, checks rejection and retry of an incomplete diagnostic, and reads the retained output and detail. The shipping adapter still needs to change capture, printer ownership, callbacks, completion and direct replay together. |
@@ -62,7 +62,10 @@ They are upstream improvements, not measured end-to-end speedup claims.
   microbenchmark on 0.8.27 (Linux amd64, 30,000 allocations, five samples) gave
   medians 18.63 ms for alloc/free, 72.61 ms for an arena per allocation, and
   54.99 ms for batches of 100: approximately 3.90x and 2.95x slower. This is not
-  an application benchmark; it supports retaining the current ownership model.
+  an application benchmark. On 0.8.30, five samples of 30,000 64-byte allocations
+  on Linux amd64, after warm-up and rotating measurement order, gave medians
+  of 4.02 ms for explicit alloc/free, 43.26 ms for one arena per allocation,
+  and 34.74 ms for arenas holding 100 allocations. We kept explicit cleanup.
 - **Windows packaging:** the opt-in dependency supports dynamic loading;
   a statically linked Windows distribution remains unqualified. Linux/macOS
   relocation checks remove the original source and native-library paths.
