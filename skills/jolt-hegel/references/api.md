@@ -907,8 +907,10 @@ or run-level nondeterminism has no failure blob.
 Retained diagnostic snapshots live on `:final` and `:failures` entries, not at
 the result's top level. Quiet verbosity disables snapshots; it does not erase
 retained exception data or native blobs. Attach plain `:input` to assertion
-exception data when a value fixture is needed, then read
-`(-> result :final first :exception ex-data :input)`. Do not infer the selected
+exception data when a value fixture is needed. `(hegel.report/failure-fixtures result)`
+returns one origin/input pair per confirmed failure carrying that key, including
+nil and false inputs. For generated source forms, retain an ordered construction
+recipe together with its input. Do not infer the selected
 minimum from whichever `final?` callback happened last. See
 [ordinary minimized input capture](../../../docs/REPLAY_BUNDLES.md#retaining-an-ordinary-minimized-input).
 

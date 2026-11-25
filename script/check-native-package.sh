@@ -12,10 +12,21 @@ cat > "$probe_root/app/deps.edn" <<'EDN'
  :deps {io.github.chucklehead-dev/jolt-hegel {:local/root "../library/packaging/jolt"}}}
 EDN
 cat > "$probe_root/app/src/probe.clj" <<'CLJ'
-(ns probe (:require [hegel.core :as h] [hegel.generator :as g]))
+(ns probe (:require [hegel.core :as h]
+                    [hegel.generator :as g]
+                    [hegel.report :as report]))
 (defn -main [& _]
   (assert (= [42] (h/sample 1 (g/integer 42 42))))
-  (println "PASS packaged Hegel native draw"))
+  (let [result (h/run-test!
+                {:seed 42 :database "" :test-cases 100 :verbosity :quiet}
+                (fn [_]
+                  (let [n (h/draw! (g/integer 0 10))]
+                    (when (>= n 5)
+                      (throw (ex-info "threshold" {:hegel/origin "package/threshold"
+                                                   :input n}))))))]
+    (assert (= [{:origin "package/threshold" :input 5}]
+               (report/failure-fixtures result)))
+    (println "PASS packaged Hegel draw, shrink and confirmed fixture")))
 CLJ
 unset HEGEL_LIBHEGEL_LIBRARY HEGEL_CACHE_DIR HEGEL_PROJECT_ROOT JOLT_PWD
 export JOLT_CACHE_DIR="$probe_root/cache"
