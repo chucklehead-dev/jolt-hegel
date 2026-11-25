@@ -70,7 +70,7 @@ These are case-level observations: a generator retry or discarded draw within
 an eventually valid case does not roll them back. Put final-value coverage
 events after the generator has returned when that is the intended obligation.
 
-libhegel's printed statistics cover **generation-phase** cases. Its C 0.51.6
+libhegel's printed statistics cover **generation-phase** cases. Its C 0.53.2
 ABI does not expose the native subphase of each returned test case. Therefore:
 
 - An explicitly configured `:phases [:generate]` run has frontend scope

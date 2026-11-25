@@ -227,17 +227,17 @@
          (apply str
                 (map (fn [[type-id _]]
                        (str "struct " (cpp-type-name type-id) ";\n"))
-                     opaque-types))
+                     (concat opaque-types struct-types)))
          "\n"
-         (str/join "\n\n"
-                   (map (fn [[type-id type-descriptor]]
-                          (struct-declaration descriptor type-id type-descriptor))
-                        struct-types))
-         "\n\n"
          (str/join "\n"
                    (map (fn [[type-id type-descriptor]]
                           (function-pointer-declaration descriptor type-id type-descriptor))
                         callback-types))
+         "\n\n"
+         (str/join "\n\n"
+                   (map (fn [[type-id type-descriptor]]
+                          (struct-declaration descriptor type-id type-descriptor))
+                        struct-types))
          "\n\n"
          (str/join "\n"
                    (map (fn [[function-id function]]

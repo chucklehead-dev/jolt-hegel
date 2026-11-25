@@ -6,6 +6,16 @@ for v0.1.0 through v0.4.0, see the tag and release history in that repository.
 
 ## Unreleased
 
+- Upgrade to libhegel 0.53.2. Stateful sampled invariants now run with at
+  least 1% probability even when the step budget is very large. Shrinking
+  abandons a mutation after five consecutive continuations run out of data.
+- Generate times and datetimes at a requested precision, including milliseconds
+  and nanoseconds. Restrict a date to selected weekdays and months. Existing
+  generators keep their microsecond default. Draw UTC instants as portable
+  epoch-second/nanosecond maps with `g/timestamp`. See the [temporal examples](docs/UPSTREAM_ADOPTION.md#calendar-and-clock-properties).
+- Extract confirmed inputs with `hegel.report/failure-fixtures`. Each entry
+  records the failure origin and explicit input, including nil and false.
+
 - Add `g/grammar`, a Clojure data DSL for native grammar string generation and
   shrinking, plus pure `hegel.grammar/compile` for inspection. Validate references,
   operators, bounds, Unicode ranges and nonproductive rules with data paths.
@@ -24,31 +34,32 @@ for v0.1.0 through v0.4.0, see the tag and release history in that repository.
   See the [adoption report](docs/UPSTREAM_ADOPTION.md) for inherited engine fixes
   and remaining platform/API work.
 
-- Migrate fully to libhegel 0.51.6 from the new `hegeldev/hegel` monorepo:
+- Migrate through libhegel 0.51.6 from the new `hegeldev/hegel` monorepo:
   audit all 159 C functions, regenerate jank/CLR bindings, use length-delimited
   UTF-8 views and aggregate returns, and adopt the state-machine builder API.
   Saved native blobs and databases are version-specific; regenerate old failures.
+- Retain native `:output` and `:diagnostic` on reported failures. Quiet runs
+  preserve the original exception and any explicit fixture input.
 - Drive native capture/confirmation and blob replay runs. `final?`, `when-final`
   and `fprn` now follow native capture requests, which can occur repeatedly;
   final result diagnostics and clojure.test reports select the retained failure.
   Add `:stop-on-first-failure?`, `:nondeterminism-strictness` and native caveats.
   Regex generators accept embedded NUL alongside Unicode text.
 - Raise the JVM minimum to JDK 25 and use released `org.babashka/ffi` 0.1.3.
-  Qualify Babashka 1.13.229, update Malli to 0.20.3, Typed Clojure to 1.4.0
+  Qualify Babashka 1.13.230, update Malli to 0.20.3, Typed Clojure to 1.4.0
   with explicit namespace opt-in and structured error controls, ClojureCLR to
   1.12.6, and refresh the signed-index jank package pin. These changes are for
   the next release; published v0.5.0 is unchanged. See the
   [migration guide](docs/LIBHEGEL-051-MIGRATION.md).
 
-- Qualify current `main` with official checksum-pinned Jolt 0.8.27 assets on
+- Qualify the development checkout with official checksum-pinned Jolt 0.8.30 assets on
   Linux x86_64, Windows x86_64, and macOS arm64 while retaining a full Jolt
   0.8.1 Linux compatibility-floor lane. Release verification uses the same
-  0.8.27 pins. The published v0.5.0/Jolt 0.7.23 contract is unchanged, and a
+  0.8.30 pins. The published v0.5.0/Jolt 0.7.23 contract is unchanged, and a
   current-release arena remeasurement continues to reject a fresh arena per
   temporary-allocation wrapper.
 
-- Route labelled draws and `note!` through libhegel's caller-owned test-case
-  printer, with native speculative rollback for rejected filters, duplicate
+- Record labelled draws and `note!` in the native test-case document, with native speculative rollback for rejected filters, duplicate
   vector/set/map candidates, and recursive retries. Final failures now retain
   a bounded structured `:counterexample` snapshot. Redaction precedes custom
   rendering; raw drawn values are not retained, whole entries are bounded

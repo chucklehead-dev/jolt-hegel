@@ -7,7 +7,7 @@
 (defn descriptor [] (edn/read-string (slurp "resources/hegel/abi.edn")))
 
 (deftest exact-header-contract
-  (is (= {:functions 159 :structs 6 :opaque-handles 18 :callbacks 1}
+  (is (= {:functions 233 :structs 19 :opaque-handles 23 :callbacks 5}
          (check/check! (header/snapshot) (descriptor)))))
 
 (deftest independent-signature-and-field-mutations
@@ -47,7 +47,7 @@
           (is (not= (:header failure) (:descriptor failure))))))
     ;; Adjacent valid control: ownership metadata is intentionally not guessed
     ;; from C signatures and does not alter this signature comparison.
-    (is (= 159 (:functions (check/check! snapshot
+    (is (= 233 (:functions (check/check! snapshot
                                         (assoc-in original
                                                   [:functions :context-new :review-note]
                                                   "non-ABI metadata")))))))

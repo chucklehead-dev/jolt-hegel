@@ -1,17 +1,17 @@
 (ns hegel.libhegel-upgrade-test
-  "Focused libhegel v0.51.6 regression checks. Run only with the verified
+  "Focused libhegel v0.53.2 regression checks. Run only with the verified
   upgrade asset selected by HEGEL_LIBHEGEL_LIBRARY."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.edn :as edn]
+            [clojure.test :refer [deftest is testing]]
             [hegel.core :as h]
             [hegel.ffi :as hffi]
             [hegel.generator :as g]
             [hegel.stateful :as hs]))
 
-;; Generated with libhegel v0.51.6 (release tag libhegel/0.51.6, commit a692822), seed 1, and the
-;; exact property below.  It is deliberately not a migration claim for the
-;; historical v0.32.3 blob in test/fixtures/hegel-0.32.3.
-(def ^:private v0516-step-51-blob
-  "AXic7cexEQAACMJA07r/Wu6kNsxAAQWXn7o1/4AyCEywH4wD1g==")
+;; Generated independently with the released C library and a one-rule state
+;; machine. The native choices for this property still encode identically.
+(def ^:private step-51-blob
+  (:reproduction-blob (edn/read-string (slurp "test/fixtures/hegel-0.53.2/step-51.edn"))))
 
 (defn- step-51-machine []
   {:initial-state {:count 0}
@@ -24,7 +24,7 @@
       (let [settings (hffi/settings-new! context)]
         (try
           (let [handle (hffi/test-case-from-blob! context settings
-                                                  v0516-step-51-blob)
+                                                  step-51-blob)
                 test-case (h/->TestCase context handle true :quiet)]
             (try
               (binding [h/*test-case* test-case
@@ -171,7 +171,7 @@
     (is (zero? @starts))
     (is (= 1 @frees))))
 
-(deftest v0516-seeded-generation-and-replay-preserve-a-51-step-property-failure
+(deftest seeded-generation-and-replay-preserve-a-51-step-property-failure
   (let [result (h/run-test! {:test-cases 1
                              :stateful-step-count 52
                              :seed 1
@@ -181,10 +181,10 @@
         failure (first (:failures result))
         direct-52 (replay-step-51 52)
         direct-50 (replay-step-51 50)]
-    (testing "the recorded v0.51.6 seed produces the bounded property failure"
+    (testing "the recorded v0.53.2 seed produces the bounded property failure"
       (is (false? (:passed? result)))
       (is (= :failed (:status result)))
-      (is (= v0516-step-51-blob (:reproduction-blob failure)))
+      (is (= step-51-blob (:reproduction-blob failure)))
       (is (true? (:reproduced? failure)))
       (is (property-failure-at-51? (:exception failure))))
     (testing "direct replay with the recorded budget is the same property failure"
@@ -195,7 +195,7 @@
       (is (= {:count 50} (:value direct-50)))
       (is (not (property-failure-at-51? (:error direct-50)))))))
 
-(deftest v0516-stateful-step-count-has-a-seeded-positive-variation-control
+(deftest stateful-step-count-has-a-seeded-positive-variation-control
   (doseq [step-count (range 1 8)]
     (let [observations (atom [])
           result (h/run-test! {:test-cases 48
@@ -229,7 +229,7 @@
         (when (> step-count 1)
           (is (some #(< % step-count) lengths)))))))
 
-(deftest v0516-one-valid-case-retains-a-shrunk-drawn-property-failure
+(deftest one-valid-case-retains-a-shrunk-drawn-property-failure
   (let [first-value (atom nil)
         result (h/run-test! {:test-cases 1
                              ;; This seed is pinned after the focused probe to
@@ -256,7 +256,7 @@
     (is (true? (:reproduced? failure)))
     (is (= :interesting (:status failure)))))
 
-(deftest v0516-raw-aggregate-time-and-datetime-preserve-nanoseconds
+(deftest raw-aggregate-time-and-datetime-preserve-nanoseconds
   (let [time-minimum {:hour 0 :minute 0 :second 0 :nanosecond 0}
         time-fixed {:hour 14 :minute 30 :second 15 :nanosecond 123456789}
         time-maximum {:hour 23 :minute 59 :second 59 :nanosecond 999999999}
@@ -267,8 +267,7 @@
                              :verbosity :quiet}
                             (fn [test-case]
                               ;; Call the aggregate FFI directly: public
-                              ;; generators intentionally project to
-                              ;; microseconds after this boundary.
+                              ;; generators default to microsecond precision.
                               (swap! seen conj
                                      {:minimum
                                       (hffi/generate-time!
@@ -307,7 +306,7 @@
     (+ (upgrade-tree-leaves (second tree))
        (upgrade-tree-leaves (nth tree 2)))))
 
-(deftest v0516-recursion-spans-a-meaningful-fraction-of-its-leaf-budget
+(deftest recursion-spans-a-meaningful-fraction-of-its-leaf-budget
   (let [leaf-counts (atom [])
         result (h/run-test! {:test-cases 160 :seed 20260906 :database ""
                              :verbosity :quiet}
@@ -336,7 +335,7 @@
      (h/draw! (g/vector {:size 10} (g/integer 0 100)))
      (transition state))))
 
-(deftest v0516-stateful-shrinking-deletes-a-redundant-draw-heavy-step-region
+(deftest stateful-shrinking-deletes-a-redundant-draw-heavy-step-region
   (let [discovered-traces (atom [])
         result (h/run-test!
                 {:test-cases 240 :seed 20260907 :database "" :verbosity :quiet}
@@ -376,7 +375,7 @@
     (when (pos? (+ fail error))
       (throw (ex-info "libhegel upgrade regression failed" {:fail fail :error error})))))
 
-(deftest v0516-budget-can-continue-after-the-first-failure
+(deftest budget-can-continue-after-the-first-failure
   (let [run (fn [stop?]
               (let [generation-calls (atom 0)
                     result (h/run-test!
@@ -395,12 +394,12 @@
       (is (= 1 (:n-failures result)))
       (is (true? (get-in result [:failures 0 :reproduced?]))))))
 
-(deftest v0516-length-delimited-regex-preserves-nul-and-multibyte-text
+(deftest length-delimited-regex-preserves-nul-and-multibyte-text
   (let [text "a\u0000😀é"
         values (h/sample 5 (g/regex-str text))]
     (is (= (repeat 5 text) values))))
 
-(deftest v0516-context-diagnostic-is-a-borrowed-struct-return
+(deftest context-diagnostic-is-a-borrowed-struct-return
   (let [ctx (hffi/context-new!)]
     (try
       (let [error (caught-error #(hffi/string-generator-regex! ctx "[" true))]
@@ -409,7 +408,7 @@
         (is (seq (:diagnostic (ex-data error)))))
       (finally (hffi/context-free! ctx)))))
 
-(deftest v0516-span-labels-match-native-name-hashes
+(deftest span-labels-match-native-name-hashes
   ;; These constants avoid an FFI call per generator draw. Check them against
   ;; the native algorithm, rather than copying a second table of numbers.
   (let [ctx (hffi/context-new!)]

@@ -202,9 +202,9 @@
       (throw (ex-info "Clojure grammar DSL smoke failed" {:value value})))
     (println "PASS Clojure grammar DSL and Unicode literals"))
   (let [report (abi/backend-report)]
-    (require! "canonical ABI coverage is 159/159"
+    (require! "canonical ABI coverage is 233/233"
               (and (:supported? report)
-                   (= {:supported 159 :unsupported 0 :total 159}
+                   (= {:supported 233 :unsupported 0 :total 233}
                       (:summary report)))
               {:report report}))
   (check-primitive-and-composite-generators!)

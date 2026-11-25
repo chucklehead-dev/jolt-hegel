@@ -47,7 +47,7 @@
       (throw (ex-info "pass the absolute libhegel library path"
                       {:type ::missing-library-path})))
     (backend/load! library-path))
-  (println "jank backend smoke: library and 159 symbols loaded")
+  (println "jank backend smoke: library and 233 symbols loaded")
   (let [memory (backend/alloc 32)
         pointee (backend/alloc 8)]
     (try
@@ -77,6 +77,7 @@
         settings-set-test-cases (backend/function :settings-set-test-cases)
         run-start (backend/function :run-start)
         run-free (backend/function :run-free)
+        output-callback ((backend/function :output-stderr-callback))
         next-test-case (backend/function :next-test-case)
         test-case-free (backend/function :test-case-free)
         generate-integer (backend/function :generate-integer)
@@ -92,7 +93,8 @@
     (try
       (require! "test-case count configured"
                 (zero? (settings-set-test-cases context settings 1)))
-      (let [run (call-out :pointer #(run-start context settings backend/null backend/null %))]
+      (require! "native output callback pointer" (not (backend/null? output-callback)))
+      (let [run (call-out :pointer #(run-start context settings output-callback backend/null %))]
         (try
           (let [test-case (call-out :pointer #(next-test-case context run %))]
             (try
@@ -142,14 +144,14 @@
                       (backend/write-field pointer datetime-layout
                                            [:time field] (get fixed-time field))))
                   (require! "date struct passed by value"
-                            (and (zero? (generate-date context test-case min-date max-date date-out))
+                            (and (zero? (generate-date context test-case min-date max-date backend/null date-out))
                                  (= fixed-date (read-date date-out date-layout []))))
                   (require! "time struct passed by value"
-                            (and (zero? (generate-time context test-case min-time max-time time-out))
+                            (and (zero? (generate-time context test-case min-time max-time 0 time-out))
                                  (= fixed-time (read-time time-out time-layout []))))
                   (require! "nested datetime struct passed by value"
                             (and (zero? (generate-datetime context test-case
-                                                           min-datetime max-datetime datetime-out))
+                                                           min-datetime max-datetime 0 datetime-out))
                                  (= fixed-date (read-date datetime-out datetime-layout [:date]))
                                  (= fixed-time (read-time datetime-out datetime-layout [:time]))))
                   (finally

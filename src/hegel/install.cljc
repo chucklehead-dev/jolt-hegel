@@ -17,31 +17,31 @@
 (def ^:private libhegel-assets
   {[:linux "amd64"]
    {:name "libhegel-linux-amd64.so"
-    :sha256 "0f76c0f11e1a1a044b7921e9c16ac8d51ae91878a1fd5c3e19b0f6b4eaebfaf0"}
+    :sha256 "ce6cc514aac3d2c6e557bf9520b3af6280b3bb735a4d736e882d0344b1476bd2"}
 
    [:linux "arm64"]
    {:name "libhegel-linux-arm64.so"
-    :sha256 "f7222179a300def794c82ad9d80050b6d45197b6f77d0e17087ca1ae07203b23"}
+    :sha256 "b5b95a80af4bdee0e70b7dc89428bde13c1afa8e21a17374cfcbd45ea986115b"}
 
    [:darwin "arm64"]
    {:name "libhegel-darwin-arm64.dylib"
-    :sha256 "81029db7c270fe110fb039bfd249b95d07d9862f0de796cfb3ec132ca7ec8528"}
+    :sha256 "bc1956d1514ad95dbe8099bf785a142f3b99de47cd26838a4ad9af4358217975"}
 
    [:windows "amd64"]
    {:name "libhegel-windows-amd64.dll"
-    :sha256 "cb44773bafe1744b0c5eb8bd1aced1e5ee472f33d648165c4834fe8d7b73fe87"}
+    :sha256 "b545b523a52b2ab0737f2f8cc8df36950042991d5e45263860465319d00d9acc"}
 
    [:windows "arm64"]
    {:name "libhegel-windows-arm64.dll"
-    :sha256 "bf48152fdd1ab307b4c14341b7d6c598b82b6661a53e29c6675c80617af1a65b"}})
+    :sha256 "79768b1d171da6255af082fdafc5817d2e9ea0b984eb27dce746d2888435de57"}})
 
 (def ^:private libhegel-static-assets
   {[:linux "amd64"] {:name "libhegel-linux-amd64.a"
-                     :sha256 "3971bc69181387315639d42bcf30744de8bd16f0f973b419d7fcbfaf8f76e638"}
+                     :sha256 "8099b23baafdf1fc2efe01979d9795e1effa43db9cad4182ffff934b14a4e0cb"}
    [:linux "arm64"] {:name "libhegel-linux-arm64.a"
-                     :sha256 "9a7be794a4dae568f5a5f8984e985fba4fe41bcca21903864a9027d157e6e9b0"}
+                     :sha256 "5bfc734c01fe1720c50393a0bf0686a0d5f95534d49a51d8a6e965c599858903"}
    [:darwin "arm64"] {:name "libhegel-darwin-arm64.a"
-                      :sha256 "7ae388ae772f7787abfa4b79057436011905feb463d97cbd16e8ea57317a4aaf"}})
+                      :sha256 "4afe8a37bad7ae3ae105293d8900ef2037f885e52fbb92a49d7306426e6869b8"}})
 
 (def ^:private jolt? (= :jolt (host/runtime)))
 

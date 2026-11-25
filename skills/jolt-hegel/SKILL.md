@@ -9,18 +9,15 @@ Use jolt-hegel to write property-based and model-based tests on Jolt,
 Babashka, or JVM Clojure. The public API and behavioral contract are shared;
 runtime choice affects installation and native diagnostics, not property code.
 
-The guidance was reviewed on 2026-11-16 against source baseline
-`8179cb83eda81c708dc834ee38647f2354fe3d55` (libhegel 0.51.6, including the
-Clojure grammar DSL), with the external-pilot findings incorporated afterward.
-These additions target the next release, not published v0.5.0. Current source
+This guidance targets the development checkout with libhegel 0.53.2. The
+published v0.5.0 tag records the contract for that release. Current source
 supports Jolt 0.8.1+ (0.8.30 is primary), FFI-capable Babashka 1.13.220+
 (1.13.230 is primary), and JVM Clojure on JDK 25+ with babashka.ffi 0.1.3.
 The historical v0.5.0 Jolt floor is 0.7.23.
 
 Check `hegel.version/libhegel-version` and the migration guide before changing
-native dependencies. The 0.51.6 migration changes capture/replay and the native
-ABI; older native blobs/databases must be regenerated or used with their
-original deployment. Do not rewrite their provenance to imply compatibility.
+native dependencies. A saved replay bundle requires the engine and deployment in its manifest.
+Replay an old failure there or generate a fresh bundle on 0.53.2.
 
 jank and ClojureCLR implementations are merged but experimental. Do not select
 one for a consumer merely because its source branch exists: first read
@@ -60,7 +57,7 @@ aliases to the consuming project, so activate the alias that contains the
 dependency when running the installer.
 
 ```bash
-# Current `main` / next release candidate: Jolt 0.8.1+ (0.8.30 is the primary CI release)
+# Development checkout: Jolt 0.8.1+ (0.8.30 is the primary CI release)
 jolt -A:test -m hegel.install
 
 # Babashka 1.13.220+ with libffi (on Linux, do not use the -static asset)
@@ -192,11 +189,11 @@ and flaky verdicts throw `::h/sample-failed` with the complete run result and
 original cause data instead of returning a partial sample. Usage, setup, and
 native harness exceptions from `run-test!` propagate directly.
 
-Public `g/time` and `g/datetime` retain microsecond bounds and six-digit
-fractional strings with libhegel 0.36. Raw FFI time maps instead use
-nanoseconds. The generator adapter rounds native sub-microsecond precision
-down; do not reject those native draws or reinterpret a microsecond value as
-nanoseconds. Native upgrades may change seed streams and reproduction blobs.
+`g/time` and `g/datetime` draw on the requested `:precision` grid.
+The default is `:microseconds`. Use `:milliseconds` for a clock that records
+whole milliseconds, or `:nanoseconds` to exercise distinct values within a
+microsecond. `g/date` accepts `:weekdays` and `:months` within its inclusive bounds. Use `g/timestamp` for comparable
+UTC instant maps across hosts.
 
 Use `g/recursive` for trees, ASTs, nested workflows, and recursive documents.
 Pass a leaf generator plus a branch function that consumes the supplied

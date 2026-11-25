@@ -486,9 +486,11 @@
     (support/check! context "normal verbosity emits only the final-replay counterexample text"
            (and (not (:passed? result))
                 (str/includes? output ":x 500")
-                (str/includes? output "checking 500")))
+                (= 1 (count (re-seq #"checking 500" output)))))
     (support/check! context "the final replay snapshot is attached to the failure and to public-final"
-           (and (map? (:counterexample failure))
+           (and (= (str (:output failure) "\n") (:text (:counterexample failure)))
+                (str/includes? (:diagnostic failure) "threshold violated")
+                (map? (:counterexample failure))
                 (string? (:text (:counterexample failure)))
                 (str/includes? (:text (:counterexample failure)) "checking 500")
                 (= (:counterexample failure)
@@ -514,7 +516,10 @@
     (support/check! context "quiet verbosity emits nothing to stderr"
            (= "" output))
     (support/check! context "quiet verbosity produces no counterexample snapshot"
-           (nil? (:counterexample (first (:failures result)))))))
+           (let [failure (first (:failures result))]
+             (and (:reproduced? failure) (:exception failure)
+                  (nil? (:counterexample failure))
+                  (nil? (:output failure)) (nil? (:diagnostic failure)))))))
 
 (defn- counterexample-draw-and-note-ordering [context]
   (let [result (h/run-test!
@@ -633,7 +638,7 @@
                      entries)))))
   (let [[result _output]
         (capture-err
-         #(with-redefs [hffi/printer-value!
+         #(with-redefs [hffi/failure-output!
                         (fn [& _]
                           (throw (ex-info "mocked native read failure" {})))]
             (h/run-test!
@@ -654,6 +659,7 @@
     (support/check! context "counterexample diagnostics remain capped when final native extraction also fails"
            (and (= "hegel.test-runner:bounded-counterexample-errors"
                    (:origin failure))
+                (nil? (-> failure :counterexample :text))
                 (= 16 (count (-> failure :counterexample :errors)))))))
 
 (defn- counterexample-cleanup-order [context]
@@ -736,7 +742,10 @@
              (h/draw! (g/filter #(= 3 %) source) :filtered))))
         notes (mapv :text (filter #(= :note (:kind %)) (:entries snapshot)))]
     (support/check! context "filter rendering retains only the accepted attempt"
-           (= ["filter-attempt 3\n"] notes)))
+           (and (= ["filter-attempt 3\n"] notes)
+                (str/includes? (:text snapshot) "filter-attempt 3")
+                (not (str/includes? (:text snapshot) "filter-attempt 1"))
+                (not (str/includes? (:text snapshot) "filter-attempt 2")))))
   (doseq [[kind build]
           [[:vector (fn [source] (g/vector {:size 2 :unique? true} source))]
            [:set (fn [source] (g/set {:size 2} source))]]]

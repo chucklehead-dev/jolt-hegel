@@ -664,7 +664,7 @@
               (reset! completed {:left (dissoc left-result :error)
                                  :right right-result
                                  :route :collect-safe
-                                 :native-capture? (hffi/test-case-should-capture? root-context root-handle)})
+                                 :wants-output? (hffi/test-case-wants-output? root-context root-handle)})
               ;; Throw only after every worker has returned. run-test! records
               ;; the user-shaped failure; libhegel subsequently reports its
               ;; confirmed failure through the ordinary native replay protocol.

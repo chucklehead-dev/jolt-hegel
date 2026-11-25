@@ -46,11 +46,11 @@ jobs:
           - name: Linux x86_64
             runner: ubuntu-24.04
             library-name: libhegel_c.so
-            library-sha256: 0f76c0f11e1a1a044b7921e9c16ac8d51ae91878a1fd5c3e19b0f6b4eaebfaf0
+            library-sha256: ce6cc514aac3d2c6e557bf9520b3af6280b3bb735a4d736e882d0344b1476bd2
           - name: macOS arm64
             runner: macos-26
             library-name: libhegel_c.dylib
-            library-sha256: 81029db7c270fe110fb039bfd249b95d07d9862f0de796cfb3ec132ca7ec8528
+            library-sha256: bc1956d1514ad95dbe8099bf785a142f3b99de47cd26838a4ad9af4358217975
 
     env:
       HEGEL_CACHE_DIR: ${{ github.workspace }}/.hegel-lib

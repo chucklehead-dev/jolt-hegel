@@ -23,10 +23,39 @@ public struct HegelDate
 }
 
 [StructLayout(LayoutKind.Sequential)]
+public struct HegelDuration
+{
+    public long Seconds;
+    public int Nanoseconds;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct HegelOffset
+{
+    public int Seconds;
+    public byte Known;
+}
+
+[StructLayout(LayoutKind.Sequential)]
 public struct HegelPrinterValueResult
 {
     public IntPtr Data;
     public nuint Len;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct HegelSpan
+{
+    public long Years;
+    public long Months;
+    public long Weeks;
+    public long Days;
+    public long Hours;
+    public long Minutes;
+    public long Seconds;
+    public long Milliseconds;
+    public long Microseconds;
+    public long Nanoseconds;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -46,10 +75,112 @@ public struct HegelTime
 }
 
 [StructLayout(LayoutKind.Sequential)]
+public struct HegelTimestamp
+{
+    public long Second;
+    public uint Nanosecond;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct HegelZoneOracle
+{
+    public IntPtr OffsetAt;
+    public IntPtr NextTransition;
+    public IntPtr UserData;
+    public int FirstYear;
+    public int LastYear;
+    public uint After;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct HegelZoneRuleDate
+{
+    public uint Kind;
+    public ushort Day;
+    public byte Month;
+    public byte Week;
+    public byte Weekday;
+    public int Time;
+}
+
+[StructLayout(LayoutKind.Sequential)]
 public struct HegelDatetime
 {
     public HegelDate Date;
     public HegelTime Time;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct HegelTimezoneInfo
+{
+    public byte Known;
+    public HegelString PrimaryName;
+    public byte IsLink;
+    public ushort Rank;
+    public uint Tags;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct HegelTimezoneOffset
+{
+    public int OffsetSeconds;
+    public byte OffsetKnown;
+    public byte IsDst;
+    public HegelString Abbreviation;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct HegelTimezoneResolution
+{
+    public int Kind;
+    public int OffsetBefore;
+    public int OffsetAfter;
+    public int OffsetSeconds;
+    public byte OffsetKnown;
+    public HegelTimestamp Timestamp;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct HegelZoneType
+{
+    public int Utoff;
+    public byte IsDst;
+    public HegelString Abbreviation;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct HegelZoneData
+{
+    public HegelZoneType Initial;
+    public IntPtr Transitions;
+    public nuint TransitionCount;
+    public uint After;
+    public HegelZoneType Standard;
+    public byte HasDst;
+    public HegelZoneType Dst;
+    public HegelZoneRuleDate DstStart;
+    public HegelZoneRuleDate DstEnd;
+    public int LastYear;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct HegelZoneTransition
+{
+    public long Instant;
+    public HegelZoneType LocalType;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct HegelZonedDatetime
+{
+    public HegelDatetime Civil;
+    public int OffsetSeconds;
+    public byte OffsetKnown;
+    public byte Fold;
+    public int Kind;
+    public int OffsetBefore;
+    public int OffsetAfter;
+    public HegelTimestamp Timestamp;
 }
 
 internal static partial class NativeMethods
@@ -80,6 +211,26 @@ internal static partial class NativeMethods
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial IntPtr ContextNew();
 
+    [LibraryImport(LibraryName, EntryPoint = "hegel_context_set_error")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int ContextSetError(IntPtr arg0, HegelString arg1);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_date_options_free")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int DateOptionsFree(IntPtr arg0, IntPtr arg1);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_date_options_new")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int DateOptionsNew(IntPtr arg0, IntPtr arg1);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_date_options_set_months")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int DateOptionsSetMonths(IntPtr arg0, IntPtr arg1, uint arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_date_options_set_weekdays")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int DateOptionsSetWeekdays(IntPtr arg0, IntPtr arg1, uint arg2);
+
     [LibraryImport(LibraryName, EntryPoint = "hegel_event")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int Event(IntPtr arg0, IntPtr arg1, HegelString arg2);
@@ -92,6 +243,10 @@ internal static partial class NativeMethods
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int FailureCaveat(IntPtr arg0, IntPtr arg1, IntPtr arg2);
 
+    [LibraryImport(LibraryName, EntryPoint = "hegel_failure_diagnostic")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int FailureDiagnostic(IntPtr arg0, IntPtr arg1, IntPtr arg2);
+
     [LibraryImport(LibraryName, EntryPoint = "hegel_failure_free")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int FailureFree(IntPtr arg0, IntPtr arg1);
@@ -100,9 +255,45 @@ internal static partial class NativeMethods
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int FailureOrigin(IntPtr arg0, IntPtr arg1, IntPtr arg2);
 
+    [LibraryImport(LibraryName, EntryPoint = "hegel_failure_output")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int FailureOutput(IntPtr arg0, IntPtr arg1, IntPtr arg2);
+
     [LibraryImport(LibraryName, EntryPoint = "hegel_failure_reproduction_blob")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int FailureReproductionBlob(IntPtr arg0, IntPtr arg1, IntPtr arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_format_date")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int FormatDate(IntPtr arg0, HegelDate arg1, IntPtr arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_format_datetime")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int FormatDatetime(IntPtr arg0, HegelDatetime arg1, IntPtr arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_format_duration")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int FormatDuration(IntPtr arg0, HegelDuration arg1, IntPtr arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_format_offset")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int FormatOffset(IntPtr arg0, HegelOffset arg1, IntPtr arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_format_span")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int FormatSpan(IntPtr arg0, IntPtr arg1, IntPtr arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_format_time")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int FormatTime(IntPtr arg0, HegelTime arg1, IntPtr arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_format_timestamp")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int FormatTimestamp(IntPtr arg0, HegelTimestamp arg1, IntPtr arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_format_zoned_datetime")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int FormatZonedDatetime(IntPtr arg0, IntPtr arg1, HegelString arg2, IntPtr arg3);
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_generate_boolean")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
@@ -118,11 +309,15 @@ internal static partial class NativeMethods
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_generate_date")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial int GenerateDate(IntPtr arg0, IntPtr arg1, HegelDate arg2, HegelDate arg3, IntPtr arg4);
+    internal static partial int GenerateDate(IntPtr arg0, IntPtr arg1, HegelDate arg2, HegelDate arg3, IntPtr arg4, IntPtr arg5);
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_generate_datetime")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial int GenerateDatetime(IntPtr arg0, IntPtr arg1, HegelDatetime arg2, HegelDatetime arg3, IntPtr arg4);
+    internal static partial int GenerateDatetime(IntPtr arg0, IntPtr arg1, HegelDatetime arg2, HegelDatetime arg3, uint arg4, IntPtr arg5);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_generate_duration")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int GenerateDuration(IntPtr arg0, IntPtr arg1, HegelDuration arg2, HegelDuration arg3, uint arg4, IntPtr arg5);
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_generate_float")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
@@ -148,17 +343,41 @@ internal static partial class NativeMethods
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int GenerateIpv6(IntPtr arg0, IntPtr arg1, IntPtr arg2);
 
+    [LibraryImport(LibraryName, EntryPoint = "hegel_generate_offset")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int GenerateOffset(IntPtr arg0, IntPtr arg1, int arg2, int arg3, uint arg4, byte arg5, IntPtr arg6);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_generate_span")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int GenerateSpan(IntPtr arg0, IntPtr arg1, IntPtr arg2, IntPtr arg3);
+
     [LibraryImport(LibraryName, EntryPoint = "hegel_generate_string")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int GenerateString(IntPtr arg0, IntPtr arg1, IntPtr arg2, IntPtr arg3);
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_generate_time")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial int GenerateTime(IntPtr arg0, IntPtr arg1, HegelTime arg2, HegelTime arg3, IntPtr arg4);
+    internal static partial int GenerateTime(IntPtr arg0, IntPtr arg1, HegelTime arg2, HegelTime arg3, uint arg4, IntPtr arg5);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_generate_timestamp")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int GenerateTimestamp(IntPtr arg0, IntPtr arg1, HegelTimestamp arg2, HegelTimestamp arg3, uint arg4, IntPtr arg5);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_generate_timezone")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int GenerateTimezone(IntPtr arg0, IntPtr arg1, IntPtr arg2, IntPtr arg3);
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_generate_uuid")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int GenerateUuid(IntPtr arg0, IntPtr arg1, byte arg2, byte arg3, IntPtr arg4);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_generate_zoned_datetime")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int GenerateZonedDatetime(IntPtr arg0, IntPtr arg1, IntPtr arg2, IntPtr arg3, IntPtr arg4, IntPtr arg5);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_generate_zoned_datetime_for_zone")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int GenerateZonedDatetimeForZone(IntPtr arg0, IntPtr arg1, IntPtr arg2, HegelString arg3, IntPtr arg4, IntPtr arg5);
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_grammar_builder_file")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
@@ -218,7 +437,7 @@ internal static partial class NativeMethods
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_mark_complete")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial int MarkComplete(IntPtr arg0, IntPtr arg1, uint arg2, IntPtr arg3);
+    internal static partial int MarkComplete(IntPtr arg0, IntPtr arg1, uint arg2, IntPtr arg3, IntPtr arg4, IntPtr arg5);
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_new_collection")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
@@ -247,6 +466,14 @@ internal static partial class NativeMethods
     [LibraryImport(LibraryName, EntryPoint = "hegel_note")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int Note(IntPtr arg0, IntPtr arg1, HegelString arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_output_stderr")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial void OutputStderr(IntPtr arg0, IntPtr arg1, nuint arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_output_stderr_callback")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial IntPtr OutputStderrCallback();
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_owned_string_free")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
@@ -444,6 +671,10 @@ internal static partial class NativeMethods
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int SetDefaultProfile(IntPtr arg0, HegelString arg1);
 
+    [LibraryImport(LibraryName, EntryPoint = "hegel_set_default_zone_source")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int SetDefaultZoneSource(IntPtr arg0, IntPtr arg1);
+
     [LibraryImport(LibraryName, EntryPoint = "hegel_set_unicode_version")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int SetUnicodeVersion(IntPtr arg0, HegelString arg1);
@@ -588,6 +819,26 @@ internal static partial class NativeMethods
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int SettingsSetVerbosity(IntPtr arg0, IntPtr arg1, uint arg2);
 
+    [LibraryImport(LibraryName, EntryPoint = "hegel_span_spec_free")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int SpanSpecFree(IntPtr arg0, IntPtr arg1);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_span_spec_new")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int SpanSpecNew(IntPtr arg0, IntPtr arg1);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_span_spec_set_sign")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int SpanSpecSetSign(IntPtr arg0, IntPtr arg1, uint arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_span_spec_set_unit_bounds")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int SpanSpecSetUnitBounds(IntPtr arg0, IntPtr arg1, uint arg2, long arg3, long arg4);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_span_spec_validate")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int SpanSpecValidate(IntPtr arg0, IntPtr arg1);
+
     [LibraryImport(LibraryName, EntryPoint = "hegel_start_span")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int StartSpan(IntPtr arg0, IntPtr arg1, ulong arg2);
@@ -680,17 +931,193 @@ internal static partial class NativeMethods
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int TestCaseSetWorker(IntPtr arg0, IntPtr arg1, long arg2);
 
-    [LibraryImport(LibraryName, EntryPoint = "hegel_test_case_should_capture")]
+    [LibraryImport(LibraryName, EntryPoint = "hegel_test_case_wants_detail")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial int TestCaseShouldCapture(IntPtr arg0, IntPtr arg1, IntPtr arg2);
+    internal static partial int TestCaseWantsDetail(IntPtr arg0, IntPtr arg1, IntPtr arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_test_case_wants_output")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int TestCaseWantsOutput(IntPtr arg0, IntPtr arg1, IntPtr arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_timezone_info")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int TimezoneInfo(IntPtr arg0, HegelString arg1, IntPtr arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_timezone_info_in")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int TimezoneInfoIn(IntPtr arg0, IntPtr arg1, HegelString arg2, IntPtr arg3);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_timezone_offset_at")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int TimezoneOffsetAt(IntPtr arg0, HegelString arg1, HegelTimestamp arg2, IntPtr arg3);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_timezone_offset_at_in")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int TimezoneOffsetAtIn(IntPtr arg0, IntPtr arg1, HegelString arg2, HegelTimestamp arg3, IntPtr arg4);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_timezone_resolve")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int TimezoneResolve(IntPtr arg0, HegelString arg1, HegelDatetime arg2, IntPtr arg3);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_timezone_resolve_in")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int TimezoneResolveIn(IntPtr arg0, IntPtr arg1, HegelString arg2, HegelDatetime arg3, IntPtr arg4);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_timezone_spec_free")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int TimezoneSpecFree(IntPtr arg0, IntPtr arg1);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_timezone_spec_new")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int TimezoneSpecNew(IntPtr arg0, IntPtr arg1);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_timezone_spec_set_legacy")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int TimezoneSpecSetLegacy(IntPtr arg0, IntPtr arg1, byte arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_timezone_spec_set_links")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int TimezoneSpecSetLinks(IntPtr arg0, IntPtr arg1, byte arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_timezone_spec_set_names")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int TimezoneSpecSetNames(IntPtr arg0, IntPtr arg1, IntPtr arg2, nuint arg3);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_timezone_spec_set_opaque")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int TimezoneSpecSetOpaque(IntPtr arg0, IntPtr arg1, byte arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_timezone_spec_set_source")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int TimezoneSpecSetSource(IntPtr arg0, IntPtr arg1, IntPtr arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_timezone_spec_set_unknown")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int TimezoneSpecSetUnknown(IntPtr arg0, IntPtr arg1, byte arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_timezone_spec_validate")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int TimezoneSpecValidate(IntPtr arg0, IntPtr arg1);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_tzdb_version")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int TzdbVersion(IntPtr arg0, IntPtr arg1);
 
     [LibraryImport(LibraryName, EntryPoint = "hegel_unpause_faults")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int UnpauseFaults(IntPtr arg0, IntPtr arg1);
 
+    [LibraryImport(LibraryName, EntryPoint = "hegel_validate_date")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int ValidateDate(IntPtr arg0, HegelDate arg1, HegelDate arg2, IntPtr arg3);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_validate_datetime")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int ValidateDatetime(IntPtr arg0, HegelDatetime arg1, HegelDatetime arg2, uint arg3);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_validate_duration")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int ValidateDuration(IntPtr arg0, HegelDuration arg1, HegelDuration arg2, uint arg3);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_validate_offset")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int ValidateOffset(IntPtr arg0, int arg1, int arg2, uint arg3, byte arg4);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_validate_time")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int ValidateTime(IntPtr arg0, HegelTime arg1, HegelTime arg2, uint arg3);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_validate_timestamp")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int ValidateTimestamp(IntPtr arg0, HegelTimestamp arg1, HegelTimestamp arg2, uint arg3);
+
     [LibraryImport(LibraryName, EntryPoint = "hegel_version")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial int Version(IntPtr arg0, IntPtr arg1);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_zone_source_add_link")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int ZoneSourceAddLink(IntPtr arg0, IntPtr arg1, HegelString arg2, HegelString arg3);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_zone_source_add_oracle")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int ZoneSourceAddOracle(IntPtr arg0, IntPtr arg1, HegelString arg2, IntPtr arg3);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_zone_source_add_tzif")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int ZoneSourceAddTzif(IntPtr arg0, IntPtr arg1, HegelString arg2, IntPtr arg3, nuint arg4);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_zone_source_add_zone")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int ZoneSourceAddZone(IntPtr arg0, IntPtr arg1, HegelString arg2, IntPtr arg3);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_zone_source_bundled")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int ZoneSourceBundled(IntPtr arg0, IntPtr arg1);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_zone_source_declare")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int ZoneSourceDeclare(IntPtr arg0, IntPtr arg1, IntPtr arg2, nuint arg3);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_zone_source_free")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int ZoneSourceFree(IntPtr arg0, IntPtr arg1);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_zone_source_name")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int ZoneSourceName(IntPtr arg0, IntPtr arg1, nuint arg2, IntPtr arg3);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_zone_source_name_count")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int ZoneSourceNameCount(IntPtr arg0, IntPtr arg1, IntPtr arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_zone_source_new")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int ZoneSourceNew(IntPtr arg0, IntPtr arg1);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_zone_source_set_loader")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int ZoneSourceSetLoader(IntPtr arg0, IntPtr arg1, IntPtr arg2, IntPtr arg3, IntPtr arg4);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_zone_source_set_version")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int ZoneSourceSetVersion(IntPtr arg0, IntPtr arg1, HegelString arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_zone_source_version")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int ZoneSourceVersion(IntPtr arg0, IntPtr arg1, IntPtr arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_zoned_spec_free")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int ZonedSpecFree(IntPtr arg0, IntPtr arg1);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_zoned_spec_new")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int ZonedSpecNew(IntPtr arg0, IntPtr arg1);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_zoned_spec_set_ambiguous")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int ZonedSpecSetAmbiguous(IntPtr arg0, IntPtr arg1, uint arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_zoned_spec_set_civil_bounds")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int ZonedSpecSetCivilBounds(IntPtr arg0, IntPtr arg1, HegelDatetime arg2, HegelDatetime arg3);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_zoned_spec_set_imaginary")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int ZonedSpecSetImaginary(IntPtr arg0, IntPtr arg1, uint arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_zoned_spec_set_instant_bounds")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int ZonedSpecSetInstantBounds(IntPtr arg0, IntPtr arg1, HegelTimestamp arg2, HegelTimestamp arg3);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_zoned_spec_set_precision")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int ZonedSpecSetPrecision(IntPtr arg0, IntPtr arg1, uint arg2);
+
+    [LibraryImport(LibraryName, EntryPoint = "hegel_zoned_spec_validate")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    internal static partial int ZonedSpecValidate(IntPtr arg0, IntPtr arg1);
 }
 
 public static partial class Bridge
@@ -703,26 +1130,48 @@ public static partial class Bridge
         "hegel_context_free",
         "hegel_context_last_error",
         "hegel_context_new",
+        "hegel_context_set_error",
+        "hegel_date_options_free",
+        "hegel_date_options_new",
+        "hegel_date_options_set_months",
+        "hegel_date_options_set_weekdays",
         "hegel_event",
         "hegel_event_value",
         "hegel_failure_caveat",
+        "hegel_failure_diagnostic",
         "hegel_failure_free",
         "hegel_failure_origin",
+        "hegel_failure_output",
         "hegel_failure_reproduction_blob",
+        "hegel_format_date",
+        "hegel_format_datetime",
+        "hegel_format_duration",
+        "hegel_format_offset",
+        "hegel_format_span",
+        "hegel_format_time",
+        "hegel_format_timestamp",
+        "hegel_format_zoned_datetime",
         "hegel_generate_boolean",
         "hegel_generate_bytes",
         "hegel_generate_bytes_result_free",
         "hegel_generate_date",
         "hegel_generate_datetime",
+        "hegel_generate_duration",
         "hegel_generate_float",
         "hegel_generate_grammar",
         "hegel_generate_integer",
         "hegel_generate_integer_big",
         "hegel_generate_ipv4",
         "hegel_generate_ipv6",
+        "hegel_generate_offset",
+        "hegel_generate_span",
         "hegel_generate_string",
         "hegel_generate_time",
+        "hegel_generate_timestamp",
+        "hegel_generate_timezone",
         "hegel_generate_uuid",
+        "hegel_generate_zoned_datetime",
+        "hegel_generate_zoned_datetime_for_zone",
         "hegel_grammar_builder_file",
         "hegel_grammar_builder_free",
         "hegel_grammar_builder_new",
@@ -745,6 +1194,8 @@ public static partial class Bridge
         "hegel_new_state_machine",
         "hegel_next_test_case",
         "hegel_note",
+        "hegel_output_stderr",
+        "hegel_output_stderr_callback",
         "hegel_owned_string_free",
         "hegel_pause_faults",
         "hegel_pool_add",
@@ -794,6 +1245,7 @@ public static partial class Bridge
         "hegel_run_start",
         "hegel_run_start_blob",
         "hegel_set_default_profile",
+        "hegel_set_default_zone_source",
         "hegel_set_unicode_version",
         "hegel_settings_free",
         "hegel_settings_get_backend",
@@ -830,6 +1282,11 @@ public static partial class Bridge
         "hegel_settings_set_test_location",
         "hegel_settings_set_unbounded_choices",
         "hegel_settings_set_verbosity",
+        "hegel_span_spec_free",
+        "hegel_span_spec_new",
+        "hegel_span_spec_set_sign",
+        "hegel_span_spec_set_unit_bounds",
+        "hegel_span_spec_validate",
         "hegel_start_span",
         "hegel_state_machine_add_invariant",
         "hegel_state_machine_add_rule",
@@ -853,9 +1310,53 @@ public static partial class Bridge
         "hegel_test_case_from_blob",
         "hegel_test_case_printer",
         "hegel_test_case_set_worker",
-        "hegel_test_case_should_capture",
+        "hegel_test_case_wants_detail",
+        "hegel_test_case_wants_output",
+        "hegel_timezone_info",
+        "hegel_timezone_info_in",
+        "hegel_timezone_offset_at",
+        "hegel_timezone_offset_at_in",
+        "hegel_timezone_resolve",
+        "hegel_timezone_resolve_in",
+        "hegel_timezone_spec_free",
+        "hegel_timezone_spec_new",
+        "hegel_timezone_spec_set_legacy",
+        "hegel_timezone_spec_set_links",
+        "hegel_timezone_spec_set_names",
+        "hegel_timezone_spec_set_opaque",
+        "hegel_timezone_spec_set_source",
+        "hegel_timezone_spec_set_unknown",
+        "hegel_timezone_spec_validate",
+        "hegel_tzdb_version",
         "hegel_unpause_faults",
+        "hegel_validate_date",
+        "hegel_validate_datetime",
+        "hegel_validate_duration",
+        "hegel_validate_offset",
+        "hegel_validate_time",
+        "hegel_validate_timestamp",
         "hegel_version",
+        "hegel_zone_source_add_link",
+        "hegel_zone_source_add_oracle",
+        "hegel_zone_source_add_tzif",
+        "hegel_zone_source_add_zone",
+        "hegel_zone_source_bundled",
+        "hegel_zone_source_declare",
+        "hegel_zone_source_free",
+        "hegel_zone_source_name",
+        "hegel_zone_source_name_count",
+        "hegel_zone_source_new",
+        "hegel_zone_source_set_loader",
+        "hegel_zone_source_set_version",
+        "hegel_zone_source_version",
+        "hegel_zoned_spec_free",
+        "hegel_zoned_spec_new",
+        "hegel_zoned_spec_set_ambiguous",
+        "hegel_zoned_spec_set_civil_bounds",
+        "hegel_zoned_spec_set_imaginary",
+        "hegel_zoned_spec_set_instant_bounds",
+        "hegel_zoned_spec_set_precision",
+        "hegel_zoned_spec_validate",
     };
 
     public static object? Invoke(string functionId, object?[]? values)
@@ -869,26 +1370,48 @@ public static partial class Bridge
             "context-free" => InvokeContextFree(args),
             "context-last-error" => InvokeContextLastError(args),
             "context-new" => InvokeContextNew(args),
+            "context-set-error" => InvokeContextSetError(args),
+            "date-options-free" => InvokeDateOptionsFree(args),
+            "date-options-new" => InvokeDateOptionsNew(args),
+            "date-options-set-months" => InvokeDateOptionsSetMonths(args),
+            "date-options-set-weekdays" => InvokeDateOptionsSetWeekdays(args),
             "event" => InvokeEvent(args),
             "event-value" => InvokeEventValue(args),
             "failure-caveat" => InvokeFailureCaveat(args),
+            "failure-diagnostic" => InvokeFailureDiagnostic(args),
             "failure-free" => InvokeFailureFree(args),
             "failure-origin" => InvokeFailureOrigin(args),
+            "failure-output" => InvokeFailureOutput(args),
             "failure-reproduction-blob" => InvokeFailureReproductionBlob(args),
+            "format-date" => InvokeFormatDate(args),
+            "format-datetime" => InvokeFormatDatetime(args),
+            "format-duration" => InvokeFormatDuration(args),
+            "format-offset" => InvokeFormatOffset(args),
+            "format-span" => InvokeFormatSpan(args),
+            "format-time" => InvokeFormatTime(args),
+            "format-timestamp" => InvokeFormatTimestamp(args),
+            "format-zoned-datetime" => InvokeFormatZonedDatetime(args),
             "generate-boolean" => InvokeGenerateBoolean(args),
             "generate-bytes" => InvokeGenerateBytes(args),
             "generate-bytes-result-free" => InvokeGenerateBytesResultFree(args),
             "generate-date" => InvokeGenerateDate(args),
             "generate-datetime" => InvokeGenerateDatetime(args),
+            "generate-duration" => InvokeGenerateDuration(args),
             "generate-float" => InvokeGenerateFloat(args),
             "generate-grammar" => InvokeGenerateGrammar(args),
             "generate-integer" => InvokeGenerateInteger(args),
             "generate-integer-big" => InvokeGenerateIntegerBig(args),
             "generate-ipv4" => InvokeGenerateIpv4(args),
             "generate-ipv6" => InvokeGenerateIpv6(args),
+            "generate-offset" => InvokeGenerateOffset(args),
+            "generate-span" => InvokeGenerateSpan(args),
             "generate-string" => InvokeGenerateString(args),
             "generate-time" => InvokeGenerateTime(args),
+            "generate-timestamp" => InvokeGenerateTimestamp(args),
+            "generate-timezone" => InvokeGenerateTimezone(args),
             "generate-uuid" => InvokeGenerateUuid(args),
+            "generate-zoned-datetime" => InvokeGenerateZonedDatetime(args),
+            "generate-zoned-datetime-for-zone" => InvokeGenerateZonedDatetimeForZone(args),
             "grammar-builder-file" => InvokeGrammarBuilderFile(args),
             "grammar-builder-free" => InvokeGrammarBuilderFree(args),
             "grammar-builder-new" => InvokeGrammarBuilderNew(args),
@@ -911,6 +1434,8 @@ public static partial class Bridge
             "new-state-machine" => InvokeNewStateMachine(args),
             "next-test-case" => InvokeNextTestCase(args),
             "note" => InvokeNote(args),
+            "output-stderr" => InvokeOutputStderr(args),
+            "output-stderr-callback" => InvokeOutputStderrCallback(args),
             "owned-string-free" => InvokeOwnedStringFree(args),
             "pause-faults" => InvokePauseFaults(args),
             "pool-add" => InvokePoolAdd(args),
@@ -960,6 +1485,7 @@ public static partial class Bridge
             "run-start" => InvokeRunStart(args),
             "run-start-blob" => InvokeRunStartBlob(args),
             "set-default-profile" => InvokeSetDefaultProfile(args),
+            "set-default-zone-source" => InvokeSetDefaultZoneSource(args),
             "set-unicode-version" => InvokeSetUnicodeVersion(args),
             "settings-free" => InvokeSettingsFree(args),
             "settings-get-backend" => InvokeSettingsGetBackend(args),
@@ -996,6 +1522,11 @@ public static partial class Bridge
             "settings-set-test-location" => InvokeSettingsSetTestLocation(args),
             "settings-set-unbounded-choices" => InvokeSettingsSetUnboundedChoices(args),
             "settings-set-verbosity" => InvokeSettingsSetVerbosity(args),
+            "span-spec-free" => InvokeSpanSpecFree(args),
+            "span-spec-new" => InvokeSpanSpecNew(args),
+            "span-spec-set-sign" => InvokeSpanSpecSetSign(args),
+            "span-spec-set-unit-bounds" => InvokeSpanSpecSetUnitBounds(args),
+            "span-spec-validate" => InvokeSpanSpecValidate(args),
             "start-span" => InvokeStartSpan(args),
             "state-machine-add-invariant" => InvokeStateMachineAddInvariant(args),
             "state-machine-add-rule" => InvokeStateMachineAddRule(args),
@@ -1019,9 +1550,53 @@ public static partial class Bridge
             "test-case-from-blob" => InvokeTestCaseFromBlob(args),
             "test-case-printer" => InvokeTestCasePrinter(args),
             "test-case-set-worker" => InvokeTestCaseSetWorker(args),
-            "test-case-should-capture" => InvokeTestCaseShouldCapture(args),
+            "test-case-wants-detail" => InvokeTestCaseWantsDetail(args),
+            "test-case-wants-output" => InvokeTestCaseWantsOutput(args),
+            "timezone-info" => InvokeTimezoneInfo(args),
+            "timezone-info-in" => InvokeTimezoneInfoIn(args),
+            "timezone-offset-at" => InvokeTimezoneOffsetAt(args),
+            "timezone-offset-at-in" => InvokeTimezoneOffsetAtIn(args),
+            "timezone-resolve" => InvokeTimezoneResolve(args),
+            "timezone-resolve-in" => InvokeTimezoneResolveIn(args),
+            "timezone-spec-free" => InvokeTimezoneSpecFree(args),
+            "timezone-spec-new" => InvokeTimezoneSpecNew(args),
+            "timezone-spec-set-legacy" => InvokeTimezoneSpecSetLegacy(args),
+            "timezone-spec-set-links" => InvokeTimezoneSpecSetLinks(args),
+            "timezone-spec-set-names" => InvokeTimezoneSpecSetNames(args),
+            "timezone-spec-set-opaque" => InvokeTimezoneSpecSetOpaque(args),
+            "timezone-spec-set-source" => InvokeTimezoneSpecSetSource(args),
+            "timezone-spec-set-unknown" => InvokeTimezoneSpecSetUnknown(args),
+            "timezone-spec-validate" => InvokeTimezoneSpecValidate(args),
+            "tzdb-version" => InvokeTzdbVersion(args),
             "unpause-faults" => InvokeUnpauseFaults(args),
+            "validate-date" => InvokeValidateDate(args),
+            "validate-datetime" => InvokeValidateDatetime(args),
+            "validate-duration" => InvokeValidateDuration(args),
+            "validate-offset" => InvokeValidateOffset(args),
+            "validate-time" => InvokeValidateTime(args),
+            "validate-timestamp" => InvokeValidateTimestamp(args),
             "version" => InvokeVersion(args),
+            "zone-source-add-link" => InvokeZoneSourceAddLink(args),
+            "zone-source-add-oracle" => InvokeZoneSourceAddOracle(args),
+            "zone-source-add-tzif" => InvokeZoneSourceAddTzif(args),
+            "zone-source-add-zone" => InvokeZoneSourceAddZone(args),
+            "zone-source-bundled" => InvokeZoneSourceBundled(args),
+            "zone-source-declare" => InvokeZoneSourceDeclare(args),
+            "zone-source-free" => InvokeZoneSourceFree(args),
+            "zone-source-name" => InvokeZoneSourceName(args),
+            "zone-source-name-count" => InvokeZoneSourceNameCount(args),
+            "zone-source-new" => InvokeZoneSourceNew(args),
+            "zone-source-set-loader" => InvokeZoneSourceSetLoader(args),
+            "zone-source-set-version" => InvokeZoneSourceSetVersion(args),
+            "zone-source-version" => InvokeZoneSourceVersion(args),
+            "zoned-spec-free" => InvokeZonedSpecFree(args),
+            "zoned-spec-new" => InvokeZonedSpecNew(args),
+            "zoned-spec-set-ambiguous" => InvokeZonedSpecSetAmbiguous(args),
+            "zoned-spec-set-civil-bounds" => InvokeZonedSpecSetCivilBounds(args),
+            "zoned-spec-set-imaginary" => InvokeZonedSpecSetImaginary(args),
+            "zoned-spec-set-instant-bounds" => InvokeZonedSpecSetInstantBounds(args),
+            "zoned-spec-set-precision" => InvokeZonedSpecSetPrecision(args),
+            "zoned-spec-validate" => InvokeZonedSpecValidate(args),
             _ => throw new ArgumentOutOfRangeException(nameof(functionId), functionId, "Unknown libhegel function"),
         };
     }
@@ -1063,6 +1638,36 @@ public static partial class Bridge
         return NativeMethods.ContextNew();
     }
 
+    private static object? InvokeContextSetError(object?[] args)
+    {
+        RequireArity("context-set-error", args, 2);
+        return NativeMethods.ContextSetError(ToIntPtr(args[0]), Marshal.PtrToStructure<HegelString>(ToIntPtr(args[1])));
+    }
+
+    private static object? InvokeDateOptionsFree(object?[] args)
+    {
+        RequireArity("date-options-free", args, 2);
+        return NativeMethods.DateOptionsFree(ToIntPtr(args[0]), ToIntPtr(args[1]));
+    }
+
+    private static object? InvokeDateOptionsNew(object?[] args)
+    {
+        RequireArity("date-options-new", args, 2);
+        return NativeMethods.DateOptionsNew(ToIntPtr(args[0]), ToIntPtr(args[1]));
+    }
+
+    private static object? InvokeDateOptionsSetMonths(object?[] args)
+    {
+        RequireArity("date-options-set-months", args, 3);
+        return NativeMethods.DateOptionsSetMonths(ToIntPtr(args[0]), ToIntPtr(args[1]), Convert.ToUInt32(args[2], CultureInfo.InvariantCulture));
+    }
+
+    private static object? InvokeDateOptionsSetWeekdays(object?[] args)
+    {
+        RequireArity("date-options-set-weekdays", args, 3);
+        return NativeMethods.DateOptionsSetWeekdays(ToIntPtr(args[0]), ToIntPtr(args[1]), Convert.ToUInt32(args[2], CultureInfo.InvariantCulture));
+    }
+
     private static object? InvokeEvent(object?[] args)
     {
         RequireArity("event", args, 3);
@@ -1081,6 +1686,12 @@ public static partial class Bridge
         return NativeMethods.FailureCaveat(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]));
     }
 
+    private static object? InvokeFailureDiagnostic(object?[] args)
+    {
+        RequireArity("failure-diagnostic", args, 3);
+        return NativeMethods.FailureDiagnostic(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]));
+    }
+
     private static object? InvokeFailureFree(object?[] args)
     {
         RequireArity("failure-free", args, 2);
@@ -1093,10 +1704,64 @@ public static partial class Bridge
         return NativeMethods.FailureOrigin(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]));
     }
 
+    private static object? InvokeFailureOutput(object?[] args)
+    {
+        RequireArity("failure-output", args, 3);
+        return NativeMethods.FailureOutput(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]));
+    }
+
     private static object? InvokeFailureReproductionBlob(object?[] args)
     {
         RequireArity("failure-reproduction-blob", args, 3);
         return NativeMethods.FailureReproductionBlob(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]));
+    }
+
+    private static object? InvokeFormatDate(object?[] args)
+    {
+        RequireArity("format-date", args, 3);
+        return NativeMethods.FormatDate(ToIntPtr(args[0]), Marshal.PtrToStructure<HegelDate>(ToIntPtr(args[1])), ToIntPtr(args[2]));
+    }
+
+    private static object? InvokeFormatDatetime(object?[] args)
+    {
+        RequireArity("format-datetime", args, 3);
+        return NativeMethods.FormatDatetime(ToIntPtr(args[0]), Marshal.PtrToStructure<HegelDatetime>(ToIntPtr(args[1])), ToIntPtr(args[2]));
+    }
+
+    private static object? InvokeFormatDuration(object?[] args)
+    {
+        RequireArity("format-duration", args, 3);
+        return NativeMethods.FormatDuration(ToIntPtr(args[0]), Marshal.PtrToStructure<HegelDuration>(ToIntPtr(args[1])), ToIntPtr(args[2]));
+    }
+
+    private static object? InvokeFormatOffset(object?[] args)
+    {
+        RequireArity("format-offset", args, 3);
+        return NativeMethods.FormatOffset(ToIntPtr(args[0]), Marshal.PtrToStructure<HegelOffset>(ToIntPtr(args[1])), ToIntPtr(args[2]));
+    }
+
+    private static object? InvokeFormatSpan(object?[] args)
+    {
+        RequireArity("format-span", args, 3);
+        return NativeMethods.FormatSpan(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]));
+    }
+
+    private static object? InvokeFormatTime(object?[] args)
+    {
+        RequireArity("format-time", args, 3);
+        return NativeMethods.FormatTime(ToIntPtr(args[0]), Marshal.PtrToStructure<HegelTime>(ToIntPtr(args[1])), ToIntPtr(args[2]));
+    }
+
+    private static object? InvokeFormatTimestamp(object?[] args)
+    {
+        RequireArity("format-timestamp", args, 3);
+        return NativeMethods.FormatTimestamp(ToIntPtr(args[0]), Marshal.PtrToStructure<HegelTimestamp>(ToIntPtr(args[1])), ToIntPtr(args[2]));
+    }
+
+    private static object? InvokeFormatZonedDatetime(object?[] args)
+    {
+        RequireArity("format-zoned-datetime", args, 4);
+        return NativeMethods.FormatZonedDatetime(ToIntPtr(args[0]), ToIntPtr(args[1]), Marshal.PtrToStructure<HegelString>(ToIntPtr(args[2])), ToIntPtr(args[3]));
     }
 
     private static object? InvokeGenerateBoolean(object?[] args)
@@ -1119,14 +1784,20 @@ public static partial class Bridge
 
     private static object? InvokeGenerateDate(object?[] args)
     {
-        RequireArity("generate-date", args, 5);
-        return NativeMethods.GenerateDate(ToIntPtr(args[0]), ToIntPtr(args[1]), Marshal.PtrToStructure<HegelDate>(ToIntPtr(args[2])), Marshal.PtrToStructure<HegelDate>(ToIntPtr(args[3])), ToIntPtr(args[4]));
+        RequireArity("generate-date", args, 6);
+        return NativeMethods.GenerateDate(ToIntPtr(args[0]), ToIntPtr(args[1]), Marshal.PtrToStructure<HegelDate>(ToIntPtr(args[2])), Marshal.PtrToStructure<HegelDate>(ToIntPtr(args[3])), ToIntPtr(args[4]), ToIntPtr(args[5]));
     }
 
     private static object? InvokeGenerateDatetime(object?[] args)
     {
-        RequireArity("generate-datetime", args, 5);
-        return NativeMethods.GenerateDatetime(ToIntPtr(args[0]), ToIntPtr(args[1]), Marshal.PtrToStructure<HegelDatetime>(ToIntPtr(args[2])), Marshal.PtrToStructure<HegelDatetime>(ToIntPtr(args[3])), ToIntPtr(args[4]));
+        RequireArity("generate-datetime", args, 6);
+        return NativeMethods.GenerateDatetime(ToIntPtr(args[0]), ToIntPtr(args[1]), Marshal.PtrToStructure<HegelDatetime>(ToIntPtr(args[2])), Marshal.PtrToStructure<HegelDatetime>(ToIntPtr(args[3])), Convert.ToUInt32(args[4], CultureInfo.InvariantCulture), ToIntPtr(args[5]));
+    }
+
+    private static object? InvokeGenerateDuration(object?[] args)
+    {
+        RequireArity("generate-duration", args, 6);
+        return NativeMethods.GenerateDuration(ToIntPtr(args[0]), ToIntPtr(args[1]), Marshal.PtrToStructure<HegelDuration>(ToIntPtr(args[2])), Marshal.PtrToStructure<HegelDuration>(ToIntPtr(args[3])), Convert.ToUInt32(args[4], CultureInfo.InvariantCulture), ToIntPtr(args[5]));
     }
 
     private static object? InvokeGenerateFloat(object?[] args)
@@ -1165,6 +1836,18 @@ public static partial class Bridge
         return NativeMethods.GenerateIpv6(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]));
     }
 
+    private static object? InvokeGenerateOffset(object?[] args)
+    {
+        RequireArity("generate-offset", args, 7);
+        return NativeMethods.GenerateOffset(ToIntPtr(args[0]), ToIntPtr(args[1]), Convert.ToInt32(args[2], CultureInfo.InvariantCulture), Convert.ToInt32(args[3], CultureInfo.InvariantCulture), Convert.ToUInt32(args[4], CultureInfo.InvariantCulture), ToByte(args[5]), ToIntPtr(args[6]));
+    }
+
+    private static object? InvokeGenerateSpan(object?[] args)
+    {
+        RequireArity("generate-span", args, 4);
+        return NativeMethods.GenerateSpan(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]), ToIntPtr(args[3]));
+    }
+
     private static object? InvokeGenerateString(object?[] args)
     {
         RequireArity("generate-string", args, 4);
@@ -1173,14 +1856,38 @@ public static partial class Bridge
 
     private static object? InvokeGenerateTime(object?[] args)
     {
-        RequireArity("generate-time", args, 5);
-        return NativeMethods.GenerateTime(ToIntPtr(args[0]), ToIntPtr(args[1]), Marshal.PtrToStructure<HegelTime>(ToIntPtr(args[2])), Marshal.PtrToStructure<HegelTime>(ToIntPtr(args[3])), ToIntPtr(args[4]));
+        RequireArity("generate-time", args, 6);
+        return NativeMethods.GenerateTime(ToIntPtr(args[0]), ToIntPtr(args[1]), Marshal.PtrToStructure<HegelTime>(ToIntPtr(args[2])), Marshal.PtrToStructure<HegelTime>(ToIntPtr(args[3])), Convert.ToUInt32(args[4], CultureInfo.InvariantCulture), ToIntPtr(args[5]));
+    }
+
+    private static object? InvokeGenerateTimestamp(object?[] args)
+    {
+        RequireArity("generate-timestamp", args, 6);
+        return NativeMethods.GenerateTimestamp(ToIntPtr(args[0]), ToIntPtr(args[1]), Marshal.PtrToStructure<HegelTimestamp>(ToIntPtr(args[2])), Marshal.PtrToStructure<HegelTimestamp>(ToIntPtr(args[3])), Convert.ToUInt32(args[4], CultureInfo.InvariantCulture), ToIntPtr(args[5]));
+    }
+
+    private static object? InvokeGenerateTimezone(object?[] args)
+    {
+        RequireArity("generate-timezone", args, 4);
+        return NativeMethods.GenerateTimezone(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]), ToIntPtr(args[3]));
     }
 
     private static object? InvokeGenerateUuid(object?[] args)
     {
         RequireArity("generate-uuid", args, 5);
         return NativeMethods.GenerateUuid(ToIntPtr(args[0]), ToIntPtr(args[1]), ToByte(args[2]), ToByte(args[3]), ToIntPtr(args[4]));
+    }
+
+    private static object? InvokeGenerateZonedDatetime(object?[] args)
+    {
+        RequireArity("generate-zoned-datetime", args, 6);
+        return NativeMethods.GenerateZonedDatetime(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]), ToIntPtr(args[3]), ToIntPtr(args[4]), ToIntPtr(args[5]));
+    }
+
+    private static object? InvokeGenerateZonedDatetimeForZone(object?[] args)
+    {
+        RequireArity("generate-zoned-datetime-for-zone", args, 6);
+        return NativeMethods.GenerateZonedDatetimeForZone(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]), Marshal.PtrToStructure<HegelString>(ToIntPtr(args[3])), ToIntPtr(args[4]), ToIntPtr(args[5]));
     }
 
     private static object? InvokeGrammarBuilderFile(object?[] args)
@@ -1269,8 +1976,8 @@ public static partial class Bridge
 
     private static object? InvokeMarkComplete(object?[] args)
     {
-        RequireArity("mark-complete", args, 4);
-        return NativeMethods.MarkComplete(ToIntPtr(args[0]), ToIntPtr(args[1]), Convert.ToUInt32(args[2], CultureInfo.InvariantCulture), ToIntPtr(args[3]));
+        RequireArity("mark-complete", args, 6);
+        return NativeMethods.MarkComplete(ToIntPtr(args[0]), ToIntPtr(args[1]), Convert.ToUInt32(args[2], CultureInfo.InvariantCulture), ToIntPtr(args[3]), ToIntPtr(args[4]), ToIntPtr(args[5]));
     }
 
     private static object? InvokeNewCollection(object?[] args)
@@ -1313,6 +2020,19 @@ public static partial class Bridge
     {
         RequireArity("note", args, 3);
         return NativeMethods.Note(ToIntPtr(args[0]), ToIntPtr(args[1]), Marshal.PtrToStructure<HegelString>(ToIntPtr(args[2])));
+    }
+
+    private static object? InvokeOutputStderr(object?[] args)
+    {
+        RequireArity("output-stderr", args, 3);
+        NativeMethods.OutputStderr(ToIntPtr(args[0]), ToIntPtr(args[1]), ToNUInt(args[2]));
+        return null;
+    }
+
+    private static object? InvokeOutputStderrCallback(object?[] args)
+    {
+        RequireArity("output-stderr-callback", args, 0);
+        return NativeMethods.OutputStderrCallback();
     }
 
     private static object? InvokeOwnedStringFree(object?[] args)
@@ -1609,6 +2329,12 @@ public static partial class Bridge
         return NativeMethods.SetDefaultProfile(ToIntPtr(args[0]), Marshal.PtrToStructure<HegelString>(ToIntPtr(args[1])));
     }
 
+    private static object? InvokeSetDefaultZoneSource(object?[] args)
+    {
+        RequireArity("set-default-zone-source", args, 2);
+        return NativeMethods.SetDefaultZoneSource(ToIntPtr(args[0]), ToIntPtr(args[1]));
+    }
+
     private static object? InvokeSetUnicodeVersion(object?[] args)
     {
         RequireArity("set-unicode-version", args, 2);
@@ -1825,6 +2551,36 @@ public static partial class Bridge
         return NativeMethods.SettingsSetVerbosity(ToIntPtr(args[0]), ToIntPtr(args[1]), Convert.ToUInt32(args[2], CultureInfo.InvariantCulture));
     }
 
+    private static object? InvokeSpanSpecFree(object?[] args)
+    {
+        RequireArity("span-spec-free", args, 2);
+        return NativeMethods.SpanSpecFree(ToIntPtr(args[0]), ToIntPtr(args[1]));
+    }
+
+    private static object? InvokeSpanSpecNew(object?[] args)
+    {
+        RequireArity("span-spec-new", args, 2);
+        return NativeMethods.SpanSpecNew(ToIntPtr(args[0]), ToIntPtr(args[1]));
+    }
+
+    private static object? InvokeSpanSpecSetSign(object?[] args)
+    {
+        RequireArity("span-spec-set-sign", args, 3);
+        return NativeMethods.SpanSpecSetSign(ToIntPtr(args[0]), ToIntPtr(args[1]), Convert.ToUInt32(args[2], CultureInfo.InvariantCulture));
+    }
+
+    private static object? InvokeSpanSpecSetUnitBounds(object?[] args)
+    {
+        RequireArity("span-spec-set-unit-bounds", args, 5);
+        return NativeMethods.SpanSpecSetUnitBounds(ToIntPtr(args[0]), ToIntPtr(args[1]), Convert.ToUInt32(args[2], CultureInfo.InvariantCulture), Convert.ToInt64(args[3], CultureInfo.InvariantCulture), Convert.ToInt64(args[4], CultureInfo.InvariantCulture));
+    }
+
+    private static object? InvokeSpanSpecValidate(object?[] args)
+    {
+        RequireArity("span-spec-validate", args, 2);
+        return NativeMethods.SpanSpecValidate(ToIntPtr(args[0]), ToIntPtr(args[1]));
+    }
+
     private static object? InvokeStartSpan(object?[] args)
     {
         RequireArity("start-span", args, 3);
@@ -1963,10 +2719,112 @@ public static partial class Bridge
         return NativeMethods.TestCaseSetWorker(ToIntPtr(args[0]), ToIntPtr(args[1]), Convert.ToInt64(args[2], CultureInfo.InvariantCulture));
     }
 
-    private static object? InvokeTestCaseShouldCapture(object?[] args)
+    private static object? InvokeTestCaseWantsDetail(object?[] args)
     {
-        RequireArity("test-case-should-capture", args, 3);
-        return NativeMethods.TestCaseShouldCapture(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]));
+        RequireArity("test-case-wants-detail", args, 3);
+        return NativeMethods.TestCaseWantsDetail(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]));
+    }
+
+    private static object? InvokeTestCaseWantsOutput(object?[] args)
+    {
+        RequireArity("test-case-wants-output", args, 3);
+        return NativeMethods.TestCaseWantsOutput(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]));
+    }
+
+    private static object? InvokeTimezoneInfo(object?[] args)
+    {
+        RequireArity("timezone-info", args, 3);
+        return NativeMethods.TimezoneInfo(ToIntPtr(args[0]), Marshal.PtrToStructure<HegelString>(ToIntPtr(args[1])), ToIntPtr(args[2]));
+    }
+
+    private static object? InvokeTimezoneInfoIn(object?[] args)
+    {
+        RequireArity("timezone-info-in", args, 4);
+        return NativeMethods.TimezoneInfoIn(ToIntPtr(args[0]), ToIntPtr(args[1]), Marshal.PtrToStructure<HegelString>(ToIntPtr(args[2])), ToIntPtr(args[3]));
+    }
+
+    private static object? InvokeTimezoneOffsetAt(object?[] args)
+    {
+        RequireArity("timezone-offset-at", args, 4);
+        return NativeMethods.TimezoneOffsetAt(ToIntPtr(args[0]), Marshal.PtrToStructure<HegelString>(ToIntPtr(args[1])), Marshal.PtrToStructure<HegelTimestamp>(ToIntPtr(args[2])), ToIntPtr(args[3]));
+    }
+
+    private static object? InvokeTimezoneOffsetAtIn(object?[] args)
+    {
+        RequireArity("timezone-offset-at-in", args, 5);
+        return NativeMethods.TimezoneOffsetAtIn(ToIntPtr(args[0]), ToIntPtr(args[1]), Marshal.PtrToStructure<HegelString>(ToIntPtr(args[2])), Marshal.PtrToStructure<HegelTimestamp>(ToIntPtr(args[3])), ToIntPtr(args[4]));
+    }
+
+    private static object? InvokeTimezoneResolve(object?[] args)
+    {
+        RequireArity("timezone-resolve", args, 4);
+        return NativeMethods.TimezoneResolve(ToIntPtr(args[0]), Marshal.PtrToStructure<HegelString>(ToIntPtr(args[1])), Marshal.PtrToStructure<HegelDatetime>(ToIntPtr(args[2])), ToIntPtr(args[3]));
+    }
+
+    private static object? InvokeTimezoneResolveIn(object?[] args)
+    {
+        RequireArity("timezone-resolve-in", args, 5);
+        return NativeMethods.TimezoneResolveIn(ToIntPtr(args[0]), ToIntPtr(args[1]), Marshal.PtrToStructure<HegelString>(ToIntPtr(args[2])), Marshal.PtrToStructure<HegelDatetime>(ToIntPtr(args[3])), ToIntPtr(args[4]));
+    }
+
+    private static object? InvokeTimezoneSpecFree(object?[] args)
+    {
+        RequireArity("timezone-spec-free", args, 2);
+        return NativeMethods.TimezoneSpecFree(ToIntPtr(args[0]), ToIntPtr(args[1]));
+    }
+
+    private static object? InvokeTimezoneSpecNew(object?[] args)
+    {
+        RequireArity("timezone-spec-new", args, 2);
+        return NativeMethods.TimezoneSpecNew(ToIntPtr(args[0]), ToIntPtr(args[1]));
+    }
+
+    private static object? InvokeTimezoneSpecSetLegacy(object?[] args)
+    {
+        RequireArity("timezone-spec-set-legacy", args, 3);
+        return NativeMethods.TimezoneSpecSetLegacy(ToIntPtr(args[0]), ToIntPtr(args[1]), ToByte(args[2]));
+    }
+
+    private static object? InvokeTimezoneSpecSetLinks(object?[] args)
+    {
+        RequireArity("timezone-spec-set-links", args, 3);
+        return NativeMethods.TimezoneSpecSetLinks(ToIntPtr(args[0]), ToIntPtr(args[1]), ToByte(args[2]));
+    }
+
+    private static object? InvokeTimezoneSpecSetNames(object?[] args)
+    {
+        RequireArity("timezone-spec-set-names", args, 4);
+        return NativeMethods.TimezoneSpecSetNames(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]), ToNUInt(args[3]));
+    }
+
+    private static object? InvokeTimezoneSpecSetOpaque(object?[] args)
+    {
+        RequireArity("timezone-spec-set-opaque", args, 3);
+        return NativeMethods.TimezoneSpecSetOpaque(ToIntPtr(args[0]), ToIntPtr(args[1]), ToByte(args[2]));
+    }
+
+    private static object? InvokeTimezoneSpecSetSource(object?[] args)
+    {
+        RequireArity("timezone-spec-set-source", args, 3);
+        return NativeMethods.TimezoneSpecSetSource(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]));
+    }
+
+    private static object? InvokeTimezoneSpecSetUnknown(object?[] args)
+    {
+        RequireArity("timezone-spec-set-unknown", args, 3);
+        return NativeMethods.TimezoneSpecSetUnknown(ToIntPtr(args[0]), ToIntPtr(args[1]), ToByte(args[2]));
+    }
+
+    private static object? InvokeTimezoneSpecValidate(object?[] args)
+    {
+        RequireArity("timezone-spec-validate", args, 2);
+        return NativeMethods.TimezoneSpecValidate(ToIntPtr(args[0]), ToIntPtr(args[1]));
+    }
+
+    private static object? InvokeTzdbVersion(object?[] args)
+    {
+        RequireArity("tzdb-version", args, 2);
+        return NativeMethods.TzdbVersion(ToIntPtr(args[0]), ToIntPtr(args[1]));
     }
 
     private static object? InvokeUnpauseFaults(object?[] args)
@@ -1975,9 +2833,171 @@ public static partial class Bridge
         return NativeMethods.UnpauseFaults(ToIntPtr(args[0]), ToIntPtr(args[1]));
     }
 
+    private static object? InvokeValidateDate(object?[] args)
+    {
+        RequireArity("validate-date", args, 4);
+        return NativeMethods.ValidateDate(ToIntPtr(args[0]), Marshal.PtrToStructure<HegelDate>(ToIntPtr(args[1])), Marshal.PtrToStructure<HegelDate>(ToIntPtr(args[2])), ToIntPtr(args[3]));
+    }
+
+    private static object? InvokeValidateDatetime(object?[] args)
+    {
+        RequireArity("validate-datetime", args, 4);
+        return NativeMethods.ValidateDatetime(ToIntPtr(args[0]), Marshal.PtrToStructure<HegelDatetime>(ToIntPtr(args[1])), Marshal.PtrToStructure<HegelDatetime>(ToIntPtr(args[2])), Convert.ToUInt32(args[3], CultureInfo.InvariantCulture));
+    }
+
+    private static object? InvokeValidateDuration(object?[] args)
+    {
+        RequireArity("validate-duration", args, 4);
+        return NativeMethods.ValidateDuration(ToIntPtr(args[0]), Marshal.PtrToStructure<HegelDuration>(ToIntPtr(args[1])), Marshal.PtrToStructure<HegelDuration>(ToIntPtr(args[2])), Convert.ToUInt32(args[3], CultureInfo.InvariantCulture));
+    }
+
+    private static object? InvokeValidateOffset(object?[] args)
+    {
+        RequireArity("validate-offset", args, 5);
+        return NativeMethods.ValidateOffset(ToIntPtr(args[0]), Convert.ToInt32(args[1], CultureInfo.InvariantCulture), Convert.ToInt32(args[2], CultureInfo.InvariantCulture), Convert.ToUInt32(args[3], CultureInfo.InvariantCulture), ToByte(args[4]));
+    }
+
+    private static object? InvokeValidateTime(object?[] args)
+    {
+        RequireArity("validate-time", args, 4);
+        return NativeMethods.ValidateTime(ToIntPtr(args[0]), Marshal.PtrToStructure<HegelTime>(ToIntPtr(args[1])), Marshal.PtrToStructure<HegelTime>(ToIntPtr(args[2])), Convert.ToUInt32(args[3], CultureInfo.InvariantCulture));
+    }
+
+    private static object? InvokeValidateTimestamp(object?[] args)
+    {
+        RequireArity("validate-timestamp", args, 4);
+        return NativeMethods.ValidateTimestamp(ToIntPtr(args[0]), Marshal.PtrToStructure<HegelTimestamp>(ToIntPtr(args[1])), Marshal.PtrToStructure<HegelTimestamp>(ToIntPtr(args[2])), Convert.ToUInt32(args[3], CultureInfo.InvariantCulture));
+    }
+
     private static object? InvokeVersion(object?[] args)
     {
         RequireArity("version", args, 2);
         return NativeMethods.Version(ToIntPtr(args[0]), ToIntPtr(args[1]));
+    }
+
+    private static object? InvokeZoneSourceAddLink(object?[] args)
+    {
+        RequireArity("zone-source-add-link", args, 4);
+        return NativeMethods.ZoneSourceAddLink(ToIntPtr(args[0]), ToIntPtr(args[1]), Marshal.PtrToStructure<HegelString>(ToIntPtr(args[2])), Marshal.PtrToStructure<HegelString>(ToIntPtr(args[3])));
+    }
+
+    private static object? InvokeZoneSourceAddOracle(object?[] args)
+    {
+        RequireArity("zone-source-add-oracle", args, 4);
+        return NativeMethods.ZoneSourceAddOracle(ToIntPtr(args[0]), ToIntPtr(args[1]), Marshal.PtrToStructure<HegelString>(ToIntPtr(args[2])), ToIntPtr(args[3]));
+    }
+
+    private static object? InvokeZoneSourceAddTzif(object?[] args)
+    {
+        RequireArity("zone-source-add-tzif", args, 5);
+        return NativeMethods.ZoneSourceAddTzif(ToIntPtr(args[0]), ToIntPtr(args[1]), Marshal.PtrToStructure<HegelString>(ToIntPtr(args[2])), ToIntPtr(args[3]), ToNUInt(args[4]));
+    }
+
+    private static object? InvokeZoneSourceAddZone(object?[] args)
+    {
+        RequireArity("zone-source-add-zone", args, 4);
+        return NativeMethods.ZoneSourceAddZone(ToIntPtr(args[0]), ToIntPtr(args[1]), Marshal.PtrToStructure<HegelString>(ToIntPtr(args[2])), ToIntPtr(args[3]));
+    }
+
+    private static object? InvokeZoneSourceBundled(object?[] args)
+    {
+        RequireArity("zone-source-bundled", args, 2);
+        return NativeMethods.ZoneSourceBundled(ToIntPtr(args[0]), ToIntPtr(args[1]));
+    }
+
+    private static object? InvokeZoneSourceDeclare(object?[] args)
+    {
+        RequireArity("zone-source-declare", args, 4);
+        return NativeMethods.ZoneSourceDeclare(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]), ToNUInt(args[3]));
+    }
+
+    private static object? InvokeZoneSourceFree(object?[] args)
+    {
+        RequireArity("zone-source-free", args, 2);
+        return NativeMethods.ZoneSourceFree(ToIntPtr(args[0]), ToIntPtr(args[1]));
+    }
+
+    private static object? InvokeZoneSourceName(object?[] args)
+    {
+        RequireArity("zone-source-name", args, 4);
+        return NativeMethods.ZoneSourceName(ToIntPtr(args[0]), ToIntPtr(args[1]), ToNUInt(args[2]), ToIntPtr(args[3]));
+    }
+
+    private static object? InvokeZoneSourceNameCount(object?[] args)
+    {
+        RequireArity("zone-source-name-count", args, 3);
+        return NativeMethods.ZoneSourceNameCount(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]));
+    }
+
+    private static object? InvokeZoneSourceNew(object?[] args)
+    {
+        RequireArity("zone-source-new", args, 2);
+        return NativeMethods.ZoneSourceNew(ToIntPtr(args[0]), ToIntPtr(args[1]));
+    }
+
+    private static object? InvokeZoneSourceSetLoader(object?[] args)
+    {
+        RequireArity("zone-source-set-loader", args, 5);
+        return NativeMethods.ZoneSourceSetLoader(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]), ToIntPtr(args[3]), ToIntPtr(args[4]));
+    }
+
+    private static object? InvokeZoneSourceSetVersion(object?[] args)
+    {
+        RequireArity("zone-source-set-version", args, 3);
+        return NativeMethods.ZoneSourceSetVersion(ToIntPtr(args[0]), ToIntPtr(args[1]), Marshal.PtrToStructure<HegelString>(ToIntPtr(args[2])));
+    }
+
+    private static object? InvokeZoneSourceVersion(object?[] args)
+    {
+        RequireArity("zone-source-version", args, 3);
+        return NativeMethods.ZoneSourceVersion(ToIntPtr(args[0]), ToIntPtr(args[1]), ToIntPtr(args[2]));
+    }
+
+    private static object? InvokeZonedSpecFree(object?[] args)
+    {
+        RequireArity("zoned-spec-free", args, 2);
+        return NativeMethods.ZonedSpecFree(ToIntPtr(args[0]), ToIntPtr(args[1]));
+    }
+
+    private static object? InvokeZonedSpecNew(object?[] args)
+    {
+        RequireArity("zoned-spec-new", args, 2);
+        return NativeMethods.ZonedSpecNew(ToIntPtr(args[0]), ToIntPtr(args[1]));
+    }
+
+    private static object? InvokeZonedSpecSetAmbiguous(object?[] args)
+    {
+        RequireArity("zoned-spec-set-ambiguous", args, 3);
+        return NativeMethods.ZonedSpecSetAmbiguous(ToIntPtr(args[0]), ToIntPtr(args[1]), Convert.ToUInt32(args[2], CultureInfo.InvariantCulture));
+    }
+
+    private static object? InvokeZonedSpecSetCivilBounds(object?[] args)
+    {
+        RequireArity("zoned-spec-set-civil-bounds", args, 4);
+        return NativeMethods.ZonedSpecSetCivilBounds(ToIntPtr(args[0]), ToIntPtr(args[1]), Marshal.PtrToStructure<HegelDatetime>(ToIntPtr(args[2])), Marshal.PtrToStructure<HegelDatetime>(ToIntPtr(args[3])));
+    }
+
+    private static object? InvokeZonedSpecSetImaginary(object?[] args)
+    {
+        RequireArity("zoned-spec-set-imaginary", args, 3);
+        return NativeMethods.ZonedSpecSetImaginary(ToIntPtr(args[0]), ToIntPtr(args[1]), Convert.ToUInt32(args[2], CultureInfo.InvariantCulture));
+    }
+
+    private static object? InvokeZonedSpecSetInstantBounds(object?[] args)
+    {
+        RequireArity("zoned-spec-set-instant-bounds", args, 4);
+        return NativeMethods.ZonedSpecSetInstantBounds(ToIntPtr(args[0]), ToIntPtr(args[1]), Marshal.PtrToStructure<HegelTimestamp>(ToIntPtr(args[2])), Marshal.PtrToStructure<HegelTimestamp>(ToIntPtr(args[3])));
+    }
+
+    private static object? InvokeZonedSpecSetPrecision(object?[] args)
+    {
+        RequireArity("zoned-spec-set-precision", args, 3);
+        return NativeMethods.ZonedSpecSetPrecision(ToIntPtr(args[0]), ToIntPtr(args[1]), Convert.ToUInt32(args[2], CultureInfo.InvariantCulture));
+    }
+
+    private static object? InvokeZonedSpecValidate(object?[] args)
+    {
+        RequireArity("zoned-spec-validate", args, 2);
+        return NativeMethods.ZonedSpecValidate(ToIntPtr(args[0]), ToIntPtr(args[1]));
     }
 }

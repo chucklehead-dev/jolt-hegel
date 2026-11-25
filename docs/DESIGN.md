@@ -150,7 +150,7 @@ Rule names and order must remain unchanged between generation and replay.
 Mutable systems under test must be constructed inside the property body so each
 generated case and final replay begins from fresh external state.
 
-The pinned libhegel 0.51.6 uses one round protocol for sequential and
+The pinned libhegel 0.53.2 uses one round protocol for sequential and
 concurrent machines.
 jolt-hegel fixes concurrency to one, advances the all-zero rule group at each
 join point, and exposes `:stateful-step-count` as the round budget. Concurrent

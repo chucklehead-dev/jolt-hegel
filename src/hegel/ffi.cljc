@@ -70,8 +70,11 @@
 (def c-run-free (backend/function :run-free))
 (def c-test-case-from-blob (backend/function :test-case-from-blob))
 (def c-test-case-free (backend/function :test-case-free))
-(def c-test-case-should-capture
-  (backend/function :test-case-should-capture))
+(def c-test-case-wants-output (backend/function :test-case-wants-output))
+(def c-test-case-wants-detail (backend/function :test-case-wants-detail))
+(def c-output-stderr-callback (backend/function :output-stderr-callback))
+(def c-failure-output (backend/function :failure-output))
+(def c-failure-diagnostic (backend/function :failure-diagnostic))
 (def c-test-case-clone (backend/function :test-case-clone))
 (def c-generate-integer (backend/function :generate-integer))
 (def c-generate-integer-big (backend/function :generate-integer-big))
@@ -90,9 +93,18 @@
 (def c-generate-uuid (backend/function :generate-uuid))
 (def c-generate-ipv4 (backend/function :generate-ipv4))
 (def c-generate-ipv6 (backend/function :generate-ipv6))
+(def c-date-options-new (backend/function :date-options-new))
+(def c-date-options-free (backend/function :date-options-free))
+(def c-date-options-set-weekdays (backend/function :date-options-set-weekdays))
+(def c-date-options-set-months (backend/function :date-options-set-months))
+(def c-validate-date (backend/function :validate-date))
+(def c-validate-time (backend/function :validate-time))
+(def c-validate-datetime (backend/function :validate-datetime))
 (def c-generate-date (backend/function :generate-date))
 (def c-generate-time (backend/function :generate-time))
 (def c-generate-datetime (backend/function :generate-datetime))
+(def c-validate-timestamp (backend/function :validate-timestamp))
+(def c-generate-timestamp (backend/function :generate-timestamp))
 (def c-target (backend/function :target))
 (def c-event (backend/function :event))
 (def c-event-value (backend/function :event-value))
@@ -453,9 +465,14 @@
   (check! ctx :settings-set-suppress-health-check
           (c-settings-set-suppress-health-check ctx settings checks)))
 
-(defn run-start! [ctx settings]
-  (call-out! ctx :run-start :pointer
-             #(c-run-start ctx settings backend/null backend/null %)))
+(defn- run-output-sink [stderr?]
+  (if stderr? (c-output-stderr-callback) backend/null))
+
+(defn run-start!
+  ([ctx settings] (run-start! ctx settings false))
+  ([ctx settings stderr?]
+   (call-out! ctx :run-start :pointer
+              #(c-run-start ctx settings (run-output-sink stderr?) backend/null %))))
 
 (defn next-test-case! [ctx run]
   (let [handle (call-out! ctx :next-test-case :pointer
@@ -487,11 +504,13 @@
   (c-test-case-free ctx test-case)
   nil)
 
-(defn test-case-should-capture?
-  "True for native replay/confirmation cases whose frontend output must be captured."
-  [ctx test-case]
-  (not (zero? (call-out! ctx :test-case-should-capture :uint8
-                         #(c-test-case-should-capture ctx test-case %)))))
+(defn test-case-wants-output? [ctx test-case]
+  (not (zero? (call-out! ctx :test-case-wants-output :uint8
+                         #(c-test-case-wants-output ctx test-case %)))))
+
+(defn test-case-wants-detail? [ctx test-case]
+  (not (zero? (call-out! ctx :test-case-wants-detail :uint8
+                         #(c-test-case-wants-detail ctx test-case %)))))
 
 (defn test-case-clone! [ctx test-case]
   (call-draw-out! ctx :test-case-clone :pointer
@@ -604,6 +623,13 @@
 
 (def datetime-layout
   (backend/layout :hegel/datetime))
+
+(def timestamp-layout
+  (backend/layout :hegel/timestamp))
+
+(defn- write-timestamp! [ptr {:keys [second nanosecond]}]
+  (backend/write-field ptr timestamp-layout [:second] (long second))
+  (backend/write-field ptr timestamp-layout [:nanosecond] nanosecond))
 
 (defn- write-date! [ptr layout prefix value]
   (doseq [field [:year :month :day]]
@@ -1002,47 +1028,79 @@
    ctx :generate-ipv6 16
    #(c-generate-ipv6 ctx test-case %)))
 
-(defn generate-date! [ctx test-case min-value max-value]
-  (with-aggregate-buffers
-    date-layout
-    (fn [min-ptr max-ptr out-ptr]
-      (write-date! min-ptr date-layout [] min-value)
-      (write-date! max-ptr date-layout [] max-value)
-      (check-draw! ctx :generate-date
-                   (c-generate-date
-                    ctx test-case
-                    (backend/by-value min-ptr date-layout)
-                    (backend/by-value max-ptr date-layout)
-                    out-ptr))
-      (read-date out-ptr date-layout []))))
+(defn- with-date-options [ctx weekdays months call]
+  (if (or weekdays months)
+    (let [options (call-out! ctx :date-options-new :pointer #(c-date-options-new ctx %))]
+      (try
+        (when weekdays
+          (check! ctx :date-options-set-weekdays (c-date-options-set-weekdays ctx options weekdays)))
+        (when months
+          (check! ctx :date-options-set-months (c-date-options-set-months ctx options months)))
+        (call options)
+        (finally
+          (check! ctx :date-options-free (c-date-options-free ctx options)))))
+    (call backend/null)))
 
-(defn generate-time! [ctx test-case min-value max-value]
-  (with-aggregate-buffers
-    time-layout
-    (fn [min-ptr max-ptr out-ptr]
-      (write-time! min-ptr time-layout [] min-value)
-      (write-time! max-ptr time-layout [] max-value)
-      (check-draw! ctx :generate-time
-                   (c-generate-time
-                    ctx test-case
-                    (backend/by-value min-ptr time-layout)
-                    (backend/by-value max-ptr time-layout)
-                    out-ptr))
-      (read-time out-ptr time-layout []))))
+(defn- with-temporal-bounds [kind minimum maximum call]
+  (let [layout (case kind :date date-layout :time time-layout :datetime datetime-layout
+                     :timestamp timestamp-layout)]
+    (with-aggregate-buffers layout
+      (fn [lo hi out]
+        (case kind
+          :date (do (write-date! lo layout [] minimum) (write-date! hi layout [] maximum))
+          :time (do (write-time! lo layout [] minimum) (write-time! hi layout [] maximum))
+          :datetime (do (write-datetime! lo minimum) (write-datetime! hi maximum))
+          :timestamp (do (write-timestamp! lo minimum) (write-timestamp! hi maximum)))
+        (call (backend/by-value lo layout) (backend/by-value hi layout) out)))))
 
-(defn generate-datetime! [ctx test-case min-value max-value]
-  (with-aggregate-buffers
-    datetime-layout
-    (fn [min-ptr max-ptr out-ptr]
-      (write-datetime! min-ptr min-value)
-      (write-datetime! max-ptr max-value)
-      (check-draw! ctx :generate-datetime
-                   (c-generate-datetime
-                    ctx test-case
-                    (backend/by-value min-ptr datetime-layout)
-                    (backend/by-value max-ptr datetime-layout)
-                    out-ptr))
-      (read-datetime out-ptr))))
+(defn validate-temporal-bounds!
+  "Validate a filtered date or a precision-constrained temporal range without a draw."
+  [kind minimum maximum precision weekdays months]
+  (let [ctx (context-new!)]
+    (try
+      (with-temporal-bounds kind minimum maximum
+        (fn [lo hi _out]
+          (case kind
+            :date (with-date-options ctx weekdays months
+                    (fn [options]
+                      (check! ctx :validate-date (c-validate-date ctx lo hi options))))
+            :time (check! ctx :validate-time (c-validate-time ctx lo hi precision))
+            :datetime (check! ctx :validate-datetime (c-validate-datetime ctx lo hi precision))
+            :timestamp (check! ctx :validate-timestamp (c-validate-timestamp ctx lo hi precision)))))
+      (finally (context-free! ctx)))))
+
+(defn generate-date!
+  ([ctx tc minimum maximum] (generate-date! ctx tc minimum maximum nil nil))
+  ([ctx tc minimum maximum weekdays months]
+   (with-date-options ctx weekdays months
+     (fn [options]
+       (with-temporal-bounds :date minimum maximum
+         (fn [lo hi out]
+           (check-draw! ctx :generate-date (c-generate-date ctx tc lo hi options out))
+           (read-date out date-layout [])))))))
+
+(defn generate-time!
+  ([ctx tc minimum maximum] (generate-time! ctx tc minimum maximum 0))
+  ([ctx tc minimum maximum precision]
+   (with-temporal-bounds :time minimum maximum
+     (fn [lo hi out]
+       (check-draw! ctx :generate-time (c-generate-time ctx tc lo hi precision out))
+       (read-time out time-layout [])))))
+
+(defn generate-datetime!
+  ([ctx tc minimum maximum] (generate-datetime! ctx tc minimum maximum 0))
+  ([ctx tc minimum maximum precision]
+   (with-temporal-bounds :datetime minimum maximum
+     (fn [lo hi out]
+       (check-draw! ctx :generate-datetime (c-generate-datetime ctx tc lo hi precision out))
+       (read-datetime out)))))
+
+(defn generate-timestamp! [ctx tc minimum maximum precision]
+  (with-temporal-bounds :timestamp minimum maximum
+    (fn [lo hi out]
+      (check-draw! ctx :generate-timestamp (c-generate-timestamp ctx tc lo hi precision out))
+      {:second (backend/read-field out timestamp-layout [:second])
+       :nanosecond (backend/read-field out timestamp-layout [:nanosecond])})))
 
 (defn target! [ctx test-case value label]
   (with-string-value
@@ -1059,11 +1117,14 @@
     label
     #(check! ctx :event-value (c-event-value ctx test-case value %))))
 
-(defn mark-complete! [ctx test-case status origin]
-  (with-c-string
-    origin
-    #(check! ctx :mark-complete
-             (c-mark-complete ctx test-case status %))))
+(defn mark-complete! [ctx test-case status origin summary detail]
+  (with-c-string origin
+    (fn [origin-ptr]
+      (with-c-string summary
+        (fn [summary-ptr]
+          (with-c-string detail
+            #(check! ctx :mark-complete
+                     (c-mark-complete ctx test-case status origin-ptr summary-ptr %))))))))
 
 (defn run-result-free! [ctx result]
   (c-run-result-free ctx result)
@@ -1271,11 +1332,19 @@
 (defn failure-caveat! [ctx failure]
   (call-nullable-string-out! ctx :failure-caveat #(c-failure-caveat ctx failure %)))
 
-(defn run-start-blob! [ctx settings blob]
-  (with-string-value blob
-    (fn [value]
-      (call-out! ctx :run-start-blob :pointer
-                 #(c-run-start-blob ctx settings value backend/null backend/null %)))))
+(defn failure-output! [ctx failure]
+  (call-nullable-string-out! ctx :failure-output #(c-failure-output ctx failure %)))
+
+(defn failure-diagnostic! [ctx failure]
+  (call-nullable-string-out! ctx :failure-diagnostic #(c-failure-diagnostic ctx failure %)))
+
+(defn run-start-blob!
+  ([ctx settings blob] (run-start-blob! ctx settings blob false))
+  ([ctx settings blob stderr?]
+   (with-string-value blob
+     (fn [value]
+       (call-out! ctx :run-start-blob :pointer
+                  #(c-run-start-blob ctx settings value (run-output-sink stderr?) backend/null %))))))
 
 (defn run-result-error-kind! [ctx result]
   (call-out! ctx :run-result-error-kind :int32

@@ -50,6 +50,7 @@
                     (canonical-type snapshot base false) stars))
           (let [id (type-id clean)]
             (when-not (or (contains? (:structs snapshot) clean)
+                          (contains? (:callbacks snapshot) clean)
                           (some #{clean} (:opaque-handles snapshot)))
               (throw (ex-info "Unresolved header type" {:type c-type})))
             (if (and argument? (contains? (:structs snapshot) clean))

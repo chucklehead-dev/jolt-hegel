@@ -73,7 +73,7 @@ jobs:
           bb -m hegel.install
           native="$HEGEL_CACHE_DIR/libhegel_c.so"
           test -f "$native"
-          echo "0f76c0f11e1a1a044b7921e9c16ac8d51ae91878a1fd5c3e19b0f6b4eaebfaf0  $native" | sha256sum --check
+          echo "ce6cc514aac3d2c6e557bf9520b3af6280b3bb735a4d736e882d0344b1476bd2  $native" | sha256sum --check
           echo "HEGEL_LIBHEGEL_LIBRARY=$native" >> "$GITHUB_ENV"
       - name: Check actual manifest, compiler reports and runtime controls
         run: bash script/check-joinpoints.sh

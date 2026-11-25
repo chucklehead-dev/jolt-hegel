@@ -1,5 +1,6 @@
 (ns hegel.replay-bundle-native-test
-  (:require [clojure.test :refer [deftest is]]
+  (:require [clojure.edn :as edn]
+            [clojure.test :refer [deftest is]]
             [hegel.core :as h]
             [hegel.ffi :as hffi]
             [hegel.generator :as g]
@@ -19,14 +20,15 @@
    :property-id "native-bundle/control" :generator-revision "v1"
    :model-revision nil})
 
-(def step-bundle
-  {:format :hegel/replay-bundle :schema-version 1
-   :provenance provenance :seed "1"
-   :options {:stateful-step-count 52 :verbosity :quiet}
-   :failures [{:origin "hegel.stateful/invariant:below-fifty-one"
-               ;; Independent v0.51.6 fixture, not produced by this test run.
-               :reproduction-blob
-               "AXic7cexEQAACMJA07r/Wu6kNsxAAQWXn7o1/4AyCEywH4wD1g=="}]})
+(defn- fixture-bundle [version]
+  (let [fixture (edn/read-string (slurp (str "test/fixtures/hegel-" version "/step-51.edn")))]
+    {:format :hegel/replay-bundle :schema-version 1
+     :provenance (assoc provenance :libhegel-version (:libhegel-version fixture))
+     :seed (:seed fixture)
+     :options {:stateful-step-count (:stateful-step-count fixture) :verbosity :quiet}
+     :failures [(select-keys fixture [:origin :reproduction-blob])]}))
+
+(def step-bundle (fixture-bundle "0.53.2"))
 
 (defn- step-property [_]
   (hs/run! {:initial-state {:count 0}
@@ -85,6 +87,11 @@
         property (fn [_] (swap! calls conj :property))]
     (with-redefs [hffi/ensure-compatible-version! forbidden
                   hffi/context-new! forbidden hffi/run-start! forbidden]
+      ;; A matching blob encoding does not establish compatibility across releases.
+      (is (= [{:path [:libhegel-version] :source :bundle
+               :expected "0.53.2" :actual "0.51.6"}]
+             (:mismatches (h/replay-bundle! provenance (fixture-bundle "0.51.6") property))))
+      (is (empty? @calls))
       (doseq [[path changed] [[[:hegel-sha] "abcdef0123456789abcdef0123456789abcdef01"]
                               [[:libhegel-version] "0.33.3"]
                               [[:runtime :version] "changed"]
