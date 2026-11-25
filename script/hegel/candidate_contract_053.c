@@ -20,21 +20,22 @@ static int temporal(hegel_context_t *ctx) {
     return 0;
 }
 
-static int failure_report(hegel_context_t *ctx, int quiet) {
+static int failure_report(hegel_context_t *ctx, uint32_t verbosity,
+                          hegel_output_callback_t sink, void *user_data) {
     hegel_settings_t *settings = NULL;
     hegel_run_t *run = NULL;
     hegel_run_result_t *result = NULL;
     hegel_failure_t *failure = NULL;
     const hegel_string_t empty = {"", 0}, origin = {"lookup", 6};
-    const hegel_string_t summary = {"mismatch", 8}, detail = {"expected false", 14};
+    const char message[] = "mismatch: λ";
+    const hegel_string_t summary = {message, sizeof(message) - 1}, detail = {"expected false", 14};
     const hegel_string_t *output = NULL, *diagnostic = NULL;
     size_t count = 0;
 
     CHECK(hegel_settings_new(ctx, &settings) == HEGEL_OK);
     CHECK(hegel_settings_set_database(ctx, settings, &empty) == HEGEL_OK);
-    CHECK(hegel_settings_set_verbosity(ctx, settings,
-          quiet ? HEGEL_VERBOSITY_QUIET : HEGEL_VERBOSITY_NORMAL) == HEGEL_OK);
-    CHECK(hegel_run_start(ctx, settings, NULL, NULL, &run) == HEGEL_OK);
+    CHECK(hegel_settings_set_verbosity(ctx, settings, verbosity) == HEGEL_OK);
+    CHECK(hegel_run_start(ctx, settings, sink, user_data, &run) == HEGEL_OK);
     for (;;) {
         hegel_test_case_t *tc = NULL;
         bool wants_output, wants_detail;
@@ -54,7 +55,7 @@ static int failure_report(hegel_context_t *ctx, int quiet) {
     CHECK(hegel_run_result_failure(ctx, result, 0, &failure) == HEGEL_OK);
     CHECK(hegel_failure_output(ctx, failure, &output) == HEGEL_OK);
     CHECK(hegel_failure_diagnostic(ctx, failure, &diagnostic) == HEGEL_OK);
-    if (quiet) {
+    if (verbosity == HEGEL_VERBOSITY_QUIET) {
         CHECK(output == NULL && diagnostic == NULL);
     } else {
         CHECK(output && output->len == 0);
@@ -68,12 +69,21 @@ static int failure_report(hegel_context_t *ctx, int quiet) {
     return 0;
 }
 
+/* Driven by the Jolt callback contract in the same CI job. */
+int candidate_verbose_failure(hegel_output_callback_t sink, void *user_data) {
+    hegel_context_t *ctx = hegel_context_new();
+    CHECK(ctx);
+    CHECK(failure_report(ctx, HEGEL_VERBOSITY_VERBOSE, sink, user_data) == 0);
+    CHECK(hegel_context_free(ctx) == HEGEL_OK);
+    return 0;
+}
+
 int main(void) {
     hegel_context_t *ctx = hegel_context_new();
     CHECK(ctx);
     CHECK(temporal(ctx) == 0);
-    CHECK(failure_report(ctx, 0) == 0);
-    CHECK(failure_report(ctx, 1) == 0);
+    CHECK(failure_report(ctx, HEGEL_VERBOSITY_NORMAL, NULL, NULL) == 0);
+    CHECK(failure_report(ctx, HEGEL_VERBOSITY_QUIET, NULL, NULL) == 0);
     CHECK(hegel_context_free(ctx) == HEGEL_OK);
     return 0;
 }

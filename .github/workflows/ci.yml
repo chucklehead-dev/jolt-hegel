@@ -31,6 +31,19 @@ jobs:
           cc -std=c99 -Wall -Wextra -Werror -I. "$GITHUB_WORKSPACE/script/hegel/candidate_contract_053.c" \
             ./libhegel-linux-amd64.so -o candidate-contract
           ./candidate-contract
+      - uses: ./.github/actions/setup-jolt
+        with:
+          version: '0.8.30'
+          asset: jolt-v0.8.30-x86_64-linux.tar.gz
+          sha256: c9eb00ce9b58e6ab19dcfc324edad2ad5127bab7339e8d018ce2c30876037bdd
+      - name: Drive Hegel output through a Jolt callback and a native callback pointer
+        run: |
+          cd "$RUNNER_TEMP"
+          cc -std=c99 -Wall -Wextra -Werror -shared -fPIC -I. \
+            "$GITHUB_WORKSPACE/script/hegel/candidate_contract_053.c" ./libhegel-linux-amd64.so -o candidate-driver.so
+          jolt "$GITHUB_WORKSPACE/script/hegel/candidate_output_053.clj" \
+            "$PWD/libhegel-linux-amd64.so" "$PWD/candidate-driver.so" 2>pointer-output.log || { cat pointer-output.log; exit 1; }
+          grep -Fx 'pointer-sink: λ' pointer-output.log
   static-checks:
     name: Static checks
     runs-on: ubuntu-24.04
