@@ -411,3 +411,28 @@ jobs:
         if: matrix.host == 'jvm'
         working-directory: test/consumer
         run: clojure -J--enable-native-access=ALL-UNNAMED -M:test -m consumer.smoke
+
+  jdk25-minimum:
+    name: JVM minimum / Linux x86_64
+    needs: abi-data
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      HEGEL_CACHE_DIR: ${{ github.workspace }}/.hegel-lib
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '25.0.0'
+      - uses: DeLaGuardo/setup-clojure@13.5
+        with:
+          cli: latest
+      - name: Install libhegel
+        run: clojure -J--enable-native-access=ALL-UNNAMED -M:jvm:setup-native
+      - name: Run ABI and semantic suites
+        run: |
+          clojure -J--enable-native-access=ALL-UNNAMED -M:jvm:abi-test
+          clojure -J--enable-native-access=ALL-UNNAMED -M:jvm:test
