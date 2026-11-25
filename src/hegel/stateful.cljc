@@ -50,17 +50,17 @@
      (invalid-argument "rule options must be a map"
                        {:name name :options opts}))
    (let [unknown (seq (remove #{:precondition :weight} (keys opts)))
+         weight (get opts :weight 1.0)
+         native-weight (when (number? weight) (double weight))
          precondition (if (contains? opts :precondition)
                         (:precondition opts)
                         (constantly true))]
      (when unknown
        (invalid-argument "unknown rule options"
                          {:name name :options (vec unknown)}))
-     (when (contains? opts :weight)
-       (let [weight (:weight opts)]
-         (when-not (and (number? weight) (pos? weight)
-                        (<= (double weight) 1.7976931348623157E308))
-           (invalid-argument "rule weight must be finite and positive" {:name name :weight weight}))))
+     (when-not (and (some? native-weight) (pos? native-weight)
+                    (<= native-weight 1.7976931348623157E308))
+       (invalid-argument "rule weight must be finite and positive" {:name name :weight weight}))
      (when-not (fn? precondition)
        (invalid-argument "rule precondition must be a function"
                          {:name name :precondition precondition}))
@@ -70,7 +70,7 @@
      {::kind ::rule
       :name name
       ::native-name (normalized-name :rule name)
-      ::weight (get opts :weight 1.0)
+      ::weight native-weight
       ::precondition precondition
       ::step step})))
 

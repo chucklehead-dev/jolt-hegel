@@ -2170,7 +2170,7 @@ inline void hegel_jank_write_c_uint64(void *pointer, std::size_t offset, std::ui
 inline std::uint8_t hegel_jank_read_c_uint8(void *pointer, std::size_t offset) { return *reinterpret_cast<std::uint8_t *>(static_cast<std::uint8_t *>(pointer) + offset); }
 inline void hegel_jank_write_c_uint8(void *pointer, std::size_t offset, std::uint8_t value) { *reinterpret_cast<std::uint8_t *>(static_cast<std::uint8_t *>(pointer) + offset) = value; }
 inline std::string hegel_jank_read_utf8(void *pointer, std::size_t length) { return std::string{static_cast<char const *>(pointer), length}; }
-inline std::size_t hegel_jank_write_utf8(void *pointer, ::jank::runtime::object_ref value) { auto string = ::jank::runtime::try_object<::jank::runtime::obj::persistent_string>(value); std::memcpy(pointer, string->data.data(), string->data.size()); return string->data.size(); }
+inline std::size_t hegel_jank_utf8_size(::jank::runtime::object_ref value) { return ::jank::runtime::try_object<::jank::runtime::obj::persistent_string>(value)->data.size(); }
 inline void *hegel_jank_string_dup(::jank::runtime::object_ref value) { auto string = ::jank::runtime::try_object<::jank::runtime::obj::persistent_string>(value); auto *result = static_cast<char *>(hegel_jank_alloc(string->data.size() + 1)); std::memcpy(result, string->data.data(), string->data.size()); result[string->data.size()] = '\0'; return result; }
 inline std::string hegel_jank_native_string(void *pointer) { return pointer == nullptr ? std::string{} : std::string{static_cast<char const *>(pointer)}; }
 

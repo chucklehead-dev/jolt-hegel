@@ -301,8 +301,7 @@
              (ffi-backend/with-native-scope
               (fn []
                 (let [value "a\u0000😀z"
-                      pointer (ffi-backend/string->native value)
-                      length (ffi-backend/write-utf8 pointer value)]
+                      [pointer length] (ffi-backend/alloc-utf8 value)]
                   (and (= 7 length)
                        (= value (ffi-backend/read-utf8 pointer length)))))))
       (support/check! context "arena-scoped pointers cannot be read after lexical release"

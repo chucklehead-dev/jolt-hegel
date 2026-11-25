@@ -334,6 +334,10 @@ jobs:
         if: matrix.host == 'jvm'
         run: clojure -J--enable-native-access=ALL-UNNAMED -M:jvm:abi-test
 
+      - name: Check quiet and verbose process stderr
+        if: matrix.host == 'jolt' && runner.os == 'Linux'
+        run: bash script/check-run-output.sh jolt
+
       - name: Run semantic suite (Jolt)
         if: matrix.host == 'jolt'
         run: jolt -M:test

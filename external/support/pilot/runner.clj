@@ -27,14 +27,27 @@
       (doseq [label (when labels (labels value))] (h/event! label))
       (try (check value mutant?)
            (catch Exception error
-             (throw (ex-info (ex-message error)
-                             (assoc (ex-data error) :pilot/input value
-                                    :hegel/origin (str (name pack) "/" (name id))) error)))))))
+             (if (= id (:pilot/assertion (ex-data error)))
+               (throw (ex-info (ex-message error)
+                               (assoc (ex-data error) :pilot/input value
+                                      :hegel/origin (str (name pack) "/" (name id))) error))
+               (throw error)))))))
 
 (defn- summary [run]
   (select-keys run [:status :passed? :flaky? :seed :test-cases :valid-test-cases
                     :invalid-test-cases :overrun-test-cases :n-failures
                     :observations :coverage :error]))
+
+(defn- confirmed-fixture! [id expected status run]
+  (let [fixtures (report/failure-fixtures run :pilot/input)
+        data (some-> run :failures first :exception ex-data)]
+    (require! id (and (= status (:status run)) (false? (:flaky? run))
+                      (= 1 (count (:failures run)) (count fixtures))
+                      (= (:property-id expected) (:origin (first fixtures)))
+                      (= id (:pilot/assertion data)))
+              {:kind :unconfirmed-control :result run})
+    {:property id :provenance expected :input (:input (first fixtures))
+     :assertion (dissoc data :pilot/input)}))
 
 (defn- run-case! [pack {:keys [id coverage] :as property} output]
   (let [base {:profile "base" :test-cases 200 :seed 424242 :database ""
@@ -45,19 +58,12 @@
                           (property-body pack property false))]
     (require! id (:passed? good) {:kind :target-or-coverage-failure :result good})
     (let [bad (h/run-test! base (property-body pack property true))
-          failure (first (:failures bad))
-          data (some-> failure :exception ex-data)
-          fixtures (report/failure-fixtures bad :pilot/input)
-          minimum (:input (first fixtures))
           expected (provenance pack id)
+          fixture (confirmed-fixture! id expected :failed bad)
+          minimum (:input fixture)
           prefix (str output "/" (name id))]
-      (require! id (and (= :failed (:status bad)) (false? (:flaky? bad))
-                       (= id (:pilot/assertion data)) (= 1 (count fixtures)))
-                {:kind :broken-control-not-detected :result bad})
       (spit (str prefix ".replay.edn") (codec/encode (bundle/from-result expected bad)))
-      (spit (str prefix ".value.edn")
-            (pr-str {:property id :provenance expected :input minimum
-                     :assertion (dissoc data :pilot/input)}))
+      (spit (str prefix ".value.edn") (pr-str fixture))
       (println "PASS" pack id "and its broken control; minimum" (pr-str minimum))
       {:property id :positive (summary good) :control (summary bad)
        :minimum minimum})))
@@ -67,15 +73,17 @@
         expected (provenance pack id)
         artifact (codec/decode (slurp (str prefix ".replay.edn")))
         result (h/replay-bundle! expected artifact (property-body pack property true))
-        wrong (h/replay-bundle! (assoc expected :generator-revision "deliberately-incompatible")
-                                artifact (fn [_] (throw (ex-info "Mismatch executed body" {}))))
+        reproduced (confirmed-fixture! id expected :reproduced result)
         fixture (edn/read-string (slurp (str prefix ".value.edn")))
-        control-error (try (check (:input fixture) true) nil
-                           (catch Exception error error))]
-    (require! id (= :reproduced (:status result)) {:kind :replay-failed :result result})
-    (require! id (= :incompatible (:status wrong)) {:kind :mismatch-not-rejected})
+        invoked? (atom false)
+        wrong (h/replay-bundle! (assoc expected :generator-revision "deliberately-incompatible")
+                                artifact (fn [_] (reset! invoked? true)))]
+    (require! id (and (= :incompatible (:status wrong)) (not @invoked?)) {:kind :mismatch-not-rejected})
+    (require! id (= reproduced fixture) {:kind :fixture-mismatch
+                                         :expected reproduced :actual fixture})
     (check (:input fixture) false)
-    (require! id (= id (:pilot/assertion (ex-data control-error))) {:kind :value-fixture-failed})
+    (let [error (try (check (:input fixture) true) nil (catch Exception e e))]
+      (require! id (= id (:pilot/assertion (ex-data error))) {:kind :value-fixture-failed}))
     (println "PASS fresh-process replay, mismatch rejection and value fixture" pack id)
     {:property id :replay :reproduced :mismatch :incompatible :value-fixture :passed}))
 
@@ -85,7 +93,9 @@
         target (get-in manifest [:targets pack])
         deps (:deps (edn/read-string (slurp "deps.edn")))
         dependency (some #(when (= (:url target) (:git/url %)) %) (vals deps))]
-    (require! :pins (and (= (:sha target) (:git/sha dependency))
+    (require! :pins (and (string? (:url target)) (seq (:url target))
+                         (string? (:sha target)) (re-matches #"[0-9a-f]{40}" (:sha target))
+                         (= (:sha target) (:git/sha dependency))
                          (= (:libhegel manifest) version/libhegel-version)
                          (= (get-in manifest [:runtime :version]) (System/getProperty "jolt.version")))
               {:kind :pin-mismatch :target target :dependency dependency})

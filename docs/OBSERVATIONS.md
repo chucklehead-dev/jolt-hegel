@@ -32,7 +32,8 @@ A returned `false` from the property body still means a passing case.
 - `:show-statistics? true` enables libhegel's human-readable statistics on its
   native stderr stream. The default is off. This output is not captured by
   rebinding Clojure `*err*`, is not a stable structured format, and is never
-  parsed to decide coverage. Native verbosity may affect emitted diagnostics.
+  parsed to decide coverage. At quiet verbosity an explicit statistics request
+  still prints the statistics block. Case notes and failure diagnostics remain silent.
 - `:observations? true` enables frontend structured result data, independently
   of native printing. `:coverage` implicitly enables the same collection even
   if `:observations?` is false. Ordinary runs without either option retain

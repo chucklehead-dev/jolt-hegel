@@ -6,12 +6,13 @@
             [hegel.core :as h]
             [hegel.ffi :as hffi]
             [hegel.generator :as g]
+            [hegel.host :as host]
             [hegel.stateful :as hs]))
 
 ;; Generated independently with the released C library and a one-rule state
 ;; machine. The native choices for this property still encode identically.
 (def ^:private step-51-blob
-  (:reproduction-blob (edn/read-string (slurp "test/fixtures/hegel-0.53.2/step-51.edn"))))
+  (:reproduction-blob (edn/read-string (host/resource-text "fixtures/hegel-0.53.2/step-51.edn"))))
 
 (defn- step-51-machine []
   {:initial-state {:count 0}
@@ -457,6 +458,21 @@
     (is (= (:seed run)
            (:seed (h/run-test! {:profile "ci" :name "profile-test" :test-cases 1
                                  :verbosity :quiet :print-blob? false} (fn [_] true)))))))
+
+(deftest ordinary-runs-only-write-explicit-profile-overrides
+  (let [calls (atom [])
+        setter hffi/settings-set-derandomize!
+        opts {:profile "ci" :test-cases 1 :seed 1 :database "" :verbosity :quiet}]
+    (with-redefs [hffi/settings-set-derandomize!
+                  (fn [ctx settings enabled?]
+                    (swap! calls conj enabled?)
+                    (setter ctx settings enabled?))]
+      (is (true? (get-in (h/run-test! opts (fn [_] true))
+                         [:replay-options :derandomize?])))
+      (is (empty? @calls))
+      (is (false? (get-in (h/run-test! (assoc opts :derandomize? false) (fn [_] true))
+                          [:replay-options :derandomize?])))
+      (is (= [false] @calls)))))
 
 (deftest composed-labels-track-components
   (let [label #(-> % meta :hegel.generator/label)]

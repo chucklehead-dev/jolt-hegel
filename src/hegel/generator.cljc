@@ -765,7 +765,7 @@
      (when (and (some? (:start opts)) (not (string? (:start opts))))
        (invalid-option "grammar start must be a string" {:start (:start opts)}))
      (let [options {:start (:start opts) :max-size max-size :max-depth max-depth
-                    :imports imports :alphabet (when (:alphabet opts) (normalize-text-options (:alphabet opts)))}]
+                    :imports imports :alphabet (some-> (:alphabet opts) normalize-text-options)}]
        (native-generator :grammar #(hffi/grammar-new! % source options)
                          hffi/grammar-free! hffi/generate-grammar!)))))
 

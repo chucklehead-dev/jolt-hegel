@@ -329,13 +329,12 @@
 (defn- with-string-view [value call]
   (backend/with-native-scope
    (fn []
-     (let [text (str (or value ""))
-           data (backend/string->native text)]
+     (let [[data length] (backend/alloc-utf8 (str (or value "")))]
        (try
          (let [view (backend/alloc (backend/layout-size string-layout))]
            (try
              (backend/write-field view string-layout [:data] data)
-             (backend/write-field view string-layout [:len] (backend/write-utf8 data text))
+             (backend/write-field view string-layout [:len] length)
              (call view)
              (finally (backend/free view))))
          (finally (backend/free data)))))))
@@ -347,16 +346,6 @@
 (defn- with-string-value [value call]
   (with-string-view value #(call (backend/by-value % string-layout))))
 
-(defn- allocate-c-strings [values]
-  (let [pointers (atom [])]
-    (host/try-catch-all
-     (do (doseq [value values]
-           (swap! pointers conj (backend/string->native value)))
-         @pointers)
-     error
-     (doseq [ptr @pointers] (backend/free ptr))
-     (throw error))))
-
 (defn- with-c-string-array
   "Pass nil as a NULL list and a collection, including empty, as a real list."
   [values call]
@@ -364,24 +353,21 @@
     (call backend/null 0)
     (backend/with-native-scope
      (fn []
-       (let [pointers (allocate-c-strings values)]
+       (let [n (count values)
+             stride (backend/layout-size string-layout)
+             array (backend/alloc (max 1 (* stride n)))
+             buffers (volatile! [])]
          (try
-           (let [pointer-size (backend/layout-size string-layout)
-                 ;; A non-NULL pointer distinguishes [] from an unspecified list.
-                 array (backend/alloc (max 1 (* pointer-size (count pointers))))]
-             (try
-               (doseq [[index ptr] (map-indexed vector pointers)]
-                 (backend/write-value array :pointer (* index pointer-size) ptr)
-                 (backend/write-value array :size_t (+ (* index pointer-size) (backend/sizeof :pointer))
-                                      (backend/write-utf8 ptr (nth values index))))
-               (call array (count pointers))
-               (finally
-                 (backend/free array))))
+           (doseq [[index text] (map-indexed vector values)]
+             (let [[data length] (backend/alloc-utf8 text)
+                   offset (* index stride)]
+               (vswap! buffers conj data)
+               (backend/write-value array :pointer offset data)
+               (backend/write-value array :size_t (+ offset (backend/sizeof :pointer)) length)))
+           (call array n)
            (finally
-             (doseq [ptr pointers]
-               (backend/free ptr)))))))))
-
-
+             (doseq [data @buffers] (backend/free data))
+             (backend/free array))))))))
 
 (defn context-new! []
   (let [ctx (c-context-new)]
@@ -908,7 +894,7 @@
              (with-int64-array [group]
                #(check-draw! ctx :state-machine-add-rule
                   (c-state-machine-add-rule ctx test-case machine name
-                                            (if (map? rule) (double (:weight rule)) 1.0) % 1))))))
+                                            (if (map? rule) (:weight rule) 1.0) % 1))))))
        (doseq [invariant invariant-names]
          (with-string-value invariant
            #(check-draw! ctx :state-machine-add-invariant

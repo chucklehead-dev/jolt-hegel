@@ -44,9 +44,15 @@ jobs:
         with:
           clj-kondo: latest
       - name: Lint maintained pack sources
-        run: clj-kondo --fail-level warning --lint external/packs external/support
+        run: clj-kondo --fail-level warning --lint external/packs external/support external/test
       - name: Acquire verified Hegel library
         run: jolt -m hegel.install setup
+      - name: Verify replay rejects unrelated failures and incomplete fixtures
+        working-directory: external/packs/instaparse
+        env:
+          PILOT_HEGEL_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          PILOT_REVISION: runner-controls
+        run: jolt ../../test/pilot/runner_test.clj "$(mktemp -d)"
       - name: Run properties, broken controls and fresh-process replay
         run: python3 script/check-external-pilots.py
       - name: Preserve execution and replay evidence

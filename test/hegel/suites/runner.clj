@@ -683,34 +683,71 @@
                 (nil? (-> failure :counterexample :text))
                 (= 16 (count (-> failure :counterexample :errors)))))))
 
-(defn- counterexample-cleanup-order [context]
+(defn- counterexample-lifecycle [context]
   (let [events (atom [])
-        real-printer-free hffi/printer-free!
-        real-test-case-free hffi/test-case-free!]
-    (with-redefs [hffi/printer-free! (fn [ctx printer]
-                                       (swap! events conj :printer-free)
-                                       (real-printer-free ctx printer))
+        get-printer hffi/test-case-printer!
+        free-printer hffi/printer-free!
+        real-note hffi/note!
+        opts {:test-cases 1 :seed 21 :database "" :verbosity :normal}
+        body (fn [_]
+               (h/note! "one")
+               (h/note! "two")
+               (throw (ex-info "lifecycle" {:hegel/origin "runner/lifecycle"})))]
+    (with-redefs [hffi/test-case-printer! (fn [ctx handle options]
+                                            (swap! events conj :open)
+                                            (get-printer ctx handle options))
+                  hffi/printer-free! (fn [ctx printer]
+                                       (swap! events conj :free)
+                                       (free-printer ctx printer))
+                  hffi/note! (fn [ctx handle line]
+                               (swap! events conj :note)
+                               (real-note ctx handle line))]
+      (capture-err #(h/run-test! opts body))
+      (support/check! context "default-width diagnostics write notes without opening a printer handle"
+                      (and (seq @events) (every? #{:note} @events)))
+      (reset! events [])
+      (capture-err #(h/run-test! (assoc opts :counterexample {:max-width 30}) body))
+      (support/check! context "custom width is set once and its handle freed before either note"
+                      (and (seq @events)
+                           (zero? (mod (count @events) 4))
+                           (every? #(= [:open :free :note :note] %)
+                                   (partition 4 @events))))
+      (reset! events [])
+      (capture-err #(h/run-test! (assoc opts :verbosity :debug :counterexample {:max-width 30})
+                                 (fn [_] :ok)))
+      (support/check! context "a custom width with no output never opens a printer handle"
+                      (empty? @events)))))
+
+(defn- case-setup-cleanup [context]
+  (let [acquired (atom 0)
+        freed (atom 0)
+        real-next hffi/next-test-case!
+        real-free hffi/test-case-free!
+        injected (ex-info "injected setup fault" {})
+        fault (fn [& _] (throw injected))
+        run #(try (h/run-test! {:verbosity :verbose :test-cases 1 :seed 21 :database ""}
+                               (fn [_] (throw (ex-info "body unexpectedly ran" {}))))
+                  nil
+                  (catch Throwable e e))]
+    (with-redefs [hffi/next-test-case! (fn [ctx native-run]
+                                         (let [handle (real-next ctx native-run)]
+                                           (when handle (swap! acquired inc))
+                                           handle))
                   hffi/test-case-free! (fn [ctx handle]
-                                         (swap! events conj :test-case-free)
-                                         (real-test-case-free ctx handle))]
-      (h/run-test!
-       {:test-cases 1
-        :seed 21
-        :database ""
-        :verbosity :normal}
-       (fn [_]
-         (h/draw! (g/integer 0 1) :x)
-         (throw
-          (ex-info "cleanup order"
-                   {:hegel/origin "hegel.test-runner:counterexample-cleanup-order"})))))
-    (support/check! context "the native printer for a case is freed immediately before its test-case handle"
-           (and (pos? (count (filter #{:printer-free} @events)))
-                (every? #(= :test-case-free (second %))
-                        (filter #(= :printer-free (first %)) (partition 2 1 @events)))))))
+                                         (swap! freed inc)
+                                         (real-free ctx handle))]
+      (doseq [[description observed]
+              [["wants-output" (with-redefs [hffi/test-case-wants-output? fault] (run))]
+               ["wants-detail" (with-redefs [hffi/test-case-wants-detail? fault] (run))]
+               ["render setup" (with-redefs [render/start! fault] (run))]]]
+        (support/check! context (str description " preserves the original setup error")
+                        (identical? injected observed)))
+      (support/check! context "every allocated case handle is freed when setup throws"
+                      (= 3 @acquired @freed)))))
 
 (defn- counterexample-checkpoint-rollback [context]
   (with-redefs [hffi/note! (fn [& _] nil)]
-    (let [state {:ctx ::ctx :handle ::handle :printer nil :enabled? true
+    (let [state {:ctx ::ctx :handle ::handle
                  :native-disabled? (atom true)
                  :render-fn pr-str :redact-fn identity
                  :max-output-units 65536
@@ -817,6 +854,7 @@
   (counterexample-custom-redaction context)
   (counterexample-oversize-rejection context)
   (counterexample-renderer-error-safety context)
-  (counterexample-cleanup-order context)
+  (counterexample-lifecycle context)
+  (case-setup-cleanup context)
   (counterexample-checkpoint-rollback context)
   (counterexample-rejected-attempt-rollback context))

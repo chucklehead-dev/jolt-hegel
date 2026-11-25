@@ -21,7 +21,7 @@
    :model-revision nil})
 
 (defn- fixture-bundle [version]
-  (let [fixture (edn/read-string (slurp (str "test/fixtures/hegel-" version "/step-51.edn")))]
+  (let [fixture (edn/read-string (host/resource-text (str "fixtures/hegel-" version "/step-51.edn")))]
     {:format :hegel/replay-bundle :schema-version 1
      :provenance (assoc provenance :libhegel-version (:libhegel-version fixture))
      :seed (:seed fixture)
