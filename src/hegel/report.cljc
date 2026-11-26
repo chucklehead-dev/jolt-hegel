@@ -20,8 +20,10 @@
 (defn- print-failure! [{:keys [origin exception caveat reproduced? status] :as failure}]
   (println " " (str origin (when exception (str " — " (ex-message exception)))))
   (if-let [fixture (confirmed-fixture failure :input)]
-    (binding [*print-length* 32 *print-level* 8]
-      (println "  input" (pr-str (:input fixture))))
+    (println "  input"
+             #?(:jank (pr-str (:input fixture))
+                :default (binding [*print-length* 32 *print-level* 8]
+                           (pr-str (:input fixture)))))
     (println "  input unavailable:"
              (cond caveat caveat
                    (not reproduced?) (str "failure unconfirmed (" (name (or status :unknown)) ")")
