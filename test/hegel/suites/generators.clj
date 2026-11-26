@@ -457,6 +457,25 @@
               (support/throws? #(g/domain {:max-length 256})))))
 
 (defn collection-combinators [context]
+  (doseq [make-generator [(fn [keys] (g/sorted-set {:size 3} keys))
+                          (fn [keys] (g/sorted-map {:size 3} keys (g/just :v)))]]
+    (let [opts {:seed 7 :test-cases 15 :verbosity :quiet :database ""}
+          sizes (atom #{})
+          generator (make-generator (g/sampled-from [1 1.0 2 3]))
+          result (h/run-test! opts
+                   (fn [_]
+                     (swap! sizes conj (count (h/draw! generator)))
+                     (throw (ex-info "exercise shrinking and replay"
+                                     {:hegel/origin "sorted-cardinality"}))))]
+      (support/check! context "sorted collection cardinality survives shrinking and replay"
+                      (and (= #{3} @sizes) (true? (:reproduced? (first (:failures result))))))
+      (let [impossible (make-generator (g/sampled-from [1 1.0 2]))
+            returned (atom false)
+            error (try (h/run-test! opts (fn [_] (h/draw! impossible) (reset! returned true)))
+                       nil
+                       (catch Throwable e e))]
+        (support/check! context "comparator-equivalent keys cannot fill an impossible size"
+                        (and (not @returned) (= ::h/run-error (:type (ex-data error))))))))
   (let [dependent
         (g/bind
          (fn [size]

@@ -1363,68 +1363,74 @@
    (fmap #(apply clojure.core/list %)
          (vector opts elements))))
 
+(defn- set-generator [opts empty-result elements]
+  (require-generator! "set" elements)
+  (let [[min-size max-size] (collection-bounds "set"
+                                               #{:size :min-size :max-size}
+                                               opts)]
+    (labelled-composite hffi/label-set [elements]
+     (fn [test-case label]
+       (draw-collection
+        test-case label min-size max-size empty-result
+        (fn [collection result]
+          (let [value (elements test-case)]
+            (if (contains? result value)
+              (do
+                (hffi/collection-reject!
+                 (:context test-case) (:handle test-case)
+                 collection "duplicate element")
+                [false result])
+              [true (conj result value)]))))))))
+
 (defn set
   "Generate a set. Options: :size, :min-size, and :max-size."
   ([elements]
    (set {} elements))
   ([opts elements]
-   (require-generator! "set" elements)
-   (let [[min-size max-size] (collection-bounds "set"
-                                                #{:size :min-size :max-size}
-                                                opts)]
-     (labelled-composite hffi/label-set [elements]
-      (fn [test-case label]
-        (draw-collection
-         test-case label min-size max-size #{}
-         (fn [collection result]
-           (let [value (elements test-case)]
-             (if (contains? result value)
-               (do
-                 (hffi/collection-reject!
-                  (:context test-case) (:handle test-case)
-                  collection "duplicate element")
-                 [false result])
-               [true (conj result value)])))))))))
+   (set-generator opts #{} elements)))
 
 (defn sorted-set
   "Generate a sorted set. Accepts the same options as set."
   ([elements]
    (sorted-set {} elements))
   ([opts elements]
-   (fmap #(into (clojure.core/sorted-set) %)
-         (set opts elements))))
+   ;; Keep the mapped span used by existing sorted collection generators.
+   (fmap identity (set-generator opts (clojure.core/sorted-set) elements))))
+
+(defn- map-generator [opts empty-result keys values]
+  (require-generator! "map keys" keys)
+  (require-generator! "map values" values)
+  (let [[min-size max-size] (collection-bounds "map"
+                                               #{:size :min-size :max-size}
+                                               opts)]
+    (labelled-composite hffi/label-map [keys values]
+     (fn [test-case label]
+       (draw-collection
+        test-case label min-size max-size empty-result
+        (fn [collection result]
+          (let [key (keys test-case)]
+            (if (contains? result key)
+              (do
+                (hffi/collection-reject!
+                 (:context test-case) (:handle test-case)
+                 collection "duplicate key")
+                [false result])
+              [true (assoc result key (values test-case))]))))))))
 
 (defn map
   "Generate a map. Options: :size, :min-size, and :max-size."
   ([keys values]
    (map {} keys values))
   ([opts keys values]
-   (require-generator! "map keys" keys)
-   (require-generator! "map values" values)
-   (let [[min-size max-size] (collection-bounds "map"
-                                                #{:size :min-size :max-size}
-                                                opts)]
-     (labelled-composite hffi/label-map [keys values]
-      (fn [test-case label]
-        (draw-collection
-         test-case label min-size max-size {}
-         (fn [collection result]
-           (let [key (keys test-case)]
-             (if (contains? result key)
-               (do
-                 (hffi/collection-reject!
-                  (:context test-case) (:handle test-case)
-                  collection "duplicate key")
-                 [false result])
-               [true (assoc result key (values test-case))])))))))))
+   (map-generator opts {} keys values)))
 
 (defn sorted-map
   "Generate a sorted map. Accepts the same options as map."
   ([keys values]
    (sorted-map {} keys values))
   ([opts keys values]
-   (fmap #(into (clojure.core/sorted-map) %)
-         (map opts keys values))))
+   ;; Keep the mapped span used by existing sorted collection generators.
+   (fmap identity (map-generator opts (clojure.core/sorted-map) keys values))))
 
 (defn hmap
   "Generate a map with fixed keys and a distinct generator for each value."

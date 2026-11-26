@@ -4,6 +4,7 @@
             [hegel.corpus :as corpus]
             [hegel.generator :as g]
             [hegel.host :as host]
+            [hegel.internal.portable-data :as portable-data]
             [hegel.materialize :as materialize]
             [hegel.version :as version]))
 
@@ -177,6 +178,30 @@
         (is (= :max-string-chars (:reason (ex-data failure))))
         (is (true? (:hegel/usage-error? (ex-data failure))))
         (is (= 1 @runs))))))
+
+(deftest prefix-budget-matches-final-encoding
+  (let [value {:example ["😀" "\"" nil false]}
+        template {:provenance provenance :seed "7" :valid-case-policy :exact-valid-count
+                  :count 1 :values []}]
+    (loop [n 1 budget (corpus/prefix-budget template)]
+      (let [next-budget (corpus/add-prefix-value budget value n)]
+        (when (contains? #{1 9 10 99 100 256} n)
+          (let [payload (assoc template :count n :values (vec (repeat n value)))]
+            (is (= (:text next-budget)
+                   (portable-data/text-size (:payload (corpus/seal payload)))))))
+        (when (< n 256) (recur (inc n) next-budget))))))
+
+(deftest cumulative-limits-stop-before-the-next-draw
+  (doseq [[value reason] [[(apply str (repeat 8192 "😀")) :max-string-chars]
+                          [(apply str (repeat 8192 "\"")) :max-text-chars]
+                          [(vec (repeat 3000 1)) :max-nodes]]]
+    (let [calls (atom 0)
+          failure (with-redefs [core/draw! (fn [_] value)
+                                core/run-test! (fn [_ body] (swap! calls inc)
+                                                 (body :case) passing-run)]
+                    (error #(materialize/materialize! (assoc options :count 256) (g/just value))))]
+      (is (= reason (:reason (ex-data failure))))
+      (is (= (case reason :max-string-chars 1 :max-text-chars 16 :max-nodes 22) @calls)))))
 
 (defn -main [& _]
   (let [{:keys [fail error]} (clojure.test/run-tests 'hegel.materialize-test)]
