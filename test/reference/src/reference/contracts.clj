@@ -12,6 +12,7 @@
                       (let [n (draw wide)
                             pair (draw pairs)]
                         (assume (even? n))
+                        (assert (even? n))
                         (assert (and (integer? n) (<= 2147483648 n 2147483655)))
                         (assert (and (set? pair) (= 2 (count pair))
                                      (every? #{0 1 2} pair)))
