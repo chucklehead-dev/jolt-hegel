@@ -215,11 +215,64 @@
     (is (= ::trace/rule-error (:type (ex-data wrapped))))
     (is (not (usage-error? wrapped)))))
 
-(deftest explicit-collection-size-is-validated-even-when-min-max-win
+(deftest invalid-exact-size-is-rejected-alongside-bounds
   (let [outside #(g/vector {:size -1 :min-size 0 :max-size 1} (g/integer))]
     (assert-error! ::g/invalid-option outside)
     (assert-error! ::g/invalid-option
                    #(h/run-test! run-opts (fn [_] (outside))))))
+
+(deftest trace-assumptions-have-the-same-verdict-as-top-level-assumptions
+  (let [opts (assoc run-opts :test-cases 20 :seed 7)
+        run (fn [nested?]
+              (h/run-test! opts
+                (fn [_]
+                  (let [eligible? (h/draw! (g/boolean))]
+                    (if nested?
+                      (trace/check! [] [(trace/rule :eligible
+                                         (fn [_] (h/assume! eligible?) true))])
+                      (h/assume! eligible?))))))
+        direct (run false)
+        nested (run true)
+        fields [:status :invalid-test-cases :valid-test-cases :n-failures]]
+    (is (:passed? nested))
+    (is (pos? (:invalid-test-cases nested)))
+    (is (= (select-keys direct fields) (select-keys nested fields)))))
+
+(deftest trace-rule-propagates-native-draw-signals-by-identity
+  (doseq [error [(error-of #(hffi/check-draw! nil :draw -1))
+                 (error-of #(hffi/check-draw! nil :draw -2))
+                 (ex-info "ABI failure" {:type ::hffi/error})]]
+    (is (identical? error (error-of #(trace/check! [] [(trace/rule :draw
+                                                        (fn [_] (throw error)))]))))))
+
+(deftest malformed-event-cannot-hide-a-bad-suffix
+  (doseq [bad [nil false] scope [{} {:scope :id}]]
+    (let [calls (atom 0)
+          rule (trace/event-model :count-events
+                 (merge {:initial 0 :step (fn [n _] (swap! calls inc) (inc n))
+                         :final #(= 1 %)} scope))
+          events [{:id 1} bad {:id 1}]
+          error (error-of #(trace/check! events [rule]))]
+      (is (= ::trace/rule-failed (:type (ex-data error))))
+      (is (= "hegel.trace/count-events" (:hegel/origin (ex-data error))))
+      (is (= events (:hegel.trace/events (ex-data error))))
+      (is (zero? @calls)))))
+
+(deftest collection-size-is-exact-across-constructors
+  (let [elements (g/integer 0 10)]
+    (doseq [build [#(g/vector % elements) #(g/list % elements)
+                   #(g/set % elements) #(g/sorted-set % elements)
+                   #(g/map % elements elements) #(g/sorted-map % elements elements)
+                   #(g/subsequences % [1 2 3]) #(g/samples % [1 2 3])]]
+      (doseq [opts [{:size 2 :min-size 1 :max-size 3}
+                    {:size 2 :min-size 2 :max-size 2}]]
+        (is (= [2] (mapv count (h/sample 1 (build opts))))))
+      (doseq [opts [{:size 2 :min-size 3} {:size 2 :max-size 1}
+                    {:size 3 :min-size 1 :max-size 1}]]
+        (let [data (ex-data (error-of #(build opts)))]
+          (is (= ::g/invalid-option (:type data)))
+          (is (= opts (select-keys data (keys opts))))))
+      (assert-error! ::g/invalid-option #(build {:size nil})))))
 
 (deftest core-draw-and-sample-reject-invalid-inputs-before-a-run
   (doseq [[type thunk]

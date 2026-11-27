@@ -10,7 +10,60 @@
             [hegel.stateful :as hs]
             [hegel.test-support :as support]))
 
+(defn- rejected-rule-pool [context]
+  (doseq [mode [:before :after :nested]]
+    (let [result
+          (h/run-test!
+           {:seed 7 :test-cases 20 :database "" :stateful-step-count 4 :verbosity :quiet}
+           (fn [_]
+             (let [pool (hs/add! (hs/pool) :edit)
+                   attempts (atom 0)
+                   model (hs/run!
+                          {:initial-state [:edit]
+                           :rules [(hs/rule :undo
+                                    (fn [_]
+                                      (swap! attempts inc)
+                                      (when (= mode :before) (h/assume! false))
+                                      (let [take-edit (hs/values-consumed pool)]
+                                        (h/draw! (if (= mode :nested)
+                                                   (g/filter keyword? take-edit) take-edit)))
+                                      (h/assume! false)
+                                      []))]})]
+               (h/assume! (pos? @attempts))
+               (when-not (= (count model) (hs/pool-size pool))
+                 (throw (ex-info "model and pool disagree" {:hegel/origin "undo/lost-edit"})))
+               (let [edit (h/draw! (hs/values-reusable pool))]
+                 ;; A planted failure forces shrinking and replay after the
+                 ;; native pool was read successfully.
+                 (throw (ex-info "replay restored edit"
+                                 {:hegel/origin "undo/restored-edit" :input [model edit]}))))))
+          failure (first (:failures result))]
+      (support/check! context (str "rejected undo preserves pool and model through replay " mode)
+                      (and (= "undo/restored-edit" (:origin failure)) (:reproduced? failure)
+                           (= [[:edit] :edit] (:input (ex-data (:exception failure)))))))))
+
+(defn- undo-transition [undo-enabled?]
+  (h/run-test!
+   {:seed 7 :test-cases 40 :stateful-step-count 10 :database "" :verbosity :quiet
+    :phases [:generate]
+    :coverage {:scope :exploration :requirements {"undo-after-edit" {:min-count 1}}}}
+   (fn [_]
+     (let [state (hs/run!
+                  {:initial-state {:edits 0 :undid? false}
+                   :rules [(hs/rule :edit #(update % :edits inc))
+                           (hs/rule :undo {:precondition #(and undo-enabled? (pos? (:edits %)))}
+                                    #(-> % (update :edits dec) (assoc :undid? true)))]})]
+       (when (:undid? state) (h/event! "undo-after-edit"))))))
+
 (defn stateful-pools-and-models [context]
+  (rejected-rule-pool context)
+  (let [enabled (undo-transition true)
+        disabled (undo-transition false)
+        check (first (get-in disabled [:coverage :checks]))]
+    (support/check! context "only a completed undo after an edit satisfies transition coverage"
+                    (and (:passed? enabled) (= :coverage-failed (:status disabled))
+                         (= "undo-after-edit" (:label check)) (zero? (:hits check))
+                         (pos? (:valid-cases check)))))
   (let [observations (atom [])
         result
         (h/run-test!

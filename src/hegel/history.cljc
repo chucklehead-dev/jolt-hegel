@@ -5,9 +5,9 @@
   integer `:seq`, an `:operation-id`, and a `:phase` of `:invoke`, `:return`,
   or `:throw`. An invocation also has `:operation`. Every operation must have
   exactly one invocation followed by exactly one terminal event."
-  (:require [clojure.set :as set]
-            [hegel.host :as host]
+  (:require [hegel.host :as host]
             [hegel.trace :as trace]
+            [hegel.internal.runner-signal :as signal]
             [hegel.validation :as validation]))
 
 (def ^:private default-max-operations 10)
@@ -181,7 +181,7 @@
         (host/try-catch-all
          (step state operation)
          error
-         (if (:hegel/inconclusive? (ex-data error))
+         (if (signal/propagate? error)
            (throw error)
            (fail! "history model transition threw"
                   ::model-error events opts
@@ -207,9 +207,8 @@
                 ops))
         ops))
 
-(defn- search [initial step ops predecessors indices events opts budget]
-  (let [allowed (set indices)
-        predecessors (mapv #(set/intersection allowed %) predecessors)]
+(defn- search [initial step ops events opts budget]
+  (let [predecessors (predecessor-indexes ops)]
     (letfn [(visit [state remaining chosen order budget]
               (if (empty? remaining)
                 {:status :linearizable
@@ -239,13 +238,13 @@
                                 result))
                             (recur (next candidates) budget)))))
                     {:status :not-linearizable :remaining-budget budget}))))]
-      (visit initial (into (sorted-set) indices) #{} [] budget))))
+      (visit initial (into (sorted-set) (range (count ops))) #{} [] budget))))
 
 (defn- partition-of [partition-by operation events opts]
   (host/try-catch-all
    (partition-by operation)
    error
-   (if (:hegel/inconclusive? (ex-data error))
+   (if (signal/propagate? error)
      (throw error)
      (fail! "history partition function threw"
             ::partition-error events opts
@@ -254,19 +253,19 @@
 
 (defn- ordered-groups [ops partition-by events opts]
   (if-not partition-by
-    [[nil (vec (range (count ops)))]]
+    [[nil ops]]
     (reduce
-     (fn [groups [operation-index operation]]
+     (fn [groups operation]
        (let [partition (partition-of partition-by operation events opts)
              index (first
                     (keep-indexed
                      (fn [index [key _]] (when (= key partition) index))
                      groups))]
          (if (nil? index)
-           (conj groups [partition [operation-index]])
-           (update-in groups [index 1] conj operation-index))))
+           (conj groups [partition [operation]])
+           (update-in groups [index 1] conj operation))))
      []
-     (map-indexed vector ops))))
+     ops)))
 
 (defn- search-exhausted! [analysis events opts]
   (fail! "history search budget exhausted" ::search-exhausted events opts
@@ -287,11 +286,10 @@
                                 "history model step must be callable"
                                 {:hegel/origin (origin (:name opts)) :step step}))
      (let [ops (operations events opts)
-           predecessors (predecessor-indexes ops)
            groups (ordered-groups ops (:partition-by opts) events opts)
            result (loop [remaining groups witnesses [] budget (:max-search-steps opts)]
                     (if-let [[partition partition-ops] (first remaining)]
-                      (let [outcome (search initial step ops predecessors partition-ops events opts budget)]
+                      (let [outcome (search initial step partition-ops events opts budget)]
                         (case (:status outcome)
                           :inconclusive outcome
                           :not-linearizable outcome

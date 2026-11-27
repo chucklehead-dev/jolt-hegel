@@ -118,6 +118,35 @@ blob, counterexample, or extra shrink/replay invocation. Existing native
 failure/error/flaky results remain primary; coverage does not mask them.
 Both standard reporting integrations treat missed coverage as a failure.
 
+### Did an undo actually follow an edit?
+
+Keep the witness in the model state that successful rules return. Emit the
+event once the machine finishes. A skipped undo then contributes zero hits.
+
+```clojure
+(require '[hegel.stateful :as hs])
+
+(defn edit-history [undo-enabled?]
+  (let [state (hs/run!
+               {:initial-state {:edits 0 :undid? false}
+                :rules [(hs/rule :edit #(update % :edits inc))
+                        (hs/rule :undo
+                                 {:precondition #(and undo-enabled? (pos? (:edits %)))}
+                                 #(-> % (update :edits dec) (assoc :undid? true)))]})]
+    (when (:undid? state) (h/event! "undo-after-edit"))))
+
+(def opts {:seed 7 :test-cases 40 :stateful-step-count 10 :database ""
+           :phases [:generate] :verbosity :quiet
+           :coverage {:scope :exploration
+                      :requirements {"undo-after-edit" {:min-count 1}}}})
+
+(h/run-test! opts (fn [_] (edit-history true)))  ;; :passed? true
+(h/run-test! opts (fn [_] (edit-history false))) ;; :status :coverage-failed
+```
+
+The disabled rule is a deliberate control. The failed check should name
+`undo-after-edit`, report zero hits, and show a positive valid-case count.
+
 Coverage and observation settings are deliberately omitted from schema-v1
 counterexample replay options. They are diagnostics/run-level obligations,
 not instructions for reproducing one native failure blob.

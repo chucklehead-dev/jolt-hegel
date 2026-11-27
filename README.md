@@ -82,6 +82,32 @@ usefully enumerate.
 
 ## A first property
 
+From a REPL with jolt-hegel and its native library installed, try a property
+whose failure you can recognize. This settings reader accidentally treats an
+explicit `false` like a missing key.
+
+```clojure
+(require '[hegel.core :as h] '[hegel.generator :as g] '[hegel.report :as report])
+
+(defn enabled? [settings] (or (:enabled settings) true))
+
+(def result
+  (h/run-test! {:seed 7 :database "" :verbosity :quiet}
+    (fn [_]
+      (let [settings {:enabled (h/draw! (g/boolean))}]
+        (when-not (= (:enabled settings) (enabled? settings))
+          (throw (ex-info "explicit setting was lost"
+                          {:hegel/origin "settings/explicit" :input settings})))))))
+
+(report/failure-fixtures result)
+;; => [{:origin "settings/explicit", :input {:enabled false}}]
+```
+
+Use `{:enabled false}` as the input to an ordinary regression test. Change
+the implementation to `(get settings :enabled true)` and rerun the property;
+`:passed?` should now be true. For a saved artifact that replays the engine's
+minimized choices, see [replay bundles](docs/REPLAY_BUNDLES.md).
+
 Suppose an application serializes user records. This test explores record
 sizes, Unicode names, optional values, role combinations, and UUIDs while
 asserting the contract that matters:
@@ -256,6 +282,9 @@ length, and a random nonempty swarm subset for each case.
 ```
 
 A false precondition or `h/assume!` inside a rule skips that attempted rule.
+Pool values consumed during the skipped attempt become available again, including
+values consumed by nested generators. Check assumptions before adding new pool
+values or mutating the system under test; these effects persist.
 Invariants run on the initial state and after each successful rule. Keep rule
 names and order stable for replay, and create mutable state inside the property
 body so generation, shrinking, and final replay each begin fresh.

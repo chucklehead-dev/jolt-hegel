@@ -456,7 +456,33 @@
          (and (support/throws? #(g/domain {:max-length 3}))
               (support/throws? #(g/domain {:max-length 256})))))
 
+(defn- unique-vector-run [wrap fail?]
+  ;; Equal list and vector wrappers exercise the linear and indexed paths
+  ;; with the same native draw structure, including duplicate candidates.
+  (let [draws (atom [])
+        gen (g/vector {:min-size 3 :max-size 20 :unique? true} (g/fmap wrap (g/integer 0 31)))
+        result (h/run-test! {:database "" :seed 47 :test-cases 4 :verbosity :quiet}
+                 (fn [_]
+                   (let [xs (mapv first (h/draw! gen))]
+                     (swap! draws conj xs)
+                     (when (and fail? (>= (count xs) 4))
+                       (throw (ex-info "four entries" {:hegel/origin "unique/four" :input xs}))))))]
+    [@draws result]))
+
 (defn collection-combinators [context]
+  (doseq [fail? [false true]]
+    (let [[linear reference] (unique-vector-run list fail?)
+          [indexed result] (unique-vector-run vector fail?)
+          failure (first (:failures result))]
+      (support/check! context "unique indexing preserves accepted order, rejection, shrinking and replay"
+                      (and (seq indexed) (= linear indexed)
+                           (every? #(= (count %) (count (set %))) indexed)
+                           (= (:invalid-test-cases reference) (:invalid-test-cases result))
+                           (if fail?
+                             (and (:reproduced? failure)
+                                  (= (:reproduction-blob failure)
+                                     (:reproduction-blob (first (:failures reference)))))
+                             (:passed? result))))))
   (doseq [make-generator [(fn [keys] (g/sorted-set {:size 3} keys))
                           (fn [keys] (g/sorted-map {:size 3} keys (g/just :v)))]]
     (let [opts {:seed 7 :test-cases 15 :verbosity :quiet :database ""}
