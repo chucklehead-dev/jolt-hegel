@@ -7,6 +7,7 @@
   safety contract cannot swallow a test failure."
   (:require [hegel.host :as host]
             [hegel.internal.event-id :as event-id]
+            [hegel.internal.runner-signal :as signal]
             [hegel.validation :as validation]))
 
 (def default-max-events 256)
@@ -55,8 +56,8 @@
 
   A false predicate throws with a stable `:hegel/origin` and includes the
   bounded trace in ex-data, allowing Hegel to shrink the inputs or stateful
-  command sequence that produced it. Predicate exceptions are wrapped with the
-  same stable origin and retained as the cause."
+  command sequence that produced it. Runner signals propagate unchanged. Other
+  predicate exceptions retain the rule origin and the original cause."
   ([events rules] (check! events rules {}))
   ([events rules opts]
    (validation/reject-unknown-keys! ::invalid-options "trace check options"
@@ -76,8 +77,7 @@
              (host/try-catch-all
               (boolean ((::check r) events))
               error
-              (if (or (:hegel/usage-error? (ex-data error))
-                      (:hegel/inconclusive? (ex-data error)))
+              (if (signal/propagate? error)
                 (throw error)
                 (throw (ex-info "trace rule evaluation threw"
                                 {:hegel/origin (origin name)
@@ -152,7 +152,7 @@
   to nil, `:invariant` checks `[next-state event]` after every transition, and
   `:final` checks the state after a complete scope. Optional callable `:scope`
   runs one independent model per scope while preserving each scope's observed
-  order."
+  order. A non-map event fails this rule before any model callback runs."
   [name opts]
   (validation/require-map! ::invalid-rule "trace event-model options" opts
                            {:name name :options opts})
@@ -181,20 +181,19 @@
     (rule
      name
      (fn [events]
-       (let [groups (if scope
-                      (vals (group-by scope events))
-                      [events])]
-         (every?
-          (fn [group]
-            (loop [state initial
-                   remaining (seq group)]
-              (if-let [event (first remaining)]
-                (let [next-state (step state event)]
-                  (if (invariant next-state event)
-                    (recur next-state (next remaining))
-                    false))
-                (final state))))
-          groups))))))
+       (and (every? map? events)
+            (let [groups (if scope (vals (group-by scope events)) [events])]
+              (every?
+               (fn [group]
+                 (loop [state initial remaining (seq group)]
+                   (if (seq remaining)
+                     (let [event (first remaining)
+                           next-state (step state event)]
+                       (if (invariant next-state event)
+                         (recur next-state (next remaining))
+                         false))
+                     (final state))))
+               groups)))))))
 
 (defn contiguous-sequence
   "Require integer `:seq` values to be contiguous from `start` (default 1).

@@ -6,6 +6,13 @@ for v0.1.0 through v0.4.0, see the tag and release history in that repository.
 
 ## Unreleased
 
+- Collection generators treat `:size` as exact. For example, `{:size 3
+  :min-size 1 :max-size 5}` generates three entries. If a supplied bound
+  excludes that size, construction fails. Omit `:size` to generate a range.
+- Trace and history predicates propagate rejected draws and runner errors.
+  Event models reject non-map entries, including nil and false, before
+  invoking the model.
+
 - Upgrade to libhegel 0.53.2. Stateful sampled invariants now run with at
   least 1% probability even when the step budget is very large. Shrinking
   abandons a mutation after five consecutive continuations run out of data.

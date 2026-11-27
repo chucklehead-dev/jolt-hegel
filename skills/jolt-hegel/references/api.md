@@ -449,7 +449,7 @@ strings.
 | `(g/sorted-map opts keys values)` | sorted map |
 | `(g/hmap key-to-generator)` | fixed-key heterogeneous map |
 
-Collection options are `:size`, `:min-size`, and `:max-size`. The forms without
+Collection options are `:size`, `:min-size`, and `:max-size`. An explicit `:size` fixes the length and must fall within any supplied bounds. The forms without
 an options map use engine-managed unbounded sizing. Duplicate set elements, map
 keys, and unique-vector elements are rejected and redrawn.
 
