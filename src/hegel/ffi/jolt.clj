@@ -107,9 +107,36 @@
           (fn [symbol] (address handle symbol)))
         (finally (ffi/free buffer))))))
 
+(defn- statically-linked? []
+  ;; A visible symbol can come from a shared object that the application
+  ;; preloaded. Identify the main executable by an address inside its image.
+  (let [os (:os (native/platform))
+        anchor (case os
+                 :linux ((eval '(jolt.ffi/foreign-fn "getauxval" [:size_t] :pointer)) 9) ; AT_ENTRY
+                 :darwin ((eval '(jolt.ffi/foreign-fn "_dyld_get_image_header" [:uint] :pointer)) 0)
+                 nil)]
+    (when anchor
+      (let [;; RTLD_DEFAULT skips Jolt's private registry of shared libraries.
+            ;; Even if a consumer loaded a second engine there, inspect the executable.
+            dlsym (eval '(jolt.ffi/foreign-fn "dlsym" [:iptr :string] :pointer))
+            symbol (dlsym (if (= os :darwin) -2 0) "hegel_version")
+            dladdr (eval '(jolt.ffi/foreign-fn "dladdr" [:pointer :pointer] :int))
+            width (ffi/sizeof :pointer)
+            info (ffi/alloc (* 4 width))] ; Dl_info contains four pointers
+        (try
+          (let [image-base (fn [address]
+                             (when (pos? (dladdr address info))
+                               (ffi/read info :pointer width))) ; dli_fbase
+                executable (image-base anchor)]
+            (and executable (not (ffi/null? symbol)) (= executable (image-base symbol))))
+          (finally (ffi/free info)))))))
+
 (defn- load-symbol-lookup [path]
   (let [override (native/nonblank-env "HEGEL_LIBHEGEL_LIBRARY")
         preloaded (ffi/find-symbol "hegel_version")]
+    (when (and override preloaded (statically-linked?))
+      (throw (ex-info "libhegel is statically linked; rebuild the executable or use the shared package to override it"
+                      {:type :hegel.ffi/static-library-override :path path})))
     (when (or override (nil? preloaded))
       (let [library (ffi/load-library path)]
         (when (and override preloaded)

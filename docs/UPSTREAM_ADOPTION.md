@@ -106,6 +106,35 @@ They are upstream improvements, not measured end-to-end speedup claims.
   This does not turn the experimental concurrent frontend into a production
   concurrent executor.
 
+## Shared-library override timing on Jolt 0.8.31
+
+Both runs preload the same libhegel 0.53.2 shared object. The default route
+binds named functions. Setting the override to that same path selects
+library-scoped pointers. On Linux amd64 the medians across nine fresh
+processes per route were:
+
+| Time measured | Default | Scoped override |
+| --- | ---: | ---: |
+| Process launch through first verified engine version | 715 ms | 563 ms |
+| Loading the binding namespace and checking the engine version, after preload | 465 ms | 315 ms |
+| One warmed 200-case property, two integer draws per case | 3.78 ms | 3.65 ms |
+
+The launch measurement ends when the parent receives the flushed binding
+timing line. The processes used warm filesystem and compilation caches, ran
+on the same CPU, and alternated order by pair after one discarded pair.
+Each process warmed up with five property runs, then timed twenty. Warmed
+per-process averages ranged from 3.10–4.60 ms for the default and
+3.48–5.14 ms for the override. Keep the existing binding paths. This workload
+gives no performance reason to optimize override calls.
+
+To repeat the binding and property timings from the checkout with an absolute
+path to the shared library in `lib`:
+
+```sh
+env -u HEGEL_LIBHEGEL_LIBRARY jolt script/hegel/scoped_ffi_bench.clj "$lib"
+HEGEL_LIBHEGEL_LIBRARY="$lib" jolt script/hegel/scoped_ffi_bench.clj "$lib"
+```
+
 ## Decisions and remaining work
 
 - **Keep explicit Jolt temporary allocation.** Repeating upstream's arena
@@ -176,7 +205,9 @@ when missing; an unused dependency stays inactive. Use the portable root for
 pure-data consumers that must not acquire native files. `jolt build` can link the supplied
 Linux/macOS archive. A working native linker is required. The portable root
 continues to support explicit setup and `HEGEL_LIBHEGEL_LIBRARY`; that override
-also takes precedence in the packaged adapter. The package build places files
+also takes precedence for a shared package. A statically linked Linux/macOS
+executable rejects a nonblank override at startup. Rebuild it or use the shared
+package to choose a different engine. The package build places files
 at its declared dependency-local paths, irrespective of `HEGEL_CACHE_DIR`.
 
 For the data-first grammar API and pure compiler, see [Grammars as Clojure data](GRAMMARS.md).

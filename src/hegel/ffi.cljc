@@ -17,7 +17,8 @@
 (host/try-catch-all
  (backend/load! library-path)
  cause
- (if (= ::unsupported-runtime-build (:type (ex-data cause)))
+ (if (contains? #{::unsupported-runtime-build ::static-library-override}
+                (:type (ex-data cause)))
    (throw cause)
    (throw
     (ex-info

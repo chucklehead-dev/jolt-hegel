@@ -13,7 +13,8 @@ for v0.1.0 through v0.4.0, see the tag and release history in that repository.
 - Time and datetime constructors reject a bound containing both fractional
   fields and identify the ambiguous bound.
 - Qualify Jolt 0.8.31 and resolve explicit shared-library overrides against
-  their own symbols when a packaged libhegel is already loaded.
+  their own symbols when a packaged libhegel is already loaded. Statically
+  linked Linux and macOS executables reject a nonblank override at startup.
 
 - Collection generators treat `:size` as exact. For example, `{:size 3
   :min-size 1 :max-size 5}` generates three entries. If a supplied bound

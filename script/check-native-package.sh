@@ -70,3 +70,8 @@ mv "$probe_root/library" "$probe_root/preserved-library"
 mv "$probe_root/app" "$probe_root/preserved-app"
 (cd "$probe_root/shipped" && ./probe) > "$probe_root/run.log" 2>&1 || { cat "$probe_root/run.log"; exit 1; }
 cat "$probe_root/run.log"
+# A real compatible library must be rejected even when loading it would work.
+if (cd "$probe_root/shipped" && HEGEL_LIBHEGEL_LIBRARY="$override/custom.${asset##*.}" ./probe) > "$probe_root/static-override.log" 2>&1; then
+  echo "static consumer unexpectedly accepted a shared-library override"; exit 1
+fi
+grep -F 'Unhandled exception: libhegel is statically linked; rebuild the executable or use the shared package' "$probe_root/static-override.log" || { cat "$probe_root/static-override.log"; exit 1; }

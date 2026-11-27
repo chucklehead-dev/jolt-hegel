@@ -4,7 +4,7 @@
             [reference.contracts :as contracts])
   (:import (dev.hegel Database Hegel Reporter RunStatus Settings Verbosity)))
 
-(defn- replay [result property]
+(defn- replay [_id result property]
   ;; hegel-clj 0.1.1 omits :reproduce-failure when constructing Settings.
   (let [blob (:reproduce-blob (first (:failures result)))
         settings (-> (Settings.) (.database (Database/disabled))
@@ -16,6 +16,6 @@
 
 (defn -main [& _]
   (contracts/check!
-   {:integer g/long :set-gen g/set :draw h/draw! :assume h/assume!
+   {:integer g/long :set-gen g/set :vector-gen g/vector :map-gen g/map :fmap g/fmap :draw h/draw! :assume h/assume!
     :run #(h/test-fn! (assoc contracts/opts :database (Database/disabled)) %)
     :invalid-count #(get-in % [:statistics :invalid]) :replay replay}))
