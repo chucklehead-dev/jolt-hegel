@@ -14,6 +14,52 @@
       (assert (= witnesses (inputs failures)) id)
       (assert (= 1 @calls) id))))
 
+(defn- fifo-witness? [ops]
+  ;; Replay just the public operations against a LIFO stack and a FIFO queue.
+  ;; The first disagreement must be the final pop in the recorded witness.
+  (loop [stack [] queue [] [op & more] ops]
+    (case (first op)
+      :push (recur (conj stack (second op)) (conj queue (second op)) more)
+      :pop (and (seq stack)
+                (if (= (peek stack) (first queue))
+                  (recur (pop stack) (subvec queue 1) more)
+                  (empty? more)))
+      false)))
+
+(defn- check-stack! [{:keys [machine run draw integer assume] :as adapter}]
+  (let [values (integer 0 3)
+        rejected (atom 0)
+        checked-pops (atom 0)
+        property (fn [fifo?]
+                   (fn [_]
+                     (machine
+                      {:model [] :stack () :ops []}
+                      (fn [s]
+                        (let [x (draw values)]
+                          (-> s (update :model conj x) (update :stack conj x)
+                              (update :ops conj [:push x]))))
+                      (fn [{:keys [model stack] :as s}]
+                        (when (empty? model)
+                          (swap! rejected inc)
+                          (assume false))
+                        (-> s (assoc :model (pop model)
+                                     :stack (if fifo? (butlast stack) (rest stack))
+                                     :expected (peek model)
+                                     :actual (if fifo? (last stack) (first stack)))
+                            (update :ops conj [:pop])))
+                      (fn [{:keys [ops expected actual]}]
+                        (when (= [:pop] (peek ops))
+                          (swap! checked-pops inc)
+                          (when-not (= expected actual)
+                            (throw (ex-info "pop returned the wrong item"
+                                            {:hegel/origin "reference/stack" :input ops}))))
+                        true))))]
+    (let [control (run (property false))]
+      (assert (= :passed (:status control)) (pr-str control))
+      (assert (pos? @rejected) "empty pop never rejected")
+      (assert (pos? @checked-pops) "no successful pop checked"))
+    (check-replay! adapter "reference/stack" (property true) fifo-witness?)))
+
 (defn check! [{:keys [integer set-gen vector-gen map-gen fmap draw assume run invalid-count] :as adapter}]
   (let [wide (integer 2147483648 2147483655)
         small (integer 0 2)
@@ -61,4 +107,5 @@
                    (fn [[xs i]]
                      (and (vector? xs) (integer? i) (<= 0 i (dec (count xs)))
                           (neg? (nth xs i))))))
-  (println "PASS integer, collection, assumption, shrinking and dependent replay contracts"))
+  (check-stack! adapter)
+  (println "PASS stack, integer, collection, assumption, shrinking and dependent replay contracts"))

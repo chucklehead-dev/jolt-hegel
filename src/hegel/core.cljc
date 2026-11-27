@@ -579,6 +579,20 @@
               {:counterexample (render/attach-failure-output
                                 (:counterexample captured) (:output failure) (::read-error? failure))})))))
 
+(defn- replay-miss [failure counts]
+  (let [total (:test-cases counts)
+        observed (get-in counts [:last-failure :origin])
+        reason (cond
+                 (and observed (not= observed (:origin failure))) :different-origin
+                 (zero? total) :unconfirmed
+                 (= total (:invalid-test-cases counts)) :assumption-rejected
+                 (= total (:overrun-test-cases counts)) :overrun
+                 (= total (:valid-test-cases counts)) :passed
+                 :else :unconfirmed)]
+    (cond-> (assoc failure :status :not-reproduced :reproduced? false
+                          :counterexample nil :reason reason)
+      (= :different-origin reason) (assoc :observed-origin observed))))
+
 (defn- replay-failure!
   ([ctx settings verbosity case-fn failure render-opts]
    (replay-failure! ctx settings verbosity case-fn failure render-opts nil))
@@ -596,8 +610,7 @@
                    matching (some #(when (= (:origin failure) (:origin %)) %) reported)
                    replayed (if matching
                               (captured-failure (:captures counts) (merge failure matching))
-                              (assoc failure :status :not-reproduced :reproduced? false
-                                             :counterexample nil))]
+                              (replay-miss failure counts))]
                (when (not= :verbose verbosity) (render/emit! (:counterexample replayed)))
                replayed)
              (finally (hffi/run-result-free! ctx result))))
@@ -617,7 +630,7 @@
 
 (defn- public-final [replayed]
   (mapv #(select-keys % [:status :value :origin :replay-origin :exception
-                         :counterexample])
+                         :counterexample :reason :observed-origin])
         replayed))
 
 (defn- capture-replay-options [opts]

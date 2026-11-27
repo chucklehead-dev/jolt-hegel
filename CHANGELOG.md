@@ -6,6 +6,9 @@ for v0.1.0 through v0.4.0, see the tag and release history in that repository.
 
 ## Unreleased
 
+- A replayed failure with status `:not-reproduced` now carries a `:reason`.
+  When another failure replaces it, `:observed-origin` identifies that failure.
+
 - Embedded `clojure.test` assertions use the reported source location in their
   failure origin. Separate lines containing the same assertion can now shrink
   independently. Hosts that omit assertion locations retain form-based origins.

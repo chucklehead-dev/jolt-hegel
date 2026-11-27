@@ -124,12 +124,18 @@
                (:mismatches (h/replay-bundle! wrong (assoc step-bundle :provenance wrong) property)))))
       (is (empty? @calls)))))
 
-(deftest wrong-origin-pass-and-assumption-are-not-reproduction
-  (doseq [property [(fn [_] nil)
-                    (fn [_] (throw (ex-info "different" {:hegel/origin "wrong-origin"})))
-                    (fn [_] (h/assume! false))]]
-    (let [replayed (h/replay-bundle! provenance step-bundle property)]
+(deftest missed-replays-explain-the-observed-outcome
+  (doseq [[reason property] [[:passed (fn [_] nil)]
+                             [:different-origin
+                              (fn [_] (throw (ex-info "different" {:hegel/origin "wrong-origin"})))]
+                             [:overrun (fn [_] (dotimes [_ 1000] (h/draw! (g/integer 0 65535))))]
+                             [:assumption-rejected (fn [_] (h/assume! false))]]]
+    (let [replayed (h/replay-bundle! provenance step-bundle property)
+          failure (first (:failures replayed))]
       (is (= :not-reproduced (:status replayed)))
+      (is (= reason (:reason failure) (get-in replayed [:final 0 :reason])))
+      (is (= (if (= reason :different-origin) {:observed-origin "wrong-origin"} {})
+             (select-keys failure [:observed-origin])))
       (is (false? (:reproduced? replayed)))
       (is (true? (:flaky? replayed))))))
 

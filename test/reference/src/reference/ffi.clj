@@ -2,9 +2,15 @@
   (:require [hegel.core :as h]
             [hegel.generator :as g]
             [hegel.host :as host]
+            [hegel.stateful :as hs]
             [hegel.version :as version]
             [hegel.replay-bundle :as bundle]
             [reference.contracts :as contracts]))
+
+(defn- machine [initial push-item pop-item check-stack]
+  (hs/run! {:initial-state initial
+            :rules [(hs/rule :push push-item) (hs/rule :pop pop-item)]
+            :invariants [(hs/invariant :stack check-stack)]}))
 
 (defn- replay [id result property]
   (let [manifest {:hegel-sha (System/getenv "REFERENCE_HEGEL_SHA")
@@ -19,4 +25,4 @@
 (defn -main [& _]
   (contracts/check!
    {:integer g/integer :set-gen g/set :vector-gen g/vector :map-gen g/map :fmap g/fmap :draw h/draw! :assume h/assume!
-    :run #(h/run-test! contracts/opts %) :invalid-count :invalid-test-cases :replay replay}))
+    :machine machine :run #(h/run-test! contracts/opts %) :invalid-count :invalid-test-cases :replay replay}))
