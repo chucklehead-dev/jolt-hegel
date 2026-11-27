@@ -6,6 +6,7 @@
             [hegel.core :as h]
             [hegel.ffi :as hffi]
             [hegel.generator :as g]
+            [hegel.host :as host]
             [hegel.test-support :as support]))
 
 (t/deftest embedded-hegel-property
@@ -64,6 +65,19 @@
            (and (:passed? result)
                 (= 1 (:invalid-test-cases result))
                 (= [:pass] (mapv :type @events)))))
+  (let [result (with-redefs [t/report (fn [_])]
+                 (ht/with {:seed 7 :database "" :verbosity :quiet :test-cases 50
+                           :report-multiple-failures? true}
+                   [branch (g/integer 0 2)]
+                   (case branch
+                     0 (let [ok? false] (t/is ok? (str "index " branch)))
+                     1 (let [ok? false] (t/is ok? (str "checksum " branch)))
+                     nil)))
+        origins (mapv :origin (:failures result))]
+    (support/check! context "same-form assertions use source locations when available"
+                    (and (= :failed (:status result))
+                         (= (if (= :bb (host/runtime)) 1 2) (count (distinct origins)))
+                         (every? #(str/ends-with? % ":ok?") origins))))
   (let [events (atom [])
         final-values (atom [])
         result

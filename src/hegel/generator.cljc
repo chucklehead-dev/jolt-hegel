@@ -412,8 +412,7 @@
        (<= 0 (:minute value) 59)
        (<= 0 (:second value) 59)
        (if (and (= precision :nanoseconds) (contains? value :nanosecond))
-         (and (not (contains? value :microsecond))
-              (integer? (:nanosecond value)) (<= 0 (:nanosecond value) 999999999))
+         (and (integer? (:nanosecond value)) (<= 0 (:nanosecond value) 999999999))
          (and (integer? (:microsecond value)) (<= 0 (:microsecond value) 999999)))))
 
 (defn- ordered-fields? [minimum maximum fields]
@@ -519,6 +518,11 @@
         hi (get opts :max (if datetime? (assoc maximum-datetime :time default-clock) default-clock))]
     (when-not (some? code)
       (invalid-option "unsupported temporal precision" {:precision precision}))
+    (doseq [[bound value] [[:min lo] [:max hi]]
+            :let [clock (if datetime? (:time value) value)]]
+      (when (and (map? clock) (contains? clock :microsecond) (contains? clock :nanosecond))
+        (invalid-option "clock bound contains both :microsecond and :nanosecond"
+                        {:bound bound :value clock})))
     (validate-bounds! (name kind)
                       (if datetime?
                         #(and (valid-date? (:date %)) (valid-time? (:time %) precision))

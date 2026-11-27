@@ -335,3 +335,19 @@
           error (error-of #(history/check! 0 step events {:name :register}))]
       (is (= ::history/not-linearizable (:type (ex-data error))))
       (is (not (usage-error? error))))))
+
+(deftest fractional-clock-fields-are-mutually-exclusive
+  (let [clock {:hour 0 :minute 0 :second 0 :microsecond 0 :nanosecond 0}]
+    (doseq [precision [:hours :minutes :seconds :milliseconds :microseconds :nanoseconds]
+            bound [:min :max]
+            [generator wrap] [[g/time identity]
+                              [g/datetime (fn [time] {:date {:year 2026 :month 1 :day 1}
+                                                       :time time})]]]
+      (let [construct (fn [value] (generator {:precision precision bound (wrap value)}))
+            error (error-of #(construct clock))]
+        (is (usage-error? error))
+        (is (= bound (:bound (ex-data error))))
+        (is (re-find #":microsecond and :nanosecond" (or (ex-message error) "")))
+        (is (some? (construct (dissoc clock :nanosecond))))
+        (when (= precision :nanoseconds)
+          (is (some? (construct (dissoc clock :microsecond)))))))))

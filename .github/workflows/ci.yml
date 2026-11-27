@@ -33,9 +33,9 @@ jobs:
           ./candidate-contract
       - uses: ./.github/actions/setup-jolt
         with:
-          version: '0.8.30'
-          asset: jolt-v0.8.30-x86_64-linux.tar.gz
-          sha256: c9eb00ce9b58e6ab19dcfc324edad2ad5127bab7339e8d018ce2c30876037bdd
+          version: '0.8.31'
+          asset: jolt-v0.8.31-x86_64-linux.tar.gz
+          sha256: 9c418141581cc4744024c8ec2ea6c2caf14181264455a787ccac9db21e8069da
       - name: Drive Hegel output through a Jolt callback and a native callback pointer
         run: |
           cd "$RUNNER_TEMP"
@@ -173,31 +173,31 @@ jobs:
             name: Linux x86_64
             runner: ubuntu-24.04
             shell: bash
-            # Official jolt-lang/jolt v0.8.30, source commit
-            # f6ed60a335960dc0657f7f98457b01426ae4cf90.
-            jolt-version: 0.8.30
-            jolt-asset: jolt-v0.8.30-x86_64-linux.tar.gz
-            jolt-sha256: c9eb00ce9b58e6ab19dcfc324edad2ad5127bab7339e8d018ce2c30876037bdd
+            # Official jolt-lang/jolt v0.8.31, source commit
+            # 3f9506266ca422e2d1f1370659289cde88cbbf2a.
+            jolt-version: 0.8.31
+            jolt-asset: jolt-v0.8.31-x86_64-linux.tar.gz
+            jolt-sha256: 9c418141581cc4744024c8ec2ea6c2caf14181264455a787ccac9db21e8069da
           - runtime: Jolt
             host: jolt
             name: Windows x86_64
             runner: windows-2022
             shell: pwsh
-            # Official jolt-lang/jolt v0.8.30, source commit
-            # f6ed60a335960dc0657f7f98457b01426ae4cf90.
-            jolt-version: 0.8.30
-            jolt-asset: jolt-v0.8.30-x86_64-windows.zip
-            jolt-sha256: db5465cb5e273134734fec7a0a1b3101f41b8b999fb8a593f1454bc319c21f96
+            # Official jolt-lang/jolt v0.8.31, source commit
+            # 3f9506266ca422e2d1f1370659289cde88cbbf2a.
+            jolt-version: 0.8.31
+            jolt-asset: jolt-v0.8.31-x86_64-windows.zip
+            jolt-sha256: 6de623de782d94b03de7bee0eb0bbf37e961a9ce7900fbeb167e31697f550cb6
           - runtime: Jolt
             host: jolt
             name: macOS arm64
             runner: macos-26
             shell: bash
-            # Official jolt-lang/jolt v0.8.30, source commit
-            # f6ed60a335960dc0657f7f98457b01426ae4cf90.
-            jolt-version: 0.8.30
-            jolt-asset: jolt-v0.8.30-aarch64-macos.tar.gz
-            jolt-sha256: 0736bb9a3764835bdc407db81b5a442b333899752b09f8700968fc9afda85536
+            # Official jolt-lang/jolt v0.8.31, source commit
+            # 3f9506266ca422e2d1f1370659289cde88cbbf2a.
+            jolt-version: 0.8.31
+            jolt-asset: jolt-v0.8.31-aarch64-macos.tar.gz
+            jolt-sha256: 856ee3aa7843098ea4a467ef9be9503e6788b049997a929119cf8172efa7bbef
           # Keep the declared compatibility floor executable without making it
           # the primary cross-platform runtime. This row runs every existing
           # Jolt gate below, including the Linux-only relocated consumer.
@@ -322,6 +322,22 @@ jobs:
         if: matrix.host == 'jvm'
         run: clojure -J--enable-native-access=ALL-UNNAMED -M:jvm:setup-native
 
+      - name: Compare contracts against published and engine-matched hegel-clj
+        if: matrix.host == 'jvm' && runner.os == 'Linux'
+        working-directory: test/reference
+        env:
+          REFERENCE_HEGEL_SHA: ${{ github.sha }}
+        run: |
+          clojure -J--enable-native-access=ALL-UNNAMED -M:ffi -m reference.ffi
+          clojure -J--enable-native-access=ALL-UNNAMED -M:published -m reference.java
+          clojure -J--enable-native-access=ALL-UNNAMED -M:published:matched -m reference.java
+
+      - name: Run shared reference contracts on Jolt
+        if: matrix.jolt-version == '0.8.31' && runner.os == 'Linux'
+        env:
+          REFERENCE_HEGEL_SHA: ${{ github.sha }}
+        run: jolt -Scp src:resources:test/reference/src -m reference.ffi
+
       - name: Check ABI coverage (Jolt)
         if: matrix.host == 'jolt'
         run: jolt -M:abi-test
@@ -355,7 +371,9 @@ jobs:
         run: bash script/check-standalone-resources.sh
 
       - name: Acquire native package and check supported static relocation (current Jolt)
-        if: matrix.host == 'jolt' && matrix.jolt-version == '0.8.30'
+        if: matrix.host == 'jolt' && matrix.jolt-version == '0.8.31'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: bash script/check-native-package.sh
 
       - name: Check unrecorded Antithesis workload failure

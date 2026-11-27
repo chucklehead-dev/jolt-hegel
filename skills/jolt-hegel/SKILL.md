@@ -11,7 +11,7 @@ runtime choice affects installation and native diagnostics, not property code.
 
 This guidance targets the development checkout with libhegel 0.53.2. The
 published v0.5.0 tag records the contract for that release. Current source
-supports Jolt 0.8.1+ (0.8.30 is primary), FFI-capable Babashka 1.13.220+
+supports Jolt 0.8.1+ (0.8.31 is primary), FFI-capable Babashka 1.13.220+
 (1.13.230 is primary), and JVM Clojure on JDK 25+ with babashka.ffi 0.1.3.
 The historical v0.5.0 Jolt floor is 0.7.23.
 
@@ -57,7 +57,7 @@ aliases to the consuming project, so activate the alias that contains the
 dependency when running the installer.
 
 ```bash
-# Development checkout: Jolt 0.8.1+ (0.8.30 is the primary CI release)
+# Development checkout: Jolt 0.8.1+ (0.8.31 is the primary CI release)
 jolt -A:test -m hegel.install
 
 # Babashka 1.13.220+ with libffi (on Linux, do not use the -static asset)

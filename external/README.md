@@ -3,7 +3,7 @@
 These isolated consumers exercise Hegel against real libraries using their
 public APIs. The first six properties cover Instaparse and yyjson-jolt at the
 exact commits in [targets.edn](targets.edn). Normal Hegel consumers do not resolve
-these dependencies. The current pilot uses official Jolt 0.8.30 and libhegel
+these dependencies. The current pilot uses official Jolt 0.8.31 and libhegel
 0.53.2; Linux amd64 and macOS arm64 have dedicated CI jobs. yyjson builds its
 vendored C library with `cc`; Windows is outside this pilot's target contract.
 

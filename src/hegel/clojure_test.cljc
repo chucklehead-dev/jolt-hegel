@@ -29,7 +29,10 @@
     ;; expected/form is quoted assertion syntax in clojure.test. Never include
     ;; :actual or :message: both may contain generated values and would split
     ;; one bug into a new Hegel origin for every draw.
-    (str base ":" (pr-str assertion))))
+    (str base (when-let [line (:line report)]
+                (str ":" (:file report) ":" line
+                     (when-let [column (:column report)] (str ":" column))))
+         ":" (pr-str assertion))))
 
 (defn- nonblank-text [value]
   (let [text (when (some? value) (str value))]
