@@ -1115,23 +1115,20 @@
 
 (defn- collection-bounds [kind allowed opts]
   (options! (str kind " options") allowed opts)
-  (let [size (when (contains? opts :size) (:size opts))
-        min-size (cond
-                   (contains? opts :min-size) (:min-size opts)
-                   (some? size) size
-                   :else 0)
-        max-size (cond
-                   (contains? opts :max-size) (:max-size opts)
-                   (some? size) size
-                   :else hffi/no-max-size)]
-    (when (some? size)
-      (uint64! :size size))
+  (let [min-size (get opts :min-size 0)
+        max-size (get opts :max-size hffi/no-max-size)]
     (when-not (and (integer? min-size) (integer? max-size)
                    (<= 0 min-size max-size hffi/no-max-size))
       (invalid-option
        (str kind " sizes must be non-negative integers with min <= max")
-       {:min-size min-size :max-size max-size}))
-    [min-size max-size]))
+       (select-keys opts [:size :min-size :max-size])))
+    (if (contains? opts :size)
+      (let [size (uint64! :size (:size opts))]
+        (when-not (<= min-size size max-size)
+          (invalid-option (str kind " :size must be within its size bounds")
+                          (select-keys opts [:size :min-size :max-size])))
+        [size size])
+      [min-size max-size])))
 
 (defn- draw-collection
   "step is a candidate step: (fn [collection result] [accepted? next-result]).

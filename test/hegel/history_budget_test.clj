@@ -77,6 +77,19 @@
     (is (= 4 (-> analysis :search :search-steps)))
     (is (= [:read :write] (-> analysis :witness :order)))))
 
+(deftest interleaved-partitions-retain-witness-order-and-share-one-budget
+  (let [events (vec (concat (one-write :first :b 0) (one-write :second :a 2)
+                            (one-write :third :b 4) (one-write :fourth :a 6)))
+        analyze (fn [budget] (history/analyze 0 register-step events
+                               {:partition-by #(-> % :invoke :partition)
+                                :max-search-steps budget}))
+        complete (analyze 4)]
+    (is (= :inconclusive (:status (analyze 3))))
+    (is (= 3 (get-in (analyze 3) [:search :search-steps])))
+    (is (= 4 (get-in complete [:search :search-steps])))
+    (is (= [[:b [:first :third]] [:a [:second :fourth]]]
+           (mapv (juxt :partition :order) (get-in complete [:witness :partitions]))))))
+
 (deftest budgeted-search-agrees-with-the-independent-canonical-oracle
   (is (every? second (oracle/checks))))
 
@@ -155,6 +168,14 @@
       (is (true? (:hegel/inconclusive? (ex-data error))))
       (is (not (contains? #{::history/model-error ::history/partition-error}
                           (:type (ex-data error))))))))
+
+(deftest trace-wrapped-history-preserves-model-and-partition-rejections
+  (let [events (one-write :outer :key 0)
+        rejected (ex-info "reject this case" {:type ::h/assumption-rejected})
+        reject (fn [& _] (throw rejected))]
+    (doseq [opts [{:step reject} {:step register-step :partition-by reject}]]
+      (is (identical? rejected
+                      (error-of #(trace/check! events [(history/rule :nested opts)])))))))
 
 (deftest stateful-rules-preserve-nested-inconclusive-history-errors
   (let [error (error-of #(h/run-test!
