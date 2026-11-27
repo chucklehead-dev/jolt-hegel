@@ -8,6 +8,13 @@ cases while admitting valid ones. A failing threshold must shrink to 5 and
 replay once with that same witness. Each expectation can catch a mistake
 even if both bindings make it.
 
+Two more properties exercise interactions between draws. A map with two entries
+draws vector keys from `[0]`, `[1]`, and `[2]`. Duplicate keys must leave the
+requested size intact even when the existing value is nil or false. A failing
+property draws a nonempty vector and an index bounded by its length. After
+shrinking, the index must still select a negative element. Replaying must
+produce that binding’s exact vector and index in one call.
+
 Linux CI runs jolt-hegel on Jolt and JVM. The Java reference runs twice.
 Published hegel-clj 0.1.1 brings hegel-java 0.11.1 (libhegel 0.51.0).
 The matched run uses hegel-java 0.14.3 (libhegel 0.53.2). A failure on only
