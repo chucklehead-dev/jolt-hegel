@@ -21,23 +21,23 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Official jolt-lang/jolt v0.8.30 assets, built from source commit
-          # f6ed60a335960dc0657f7f98457b01426ae4cf90.
+          # Official jolt-lang/jolt v0.8.31 assets, built from source commit
+          # 3f9506266ca422e2d1f1370659289cde88cbbf2a.
           - name: Linux x86_64
             runner: ubuntu-24.04
             shell: bash
-            jolt-asset: jolt-v0.8.30-x86_64-linux.tar.gz
-            jolt-sha256: c9eb00ce9b58e6ab19dcfc324edad2ad5127bab7339e8d018ce2c30876037bdd
+            jolt-asset: jolt-v0.8.31-x86_64-linux.tar.gz
+            jolt-sha256: 9c418141581cc4744024c8ec2ea6c2caf14181264455a787ccac9db21e8069da
           - name: Windows x86_64
             runner: windows-2022
             shell: pwsh
-            jolt-asset: jolt-v0.8.30-x86_64-windows.zip
-            jolt-sha256: db5465cb5e273134734fec7a0a1b3101f41b8b999fb8a593f1454bc319c21f96
+            jolt-asset: jolt-v0.8.31-x86_64-windows.zip
+            jolt-sha256: 6de623de782d94b03de7bee0eb0bbf37e961a9ce7900fbeb167e31697f550cb6
           - name: macOS arm64
             runner: macos-26
             shell: bash
-            jolt-asset: jolt-v0.8.30-aarch64-macos.tar.gz
-            jolt-sha256: 0736bb9a3764835bdc407db81b5a442b333899752b09f8700968fc9afda85536
+            jolt-asset: jolt-v0.8.31-aarch64-macos.tar.gz
+            jolt-sha256: 856ee3aa7843098ea4a467ef9be9503e6788b049997a929119cf8172efa7bbef
 
     defaults:
       run:
@@ -57,7 +57,7 @@ jobs:
 
       - uses: ./.github/actions/setup-jolt
         with:
-          version: 0.8.30
+          version: 0.8.31
           asset: ${{ matrix.jolt-asset }}
           sha256: ${{ matrix.jolt-sha256 }}
 

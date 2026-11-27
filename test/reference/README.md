@@ -1,0 +1,32 @@
+# Cross-binding contracts
+
+These tests exercise the same properties through jolt-hegel and through
+hegel-clj, which uses hegel-java. Each binding runs in a fresh process. An
+integer above 2³¹ must stay within its bounds, drawing two distinct values
+from three must produce a two-element set, and an assumption must discard
+cases while admitting valid ones. A failing threshold must shrink to 5 and
+replay once with that same witness. Each expectation can catch a mistake
+even if both bindings make it.
+
+Linux CI runs jolt-hegel on Jolt and JVM. The Java reference runs twice.
+Published hegel-clj 0.1.1 brings hegel-java 0.11.1 (libhegel 0.51.0).
+The matched run uses hegel-java 0.14.3 (libhegel 0.53.2). A failure on only
+the published run calls for checking engine and Java-wrapper version changes.
+Both bindings share the native engine, so agreement alone cannot establish
+its correctness.
+
+From this directory, with JDK 25 and libhegel installed for jolt-hegel:
+
+```sh
+export HEGEL_PROJECT_ROOT="$(git rev-parse --show-toplevel)"
+export REFERENCE_HEGEL_SHA="$(git rev-parse HEAD)"
+clojure -J--enable-native-access=ALL-UNNAMED -M:ffi -m reference.ffi
+clojure -J--enable-native-access=ALL-UNNAMED -M:published -m reference.java
+clojure -J--enable-native-access=ALL-UNNAMED -M:published:matched -m reference.java
+```
+
+The reference uses explicit collection bounds because hegel-clj 0.1.1's set
+generator ignores the jolt-hegel `:size` shorthand. It calls hegel-java's
+`Settings.reproduceFailure` directly because the wrapper accepts the replay
+option but omits it when constructing settings. Each binding consumes its own
+failure recording. The tests allow generation order and draw counts to vary.

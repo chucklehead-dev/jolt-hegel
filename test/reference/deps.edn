@@ -1,0 +1,7 @@
+{:paths ["src"]
+ :deps {org.clojure/clojure {:mvn/version "1.12.7"}}
+ :aliases
+ {:ffi {:extra-deps {io.github.chucklehead-dev/jolt-hegel {:local/root "../.."}
+                     org.babashka/ffi {:mvn/version "0.1.3"}}}
+  :published {:extra-deps {com.aphyr/hegel-clj {:mvn/version "0.1.1"}}}
+  :matched {:override-deps {dev.hegel/hegel {:mvn/version "0.14.3"}}}}}

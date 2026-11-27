@@ -87,14 +87,54 @@
   (cond-> [:ordinary]
     collect-safe? (conj :collect-safe)))
 
+(defn- windows-symbol-lookup [path]
+  ;; Jolt's library-scoped find-symbol is POSIX-only. GetModuleHandleW
+  ;; retrieves the already loaded module without acquiring another reference.
+  (let [to-wide (eval '(jolt.ffi/foreign-fn "MultiByteToWideChar"
+                         [:uint :uint :string :int :pointer :int] :int))
+        module (eval '(jolt.ffi/foreign-fn "GetModuleHandleW" [:pointer] :pointer))
+        address (eval '(jolt.ffi/foreign-fn "GetProcAddress" [:pointer :string] :pointer))
+        length (to-wide 65001 0 path -1 ffi/null 0)]
+    (when (zero? length)
+      (throw (ex-info "cannot convert override path to UTF-16" {:path path})))
+    (let [buffer (ffi/alloc (* 2 length))]
+      (try
+        (when-not (= length (to-wide 65001 0 path -1 buffer length))
+          (throw (ex-info "cannot convert override path to UTF-16" {:path path})))
+        (let [handle (module buffer)]
+          (when (ffi/null? handle)
+            (throw (ex-info "cannot locate loaded override module" {:path path})))
+          (fn [symbol] (address handle symbol)))
+        (finally (ffi/free buffer))))))
+
+(defn- load-symbol-lookup [path]
+  (let [override (native/nonblank-env "HEGEL_LIBHEGEL_LIBRARY")
+        preloaded (ffi/find-symbol "hegel_version")]
+    (when (or override (nil? preloaded))
+      (let [library (ffi/load-library path)]
+        (when (and override preloaded)
+          (when-not (ns-resolve 'jolt.ffi 'pointer-fn)
+            (throw (ex-info "overriding a preloaded libhegel requires Jolt with pointer-fn"
+                            {:path path})))
+          (if (= :windows (:os (native/platform)))
+            (windows-symbol-lookup path)
+            (fn [symbol] (ffi/find-symbol library symbol))))))))
+
 (defn- make-foreign-function
-  [{:keys [symbol blocking?] :as function} descriptor route]
+  [{:keys [symbol blocking?] :as function} descriptor route lookup]
   (let [{:keys [args return]} (signature function descriptor)
         collect-safe? (or blocking? (= :collect-safe route))
-        form (if collect-safe?
-               (list 'jolt.ffi/foreign-fn symbol args return :blocking)
-               (list 'jolt.ffi/foreign-fn symbol args return))]
-    (eval form)))
+        form (if lookup
+               (list 'jolt.ffi/pointer-fn args return)
+               (list 'jolt.ffi/foreign-fn symbol args return))
+        call (eval (if collect-safe? (concat form [:blocking]) form))]
+    (if lookup
+      (let [address (lookup symbol)]
+        (when (or (nil? address) (ffi/null? address))
+          (throw (ex-info "explicit libhegel override lacks required symbol"
+                          {:symbol symbol})))
+        (partial call address))
+      call)))
 
 (defn load!
   "Load LIBRARY-PATH and construct every function binding once."
@@ -112,10 +152,8 @@
                   (throw (ex-info "This Jolt/Chez build misplaces native stack arguments; use an official Jolt release with the FFI ABI fixes"
                                   {:type :hegel.ffi/unsupported-runtime-build
                                    :capability :stack-arguments}))))
-              (when (or (native/nonblank-env "HEGEL_LIBHEGEL_LIBRARY")
-                        (nil? (ffi/find-symbol "hegel_version")))
-                (ffi/load-library library-path))
-              (let [bindings
+              (let [lookup (load-symbol-lookup library-path)
+                    bindings
                     (into {}
                           (map (fn [[function-id function]]
                                  [function-id
@@ -123,7 +161,7 @@
                                         (map (fn [route]
                                                [route
                                                 (make-foreign-function
-                                                 function descriptor route)]))
+                                                 function descriptor route lookup)]))
                                         (binding-routes function))]))
                           (:functions descriptor))]
                 (reset! functions* bindings)

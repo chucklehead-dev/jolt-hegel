@@ -6,6 +6,15 @@ for v0.1.0 through v0.4.0, see the tag and release history in that repository.
 
 ## Unreleased
 
+- Embedded `clojure.test` assertions use the reported source location in their
+  failure origin. Separate lines containing the same assertion can now shrink
+  independently. Hosts that omit assertion locations retain form-based origins.
+  Recorded assertion origins from earlier versions can differ on replay.
+- Time and datetime constructors reject a bound containing both fractional
+  fields and identify the ambiguous bound.
+- Qualify Jolt 0.8.31 and resolve explicit shared-library overrides against
+  their own symbols when a packaged libhegel is already loaded.
+
 - Collection generators treat `:size` as exact. For example, `{:size 3
   :min-size 1 :max-size 5}` generates three entries. If a supplied bound
   excludes that size, construction fails. Omit `:size` to generate a range.

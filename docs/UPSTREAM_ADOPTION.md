@@ -1,9 +1,9 @@
 # Upstream adoption for the next release
 
-This development checkout targets libhegel 0.53.2, Jolt 0.8.30 and Babashka
+This development checkout targets libhegel 0.53.2, Jolt 0.8.31 and Babashka
 1.13.230. The published v0.5.0 tag records its own dependency contract. The
 0.51.6 migration guide documents the earlier ABI transition.
-[Jolt changelog](https://github.com/jolt-lang/jolt/blob/v0.8.30/CHANGELOG.md) · [libhegel changelog](https://github.com/hegeldev/hegel/blob/libhegel/0.53.2/libhegel/CHANGELOG.md) · [0.51.6 migration](LIBHEGEL-051-MIGRATION.md)
+[Jolt changelog](https://github.com/jolt-lang/jolt/blob/v0.8.31/CHANGELOG.md) · [libhegel changelog](https://github.com/hegeldev/hegel/blob/libhegel/0.53.2/libhegel/CHANGELOG.md) · [0.51.6 migration](LIBHEGEL-051-MIGRATION.md)
 
 ## Changes since Jolt 0.8.27 and libhegel 0.51.6
 
@@ -11,7 +11,7 @@ This development checkout targets libhegel 0.53.2, Jolt 0.8.30 and Babashka
 | --- | --- |
 | Jolt lowered the fixed cost of FFI allocation, free, confined arenas and bulk double writes. | Existing temporary allocation and cleanup paths benefit when run on the new runtime. The allocation comparison below supports keeping explicit cleanup. On Linux amd64 one warmed, seeded property (200 valid cases, two integer draws per case, libhegel 0.51.6, five timings per runtime) took a median 3.84 ms on 0.8.27 and 2.94 ms on 0.8.30. |
 | Jolt exposes the exact running build. | External pilots now record `jolt.host/build-id` in the replay manifest. Two nightlies can now disagree on provenance even if they advertise the same release version. |
-| Static linking and native regions | The Linux and macOS relocation checks now target 0.8.30 and run a property through shrinking and confirmed fixture extraction in the relocated binary. The Windows bcrypt link fix concerns static OpenSSL. Windows static libhegel still needs its own relocation test. The new `defextern` targets native numeric regions. The adapter uses aggregate structs, out parameters and managed handle lifetimes. The conformance project exercises source and compiled regions against JVM Clojure, including aliased arrays. [Native region properties](https://github.com/chucklehead-dev/clj-conformance/tree/59cc78aa5d2bff4c08791e33cd14b912fcd85cd7/packs/native-regions) |
+| Static linking and native regions | The Linux and macOS relocation checks now target 0.8.31 and run a property through shrinking and confirmed fixture extraction in the relocated binary. The Windows bcrypt link fix concerns static OpenSSL. Windows static libhegel still needs its own relocation test. The new `defextern` targets native numeric regions. The adapter uses aggregate structs, out parameters and managed handle lifetimes. The conformance project exercises source and compiled regions against JVM Clojure, including aliased arrays. [Native region properties](https://github.com/chucklehead-dev/clj-conformance/tree/59cc78aa5d2bff4c08791e33cd14b912fcd85cd7/packs/native-regions) |
 | Jolt 0.8.28 extended callbacks to by-value structs and added `pointer-fn`. | The normal, quiet, and verbose runner paths pass Hegel’s native stderr sink directly to the engine. A separate Linux integration test receives real Hegel verbose output via an arena-owned Jolt callback and copies each UTF-8 line while valid. Hegel passes two pointers and a byte count, so this path uses an ordinary callback. The same test calls Hegel’s native stderr sink through its returned function pointer. |
 | Hegel 0.52 changed how a frontend completes and reports a failing case. | The binding supplies a one-line summary when the engine asks for output and a full diagnostic when it asks for detail. Native CI exercises rejection and retry of incomplete diagnostics, quiet and normal reporting, and verbose output through a callback. |
 | Hegel 0.53 added temporal precision and calendar filters. | Time and datetime draws land directly on the selected clock tick. Date generation can select weekdays and months inside an inclusive range. The engine can target leap days, year boundaries and clock limits during exploration. |
