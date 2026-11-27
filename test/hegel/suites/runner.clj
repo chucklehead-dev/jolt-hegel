@@ -189,6 +189,19 @@
            (= ::h/run-error (:type (ex-data error))))))
 
 (defn counting-reporting [context]
+  (doseq [[hits cases minimum fraction expected]
+          [[0 4 1 0 "undo occurred in 0 of 4 valid cases; required at least 1"]
+           [1 4 1 0.5 "a fraction of 0.5"]
+           [0 0 1 0 "no valid cases completed"]]]
+    (let [check {:label "undo" :hits hits :valid-cases cases :min-count minimum
+                 :min-fraction fraction :passed? false}
+          result {:status :coverage-failed :passed? false :seed "7"
+                  :coverage {:checks [(assoc check :label "met" :passed? true) check]}}
+          output (with-out-str (report/run! (report/counting-runner) "example" (fn [] result)))]
+      (support/check! context "coverage report identifies the unmet requirement"
+                      (and (str/includes? output expected)
+                           (not (str/includes? output "No confirmed failure"))
+                           (not (str/includes? output "met occurred"))))))
   (let [failure (fn [data] {:origin "example/origin" :reproduced? true
                              :exception (ex-info "example failed" data)})
         result {:seed "37" :passed? false

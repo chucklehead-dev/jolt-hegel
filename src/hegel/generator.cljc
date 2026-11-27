@@ -1301,6 +1301,22 @@
                   (draw-without-replacement
                    test-case min-size max-size element-count)))))))))
 
+(defn- indexable-value?
+  ;; Keep linear equality for foreign, lazy, and custom-comparator values.
+  ;; Looking inside ordinary maps/vectors prevents a nested foreign value
+  ;; from changing uniqueness when its host hash differs from Clojure's.
+  [value depth]
+  (or (nil? value) (boolean? value) (integer? value)
+      (string? value) (keyword? value) (symbol? value)
+      (and (pos? depth)
+           (cond
+             (vector? value) (every? #(indexable-value? % (dec depth)) value)
+             (and (map? value) (not (sorted? value))
+                  #?(:jank true :default (not (record? value))))
+             (every? (fn [[k v]] (and (indexable-value? k (dec depth))
+                                      (indexable-value? v (dec depth)))) value)
+             :else false))))
+
 (defn vector
   "Generate a vector. Options: :size, :min-size, :max-size, :unique?."
   ([elements]
@@ -1316,17 +1332,23 @@
          unique? (clojure.core/boolean (:unique? opts))]
      (labelled-composite hffi/label-list [elements]
       (fn [test-case label]
-        (draw-collection
-         test-case label min-size max-size []
-         (fn [collection result]
-           (let [value (elements test-case)]
-             (if (and unique? (some #(= value %) result))
-               (do
-                 (hffi/collection-reject!
-                  (:context test-case) (:handle test-case)
-                  collection "duplicate element")
-                 [false result])
-               [true (conj result value)])))))))))
+        (if-not unique?
+         (draw-collection test-case label min-size max-size []
+                          (fn [_ result] [true (conj result (elements test-case))]))
+         (let [[result _]
+               (draw-collection
+                test-case label min-size max-size [[] (when (> max-size 16) #{})]
+                (fn [collection [result seen :as state]]
+                  (let [value (elements test-case)
+                        indexed? (and (some? seen) (indexable-value? value 8))
+                        duplicate? (if indexed? (contains? seen value)
+                                       (some #(= value %) result))]
+                    (if duplicate?
+                      (do (hffi/collection-reject! (:context test-case) (:handle test-case)
+                                                   collection "duplicate element")
+                          [false state])
+                      [true [(conj result value) (when indexed? (conj seen value))]]))))]
+           result)))))))
 
 (defn- split-by-sizes [payload sizes]
   (loop [remaining (vec payload)

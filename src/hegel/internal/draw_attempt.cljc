@@ -3,8 +3,11 @@
   (:require [hegel.internal.render :as render]
             [hegel.host :as host]))
 
+(defn begin-consumption! [test-case]
+  (when-let [stack (:draw-attempts test-case)] (swap! stack conj [])))
+
 (defn begin! [test-case]
-  (when-let [stack (:draw-attempts test-case)] (swap! stack conj []))
+  (begin-consumption! test-case)
   (render/begin-attempt! (:render test-case)))
 
 (defn on-discard! [test-case undo]
@@ -12,20 +15,26 @@
     (when (seq @stack)
       (swap! stack update (dec (count @stack)) conj undo))))
 
-(defn commit! [test-case]
+(defn commit-consumption! [test-case]
   (when-let [stack (:draw-attempts test-case)]
     (let [undos (peek @stack)]
       (swap! stack pop)
       ;; An accepted inner draw still belongs to its speculative parent.
       (when (seq @stack)
-        (swap! stack update (dec (count @stack)) into undos))))
+        (swap! stack update (dec (count @stack)) into undos)))))
+
+(defn commit! [test-case]
+  (commit-consumption! test-case)
   (render/commit-attempt! (:render test-case)))
 
-(defn abort! [test-case]
+(defn restore-consumption! [test-case]
   (when-let [stack (:draw-attempts test-case)]
     (let [undos (peek @stack)]
       (swap! stack pop)
-      (doseq [undo (reverse undos)] (undo))))
+      (doseq [undo (reverse undos)] (undo)))))
+
+(defn abort! [test-case]
+  (restore-consumption! test-case)
   (render/abort-attempt! (:render test-case)))
 
 (defn abort-with-error! [test-case error]

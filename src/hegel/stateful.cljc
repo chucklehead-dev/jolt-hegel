@@ -272,6 +272,20 @@
        (throw error)
        (throw (stateful-error :rule item trace error))))))
 
+(defn- attempt-rule [test-case item state trace]
+  ;; Pool consumption made by accepted nested draws belongs to this rule.
+  ;; Keep its diagnostics even if the rule is rejected.
+  (attempt/begin-consumption! test-case)
+  (let [result (host/try-catch-all
+                (apply-rule item state trace)
+                error
+                (do (host/try-catch-all (attempt/restore-consumption! test-case) _ nil)
+                    (throw error)))]
+    (if (:applied? result)
+      (attempt/commit-consumption! test-case)
+      (attempt/restore-consumption! test-case))
+    result))
+
 (defn- validate-items! [kind pred items]
   (doseq [item items]
     (when-not (pred item)
@@ -309,7 +323,7 @@
               next-trace (conj trace (:name item))]
           (h/note! (str "Step " step-number ": " (::native-name item)))
           (let [{next-state :state applied? :applied?}
-                (apply-rule item state next-trace)]
+                (attempt-rule test-case item state next-trace)]
             (if applied?
               (do
                 (check-invariants! invariants next-state next-trace)

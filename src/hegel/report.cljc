@@ -29,6 +29,14 @@
                    (not reproduced?) (str "failure unconfirmed (" (name (or status :unknown)) ")")
                    :else "confirmed failure has no :input in its exception data"))))
 
+(defn- print-missed-coverage! [coverage]
+  (doseq [{:keys [label hits valid-cases min-count min-fraction passed?]} (:checks coverage)
+          :when (not passed?)]
+    (println (str "  " label " occurred in " hits " of " valid-cases
+                  " valid cases; required at least " min-count
+                  (when (pos? min-fraction) (str " and a fraction of " min-fraction))
+                  (when (zero? valid-cases) " (no valid cases completed)")))))
+
 (defn- default-reporter [{:keys [type description result exception]}]
   (case type
     :pass
@@ -39,8 +47,10 @@
     (do
       (println "FAIL" description)
       (doseq [failure (:failures result)] (print-failure! failure))
-      (when (or (:error result) (empty? (:failures result)))
-        (println " " (or (:error result) "No confirmed failure was retained.")))
+      (if (= :coverage-failed (:status result))
+        (print-missed-coverage! (:coverage result))
+        (when (or (:error result) (empty? (:failures result)))
+          (println " " (or (:error result) "No confirmed failure was retained."))))
       (println "  seed" (:seed result)))
 
     :error
