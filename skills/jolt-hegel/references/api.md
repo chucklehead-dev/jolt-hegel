@@ -998,7 +998,7 @@ producer authenticity. Add a domain-specific closed fixture profile and explicit
 witness controls when needed. Jolt digesting uses OpenSSL on Linux/macOS and
 Windows CNG; provision crypto dependencies before isolation, not libhegel.
 jank/CLR corpus support is not established by their focused compatibility CI.
-Repeated prefix sealing and per-position native-context costs are unmeasured.
+Each position uses a fresh native run. The producer checks cumulative limits before the next draw and seals the completed payload once.
 
 The db example is aspect-packs merge `71a123cbeaf1bb7994f6524e27abb861c7ddd2c2`,
 with distinct live/offline aliases and independently pinned fixtures. Its

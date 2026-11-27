@@ -56,11 +56,8 @@
       (invalid! path :max-text-chars))
     text-chars))
 
-(defn validate!
-  "Iteratively validate portable maps, vectors, and scalar data.
-
-  Map keys count toward node and text limits. Lists, sets, lazy seqs, records,
-  and opaque host values are rejected instead of being realized or coerced."
+(defn validated-node-count
+  "Validate a portable value and return the number of nodes it occupies."
   [value limits invalid!]
   (loop [frames (list [:value [] value 0])
          nodes 0
@@ -119,4 +116,13 @@
                           frames)
                    nodes text-chars)
             (recur frames nodes text-chars))))
-      value)))
+      nodes)))
+
+(defn validate!
+  "Iteratively validate portable maps, vectors, and scalar data.
+
+  Map keys count toward node and text limits. Lists, sets, lazy seqs, records,
+  and opaque host values are rejected instead of being realized or coerced."
+  [value limits invalid!]
+  (validated-node-count value limits invalid!)
+  value)

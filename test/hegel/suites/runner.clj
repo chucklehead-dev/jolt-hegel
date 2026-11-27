@@ -189,6 +189,17 @@
            (= ::h/run-error (:type (ex-data error))))))
 
 (defn counting-reporting [context]
+  (let [failure (fn [data] {:origin "example/origin" :reproduced? true
+                             :exception (ex-info "example failed" data)})
+        result {:seed "37" :passed? false
+                :failures [(failure {:input nil}) (failure {:input false}) (failure {})
+                           (assoc (failure {:input :unconfirmed}) :caveat "unstable replay")]}
+        output (with-out-str (report/run! (report/counting-runner) "example" (fn [] result)))]
+    (support/check! context "default report shows confirmed inputs and explains missing ones"
+                    (and (every? #(str/includes? output %)
+                                 ["FAIL example" "example/origin" "input nil" "input false"
+                                  "has no :input" "unstable replay" "seed 37"])
+                         (not (str/includes? output ":unconfirmed")))))
   (let [events (atom [])
         runner (report/counting-runner
                 {:reporter #(swap! events conj %)})

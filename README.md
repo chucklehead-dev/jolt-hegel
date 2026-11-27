@@ -163,7 +163,9 @@ Use a fixed, assertion-site origin such as `packet-codec/round-trip`; generated
 values do not belong in the origin. `:passed? false` is a property verdict, not
 an exception from `run-test!`, so a custom runner must check it. For a suite
 that should count failures and continue, use `hegel.report/counting-runner`
-with `hegel.report/run!`.
+with `hegel.report/run!`. Its default report prints the property, failure origin,
+exception message, and seed. Attach a shareable value as `:input` in the
+exception data to include it in the report after Hegel confirms the failure.
 
 The result map also records case counts, minimal failures, final replay data,
 observed failure summaries, and flakiness. A result with `:flaky? true` means

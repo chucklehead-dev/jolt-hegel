@@ -162,11 +162,9 @@ freed; CNG handles are closed per call. Static crypto linkage is not claimed.
 The ClojureCLR digest branch is experimental and not yet feature-validated;
 jank corpus hashing currently throws an explicit unsupported-host error.
 
-Generation seals each proposed prefix before retaining it, bounding both data
-and its escaped representation before the next native run. This first
-implementation repeats validation/encoding/hashing across prefixes, in addition
-to creating one native context per position. Both costs must be measured before
-claiming suitability for large-volume generation; the count ceiling is 256.
+Each position uses a fresh native run. Before drawing the next position,
+materialization checks the new value and the cumulative node count and encoded
+text size. The completed payload is sealed once. A corpus holds up to 256 values.
 
 Focused engine-free checks (after dependency/toolchain provisioning):
 

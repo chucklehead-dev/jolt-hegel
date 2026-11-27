@@ -187,6 +187,30 @@
   (policy! [:valid-case-policy] (:valid-case-policy expected))
   expected)
 
+(defn ^:no-doc prefix-budget
+  "Start accounting for a materialized payload with count 1 and an empty values vector."
+  [template]
+  {:nodes (portable-data/validated-node-count template payload-limits invalid!)
+   :text (portable-data/text-size
+          (portable-edn/encode template payload-limits edn-invalid! identity))})
+
+(defn ^:no-doc add-prefix-value
+  "Check the next value before retaining it. Count the same UTF-16 units and
+  nodes as the full payload encoder, including its space after each vector item."
+  [{:keys [nodes text]} value position]
+  (let [limits (assoc payload-limits
+                      :max-depth (- (:max-depth payload-limits) 2)
+                      :max-nodes (- (:max-nodes payload-limits) nodes))
+        more-nodes (portable-data/validated-node-count value limits invalid!)
+        _ (validate-unicode-data! value)
+        encoded (portable-edn/encode value limits edn-invalid! identity)
+        ;; The template already includes one decimal digit for :count.
+        digits-added (if (contains? #{10 100} position) 1 0)
+        next-text (+ text (portable-data/text-size encoded) 1 digits-added)]
+    (when (> next-text (:max-text-chars payload-limits))
+      (edn-invalid! :max-text-chars))
+    {:nodes (+ nodes more-nodes) :text next-text}))
+
 (defn seal
   "Seal an already materialized payload into a schema-v1 envelope."
   [payload]

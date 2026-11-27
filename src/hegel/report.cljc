@@ -12,6 +12,23 @@
    :default
    (defrecord CountingRunner [runs failures reporter]))
 
+(defn- confirmed-fixture [{:keys [origin reproduced? caveat exception]} input-key]
+  (let [data (when exception (ex-data exception))]
+    (when (and reproduced? (not caveat) (contains? data input-key))
+      {:origin origin :input (get data input-key)})))
+
+(defn- print-failure! [{:keys [origin exception caveat reproduced? status] :as failure}]
+  (println " " (str origin (when exception (str " — " (ex-message exception)))))
+  (if-let [fixture (confirmed-fixture failure :input)]
+    (println "  input"
+             #?(:jank (pr-str (:input fixture))
+                :default (binding [*print-length* 32 *print-level* 8]
+                           (pr-str (:input fixture)))))
+    (println "  input unavailable:"
+             (cond caveat caveat
+                   (not reproduced?) (str "failure unconfirmed (" (name (or status :unknown)) ")")
+                   :else "confirmed failure has no :input in its exception data"))))
+
 (defn- default-reporter [{:keys [type description result exception]}]
   (case type
     :pass
@@ -19,11 +36,12 @@
              (str "(" (:valid-test-cases result) " cases)"))
 
     :fail
-    (println "FAIL" description
-             (pr-str
-              (select-keys result
-                           [:status :seed :n-failures :failures
-                            :observed-failures :coverage :flaky? :error])))
+    (do
+      (println "FAIL" description)
+      (doseq [failure (:failures result)] (print-failure! failure))
+      (when (or (:error result) (empty? (:failures result)))
+        (println " " (or (:error result) "No confirmed failure was retained.")))
+      (println "  seed" (:seed result)))
 
     :error
     (println "ERROR" description
@@ -37,10 +55,7 @@
   ([result] (failure-fixtures result :input))
   ([result input-key]
    (into []
-         (keep (fn [{:keys [origin reproduced? caveat exception]}]
-                 (let [data (when exception (ex-data exception))]
-                   (when (and reproduced? (not caveat) (contains? data input-key))
-                     {:origin origin :input (get data input-key)}))))
+         (keep #(confirmed-fixture % input-key))
          (:failures result))))
 
 (defn counting-runner

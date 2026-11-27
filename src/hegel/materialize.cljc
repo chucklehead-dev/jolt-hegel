@@ -115,9 +115,9 @@
   ([opts generator check!]
    (let [opts (validate-options! opts generator check!)
          seed (bigint (:seed opts))]
-     (loop [index 0 values [] sealed nil]
+     (loop [index 0 values [] budget (corpus/prefix-budget (assoc (payload opts []) :count 1))]
        (if (= index (:count opts))
-         sealed
+         (corpus/seal (payload opts values))
          (let [callback-count (atom 0)
                captured (atom nil)
                run (core/run-test!
@@ -132,9 +132,6 @@
                         (swap! callback-count inc))))]
            (when-not (completed-run? run @callback-count)
              (materialization-failed! index run @callback-count))
-           ;; Seal every proposed prefix before retaining it.  This bounds
-           ;; portable data and encoded payload text before the next position
-           ;; can accumulate another generated value.
-           (let [next-values (conj values @captured)
-                 next-sealed (corpus/seal (payload opts next-values))]
-             (recur (inc index) next-values next-sealed))))))))
+           (let [position (inc index)
+                 budget (corpus/add-prefix-value budget @captured position)]
+             (recur position (conj values @captured) budget))))))))
