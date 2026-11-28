@@ -38,6 +38,22 @@
                   (when (pos? min-fraction) (str " and a fraction of " min-fraction))
                   (when (zero? valid-cases) " (no valid cases completed)")))))
 
+(defn- print-rule-checks! [{:keys [checks census?]}]
+  (doseq [[id check] checks :when (not (:passed? check))]
+    (doseq [[minimum metric] rule-coverage/thresholds
+            :when (and (contains? check minimum) (< (get check metric) (get check minimum)))]
+      (println " " id (name metric) (get check metric) "times; required" (get check minimum)))
+    (when-let [counts (:valid-counts check)]
+      (let [eligible (get counts :eligible 0)]
+        (println (str "    In valid cases: "
+                      (if census?
+                        (str "eligible at " eligible " of " (+ eligible (get counts :ineligible 0)) " sampled steps")
+                        "eligibility was not measured")
+                      ", selected " (get counts :selected 0)
+                      ", guard rejected " (get counts :guard-rejected 0)
+                      ", assumption rejected " (get counts :assumption-rejected 0)
+                      ", applied " (get counts :applied 0) "."))))))
+
 (defn- default-reporter [{:keys [type description result exception]}]
   (case type
     :pass
@@ -50,10 +66,7 @@
       (doseq [failure (:failures result)] (print-failure! failure))
       (if (= :coverage-failed (:status result))
         (do (print-missed-coverage! (:coverage result))
-            (doseq [[id check] (get-in result [:stateful-coverage :checks])
-                    [minimum metric] rule-coverage/thresholds
-                    :when (and (contains? check minimum) (< (get check metric) (get check minimum)))]
-              (println " " id (name metric) (get check metric) "times; required" (get check minimum))))
+            (print-rule-checks! (:stateful-coverage result)))
         (when (or (:error result) (empty? (:failures result)))
           (println " " (or (:error result) "No confirmed failure was retained."))))
       (println "  seed" (:seed result)))

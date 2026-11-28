@@ -6,6 +6,10 @@ for v0.1.0 through v0.4.0, see the tag and release history in that repository.
 
 ## Unreleased
 
+- Missed stateful rule minima now show selections, guard and assumption
+  rejections, and applications from valid cases. With a census, the report
+  includes eligible steps and the number of steps sampled for that rule.
+
 ## [0.6.1] - 2026-11-28
 
 - Check the final model and external store with `:final-check` in

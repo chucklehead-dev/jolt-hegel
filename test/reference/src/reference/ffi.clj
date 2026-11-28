@@ -7,10 +7,10 @@
             [hegel.replay-bundle :as bundle]
             [reference.contracts :as contracts]))
 
-(defn- machine [initial push-item pop-item check-stack]
+(defn- machine [initial first-step second-step check-state]
   (hs/run! {:initial-state initial
-            :rules [(hs/rule :push push-item) (hs/rule :pop pop-item)]
-            :invariants [(hs/invariant :stack check-stack)]}))
+            :rules [(hs/rule :first first-step) (hs/rule :second second-step)]
+            :invariants [(hs/invariant :model check-state)]}))
 
 (defn- replay [id result property]
   (let [manifest {:hegel-sha (System/getenv "REFERENCE_HEGEL_SHA")

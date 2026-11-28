@@ -4,19 +4,19 @@
             [reference.contracts :as contracts])
   (:import (dev.hegel Database Hegel Reporter RunStatus Settings Verbosity)))
 
-(definterface StackActions
-  (^void pushItem [^dev.hegel.TestCase tc])
-  (^void popItem [^dev.hegel.TestCase tc])
-  (^void checkStack [^dev.hegel.TestCase tc]))
+(definterface TwoRuleActions
+  (^void firstStep [^dev.hegel.TestCase tc])
+  (^void secondStep [^dev.hegel.TestCase tc])
+  (^void checkState [^dev.hegel.TestCase tc]))
 
-(deftype StackMachine [state push-item pop-item check-stack]
-  StackActions
-  (^{dev.hegel.Rule {}} pushItem [_ _tc] (swap! state push-item))
-  (^{dev.hegel.Rule {}} popItem [_ _tc] (swap! state pop-item))
-  (^{dev.hegel.Invariant {:alwaysRun true}} checkStack [_ _tc] (check-stack @state)))
+(deftype TwoRuleMachine [state first-step second-step check-state]
+  TwoRuleActions
+  (^{dev.hegel.Rule {}} firstStep [_ _tc] (swap! state first-step))
+  (^{dev.hegel.Rule {}} secondStep [_ _tc] (swap! state second-step))
+  (^{dev.hegel.Invariant {:alwaysRun true}} checkState [_ _tc] (check-state @state)))
 
-(defn- machine [initial push-item pop-item check-stack]
-  (h/run-stateful! (StackMachine. (atom initial) push-item pop-item check-stack)))
+(defn- machine [initial first-step second-step check-state]
+  (h/run-stateful! (TwoRuleMachine. (atom initial) first-step second-step check-state)))
 
 (defn- replay [_id result property]
   ;; hegel-clj 0.1.1 omits :reproduce-failure when constructing Settings.

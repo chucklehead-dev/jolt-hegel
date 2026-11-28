@@ -21,6 +21,12 @@ compares the value returned by every successful pop to the model. A correct
 stack passes. A deliberately FIFO pop must yield a sequence that distinguishes
 FIFO from LIFO, and each binding must replay its own exact sequence.
 
+The revision property sends stale and current updates to a versioned store.
+A stale request must preserve the value and leave the next current request
+able to update it. A planted implementation increments the revision on rejection.
+Each binding must find a stale request followed by a failed current update
+and reproduce its own sequence and payloads.
+
 Linux CI runs jolt-hegel on Jolt and JVM. The Java reference runs twice.
 Published hegel-clj 0.1.1 brings hegel-java 0.11.1 (libhegel 0.51.0).
 The matched run uses hegel-java 0.14.3 (libhegel 0.53.2). A failure on only

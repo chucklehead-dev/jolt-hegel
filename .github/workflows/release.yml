@@ -76,7 +76,21 @@ jobs:
           }
 
       - name: Resolve test dependencies over HTTPS
-        run: jolt -A:test -m hegel.install version
+        shell: bash
+        run: |
+          for delay in 5 15 0; do
+            if output=$(jolt -A:test -m hegel.install version 2>&1); then
+              echo "$output"
+              break
+            else
+              status=$?
+              echo "$output"
+              if [[ $delay == 0 || $output != *"could not be fetched"* || ! $output =~ HTTP\ (429|502|503|504) ]]; then
+                exit "$status"
+              fi
+              sleep "$delay"
+            fi
+          done
 
       - name: Install native dependencies
         run: jolt -m hegel.install fetch-libhegel
