@@ -60,6 +60,42 @@
       (assert (pos? @checked-pops) "no successful pop checked"))
     (check-replay! adapter "reference/stack" (property true) fifo-witness?)))
 
+(defn- check-revisions! [{:keys [machine run draw integer] :as adapter}]
+  (let [values (integer 0 3)
+        recovered (atom 0)
+        property
+        (fn [advance-on-reject?]
+          (fn [_]
+            (let [store (atom {:rev 0 :value nil})
+                  update-store! (fn [expected value]
+                                  (if (= expected (:rev @store))
+                                    (do (reset! store {:rev (inc expected) :value value}) true)
+                                    (do (when advance-on-reject? (swap! store update :rev inc)) false)))]
+              (machine
+               {:rev 0 :value nil :ops []}
+               (fn [{:keys [rev ops]}]
+                 (let [value (draw values)
+                       accepted? (update-store! rev value)
+                       next-model {:rev (inc rev) :value value}
+                       ops' (conj ops [:current value])]
+                   (when-not (and accepted? (= next-model @store))
+                     (throw (ex-info "current update lost after stale request"
+                                     {:hegel/origin "reference/revision" :input ops'})))
+                   (when (= :stale (first (peek ops))) (swap! recovered inc))
+                   (assoc next-model :ops ops')))
+               (fn [{:keys [rev value] :as model}]
+                 (let [attempt (draw values)]
+                   (assert (false? (update-store! (dec rev) attempt)))
+                   (assert (= value (:value @store)))
+                   (update model :ops conj [:stale attempt])))
+               (constantly true)))))]
+    (assert (= :passed (:status (run (property false)))))
+    (assert (pos? @recovered) "no current update followed a stale one")
+    (check-replay! adapter "reference/revision" (property true)
+                   (fn [ops]
+                     (and (= :current (first (peek ops)))
+                          (some #(= :stale (first %)) (butlast ops)))))))
+
 (defn check! [{:keys [integer set-gen vector-gen map-gen fmap draw assume run invalid-count] :as adapter}]
   (let [wide (integer 2147483648 2147483655)
         small (integer 0 2)
@@ -108,4 +144,5 @@
                      (and (vector? xs) (integer? i) (<= 0 i (dec (count xs)))
                           (neg? (nth xs i))))))
   (check-stack! adapter)
-  (println "PASS stack, integer, collection, assumption, shrinking and dependent replay contracts"))
+  (check-revisions! adapter)
+  (println "PASS revision, stack, integer, collection, assumption, shrinking and dependent replay contracts"))

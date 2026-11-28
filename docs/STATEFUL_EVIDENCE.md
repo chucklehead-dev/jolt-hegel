@@ -15,6 +15,14 @@ For example, `{:min-eligible 10 :min-selected 1}` checks that a sampled
 eligible rule was selected at least once. The counts under `:checks` use
 valid cases, even when other outcomes appear under `:rules`.
 
+For each missed rule minimum the default reporter shows the valid-case
+selection, guard rejection, assumption rejection, and application counts.
+With a census it also shows how many sampled steps saw an eligible guard.
+A rule eligible at seven steps and selected at zero calls for investigating
+selection. A rule eligible at zero of seven calls for inspecting the guard
+and the model states generated. Zero sampled steps means there was no
+valid-case census evidence for that rule.
+
 An empty configuration reports counts without imposing minima. Under
 `:stateful-coverage :rules` each declared rule has counts for `:selected`,
 `:guard-passed`, `:guard-rejected`, `:assumption-rejected`, `:applied` and
@@ -52,6 +60,17 @@ adds the normalized rule name. Use `(hs/rule-id :store/insert)` to obtain
  :redact (fn [entry] (update entry :input select-keys [:id]))}
 ```
 
+For expensive diagnostics, guard construction of the entry itself. Clojure
+evaluates the argument to `entry!` on every call.
+
+```clojure
+(h/when-final
+  (journal/entry! {:input {:id id} :model-after (model-digest model)}))
+```
+
+Keep the command, model update, and assertions outside this guard so every
+candidate exercises the same property.
+
 For a durability scan after the last step, supply `:final-check` to
 `journal/run!`. It receives the final model on each successfully completed
 machine run, including replay. Throw to signal failure and use `:hegel/origin`
@@ -72,5 +91,6 @@ bundle schema. Redaction covers these journal entries. Handle native blobs,
 exception messages and other diagnostics according to their own contracts.
 
 The [JDK 25 SQLite consumer](../test/sqlite-consumer/probe.clj) opens a
-fresh disposable store inside each property invocation and closes it in
-`finally`, including during shrinking and direct replay.
+fresh SQLite file per candidate. The writer sees the updated row, but a
+second connection loses the revision if the writer closed without committing.
+The probe checks both transaction paths and deletes the file after each run.

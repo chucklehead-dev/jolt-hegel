@@ -7,6 +7,7 @@
             [hegel.host :as host]
             [hegel.internal.observation-policy :as policy]
             [hegel.internal.observations :as observations]
+            [hegel.internal.rule-coverage :as rule-coverage]
             [hegel.report :as report]
             [hegel.stateful :as stateful]
             [hegel.stateful.journal :as journal]))
@@ -322,3 +323,55 @@
                                         (journal/run! {:final-check
                                                        (fn [_] (throw (ex-info "unknown" {:hegel/inconclusive? true})))}
                                                       machine))))))))))
+
+(deftest missed-rule-evidence-only-counts-valid-cases
+  ;; Fixed selection histories make the never-selected branch deterministic.
+  (doseq [[census? valid expected]
+          [[true {:ineligible 7 :guard-rejected 2 :selected 2}
+            "eligible at 0 of 7 sampled steps, selected 2, guard rejected 2"]
+           [true {:eligible 7} "eligible at 7 of 7 sampled steps, selected 0"]
+           [false {:selected 3 :assumption-rejected 3}
+            "eligibility was not measured, selected 3, guard rejected 0, assumption rejected 3"]]]
+    (let [summary (-> {}
+                      (rule-coverage/record-case {:update {:applied 9 :eligible 10}} :invalid)
+                      (rule-coverage/record-case {:update valid} :valid))
+          result (rule-coverage/finish {:passed? true}
+                                       {:census? census? :rules {:update {:min-applied 1}}}
+                                       summary)
+          output (with-out-str (report/run! (report/counting-runner) "coverage" (constantly result)))]
+      (is (= :coverage-failed (:status result)))
+      (is (.contains output expected)))))
+
+(deftest guarding-journal-projection-preserves-confirmed-fixture
+  (let [run (fn [guarded?]
+              (let [calls (atom {})
+                    result (h/run-test! (dissoc run-opts :phases)
+                             (fn [_]
+                               (journal/run! {}
+                                 {:initial-state nil
+                                  :rules [(stateful/rule :write
+                                           (fn [_]
+                                             (let [project! (fn []
+                                                              (swap! calls update (h/final?) (fnil inc 0))
+                                                              (journal/entry! {:input 42}))]
+                                               (if guarded? (h/when-final (project!)) (project!)))
+                                             (throw (ex-info "failed write" {:hegel/origin "write"}))))]})))]
+                [@calls (journal/fixture (first (:failures result)))]))
+        [eager-calls eager] (run false)
+        [guarded-calls guarded] (run true)]
+    (is (pos? (get eager-calls false 0)))
+    (is (zero? (get guarded-calls false 0)))
+    (is (pos? (get guarded-calls true 0)))
+    (is (= [{:rule "write" :input 42}] eager guarded))))
+
+(deftest machine-reports-eligible-but-unselected-rules
+  (let [ids [:one :two :three]
+        result (h/run-test! (assoc run-opts :stateful-step-count 1
+                                   :stateful-coverage {:census? true
+                                                       :rules (zipmap ids (repeat {:min-applied 1}))})
+                 (fn [_] (stateful/run! {:initial-state 0 :rules (mapv #(stateful/rule % inc) ids)})))
+        missed (remove :passed? (vals (get-in result [:stateful-coverage :checks])))]
+    (is (= :coverage-failed (:status result)))
+    (is (= 2 (count missed)))
+    (is (every? #(= 1 (get-in % [:valid-counts :eligible])) missed))
+    (is (every? #(zero? (get-in % [:valid-counts :selected] 0)) missed))))

@@ -311,8 +311,8 @@
                  (into {} (map (fn [rule]
                                  (let [id (:name rule)
                                        eligible? ((::precondition rule) state)]
-                                   (when eligible?
-                                     (coverage/hit! (:rule-counts test-case) id :eligible))
+                                   (coverage/hit! (:rule-counts test-case) id
+                                                  (if eligible? :eligible :ineligible))
                                    [id eligible?]))) rules))]
     (if-let [capture (:journal-attempt test-case)]
       (capture (::native-name item) #(attempt-rule test-case item state trace census))
