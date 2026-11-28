@@ -288,3 +288,37 @@
     (is (= :failed (:status result)))
     (is (= 1 (:applied row) (:invariant-failed row)))
     (is (= 0 (:failed row)))))
+
+(deftest rule-minima-check-each-metric-on-valid-cases
+  (let [machine (fn [_] (stateful/run! {:initial-state 0
+                                       :rules [(stateful/rule :store/tick inc)
+                                               (stateful/rule :blocked {:precondition (constantly false)} inc)]}))
+        requirements {:store/tick {:min-applied 2 :min-eligible 2 :min-selected 2}
+                      :blocked {:min-guard-rejected 1 :min-eligible 1}}
+        result (h/run-test! (assoc run-opts :test-cases 10
+                                   :stateful-coverage {:rules requirements :census? true}) machine)
+        checks (get-in result [:stateful-coverage :checks])]
+    (is (= :coverage-failed (:status result)))
+    (is (true? (:passed? (:store/tick checks))))
+    (is (pos? (:guard-rejected (:blocked checks))))
+    (is (zero? (:eligible (:blocked checks))))
+    (is (false? (:passed? (:blocked checks))))
+    (is (:hegel/usage-error? (ex-data (error-of #(h/run-test! (assoc run-opts :stateful-coverage
+                                                                       {:rules requirements}) machine)))))
+    (is (= "store/tick" (stateful/rule-id :store/tick) (stateful/rule-id 'store/tick)
+           (stateful/rule-id "store/tick")))))
+
+(deftest journal-final-check-preserves-state-and-control-flow
+  (let [machine {:initial-state 0 :rules [(stateful/rule :tick inc)]}
+        calls (atom [])]
+    (is (:passed? (h/run-test! run-opts
+                    (fn [_]
+                      (let [state (journal/run! {:final-check #(do (swap! calls conj %) nil)} machine)]
+                        (is (= state (peek @calls))))))))
+    (is (pos? (count @calls)))
+    (is (true? (:hegel/inconclusive?
+                (ex-data (error-of #(h/run-test! run-opts
+                                      (fn [_]
+                                        (journal/run! {:final-check
+                                                       (fn [_] (throw (ex-info "unknown" {:hegel/inconclusive? true})))}
+                                                      machine))))))))))

@@ -1,7 +1,7 @@
 # Upstream adoption for the next release
 
 This development checkout targets libhegel 0.53.2, Jolt 0.8.31 and Babashka
-1.13.230. The published v0.5.0 tag records its own dependency contract. The
+1.13.230. These are the v0.6.1 release pins. The
 0.51.6 migration guide documents the earlier ABI transition.
 [Jolt changelog](https://github.com/jolt-lang/jolt/blob/v0.8.31/CHANGELOG.md) · [libhegel changelog](https://github.com/hegeldev/hegel/blob/libhegel/0.53.2/libhegel/CHANGELOG.md) · [0.51.6 migration](LIBHEGEL-051-MIGRATION.md)
 

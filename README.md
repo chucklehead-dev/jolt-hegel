@@ -27,8 +27,7 @@ For parser inputs, [define grammars as Clojure data](docs/GRAMMARS.md) with
 
 ## Development and release versions
 
-This table describes the development checkout. Published v0.5.0 has its own
-version contract, including Jolt 0.7.23+. For a Git dependency, use the
+This table describes the v0.6.1 release and the current checkout. For a Git dependency, use the
 installer from the same commit as the library.
 
 | Host | Contract | Continuously tested targets |
@@ -39,8 +38,8 @@ installer from the same commit as the library.
 | jank | Experimental focused suite | Linux x86_64 and macOS arm64 |
 | ClojureCLR 1.12.6 on .NET 8 | Experimental focused suite | Linux x86_64, Windows x86_64, macOS arm64 |
 
-The current release is `v0.6.0`. It adds rule coverage and confirmed stateful
-journals and targets libhegel 0.53.2. See [stateful coverage and journals](docs/STATEFUL_EVIDENCE.md). Consumer Git dependencies should pin the
+The current release is `v0.6.1`. It adds journaled final checks, additional rule coverage
+requirements, and proxy-aware JVM installation. It targets libhegel 0.53.2. See [stateful coverage and journals](docs/STATEFUL_EVIDENCE.md). Consumer Git dependencies should pin the
 tag's full peeled commit SHA, not the tag-object SHA or a moving branch
 reference.
 
@@ -453,8 +452,10 @@ can be used by each host:
 
 ```clojure
 {:aliases
- {:test
-  {:extra-deps
+ {:hegel
+  {:extra-paths ["test"]
+   :jvm-opts ["--enable-native-access=ALL-UNNAMED"]
+   :extra-deps
    {io.github.chucklehead-dev/jolt-hegel
     {:git/url "https://github.com/chucklehead-dev/jolt-hegel.git"
      :git/sha "<jolt-hegel-commit-sha>"}
@@ -478,18 +479,18 @@ Replace the placeholder with the full peeled commit behind the intended
 release tag. Do not leave the placeholder, a tag name, or a moving branch in
 consumer configuration.
 
-Run the installer with the host that will run the tests and the alias that
-contains jolt-hegel:
+Keep the consumer’s `:hegel` alias free of `:main-opts`. A test alias that supplies a main entry point can send the installer arguments to that runner. Replace `project.property-runner` with your own runner namespace:
 
 ```bash
-# Development checkout: Jolt 0.8.1+ (CI's primary release is 0.8.31)
-jolt -A:test -m hegel.install
+# Jolt 0.8.1+ (CI's primary release is 0.8.31)
+jolt -A:hegel -m hegel.install
 
 # Babashka 1.13.220+
 bb -m hegel.install
 
 # JVM Clojure on JDK 25+ (JDK 25 is the primary target)
-clojure -J--enable-native-access=ALL-UNNAMED -M:test -m hegel.install
+clojure -M:hegel -m hegel.install
+clojure -M:hegel -m project.property-runner
 ```
 
 Git dependencies do not contribute their aliases to a consuming project. If
@@ -511,6 +512,12 @@ embeds its own FFI namespace; do not add the JVM dependency there.
 
 The full native migration is described in [the 0.51 migration guide](docs/LIBHEGEL-051-MIGRATION.md).
 Saved blobs and databases from older native versions must not be reused.
+
+On JVM and Babashka, HTTP(S) downloads with a configured curl proxy use
+`curl` (`curl.exe` on Windows), including curl's `HTTPS_PROXY` and
+`NO_PROXY` handling. Ordinary downloads retain the platform transport.
+An explicit JVM scheme-specific proxy host takes precedence on the JVM URL
+transport. A verified local library or release mirror also works.
 
 Environment overrides:
 

@@ -9,8 +9,7 @@ Use jolt-hegel to write property-based and model-based tests on Jolt,
 Babashka, or JVM Clojure. The public API and behavioral contract are shared;
 runtime choice affects installation and native diagnostics, not property code.
 
-This guidance targets the development checkout with libhegel 0.53.2. The
-published v0.5.0 tag records the contract for that release. Current source
+The current release is v0.6.1 with libhegel 0.53.2. Current source
 supports Jolt 0.8.1+ (0.8.31 is primary), FFI-capable Babashka 1.13.220+
 (1.13.230 is primary), and JVM Clojure on JDK 25+ with babashka.ffi 0.1.3.
 The historical v0.5.0 Jolt floor is 0.7.23.
@@ -54,17 +53,20 @@ For external consumer packs and DX probes, also read
 
 Pin jolt-hegel by full Git commit SHA. Git dependencies do not contribute their
 aliases to the consuming project, so activate the alias that contains the
-dependency when running the installer.
+dependency when running the installer. The examples use a dedicated consumer
+`:hegel` alias with dependencies, test paths and JVM options. Omit
+`:main-opts` so the caller can select the installer or the property runner.
 
 ```bash
-# Development checkout: Jolt 0.8.1+ (0.8.31 is the primary CI release)
-jolt -A:test -m hegel.install
+# Jolt 0.8.1+ (0.8.31 is the primary CI release)
+jolt -A:hegel -m hegel.install
 
 # Babashka 1.13.220+ with libffi (on Linux, do not use the -static asset)
 bb -m hegel.install
 
 # JVM Clojure, JDK 25+
-clojure -J--enable-native-access=ALL-UNNAMED -M:test -m hegel.install
+clojure -M:hegel -m hegel.install
+clojure -M:hegel -m project.property-runner
 
 # Experimental jank 0.1-alpha on Linux/macOS; curl must be on PATH.
 jank -I generated --module-path src:resources:script \

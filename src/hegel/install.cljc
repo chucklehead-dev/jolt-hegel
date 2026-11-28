@@ -173,7 +173,8 @@
    cause
    (delete-if-present! path)
    (throw
-    (ex-info (str "failed to download " url)
+    (ex-info (str "failed to download " url
+                  (when-let [hint (:hegel.install/download-hint (ex-data cause))] (str ". " hint)))
              {:type ::download-failed
               :url url
               :path path

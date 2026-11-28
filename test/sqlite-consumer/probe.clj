@@ -17,21 +17,24 @@
         (with-open [s (.createStatement c)]
           (.executeUpdate s "CREATE TABLE traces (id INTEGER PRIMARY KEY, rev INTEGER)")
           (journal/run!
-           journal-opts
-           {:initial-state false
-            :rules [(hs/rule :insert {:precondition false?}
+           (assoc journal-opts :final-check
+                  (fn [expected-rev]
+                    (with-open [rows (.executeQuery s "SELECT COALESCE(MAX(rev),0) FROM traces")]
+                      (.next rows)
+                      (when (not= (or expected-rev 0) (.getLong rows 1))
+                        (throw (ex-info "revision missing in final scan" {:hegel/origin "missed-revision"}))))))
+           {:initial-state nil
+            :rules [(hs/rule :insert {:precondition nil?}
                              (fn [_]
                                (.executeUpdate s "INSERT INTO traces VALUES (1,0)")
                                (journal/entry! {:input {:id 1 :secret "PRIVATE-SENTINEL"} :outcome :inserted})
-                               true))
-                    (hs/rule :revise {:precondition true?}
-                             (fn [row?]
+                               0))
+                    (hs/rule :revise {:precondition some?}
+                             (fn [revision]
                                ;; Planted bug: the inserted row has id 1.
                                (let [n (.executeUpdate s "UPDATE traces SET rev=rev+1 WHERE id=2")]
                                  (journal/entry! {:input {:id 2} :outcome n})
-                                 (when (zero? n)
-                                   (throw (ex-info "revision missed its row" {:hegel/origin "missed-revision"})))
-                                 row?)))]}))
+                                 (inc revision))))]}))
         (finally (.close c) (assert (.isClosed c)) (swap! closes inc))))))
 
 (defn -main [& _]
@@ -51,13 +54,15 @@
         bundle (codec/decode encoded)
         replay (h/replay-bundle! provenance bundle run-property)
         coverage (h/run-test! (assoc opts :stateful-coverage
-                                    {:census? true :rules {:tick {:min-applied 2} :cycle {:min-applied 1}}})
+                                    {:census? true :rules {:tick {:min-applied 2 :min-selected 2 :min-eligible 2}
+                                                           :cycle {:min-applied 1 :min-guard-rejected 1}}})
                               (fn [_] (hs/run! {:initial-state 0
                                                :rules [(hs/rule :tick inc)
                                                        (hs/rule :cycle {:precondition (constantly false)} inc)]})))]
     (assert (= [{:rule "insert" :input {:id 1} :outcome :inserted}
                 {:rule "revise" :input {:id 2} :outcome 0}]
                events (get-in bundle [:trace :events]) (journal/fixture (first (:failures replay)))))
+    (assert (= (hs/rule-id :revise) (:rule (last events))))
     (assert (= :reproduced (:status replay)))
     (assert (not (str/includes? encoded "PRIVATE-SENTINEL")))
     (assert (= :coverage-failed (:status coverage)))

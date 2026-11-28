@@ -6,6 +6,18 @@ for v0.1.0 through v0.4.0, see the tag and release history in that repository.
 
 ## Unreleased
 
+## [0.6.1] - 2026-11-28
+
+- Check the final model and external store with `:final-check` in
+  `hegel.stateful.journal/run!`. A failing check can shrink and return the
+  confirmed command journal. Correlate journal IDs with coverage keys using
+  `hegel.stateful/rule-id`.
+- Set valid-case coverage minima for rule selections, guard rejections, and
+  eligible steps. Eligibility requires `:census? true`.
+- Honor proxy environment variables through curl in the JVM installer. The
+  consumer setup example now uses a dedicated alias, and requiring
+  `hegel.generator` no longer prints a warning about `let`.
+
 ## [0.6.0] - 2026-11-28
 
 - Require aggregate sequential state-machine rule coverage and diagnose guard
@@ -209,5 +221,6 @@ for v0.1.0 through v0.4.0, see the tag and release history in that repository.
 - Require FFI-capable Babashka 1.13.220 or later and JDK 22 or later for the
   supported JVM host.
 
+[0.6.1]: https://github.com/chucklehead-dev/jolt-hegel/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/chucklehead-dev/jolt-hegel/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/chucklehead-dev/jolt-hegel/compare/v0.4.0...v0.5.0
