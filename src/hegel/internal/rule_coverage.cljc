@@ -51,7 +51,7 @@
                        (:rules opts))
           passed? (every? :passed? (vals checks))
           zeroes (cond-> {:selected 0 :guard-passed 0 :guard-rejected 0 :assumption-rejected 0
-                          :applied 0 :failed 0}
+                          :applied 0 :failed 0 :invariant-failed 0}
                    (:census? opts) (assoc :eligible 0))
           report {:rules (into {} (map (fn [[id row]] [id (merge zeroes row)])) (:rules summary)) :checks checks :passed? passed?
                   :census? (true? (:census? opts))}]

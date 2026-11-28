@@ -218,7 +218,7 @@ native blobs; it does not substitute a seed rerun. See
 variants and the trusted-artifact boundary. Matching provenance and bounded
 EDN do not make untrusted native blobs safe to execute.
 
-### Seeded corpora (unreleased)
+### Seeded corpora
 
 `hegel.materialize/materialize!` generates an exact bounded count of successful
 plain-data examples. `hegel.corpus/consume!` verifies their exact payload digest
@@ -228,7 +228,7 @@ for the seed policy, platform crypto requirements, bounds, and verified
 cross-platform/db-pilot evidence. Corpus integrity is not proof that
 the values satisfy a model or are safe to publish.
 
-### Observations and coverage (unreleased)
+### Observations and coverage
 
 Use `h/event!` for categorical labels and `h/observe!` for numeric measurements.
 `:observations? true` returns bounded structured counts; `:coverage` adds explicit

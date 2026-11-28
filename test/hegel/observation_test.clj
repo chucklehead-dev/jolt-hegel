@@ -263,3 +263,28 @@
            (journal/fixture (first (:failures (run (assoc opts :max-bytes replay-size)))))))
     (let [f (first (:failures (run (assoc opts :max-bytes (dec replay-size)))))]
       (is (= :incomplete-journal (:reason (ex-data (error-of #(journal/fixture f)))))))))
+
+(deftest journal-redaction-errors-fail-closed
+  (let [attempt (fn [redact]
+                  (error-of #(h/run-test! run-opts
+                               (fn [_] (journal/run! {:redact redact}
+                                 {:initial-state nil
+                                  :rules [(stateful/rule :command
+                                           (fn [_] (journal/entry! {:input "sensitive-marker"})
+                                             (throw (ex-info "property failed" {}))))]})))))]
+    (doseq [[reason redact] [[:redaction-failed (fn [_] (throw (ex-info "sensitive-marker" {})))]
+                             [:opaque-value (fn [_] {:input (list 1)})]]]
+      (let [error (attempt redact)]
+        (is (:hegel/usage-error? (ex-data error)))
+        (is (= reason (:reason (ex-data error))))
+        (is (not (.contains (str error) "sensitive-marker")))))))
+
+(deftest invariant-failure-is-distinguished-from-a-throwing-rule
+  (let [result (h/run-test! (assoc run-opts :stateful-coverage {})
+                 (fn [_]
+                   (stateful/run! {:initial-state 0 :rules [(stateful/rule :advance inc)]
+                                   :invariants [(stateful/invariant :zero zero?)]})))
+        row (get-in result [:stateful-coverage :rules :advance])]
+    (is (= :failed (:status result)))
+    (is (= 1 (:applied row) (:invariant-failed row)))
+    (is (= 0 (:failed row)))))

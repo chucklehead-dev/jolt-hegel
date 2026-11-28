@@ -13,7 +13,7 @@ An empty configuration reports counts without imposing minima. Under
 `:stateful-coverage :rules` each declared rule has counts for `:selected`,
 `:guard-passed`, `:guard-rejected`, `:assumption-rejected`, `:applied` and
 `:failed`. An invariant failure after a rule returns still counts as an
-application. A rule exception counts as failed. The summary includes attempts
+application and increments its separate `:invariant-failed` counter. A rule exception counts as failed. The summary includes attempts
 through the first failing exploration case. It stops there so shrinking and
 confirmation cannot inflate totals. Only completed valid cases contribute to
 `:checks`. A missed minimum changes an otherwise passing run to

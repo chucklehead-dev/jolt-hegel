@@ -340,7 +340,12 @@
                 (run-attempt test-case rules item state next-trace)]
             (if applied?
               (do
-                (check-invariants! invariants next-state next-trace)
+                (host/try-catch-all
+                 (check-invariants! invariants next-state next-trace)
+                 error
+                 (do (when (= :invariant (::phase (ex-data error)))
+                       (coverage/hit! (:rule-counts test-case) (:name item) :invariant-failed))
+                     (throw error)))
                 (recur next-state next-trace (inc step-number) rejected?))
               (do
                 (hffi/state-machine-rule-rejected!
