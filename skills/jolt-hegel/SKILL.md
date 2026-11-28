@@ -9,7 +9,7 @@ Use jolt-hegel to write property-based and model-based tests on Jolt,
 Babashka, or JVM Clojure. The public API and behavioral contract are shared;
 runtime choice affects installation and native diagnostics, not property code.
 
-The current release is v0.6.0 with libhegel 0.53.2. Current source
+The current release is v0.6.1 with libhegel 0.53.2. Current source
 supports Jolt 0.8.1+ (0.8.31 is primary), FFI-capable Babashka 1.13.220+
 (1.13.230 is primary), and JVM Clojure on JDK 25+ with babashka.ffi 0.1.3.
 The historical v0.5.0 Jolt floor is 0.7.23.
