@@ -6,6 +6,7 @@
             [hegel.host :as host]
             [hegel.internal.portable-data :as portable-data]
             [hegel.materialize :as materialize]
+            [hegel.stateful :as stateful]
             [hegel.version :as version]))
 
 (def provenance
@@ -207,3 +208,13 @@
   (let [{:keys [fail error]} (clojure.test/run-tests 'hegel.materialize-test)]
     (when (pos? (+ fail error))
       (throw (ex-info "materialize tests failed" {:fail fail :error error})))))
+
+(deftest explicit-round-budget-reaches-native-machine-and-payload
+  (doseq [budget [1 4]]
+    (let [envelope (materialize/materialize!
+                    (assoc options :count 1 :stateful-step-count budget)
+                    (fn [_] (stateful/run! {:initial-state 0 :rules [(stateful/rule :tick inc)]})))
+          payload (corpus/consume! (assoc (expected-for envelope) :count 1) envelope)]
+      (is (= 2 (:schema-version envelope)))
+      (is (= budget (:stateful-step-count payload)))
+      (is (= [budget] (:values payload))))))

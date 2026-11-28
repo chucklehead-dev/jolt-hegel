@@ -68,7 +68,8 @@
 
 (defn- observed-test-case [ctx handle final? verbosity run-observations render-opts native-output?]
   (cond-> (test-case ctx handle final? verbosity)
-    (and run-observations (:rule-summary @run-observations)) (assoc :final-check-counts (atom {}))
+    (and run-observations (:rule-summary @run-observations)) (assoc :final-check-counts (atom {})
+                                                       :final-check-ids (:final-check-ids @run-observations))
     (and run-observations (:exploration @run-observations)) (assoc :observations (atom (observations/empty-case)))
     (and run-observations (not final?) (:rule-summary @run-observations)
          (not (get-in @run-observations [:rule-summary :stopped?])))
@@ -77,11 +78,14 @@
 
 (defn- record-observations! [run-observations test-case outcome]
   (when-let [counts (:final-check-counts test-case)]
+    (when (and (:rule-counts test-case) (= :valid (:status outcome)) (seq (:ids @counts)))
+      (swap! run-observations update-in [:rule-summary :named-checks]
+             #(reduce (fn [m id] (update m id (fnil inc 0))) % (:ids @counts))))
     (when (seq @counts)
       (swap! run-observations update-in [:rule-summary :final-checks]
              (fn [summary]
                (cond-> (update summary (if (:final? test-case) :capture :other)
-                               #(merge-with + % @counts))
+                               #(merge-with + % (dissoc @counts :ids)))
                  (and (:rule-counts test-case) (= :valid (:status outcome))
                       (pos? (get @counts :completed 0)))
                  (update :valid-cases (fnil inc 0)))))))

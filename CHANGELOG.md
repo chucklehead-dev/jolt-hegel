@@ -6,6 +6,12 @@ for v0.1.0 through v0.4.0, see the tag and release history in that repository.
 
 ## Unreleased
 
+- Count distinct valid cases per rule or named terminal check. Match an
+  ordered scenario within one entity and report the matching event indexes.
+- Successful histories carry a version and can be validated without native
+  dependencies. Materialization accepts an optional round budget recorded
+  in schema-v2 corpora. Existing schema-v1 corpora remain readable.
+
 ## [0.7.0] - 2026-11-28
 
 - Export successful stateful command histories through seeded materialization,

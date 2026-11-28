@@ -147,3 +147,43 @@ the guard, including steps subsequently rejected by an assumption. The
 minimum sample count and ratio are both obligations. With zero eligible
 steps the ratio is unmeasured. Adaptive or swarm selection makes this an
 opt-in check rather than a default fairness guarantee.
+
+## Count distinct cases and terminal checks
+
+```clojure
+{:stateful-coverage
+ {:rules {:store/insert {:min-applied-cases 10 :min-selected-cases 12}}
+  :final-checks {:ingest 8 :sharing 4}}}
+```
+
+Case minima count distinct valid exploration cases. A case can run several
+machines and still contributes at most once per canonical rule or check ID.
+Declare a check with `{:final-check-id :sharing :final-check check-sharing!}`
+in the journal options. The verdict for each required ID is under
+`[:stateful-coverage :final-checks :by-id]`. The existing `:min-final-checks`
+continues to count cases with any completed check. Keywords, symbols and
+strings denoting the same name match. Duplicate canonical requirements are
+rejected before the run.
+
+## Validate a history and correlate its commands
+
+Require `[hegel.stateful.history :as history]` in a consumer without libhegel.
+After checking the corpus against the independent pin, call
+`(history/validate-history! value)` on the individual value. It checks the
+history version, declarations, event membership, portable data, and bounds.
+For an unversioned v0.7.0 history use `history/upgrade-v0-history` after
+verifying the original corpus. It returns a validated v1 value in memory.
+
+```clojure
+(history/match-scenario
+  value
+  [{:rule :insert} {:rule :revise :outcome :updated} {:outcome :stale}]
+  (fn [event] ((juxt :project :observation) (:input event))))
+```
+
+On success, `:indexes` identifies the events in order for one key. On a miss,
+it identifies the longest prefix and `:next-pattern` names the next expected
+step. A nil key or a tuple with a nil component is skipped. For a boolean
+verdict use `journal/covers-by?` with the same arguments. The SQLite consumer
+interleaves two inserts, then revises and retries the first record and
+verifies the second record stayed at revision zero.

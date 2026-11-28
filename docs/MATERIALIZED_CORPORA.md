@@ -25,6 +25,12 @@ Required options are a canonical unsigned-64 decimal string `:seed`, integer
 work. The policy is `:exact-valid-count`; there is no implicit truncation,
 deduplication, partial success, or invented native attempt-budget setting.
 
+An optional positive `:stateful-step-count` sets the native round budget for each
+position. Supplying it produces a schema-v2 envelope whose digest covers the
+budget alongside the seed and values. Omitting it retains the schema-v1
+envelope and the existing 50-round default. Both versions use the same
+independently supplied pin contract.
+
 Each output position i uses a separate sequential native run with numeric seed
 `(seed + i) mod 2^64`, one valid test case, backend `:default`, generation phase
 only, quiet output, multiple-failure reporting disabled, and database `""`.
