@@ -3,6 +3,7 @@
   (:require [clojure.string :as str]
             [hegel.host :as host]
             [hegel.internal.observations :as observations]
+            [hegel.internal.stateful-id :as id]
             [hegel.internal.rule-coverage :as rule-coverage]
             [hegel.internal.portable-data :as portable-data]
             [hegel.validation :as validation]))
@@ -89,6 +90,7 @@
              :final-replay (observations/empty-summary))
       (:stateful-coverage opts)
       (assoc :rule-summary {:rules {} :valid-rules {}}
+             :final-check-ids (set (map #(id/canonical :final-check %) (keys (get-in opts [:stateful-coverage :final-checks]))))
              :census? (true? (get-in opts [:stateful-coverage :census?]))))))
 
 (defn- check-coverage [summary coverage]
@@ -120,7 +122,7 @@
     result
     (let [result (rule-coverage/finish result (:stateful-coverage opts) (:rule-summary observed))
           result (cond-> result (or (:observations? opts) (:coverage opts))
-                   (assoc :observations (dissoc observed :rule-summary :census?)))]
+                   (assoc :observations (dissoc observed :rule-summary :census? :final-check-ids)))]
       (if-let [coverage (:coverage opts)]
         (let [verdict (check-coverage (:exploration observed) coverage)]
           ;; Coverage is run-level evidence, never a fabricated shrinkable

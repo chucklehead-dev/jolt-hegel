@@ -151,6 +151,17 @@ Here `chunks` always concatenate to `payload`. Hegel can shrink both the data
 and its delivery boundaries, which makes this useful for parsers, sockets, and
 streaming APIs.
 
+## Which artifact should I keep?
+
+| What you want to do | Artifact | What the consumer needs |
+| --- | --- | --- |
+| Turn one minimized failure into an ordinary regression test | Projected failure fixture | A test that applies the recorded inputs |
+| Reproduce the engine’s choices and failure origin | Replay bundle | A compatible engine and independently supplied provenance |
+| Inspect or apply commands from a passing state machine | Successful history | A history validator and the consumer’s command semantics |
+| Share generated histories or other values across runtimes | Materialized corpus | An independently reviewed digest and provenance pin |
+
+See [stateful evidence](docs/STATEFUL_EVIDENCE.md), [materialized corpora](docs/MATERIALIZED_CORPORA.md), and [replay bundles](docs/REPLAY_BUNDLES.md).
+
 ## Shrinking and replay
 
 When a property throws, jolt-hegel gives the failure a stable identity, lets

@@ -331,7 +331,9 @@ jobs:
           clojure -J--enable-native-access=ALL-UNNAMED -M -m probe
           clojure -J--enable-native-access=ALL-UNNAMED -M -m history "$RUNNER_TEMP/history.edn"
           consumer="$PWD"
+          source="$GITHUB_WORKSPACE/src"
           cd "$RUNNER_TEMP"
+          clojure -Srepro -Sdeps "{:paths [\"$consumer\" \"$source\"] :deps {org.clojure/clojure {:mvn/version \"1.12.7\"}}}" -M -m validate-history "$consumer/stale-retry.edn" "$RUNNER_TEMP/history.edn"
           for fixture in "$consumer/stale-retry.edn" "$RUNNER_TEMP/history.edn"; do
             clojure -Srepro -Sdeps "{:paths [\"$consumer\"] :deps {org.clojure/clojure {:mvn/version \"1.12.7\"}}}" -M -m consume-history "$fixture"
           done

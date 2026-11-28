@@ -151,7 +151,7 @@
       (is (= :required-key
              (reason-of #(corpus/consume! (dissoc expected :sha256) envelope))))
       (is (= :unsupported-schema-version
-             (reason-of #(corpus/consume! expected (assoc envelope :schema-version 2)))))
+             (reason-of #(corpus/consume! expected (assoc envelope :schema-version 3)))))
       (is (= :max-string-chars
              (reason-of #(corpus/consume! expected
                                          (assoc envelope :payload

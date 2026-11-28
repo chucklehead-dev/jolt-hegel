@@ -39,6 +39,8 @@
                   (when (zero? valid-cases) " (no valid cases completed)")))))
 
 (defn- print-rule-checks! [{:keys [checks census? final-checks]}]
+  (doseq [[id check] (:by-id final-checks) :when (not (:passed? check))]
+    (println "  Final check" id "completed in" (:valid-cases check) "valid cases; required" (:min-final-checks check)))
   (when (false? (:passed? final-checks))
     (println "  Final check completed in" (:valid-cases final-checks)
              "valid cases; required" (:min-final-checks final-checks)))

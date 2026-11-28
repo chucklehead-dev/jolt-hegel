@@ -41,9 +41,11 @@
 
 (defn- validate-options! [opts generator check!]
   (validation/reject-unknown-keys! ::invalid-options "materialize! options"
-                                   option-keys opts)
+                                   (conj option-keys :stateful-step-count) opts)
   (doseq [option option-keys]
     (require-option! opts option))
+  (when (contains? opts :stateful-step-count)
+    (validation/require-integer-range! ::invalid-options :stateful-step-count (:stateful-step-count opts) 1 9223372036854775807))
   (require-fn! :generator generator)
   (when (some? check!)
     (require-fn! :check! check!))
@@ -93,11 +95,12 @@
                    :callback-count callback-count})))
 
 (defn- payload [opts values]
-  {:provenance (:provenance opts)
-   :seed (:seed opts)
-   :count (count values)
-   :valid-case-policy :exact-valid-count
-   :values values})
+  (merge (select-keys opts [:stateful-step-count])
+         {:provenance (:provenance opts)
+          :seed (:seed opts)
+          :count (count values)
+          :valid-case-policy :exact-valid-count
+          :values values}))
 
 (defn materialize!
   "Generate exactly `:count` valid values and return one sealed corpus envelope.
@@ -121,7 +124,7 @@
          (let [callback-count (atom 0)
                captured (atom nil)
                run (core/run-test!
-                    (position-options seed index)
+                    (merge (position-options seed index) (select-keys opts [:stateful-step-count]))
                     (fn [_]
                       (let [value (core/draw! generator)]
                         (when check! (check! value))
