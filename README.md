@@ -39,10 +39,8 @@ installer from the same commit as the library.
 | jank | Experimental focused suite | Linux x86_64 and macOS arm64 |
 | ClojureCLR 1.12.6 on .NET 8 | Experimental focused suite | Linux x86_64, Windows x86_64, macOS arm64 |
 
-The current release is `v0.5.0`. It replaces the development Babashka fork and
-the private JVM FFM adapter with the upstream `babashka.ffi` implementation,
-while preserving one canonical ABI and the same property API across Jolt,
-FFI-capable Babashka, and JVM Clojure. Consumer Git dependencies should pin the
+The current release is `v0.6.0`. It adds rule coverage and confirmed stateful
+journals and targets libhegel 0.53.2. See [stateful coverage and journals](docs/STATEFUL_EVIDENCE.md). Consumer Git dependencies should pin the
 tag's full peeled commit SHA, not the tag-object SHA or a moving branch
 reference.
 
@@ -220,7 +218,7 @@ native blobs; it does not substitute a seed rerun. See
 variants and the trusted-artifact boundary. Matching provenance and bounded
 EDN do not make untrusted native blobs safe to execute.
 
-### Seeded corpora (unreleased)
+### Seeded corpora
 
 `hegel.materialize/materialize!` generates an exact bounded count of successful
 plain-data examples. `hegel.corpus/consume!` verifies their exact payload digest
@@ -230,7 +228,7 @@ for the seed policy, platform crypto requirements, bounds, and verified
 cross-platform/db-pilot evidence. Corpus integrity is not proof that
 the values satisfy a model or are safe to publish.
 
-### Observations and coverage (unreleased)
+### Observations and coverage
 
 Use `h/event!` for categorical labels and `h/observe!` for numeric measurements.
 `:observations? true` returns bounded structured counts; `:coverage` adds explicit

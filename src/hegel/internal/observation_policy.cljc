@@ -3,6 +3,7 @@
   (:require [clojure.string :as str]
             [hegel.host :as host]
             [hegel.internal.observations :as observations]
+            [hegel.internal.rule-coverage :as rule-coverage]
             [hegel.internal.portable-data :as portable-data]
             [hegel.validation :as validation]))
 
@@ -79,11 +80,16 @@
   opts)
 
 (defn initial [opts]
-  (when (or (:observations? opts) (contains? opts :coverage))
-    {:scope (scope opts)
-     :phases (if (contains? opts :phases) (vec (:phases opts)) :all)
-     :exploration (observations/empty-summary)
-     :final-replay (observations/empty-summary)}))
+  (when (or (:observations? opts) (:coverage opts) (:stateful-coverage opts))
+    (cond-> {}
+      (or (:observations? opts) (:coverage opts))
+      (assoc :scope (scope opts)
+             :phases (if (contains? opts :phases) (vec (:phases opts)) :all)
+             :exploration (observations/empty-summary)
+             :final-replay (observations/empty-summary))
+      (:stateful-coverage opts)
+      (assoc :rule-summary {:rules {} :valid-applied {}}
+             :census? (true? (get-in opts [:stateful-coverage :census?]))))))
 
 (defn- check-coverage [summary coverage]
   (let [valid-cases (get-in summary [:cases :valid])
@@ -112,7 +118,9 @@
 (defn finish [result opts observed]
   (if-not observed
     result
-    (let [result (assoc result :observations observed)]
+    (let [result (rule-coverage/finish result (:stateful-coverage opts) (:rule-summary observed))
+          result (cond-> result (or (:observations? opts) (:coverage opts))
+                   (assoc :observations (dissoc observed :rule-summary :census?)))]
       (if-let [coverage (:coverage opts)]
         (let [verdict (check-coverage (:exploration observed) coverage)]
           ;; Coverage is run-level evidence, never a fabricated shrinkable

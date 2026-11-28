@@ -1,8 +1,8 @@
 # Observations and explicit coverage
 
-These APIs are an unreleased implementation of #54, not part of historical
-v0.5.0. Changes require supported-host CI and independent review. They do not
-enable concurrent runs.
+For per-step counts, eligibility, and confirmed command journals, see
+[stateful execution evidence](STATEFUL_EVIDENCE.md). Categorical observations
+below count cases containing an event.
 
 ```clojure
 (require '[hegel.core :as h] '[hegel.generator :as g])

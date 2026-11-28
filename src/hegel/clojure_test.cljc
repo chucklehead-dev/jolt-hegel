@@ -123,7 +123,10 @@
      :message (str "Hegel property failed at " base)
      :expected 'property-to-pass
      :actual (cond
-               (= :coverage-failed (:status result)) (:coverage result)
+               (= :coverage-failed (:status result))
+               (if (:stateful-coverage result)
+                 (select-keys result [:coverage :stateful-coverage])
+                 (:coverage result))
                (:error result) (:error result)
                (:flaky? result) :failure-did-not-reproduce
                error (:message (throwable-details error))

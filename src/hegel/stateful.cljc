@@ -7,6 +7,7 @@
             [hegel.generator :as g]
             [hegel.host :as host]
             [hegel.internal.draw-attempt :as attempt]
+            [hegel.internal.rule-coverage :as coverage]
             [hegel.validation :as validation]))
 
 (defn- invalid-argument [message data]
@@ -249,35 +250,36 @@
     (check-invariant! item state trace))
   nil)
 
-(defn- apply-rule [item state trace]
+(defn- apply-rule [item state trace counts census]
+  (coverage/hit! counts (:name item) :selected)
   (host/try-catch-all
-   (if ((::precondition item) state)
-     {:state ((::step item) state)
-      :applied? true}
-     {:state state
-      :applied? false})
+   (if (if census (get census (:name item)) ((::precondition item) state))
+     (do (coverage/hit! counts (:name item) :guard-passed)
+         (let [next-state ((::step item) state)]
+           (coverage/hit! counts (:name item) :applied)
+           {:state next-state :applied? true}))
+     (do (coverage/hit! counts (:name item) :guard-rejected)
+         {:state state :applied? false}))
    error
    (cond
-     (hffi/assumption-rejected? error)
-     {:state state
-      :applied? false}
-
-     (= :hegel.core/assumption-rejected (:type (ex-data error)))
-     {:state state
-      :applied? false}
+     (or (hffi/assumption-rejected? error)
+         (= :hegel.core/assumption-rejected (:type (ex-data error))))
+     (do (coverage/hit! counts (:name item) :assumption-rejected)
+         {:state state :applied? false})
 
      :else
      (if (or (hffi/stop-test? error)
              (:hegel/inconclusive? (ex-data error)))
        (throw error)
-       (throw (stateful-error :rule item trace error))))))
+       (do (coverage/hit! counts (:name item) :failed)
+           (throw (stateful-error :rule item trace error)))))))
 
-(defn- attempt-rule [test-case item state trace]
+(defn- attempt-rule [test-case item state trace census]
   ;; Pool consumption made by accepted nested draws belongs to this rule.
   ;; Keep its diagnostics even if the rule is rejected.
   (attempt/begin-consumption! test-case)
   (let [result (host/try-catch-all
-                (apply-rule item state trace)
+                (apply-rule item state trace (:rule-counts test-case) census)
                 error
                 (do (host/try-catch-all (attempt/restore-consumption! test-case) _ nil)
                     (throw error)))]
@@ -297,6 +299,18 @@
       (invalid-argument (str "state machine has duplicate " (name kind) " names")
                         {:kind kind :names names})))
   items)
+
+(defn- run-attempt [test-case rules item state trace]
+  (let [census (when (:rule-census? test-case)
+                 (into {} (map (fn [rule]
+                                 (let [id (:name rule)
+                                       eligible? ((::precondition rule) state)]
+                                   (when eligible?
+                                     (coverage/hit! (:rule-counts test-case) id :eligible))
+                                   [id eligible?]))) rules))]
+    (if-let [capture (:journal-attempt test-case)]
+      (capture (::native-name item) #(attempt-rule test-case item state trace census))
+      (attempt-rule test-case item state trace census))))
 
 (defn- run-group!
   [test-case machine rules invariants initial-state initial-trace initial-step]
@@ -323,10 +337,15 @@
               next-trace (conj trace (:name item))]
           (h/note! (str "Step " step-number ": " (::native-name item)))
           (let [{next-state :state applied? :applied?}
-                (attempt-rule test-case item state next-trace)]
+                (run-attempt test-case rules item state next-trace)]
             (if applied?
               (do
-                (check-invariants! invariants next-state next-trace)
+                (host/try-catch-all
+                 (check-invariants! invariants next-state next-trace)
+                 error
+                 (do (when (= :invariant (::phase (ex-data error)))
+                       (coverage/hit! (:rule-counts test-case) (:name item) :invariant-failed))
+                     (throw error)))
                 (recur next-state next-trace (inc step-number) rejected?))
               (do
                 (hffi/state-machine-rule-rejected!
@@ -397,6 +416,7 @@
     (when (empty? rules)
       (invalid-argument "cannot run a state machine with no rules" {}))
     (let [test-case (h/current-test-case!)
+          _ (when-let [counts (:rule-counts test-case)] (coverage/register! counts rules))
           machine
           (hffi/new-state-machine!
            (:context test-case)
