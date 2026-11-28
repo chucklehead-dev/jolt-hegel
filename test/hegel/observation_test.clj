@@ -423,3 +423,28 @@
     (is (zero? (:valid-cases checks)))
     (is (pos? (get-in checks [:capture :failed] 0)))
     (is (pos? (get-in checks [:other :failed] 0)))))
+
+(deftest equivalent-rule-ids-match-across-declarations-and-requirements
+  (doseq [id [:store/write 'store/write "store/write"]]
+    (let [r (h/run-test! (assoc run-opts :stateful-step-count 1
+                                :stateful-coverage {:rules {id {:min-applied 1}}})
+              (fn [_] (stateful/run! {:initial-state 0 :rules [(stateful/rule :store/write inc)]})))]
+      (is (:passed? r))
+      (is (= 1 (get-in r [:stateful-coverage :checks id :applied])))))
+  (is (:hegel/usage-error?
+       (ex-data (error-of #(rule-coverage/validate!
+                            {:stateful-coverage {:rules {:x {:min-applied 1} "x" {:min-selected 1}}}}))))))
+
+(deftest nested-plain-machine-cannot-supply-outer-command
+  (doseq [explicit? [false true]]
+    (let [seen (atom nil)
+          inner {:initial-state nil :rules [(stateful/rule :inner (fn [_] (journal/entry! {})))]}
+          run #(h/run-test! (assoc run-opts :stateful-step-count 1)
+                 (fn [_] (reset! seen (journal/history! {}
+                                       {:initial-state nil
+                                        :rules [(stateful/rule :outer
+                                                 (fn [_] (stateful/run! inner)
+                                                   (when explicit? (journal/entry! {}))))]}))))]
+      (if explicit?
+        (do (is (:passed? (run))) (is (= [{:rule "outer"}] (:events @seen))))
+        (is (= :expected-one-command-entry (:reason (ex-data (error-of run)))))))))

@@ -1,5 +1,6 @@
 (ns hegel.internal.rule-coverage
-  (:require [hegel.validation :as validation]))
+  (:require [hegel.internal.stateful-id :as id]
+            [hegel.validation :as validation]))
 
 (defn- invalid! [message]
   (validation/usage-error! ::invalid-option message {}))
@@ -7,6 +8,10 @@
 (def thresholds
   {:min-applied :applied :min-selected :selected
    :min-eligible :eligible :min-guard-rejected :guard-rejected})
+
+(defn- unique-ids! [kind requirements]
+  (when-not (= (count requirements) (count (set (map #(id/canonical kind %) (keys requirements)))))
+    (invalid! "coverage requirements contain duplicate canonical names")))
 
 (defn validate! [opts]
   (when (contains? opts :stateful-coverage)
@@ -20,6 +25,7 @@
       (when (contains? config :rules)
         (when-not (and (map? rules) (<= (count rules) 256))
           (invalid! "stateful coverage :rules must be a map of at most 256 requirements"))
+        (unique-ids! :rule rules)
         (doseq [[id req] rules]
           (when-not (or (keyword? id) (string? id) (symbol? id))
             (invalid! "stateful coverage requires a rule name"))
@@ -49,7 +55,11 @@
     (when (> (count totals) 256) (invalid! "too many distinct stateful rule names"))
     (cond-> (assoc summary :rules totals)
       (= status :valid)
-      (update :valid-rules #(merge-with (partial merge-with +) % counts))
+      (update :valid-rules
+              (fn [valid]
+                (reduce-kv (fn [rows rule counts]
+                             (update rows (id/canonical :rule rule) #(merge-with + % counts)))
+                           valid counts)))
       (= status :interesting) (assoc :stopped? true))))
 
 (defn- check-rule [counts requirements]
@@ -74,7 +84,7 @@
   (if-not summary
     result
     (let [checks (into {} (for [[id requirements] (:rules opts)]
-                            [id (check-rule (get-in summary [:valid-rules id]) requirements)]))
+                            [id (check-rule (get-in summary [:valid-rules (id/canonical :rule id)]) requirements)]))
           final-checks (merge {:valid-cases 0} (:final-checks summary))
           minimum (:min-final-checks opts)
           final-met? (or (nil? minimum) (>= (:valid-cases final-checks) minimum))

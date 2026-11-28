@@ -322,6 +322,12 @@ jobs:
         if: matrix.host == 'jvm'
         run: clojure -J--enable-native-access=ALL-UNNAMED -M:jvm:setup-native
 
+      - name: Verify cached JVM installer exits and library setup preserves agents
+        if: matrix.host == 'jvm' && runner.os == 'Linux'
+        run: |
+          timeout 20s clojure -M:jvm -m hegel.install setup
+          timeout 20s clojure -M:jvm -e "(require 'hegel.install) (hegel.install/setup!) (assert (= :ok @(future :ok))) (shutdown-agents)"
+
       - name: Qualify SQLite stateful consumer on JDK 25
         if: matrix.host == 'jvm' && runner.os == 'Linux'
         working-directory: test/sqlite-consumer
