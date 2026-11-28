@@ -6,6 +6,7 @@
             [hegel.internal.observation-policy :as observation-policy]
             [hegel.internal.observations :as observations]
             [hegel.internal.render :as render]
+            [hegel.internal.rule-coverage :as rule-coverage]
             [hegel.replay-bundle :as replay-bundle]
             [hegel.validation :as validation]
             [hegel.version :as version]))
@@ -67,11 +68,16 @@
 
 (defn- observed-test-case [ctx handle final? verbosity run-observations render-opts native-output?]
   (cond-> (test-case ctx handle final? verbosity)
-    run-observations (assoc :observations (atom (observations/empty-case)))
+    (and run-observations (:exploration @run-observations)) (assoc :observations (atom (observations/empty-case)))
+    (and run-observations (not final?) (:rule-summary @run-observations)
+         (not (get-in @run-observations [:rule-summary :stopped?])))
+    (assoc :rule-counts (atom {}) :rule-census? (:census? @run-observations))
     (should-log? verbosity final?) (assoc :render (render/start! ctx handle render-opts native-output?))))
 
 (defn- record-observations! [run-observations test-case outcome]
-  (when run-observations
+  (when-let [counts (:rule-counts test-case)]
+    (swap! run-observations update :rule-summary rule-coverage/record-case @counts (:status outcome)))
+  (when (:observations test-case)
     (swap! run-observations update
            (if (:final? test-case) :final-replay :exploration)
            observations/record-case (:status outcome) @(:observations test-case))))
@@ -265,7 +271,7 @@
 (def ^:private run-option-keys
   #{:test-location :profile :print-blob? :unbounded-choices? :mode :backend :test-cases :stateful-step-count :verbosity :seed
     :derandomize? :report-multiple-failures? :stop-on-first-failure? :nondeterminism-strictness :database :database-key :name
-    :phases :suppress-health-checks :show-statistics? :observations? :coverage
+    :phases :suppress-health-checks :show-statistics? :observations? :coverage :stateful-coverage
     :counterexample})
 
 (defn- require-string! [option value]
@@ -332,6 +338,7 @@
     (require-option-keywords! :suppress-health-checks
                               (:suppress-health-checks opts)
                               health-check-values))
+  (rule-coverage/validate! opts)
   (observation-policy/validate-coverage! opts)
   ;; Validated before native setup, purely for its usage-error effect: the
   ;; resolved map is recomputed where it is actually needed.
@@ -405,7 +412,7 @@
 (defn- throwable-observation [error]
   {:type (exception-type-name error)
    :message (ex-message error)
-   :data (ex-data error)})
+   :data (dissoc (ex-data error) :hegel.stateful.journal/journal)})
 
 (defn- observation-index [observed origin]
   (first

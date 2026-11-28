@@ -6,6 +6,12 @@ for v0.1.0 through v0.4.0, see the tag and release history in that repository.
 
 ## Unreleased
 
+## [0.6.0] - 2026-11-28
+
+- Require aggregate sequential state-machine rule coverage and diagnose guard
+  rejection, selection and failure. Export a bounded redacted command journal
+  from a confirmed failure. [Examples and semantics](docs/STATEFUL_EVIDENCE.md).
+
 - A replayed failure with status `:not-reproduced` now carries a `:reason`.
   When another failure replaces it, `:observed-origin` identifies that failure.
 
@@ -74,8 +80,7 @@ for v0.1.0 through v0.4.0, see the tag and release history in that repository.
 
 - Qualify the development checkout with official checksum-pinned Jolt 0.8.30 assets on
   Linux x86_64, Windows x86_64, and macOS arm64 while retaining a full Jolt
-  0.8.1 Linux compatibility-floor lane. Release verification uses the same
-  0.8.30 pins. The published v0.5.0/Jolt 0.7.23 contract is unchanged, and a
+  0.8.1 Linux compatibility-floor lane. The final release verification uses 0.8.31. The published v0.5.0/Jolt 0.7.23 contract is unchanged, and a
   current-release arena remeasurement continues to reject a fresh arena per
   temporary-allocation wrapper.
 
@@ -204,4 +209,5 @@ for v0.1.0 through v0.4.0, see the tag and release history in that repository.
 - Require FFI-capable Babashka 1.13.220 or later and JDK 22 or later for the
   supported JVM host.
 
+[0.6.0]: https://github.com/chucklehead-dev/jolt-hegel/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/chucklehead-dev/jolt-hegel/compare/v0.4.0...v0.5.0

@@ -6,23 +6,9 @@ not publishable until its public pull request and public `main` workflows pass.
 
 ## Current release
 
-`v0.5.0` is the current portable jolt-hegel release. It supports Jolt,
-FFI-capable Babashka, and JVM Clojure through the upstream `babashka.ffi`
-implementation and includes the experimental jank and ClojureCLR ports. The
-source declaration in `hegel.version/jolt-hegel-version`, annotated tag, and
-GitHub release must all identify `0.5.0`.
-
-## Current main and next release
-
-Current `main` declares Jolt 0.8.1 as its source and compatibility floor in
-`:jolt/min-version`. CI retains a full Linux x86_64 0.8.1 minimum lane, while
-the primary Linux x86_64, Windows x86_64, and macOS arm64 lanes and release
-verification use official Jolt 0.8.31 assets. The Jolt `v0.8.31` release tag
-resolves to `3f9506266ca422e2d1f1370659289cde88cbbf2a`; every primary asset
-is pinned by SHA-256 in the workflows. This is current-main and next-release
-support; it does not change the published `v0.5.0` contract or its historical
-Jolt 0.7.23 floor. The source declaration remains `0.5.0` until a new release is
-explicitly prepared and tagged.
+The v0.6.0 release uses libhegel 0.53.2 and JDK 25 for JVM Clojure.
+Jolt 0.8.31 is the primary release runtime with a 0.8.1 minimum lane.
+The annotated tag, source declaration and GitHub release identify 0.6.0.
 
 ## Private proving ground
 
@@ -61,7 +47,7 @@ For every release:
    supported hosts. Concurrency above one remains a separate nondeterministic
    API decision and must not enter sequential `hegel.stateful/run!` implicitly.
 6. Create and push an annotated tag on the public merge commit, for example
-   `v0.5.0`.
+   `v0.6.0`.
 7. Wait for the Release workflow. It:
    - installs the checksum-pinned libhegel release in each matrix cell;
    - runs the shared integration suite under the selected host; and
@@ -71,7 +57,7 @@ For every release:
 9. Resolve the tag's full commit SHA and use it in consumer `deps.edn` files:
 
    ```bash
-   git rev-list -n 1 v0.5.0
+   git rev-list -n 1 v0.6.0
    ```
 
 jolt-hegel no longer publishes native assets. Do not move or replace an

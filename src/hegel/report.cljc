@@ -48,7 +48,10 @@
       (println "FAIL" description)
       (doseq [failure (:failures result)] (print-failure! failure))
       (if (= :coverage-failed (:status result))
-        (print-missed-coverage! (:coverage result))
+        (do (print-missed-coverage! (:coverage result))
+            (doseq [[id {:keys [applied min-applied passed?]}] (get-in result [:stateful-coverage :checks])
+                    :when (not passed?)]
+              (println " " id "applied" applied "times; required" min-applied)))
         (when (or (:error result) (empty? (:failures result)))
           (println " " (or (:error result) "No confirmed failure was retained."))))
       (println "  seed" (:seed result)))

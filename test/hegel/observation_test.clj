@@ -8,7 +8,8 @@
             [hegel.internal.observation-policy :as policy]
             [hegel.internal.observations :as observations]
             [hegel.report :as report]
-            [hegel.stateful :as stateful]))
+            [hegel.stateful :as stateful]
+            [hegel.stateful.journal :as journal]))
 
 (def run-opts {:test-cases 1 :seed 42 :database "" :verbosity :quiet
                :phases [:generate]})
@@ -220,3 +221,45 @@
   (let [{:keys [fail error]} (t/run-tests 'hegel.observation-test)]
     (when (pos? (+ fail error))
       (throw (ex-info "observation tests failed" {:fail fail :error error})))))
+
+(deftest rule-coverage-counts-steps-without-rechecking-the-selected-guard
+  (doseq [census? [false true]]
+    (let [guard-calls (atom 0)
+          result (h/run-test!
+                  (assoc run-opts :test-cases 6 :stateful-coverage
+                         {:census? census? :rules {:advance {:min-applied 10} :blocked {:min-applied 1}}})
+                  (fn [_]
+                    (stateful/run!
+                     {:initial-state 0
+                      :rules [(stateful/rule :advance {:precondition (fn [_] (swap! guard-calls inc) true)} inc)
+                              (stateful/rule :blocked {:precondition (constantly false)} inc)]})))
+          {:keys [rules checks]} (:stateful-coverage result)]
+      (is (= :coverage-failed (:status result)))
+      (is (= (if census? (:eligible (:advance rules)) (:selected (:advance rules))) @guard-calls))
+      (is (= (get-in checks [:advance :applied]) (get-in rules [:advance :applied])))
+      (is (true? (get-in checks [:advance :passed?])))
+      (is (false? (get-in checks [:blocked :passed?])))
+      (is (= (when census? 0) (get-in rules [:blocked :eligible]))))))
+
+(deftest confirmed-journal-redacts-and-counts-utf8-bytes
+  (let [run (fn [opts]
+              (h/run-test! (assoc run-opts :stateful-coverage {:rules {:absent {:min-applied 1}}})
+                (fn [_]
+                  (journal/run! opts
+                    {:initial-state nil
+                     :rules [(stateful/rule :write
+                              (fn [_]
+                                (journal/entry! {:input "private" :outcome "😀"})
+                                (throw (ex-info "stop" {:hegel/origin "write"}))))]}))))
+        opts {:redact #(dissoc % :input)}
+        result (run opts)
+        failure (first (:failures result))
+        capture (::journal/journal (ex-data (:exception failure)))
+        replay-size (:bytes capture)]
+    (is (= :failed (:status result)))
+    (is (= 1 (get-in result [:stateful-coverage :rules :write :failed])))
+    (is (= [{:rule "write" :outcome "😀"}] (journal/fixture failure)))
+    (is (= (journal/fixture failure)
+           (journal/fixture (first (:failures (run (assoc opts :max-bytes replay-size)))))))
+    (let [f (first (:failures (run (assoc opts :max-bytes (dec replay-size)))))]
+      (is (= :incomplete-journal (:reason (ex-data (error-of #(journal/fixture f)))))))))
