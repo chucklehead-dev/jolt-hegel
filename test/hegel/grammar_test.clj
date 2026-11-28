@@ -73,3 +73,47 @@
   (is (:hegel/usage-error?
        (try (g/grammar expression-grammar {:start "digit"}) nil
             (catch Exception error (ex-data error))))))
+
+(defn- join-languages [left right]
+  (set (for [prefix left suffix right] (str prefix suffix))))
+
+(defn- language [form]
+  (if (string? form)
+    #{form}
+    (let [[op x y] form]
+      (case op
+        :alt (into (language x) (language y))
+        :cat (join-languages (language x) (language y))
+        :optional (conj (language x) "")
+        :repeat (let [unit (language y)
+                      powers (iterate #(join-languages % unit) #{""})]
+                  (into #{} (mapcat identity)
+                        (take (inc (- (:max x) (:min x))) (drop (:min x) powers))))))))
+
+(defn- bounded-form [depth]
+  (let [literal (g/sampled-from ["a" "b"])]
+    (if (zero? depth)
+      literal
+      (let [child (bounded-form (dec depth))]
+        (g/one-of [literal
+                   (g/tuple (g/sampled-from [:alt :cat]) child child)
+                   (g/tuple (g/just :optional) child)
+                   (g/tuple (g/just :repeat)
+                            (g/sampled-from [{:min 0 :max 2} {:min 1 :max 2} {:min 2 :max 2}])
+                            child)])))))
+
+(deftest generated-grammar-strings-belong-to-their-enumerated-language
+  (is (= #{"bb" "abb"}
+         (language [:cat [:optional "a"] [:repeat {:min 2 :max 2} "b"]])))
+  (let [forms (bounded-form 3)
+        result (h/run-test! {:seed 17 :test-cases 150 :database "" :verbosity :quiet}
+                            (fn [_]
+                              (let [form (h/draw! forms)
+                                    text (h/draw! (g/grammar {:rules {:start form}}))]
+                                (when-not (contains? (language form) text)
+                                  (throw (ex-info "generated text outside grammar"
+                                                  {:hegel/origin "grammar/language"
+                                                   :input {:form form :text text}}))))))]
+    (is (:passed? result) (pr-str (or (some-> result :failures first :exception ex-data)
+                                       (:error result))))
+    (is (pos? (:valid-test-cases result)))))

@@ -111,9 +111,12 @@ Compatible replay uses each native blob directly with the captured settings
 and string seed, with persistence disabled. It never starts a generation run.
 The native blob replay run controls capture and confirmation passes. Recreate per-case state exactly
 as for `run-test!`. Results are `:reproduced` or `:not-reproduced`, with
-`:reproduced?`, `:flaky?` and per-failure `:failures`/`:final` evidence. Passing,
-rejecting, overrunning, or failing at a different origin does not reproduce
-the expected failure. Inconclusive, usage and native errors propagate; owned
+`:reproduced?`, `:flaky?` and per-failure `:failures`/`:final` evidence. For a failure with status `:not-reproduced`, inspect its `:reason`. A passing
+case yields `:passed`, a rejected assumption yields `:assumption-rejected`,
+and a draw that exhausts the recorded choices yields `:overrun`. When the
+property fails elsewhere, `:reason :different-origin` includes
+`:observed-origin` alongside the expected `:origin`. Other inconclusive
+combinations of outcomes have reason `:unconfirmed`. Inconclusive, usage and native errors propagate; owned
 resources are cleaned up. Reproducing a known failure does not mean the
 property passed, so this API does not return a misleading `:passed? true`.
 

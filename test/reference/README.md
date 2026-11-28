@@ -15,6 +15,12 @@ property draws a nonempty vector and an index bounded by its length. After
 shrinking, the index must still select a negative element. Replaying must
 produce that binding’s exact vector and index in one call.
 
+The stack property runs both state-machine drivers with a vector model and a
+list-backed stack. Popping an empty stack rejects that step. An invariant
+compares the value returned by every successful pop to the model. A correct
+stack passes. A deliberately FIFO pop must yield a sequence that distinguishes
+FIFO from LIFO, and each binding must replay its own exact sequence.
+
 Linux CI runs jolt-hegel on Jolt and JVM. The Java reference runs twice.
 Published hegel-clj 0.1.1 brings hegel-java 0.11.1 (libhegel 0.51.0).
 The matched run uses hegel-java 0.14.3 (libhegel 0.53.2). A failure on only
