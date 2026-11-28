@@ -11,20 +11,27 @@
 (defn validate! [opts]
   (when (contains? opts :stateful-coverage)
     (let [{:keys [rules census?] :as config} (:stateful-coverage opts)]
-      (validation/reject-unknown-keys! ::invalid-option "stateful coverage" #{:rules :census?} config)
+      (validation/reject-unknown-keys! ::invalid-option "stateful coverage" #{:rules :census? :min-final-checks} config)
       (when (contains? config :census?)
         (validation/require-boolean! ::invalid-option :census? census?))
+      (when (contains? config :min-final-checks)
+        (validation/require-integer-range! ::invalid-option :min-final-checks (:min-final-checks config)
+                                           1 9223372036854775807))
       (when (contains? config :rules)
         (when-not (and (map? rules) (<= (count rules) 256))
           (invalid! "stateful coverage :rules must be a map of at most 256 requirements"))
         (doseq [[id req] rules]
           (when-not (or (keyword? id) (string? id) (symbol? id))
             (invalid! "stateful coverage requires a rule name"))
-          (validation/reject-unknown-keys! ::invalid-option "rule requirement" (set (keys thresholds)) req)
+          (validation/reject-unknown-keys! ::invalid-option "rule requirement" (conj (set (keys thresholds)) :min-selection-ratio) req)
           (when (empty? req) (invalid! "rule coverage requires at least one minimum"))
           (when (and (contains? req :min-eligible) (not census?))
             (invalid! ":min-eligible requires :census? true"))
-          (doseq [[minimum value] req]
+          (when (contains? req :min-selection-ratio)
+            (when-not (and (:min-eligible req) (number? (:min-selection-ratio req))
+                           (<= 0 (:min-selection-ratio req) 1))
+              (invalid! ":min-selection-ratio requires :min-eligible and a fraction between 0 and 1")))
+          (doseq [[minimum value] (dissoc req :min-selection-ratio)]
             (validation/require-integer-range! ::invalid-option minimum value 1 9223372036854775807)))))))
 
 (defn register! [counts rules]
@@ -46,25 +53,38 @@
       (= status :interesting) (assoc :stopped? true))))
 
 (defn- check-rule [counts requirements]
-  (reduce-kv
-   (fn [check minimum n]
-     (let [metric (get thresholds minimum)
-           actual (get counts metric 0)]
-       (cond-> (assoc check metric actual)
-         (< actual n) (assoc :passed? false :valid-counts (or counts {})))))
-   (assoc requirements :passed? true)
-   requirements))
+  (let [check (reduce-kv
+               (fn [check minimum n]
+                 (let [metric (get thresholds minimum)
+                       actual (get counts metric 0)]
+                   (cond-> (assoc check metric actual)
+                     (< actual n) (assoc :passed? false :valid-counts (or counts {})))))
+               (assoc requirements :passed? true)
+               (dissoc requirements :min-selection-ratio))]
+    (if-let [minimum (:min-selection-ratio requirements)]
+      (let [eligible (get counts :eligible 0)
+            selected-eligible (get counts :guard-passed 0)
+            ratio (when (pos? eligible) (/ selected-eligible eligible))]
+        (cond-> (assoc check :selection-ratio (when ratio (double ratio)))
+          (or (nil? ratio) (< ratio (rationalize minimum)))
+          (assoc :passed? false :valid-counts (or counts {}))))
+      check)))
 
 (defn finish [result opts summary]
   (if-not summary
     result
     (let [checks (into {} (for [[id requirements] (:rules opts)]
                             [id (check-rule (get-in summary [:valid-rules id]) requirements)]))
-          passed? (every? :passed? (vals checks))
+          final-checks (merge {:valid-cases 0} (:final-checks summary))
+          minimum (:min-final-checks opts)
+          final-met? (or (nil? minimum) (>= (:valid-cases final-checks) minimum))
+          passed? (and final-met? (every? :passed? (vals checks)))
           zeroes (cond-> {:selected 0 :guard-passed 0 :guard-rejected 0 :assumption-rejected 0
                           :applied 0 :failed 0 :invariant-failed 0}
                    (:census? opts) (assoc :eligible 0 :ineligible 0))
           report {:rules (into {} (map (fn [[id row]] [id (merge zeroes row)])) (:rules summary)) :checks checks :passed? passed?
-                  :census? (true? (:census? opts))}]
+                  :census? (true? (:census? opts))
+                  :final-checks (cond-> final-checks minimum
+                                  (assoc :min-final-checks minimum :passed? final-met?))}]
       (cond-> (assoc result :stateful-coverage report)
         (and (:passed? result) (not passed?)) (assoc :passed? false :status :coverage-failed)))))

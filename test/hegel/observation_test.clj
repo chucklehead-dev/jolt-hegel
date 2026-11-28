@@ -375,3 +375,51 @@
     (is (= 2 (count missed)))
     (is (every? #(= 1 (get-in % [:valid-counts :eligible])) missed))
     (is (every? #(zero? (get-in % [:valid-counts :selected] 0)) missed))))
+
+(deftest final-check-minimum-counts-distinct-valid-cases
+  (let [machine {:initial-state 0 :rules [(stateful/rule :tick inc)]}
+        run (fn [opts]
+              (h/run-test! (assoc run-opts :stateful-coverage {:min-final-checks 2})
+                           (fn [_] (dotimes [_ 2] (journal/run! opts machine)))))
+        result (run {:final-check identity})
+        checks (get-in result [:stateful-coverage :final-checks])]
+    (is (= :coverage-failed (:status result)))
+    (is (= 1 (:valid-cases checks)))
+    (is (= 2 (get-in checks [:other :completed])))
+    (is (zero? (get-in (run {}) [:stateful-coverage :final-checks :valid-cases])))))
+
+(deftest ratio-excludes-selections-with-false-guards
+  (doseq [[eligible guard-passed expected] [[0 0 false] [10 1 false] [10 2 true]]]
+    (let [summary (rule-coverage/record-case {} {:write {:eligible eligible :selected 20
+                                                         :guard-passed guard-passed}} :valid)
+          result (rule-coverage/finish {:passed? true}
+                   {:census? true :rules {:write {:min-eligible 5 :min-selection-ratio 0.2}}}
+                   summary)]
+      (is (= expected (:passed? result)))))
+  (is (:hegel/usage-error?
+       (ex-data (error-of #(rule-coverage/validate!
+                            {:stateful-coverage {:rules {:write {:min-selection-ratio 0.2}}}}))))))
+
+(deftest passing-history-requires-complete-projections
+  (doseq [[n opts reason] [[0 {} :expected-one-command-entry] [2 {} :expected-one-command-entry]
+                            [1 {:max-bytes 2} :incomplete-journal]]]
+    (let [error (error-of #(h/run-test! (assoc run-opts :stateful-step-count 1)
+                            (fn [_]
+                              (journal/history! opts {:initial-state nil
+                                                     :rules [(stateful/rule :x
+                                                              (fn [_] (dotimes [_ n] (journal/entry! {}))))]}))))]
+      (is (= reason (:reason (ex-data error))))))
+  (let [history {:events [{:rule "a"} {:rule "b" :outcome :ok} {:rule "c"}]}]
+    (is (journal/covers? history [{:rule "a"} {:rule "c"}]))
+    (is (not (journal/covers? history [{:rule "c"} {:rule "a"}])))
+    (is (not (journal/covers? history [{:outcome nil}])))))
+
+(deftest failing-final-comparison-retains-failure-and-capture-evidence
+  (let [result (h/run-test! (assoc run-opts :stateful-coverage {:min-final-checks 1})
+                 (fn [_] (journal/run! {:final-check (fn [_] (throw (ex-info "stale" {})))}
+                                       {:initial-state nil :rules [(stateful/rule :idle identity)]})))
+        checks (get-in result [:stateful-coverage :final-checks])]
+    (is (= :failed (:status result)))
+    (is (zero? (:valid-cases checks)))
+    (is (pos? (get-in checks [:capture :failed] 0)))
+    (is (pos? (get-in checks [:other :failed] 0)))))

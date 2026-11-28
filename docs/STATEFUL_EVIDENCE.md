@@ -94,3 +94,56 @@ The [JDK 25 SQLite consumer](../test/sqlite-consumer/probe.clj) opens a
 fresh SQLite file per candidate. The writer sees the updated row, but a
 second connection loses the revision if the writer closed without committing.
 The probe checks both transaction paths and deletes the file after each run.
+
+## Export a passing history
+
+Use `journal/history!` in a generator passed to `hegel.materialize/materialize!`.
+Each applied rule emits exactly one explicitly projected entry. If constructing
+an entry is expensive, use `(when (journal/capturing?) (journal/entry! ...))`
+inside the rule. This runs during successful history collection as well as
+failure capture. Rejected attempts discard their entries. A missing entry,
+multiple entries for one command, or a truncated history prevents export.
+
+```clojure
+(materialize/materialize!
+ {:seed "7" :count 1 :provenance provenance}
+ (fn [_]
+   (let [history (journal/history! {:redact redact-command
+                                    :final-check check-store!} machine)]
+     (h/assume! (journal/covers? history [{:rule "insert"}
+                                          {:rule "revise" :outcome :updated}
+                                          {:outcome :stale}]))
+     history)))
+```
+
+Construct the store and machine inside each candidate. The result uses the
+existing [corpus format](MATERIALIZED_CORPORA.md) with seed and provenance.
+Each history contains redacted events, declared rule IDs and weights,
+invariant IDs, the round budget, and journal bounds. Keep model, guard and
+redactor revisions in provenance. A selected history becomes exportable only
+after the entire candidate completes and the native run passes. The consumer
+decides which projected fields it needs to execute a command. A rare or
+impossible scenario may trip an engine health check during generation.
+
+`covers?` matches an ordered subsequence of redacted entries within one
+history. Patterns match the supplied rule or outcome fields exactly. To count
+matching valid cases in an ordinary run, emit an `h/event!` on a match and
+use a categorical coverage minimum.
+
+## Terminal comparison and weighting evidence
+
+`{:stateful-coverage {:min-final-checks 10}}` requires ten distinct valid
+exploration cases that completed a journal final check. Running two machines
+in one case counts once. Under `:final-checks`, `:capture` and `:other` report
+invocations, ordinary completions and property failures when observed. Capture
+is the engine's diagnostic flag and can occur repeatedly. These counts do
+not identify a shrink phase. A failing final comparison retains the native
+failure verdict even if the coverage minimum was missed.
+
+With a census, a rule may request
+`{:min-eligible 20 :min-selection-ratio 0.1}`. The denominator counts valid
+steps where its guard was true. The numerator counts selections that passed
+the guard, including steps subsequently rejected by an assumption. The
+minimum sample count and ratio are both obligations. With zero eligible
+steps the ratio is unmeasured. Adaptive or swarm selection makes this an
+opt-in check rather than a default fairness guarantee.

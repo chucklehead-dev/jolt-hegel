@@ -6,6 +6,11 @@ for v0.1.0 through v0.4.0, see the tag and release history in that repository.
 
 ## Unreleased
 
+- Export successful stateful command histories through seeded materialization,
+  select ordered outcomes, and require valid cases with a completed final check.
+  Census-based rule coverage can also require a minimum eligible selection ratio.
+  [Stateful evidence](docs/STATEFUL_EVIDENCE.md)
+
 - Missed stateful rule minima now show selections, guard and assumption
   rejections, and applications from valid cases. With a census, the report
   includes eligible steps and the number of steps sampled for that rule.
