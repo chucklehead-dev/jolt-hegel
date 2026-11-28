@@ -9,6 +9,12 @@ repeated applications in the same valid case.
           :cycle {:min-applied 1} :not-found {:min-applied 1}}}}
 ```
 
+Each rule may require any combination of `:min-applied`, `:min-selected`,
+`:min-guard-rejected`, and `:min-eligible`. The last requires `:census? true`.
+For example, `{:min-eligible 10 :min-selected 1}` checks that a sampled
+eligible rule was selected at least once. The counts under `:checks` use
+valid cases, even when other outcomes appear under `:rules`.
+
 An empty configuration reports counts without imposing minima. Under
 `:stateful-coverage :rules` each declared rule has counts for `:selected`,
 `:guard-passed`, `:guard-rejected`, `:assumption-rejected`, `:applied` and
@@ -38,12 +44,19 @@ rules and invariants as `hegel.stateful/run!`. Inside a rule, call
 `(journal/entry! {:input {:id id} :outcome :inserted})` after the operation
 and before an assertion that might throw. Optional `:model-before` and
 `:model-after` fields are caller-supplied portable summaries. The journal
-adds the normalized rule name. Rejected attempts roll back their entries.
+adds the normalized rule name. Use `(hs/rule-id :store/insert)` to obtain
+`"store/insert"` when joining a coverage key to a journal entry. Rejected attempts roll back their entries.
 
 ```clojure
 {:max-entries 64 :max-bytes 16384
  :redact (fn [entry] (update entry :input select-keys [:id]))}
 ```
+
+For a durability scan after the last step, supply `:final-check` to
+`journal/run!`. It receives the final model on each successfully completed
+machine run, including replay. Throw to signal failure and use `:hegel/origin`
+to identify distinct checks. A normal return preserves the machine's final
+state. A confirmed check failure carries the machine's redacted journal.
 
 Only native capture executions record entries. A redactor runs before
 validation and retention. Its exception aborts the run without echoing its

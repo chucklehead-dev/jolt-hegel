@@ -4,6 +4,10 @@
 (defn- invalid! [message]
   (validation/usage-error! ::invalid-option message {}))
 
+(def thresholds
+  {:min-applied :applied :min-selected :selected
+   :min-eligible :eligible :min-guard-rejected :guard-rejected})
+
 (defn validate! [opts]
   (when (contains? opts :stateful-coverage)
     (let [{:keys [rules census?] :as config} (:stateful-coverage opts)]
@@ -16,9 +20,12 @@
         (doseq [[id req] rules]
           (when-not (or (keyword? id) (string? id) (symbol? id))
             (invalid! "stateful coverage requires a rule name"))
-          (validation/reject-unknown-keys! ::invalid-option "rule requirement" #{:min-applied} req)
-          (validation/require-integer-range! ::invalid-option :min-applied (:min-applied req)
-                                             1 9223372036854775807))))))
+          (validation/reject-unknown-keys! ::invalid-option "rule requirement" (set (keys thresholds)) req)
+          (when (empty? req) (invalid! "rule coverage requires at least one minimum"))
+          (when (and (contains? req :min-eligible) (not census?))
+            (invalid! ":min-eligible requires :census? true"))
+          (doseq [[minimum value] req]
+            (validation/require-integer-range! ::invalid-option minimum value 1 9223372036854775807)))))))
 
 (defn register! [counts rules]
   (swap! counts
@@ -35,20 +42,24 @@
     (when (> (count totals) 256) (invalid! "too many distinct stateful rule names"))
     (cond-> (assoc summary :rules totals)
       (= status :valid)
-      (update :valid-applied
-              (fn [applied]
-                (reduce-kv (fn [m id row] (update m id (fnil + 0) (:applied row 0)))
-                           applied counts)))
+      (update :valid-rules #(merge-with (partial merge-with +) % counts))
       (= status :interesting) (assoc :stopped? true))))
+
+(defn- check-rule [counts requirements]
+  (reduce-kv
+   (fn [check minimum n]
+     (let [metric (get thresholds minimum)
+           actual (get counts metric 0)]
+       (cond-> (assoc check metric actual)
+         (< actual n) (assoc :passed? false))))
+   (assoc requirements :passed? true)
+   requirements))
 
 (defn finish [result opts summary]
   (if-not summary
     result
-    (let [checks (into {} (map (fn [[id {:keys [min-applied]}]]
-                                 (let [hits (get-in summary [:valid-applied id] 0)]
-                                   [id {:applied hits :min-applied min-applied
-                                        :passed? (>= hits min-applied)}])))
-                       (:rules opts))
+    (let [checks (into {} (for [[id requirements] (:rules opts)]
+                            [id (check-rule (get-in summary [:valid-rules id]) requirements)]))
           passed? (every? :passed? (vals checks))
           zeroes (cond-> {:selected 0 :guard-passed 0 :guard-rejected 0 :assumption-rejected 0
                           :applied 0 :failed 0 :invariant-failed 0}

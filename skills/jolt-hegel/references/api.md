@@ -36,13 +36,13 @@ reports a non-nil `:libffi/version`. Do not substitute a
 convenient global executable for a project-selected binary. Add the public
 release by full commit SHA. `v0.6.0` is the current portable release; resolve its
 annotated tag to the full peeled commit rather than using the tag-object SHA,
-tag name, or a moving branch. A test-only dependency normally belongs in the
-project's test alias:
+tag name, or a moving branch. Use a dedicated alias without `:main-opts` so the consumer can select its installer or runner:
 
 ```clojure
 {:aliases
- {:test
-  {:extra-deps
+ {:hegel
+  {:jvm-opts ["--enable-native-access=ALL-UNNAMED"]
+   :extra-deps
    {io.github.chucklehead-dev/jolt-hegel
     {:git/url "https://github.com/chucklehead-dev/jolt-hegel.git"
      :git/sha "<jolt-hegel-commit-sha>"}
@@ -56,13 +56,14 @@ that will run the tests:
 ```bash
 # Development checkout: Jolt 0.8.1+ (0.8.31 primary)
 JOLT_CACHE_DIR=.jolt-cache/jolt-hegel-<jolt-hegel-commit-sha> \
-  jolt -A:test -m hegel.install
+  jolt -A:hegel -m hegel.install
 
 # Babashka
 bb -m hegel.install
 
 # JVM Clojure
-clojure -J--enable-native-access=ALL-UNNAMED -M:test -m hegel.install
+clojure -M:hegel -m hegel.install
+clojure -M:hegel -m project.property-runner
 
 # Experimental jank 0.1-alpha on Linux/macOS; curl must be on PATH.
 jank -I generated --module-path src:resources:script \
@@ -1040,7 +1041,7 @@ bb setup-native
 bb test
 
 # JVM Clojure
-clojure -J--enable-native-access=ALL-UNNAMED -M:jvm:test -m hegel.install
+clojure -J--enable-native-access=ALL-UNNAMED -M:jvm -m hegel.install
 clojure -J--enable-native-access=ALL-UNNAMED -M:jvm:test
 
 # Experimental jank 0.1-alpha on Linux/macOS; curl must be on PATH.

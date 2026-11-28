@@ -71,10 +71,28 @@
             (recur))))))
   true)
 
+(defn- proxy-configured? [url]
+  (let [scheme (.getScheme (URI/create url))
+        names (case scheme
+                "https" ["https_proxy" "HTTPS_PROXY" "all_proxy" "ALL_PROXY"]
+                "http" ["http_proxy" "all_proxy" "ALL_PROXY"]
+                [])]
+    (and (nil? (System/getProperty (str scheme ".proxyHost")))
+         (some #(not (str/blank? (System/getenv %))) names))))
+
 (defn download! [os url path]
-  (if (= :windows os)
-    (windows-download! url path)
-    (url-download! url path)))
+  (cond
+    (proxy-configured? url)
+    (let [command (if (= :windows os) "curl.exe" "curl")
+          hint "A proxy is configured. Check curl on PATH, proxy and NO_PROXY settings, or set HEGEL_LIBHEGEL_LIBRARY."
+          exit (try (:exit (shell/sh command "--disable" "--fail" "--silent" "--show-error"
+                                     "--location" "--output" path "--" url))
+                    (catch java.io.IOException _ nil))]
+      (when-not (= 0 exit)
+        (throw (ex-info hint {:type ::proxy-download :hegel.install/download-hint hint :exit exit})))
+      true)
+    (= :windows os) (windows-download! url path)
+    :else (url-download! url path)))
 
 (defn sha256 [_os path]
   (let [digest (MessageDigest/getInstance "SHA-256")]

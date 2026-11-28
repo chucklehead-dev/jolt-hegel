@@ -27,6 +27,12 @@
        {:kind kind :name value}))
     value))
 
+(defn rule-id
+  "Canonical string used in journals and native rule identities.
+  Accepts a rule name (keyword, symbol or string), including qualified names."
+  [rule-name]
+  (normalized-name :rule rule-name))
+
 (defn rule?
   "True when value was created by rule."
   [value]
@@ -70,7 +76,7 @@
                          {:name name :step step}))
      {::kind ::rule
       :name name
-      ::native-name (normalized-name :rule name)
+      ::native-name (rule-id name)
       ::weight native-weight
       ::precondition precondition
       ::step step})))

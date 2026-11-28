@@ -2,6 +2,7 @@
   "Reporting helpers for framework-less Jolt property suites."
   (:refer-clojure :exclude [run!])
   (:require [hegel.host :as host]
+            [hegel.internal.rule-coverage :as rule-coverage]
             [hegel.validation :as validation]))
 
 #?(:jank
@@ -49,9 +50,10 @@
       (doseq [failure (:failures result)] (print-failure! failure))
       (if (= :coverage-failed (:status result))
         (do (print-missed-coverage! (:coverage result))
-            (doseq [[id {:keys [applied min-applied passed?]}] (get-in result [:stateful-coverage :checks])
-                    :when (not passed?)]
-              (println " " id "applied" applied "times; required" min-applied)))
+            (doseq [[id check] (get-in result [:stateful-coverage :checks])
+                    [minimum metric] rule-coverage/thresholds
+                    :when (and (contains? check minimum) (< (get check metric) (get check minimum)))]
+              (println " " id (name metric) (get check metric) "times; required" (get check minimum))))
         (when (or (:error result) (empty? (:failures result)))
           (println " " (or (:error result) "No confirmed failure was retained."))))
       (println "  seed" (:seed result)))

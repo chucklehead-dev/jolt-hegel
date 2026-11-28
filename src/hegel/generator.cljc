@@ -1,6 +1,6 @@
 (ns hegel.generator
   "Composable generators backed by libhegel draws and shrinker spans."
-  (:refer-clojure :exclude [boolean bytes double filter integer list map set
+  (:refer-clojure :exclude [boolean bytes double filter integer let list map set
                             sorted-map sorted-set string time uuid vector])
   (:require [clojure.string :as str]
             [hegel.core :as h]
@@ -31,7 +31,7 @@
 (defn- float-bound! [option value]
   (when-not (number? value)
     (invalid-option (str (name option) " must be numeric") {option value}))
-  (let [value (clojure.core/double value)]
+  (clojure.core/let [value (clojure.core/double value)]
     (when (or (not (<= value ##Inf))
               (not (>= value ##-Inf)))
       (invalid-option (str (name option) " cannot be NaN") {option value})))
@@ -58,7 +58,7 @@
   (with-meta (composite-fn f) {::generator true ::label (get primitive-labels kind)}))
 
 (defn- labelled-composite [kind components body]
-  (let [label (hffi/label-combine!
+  (clojure.core/let [label (hffi/label-combine!
                (into [kind] (clojure.core/map #(or (::label (meta %)) (:custom primitive-labels)) components)))]
     (with-meta (composite-fn (fn [test-case] (body test-case label)))
       {::generator true ::label label})))
@@ -159,7 +159,7 @@
    (doseq [option [:min :max]
            :when (some? (get opts option))]
      (float-bound! option (get opts option)))
-   (let [has-min? (some? (:min opts))
+   (clojure.core/let [has-min? (some? (:min opts))
          has-max? (some? (:max opts))
          allow-nan? (if (contains? opts :nan?)
                       (clojure.core/boolean (:nan? opts))
@@ -216,7 +216,7 @@
                    (binary32/finite-exact? value))
        (invalid-option "float32 bound must be exactly representable or infinite"
                        {option value})))
-   (let [has-min? (some? (:min opts))
+   (clojure.core/let [has-min? (some? (:min opts))
          has-max? (some? (:max opts))
          allow-nan? (get opts :nan? (and (not has-min?) (not has-max?)))
          allow-infinity? (get opts :infinity? (or (not has-min?) (not has-max?)))
@@ -260,7 +260,7 @@
    (bytes {}))
   ([opts]
    (options! "bytes options" #{:min-size :max-size} opts)
-   (let [min-size (or (:min-size opts) 0)
+   (clojure.core/let [min-size (or (:min-size opts) 0)
          _ (uint64! :min-size min-size)
          max-size (if (some? (:max-size opts))
                     (:max-size opts)
@@ -286,7 +286,7 @@
 (defn- lowercase-hex-word [value]
   (loop [remaining (bit-and value 0xffff)
          result ""]
-    (let [digit (lowercase-hex-digit (mod remaining 16))
+    (clojure.core/let [digit (lowercase-hex-digit (mod remaining 16))
           remaining (quot remaining 16)
           result (str digit result)]
       (if (zero? remaining)
@@ -294,7 +294,7 @@
         (recur remaining result)))))
 
 (defn- lowercase-hex-octet [value]
-  (let [value (bit-and value 0xff)]
+  (clojure.core/let [value (bit-and value 0xff)]
     (str (lowercase-hex-digit (quot value 16))
          (lowercase-hex-digit (mod value 16)))))
 
@@ -338,7 +338,7 @@
     (if (= index (count groups))
       (when (>= best-length 2) [best-start best-length])
       (if (zero? (nth groups index))
-        (let [end (loop [end index]
+        (clojure.core/let [end (loop [end index]
                     (if (and (< end (count groups))
                              (zero? (nth groups end)))
                       (recur (inc end))
@@ -350,7 +350,7 @@
         (recur (inc index) best-start best-length)))))
 
 (defn- format-ipv6 [data]
-  (let [groups (ipv6-groups data)]
+  (clojure.core/let [groups (ipv6-groups data)]
     (if-let [[start length] (longest-zero-run groups)]
       (str (str/join ":" (clojure.core/map lowercase-hex-word
                                              (subvec groups 0 start)))
@@ -418,7 +418,7 @@
 (defn- ordered-fields? [minimum maximum fields]
   (loop [[field & more] fields]
     (if field
-      (let [comparison (compare (get minimum field) (get maximum field))]
+      (clojure.core/let [comparison (compare (get minimum field) (get maximum field))]
         (cond
           (neg? comparison) true
           (pos? comparison) false
@@ -447,7 +447,7 @@
                     {:min minimum :max maximum})))
 
 (defn- zero-pad [width value]
-  (let [text (str value)]
+  (clojure.core/let [text (str value)]
     (str (apply str (repeat (max 0 (- width (count text))) "0")) text)))
 
 (defn- format-date [value]
@@ -456,7 +456,7 @@
        "-" (zero-pad 2 (:day value))))
 
 (defn- format-time [native nanos?]
-  (let [{:keys [hour minute second nanosecond]} native
+  (clojure.core/let [{:keys [hour minute second nanosecond]} native
         base (str (zero-pad 2 hour) ":" (zero-pad 2 minute) ":" (zero-pad 2 second))]
     (if (zero? nanosecond)
       base
@@ -466,7 +466,7 @@
 
 (defn- calendar-mask [opts option positions]
   (when (contains? opts option)
-    (let [values (get opts option)]
+    (clojure.core/let [values (get opts option)]
       (when-not (and (or (sequential? values) (set? values)) (seq values)
                      (every? #(contains? positions %) values))
         (invalid-option (str (name option) " requires a nonempty collection of allowed values")
@@ -492,7 +492,7 @@
   ([] (date {}))
   ([opts]
    (options! "date options" #{:min :max :weekdays :months} opts)
-   (let [minimum (get opts :min minimum-date)
+   (clojure.core/let [minimum (get opts :min minimum-date)
          maximum (get opts :max maximum-date)
          weekdays (calendar-mask opts :weekdays weekday-positions)
          months (calendar-mask opts :months month-positions)]
@@ -507,7 +507,7 @@
 
 (defn- clock-generator [kind opts]
   (options! (str (name kind) " options") #{:min :max :precision} opts)
-  (let [precision (get opts :precision :microseconds)
+  (clojure.core/let [precision (get opts :precision :microseconds)
         code (get temporal/precision-values precision)
         nanos? (= precision :nanoseconds)
         datetime? (= kind :datetime)
@@ -528,7 +528,7 @@
                         #(and (valid-date? (:date %)) (valid-time? (:time %) precision))
                         #(valid-time? % precision))
                       (if datetime? ordered-datetimes? ordered-times?) lo hi)
-    (let [native (if datetime? #(update % :time temporal/native-time) temporal/native-time)
+    (clojure.core/let [native (if datetime? #(update % :time temporal/native-time) temporal/native-time)
           minimum (native lo)
           maximum (native hi)]
       ;; Every admissible endpoint is already on a microsecond or nanosecond tick.
@@ -537,7 +537,7 @@
       (if datetime?
         (composite-fn
          (fn [{:keys [context handle]}]
-           (let [{:keys [date time]} (hffi/generate-datetime! context handle minimum maximum code)]
+           (clojure.core/let [{:keys [date time]} (hffi/generate-datetime! context handle minimum maximum code)]
              (str (format-date date) "T" (format-time time nanos?)))))
         (composite-fn
          (fn [{:keys [context handle]}]
@@ -573,7 +573,7 @@
   ([] (timestamp {}))
   ([opts]
    (options! "timestamp options" #{:min :max :precision} opts)
-   (let [minimum (get opts :min {:second -62135596800 :nanosecond 0})
+   (clojure.core/let [minimum (get opts :min {:second -62135596800 :nanosecond 0})
          maximum (get opts :max {:second 253402300799 :nanosecond 999999999})
          precision (get opts :precision :microseconds)
          code (get temporal/precision-values precision)]
@@ -599,7 +599,7 @@
       (invalid-option (str (name option) " must be a collection")
                       {option value}))
     (mapv (fn [category]
-            (let [category
+            (clojure.core/let [category
                   (cond
                     (string? category) category
                     (keyword? category) (name category)
@@ -622,7 +622,7 @@
               :categories :exclude-categories :include-characters
               :exclude-characters :alphabet}
             opts)
-  (let [min-size (if (contains? opts :min-size) (:min-size opts) 0)
+  (clojure.core/let [min-size (if (contains? opts :min-size) (:min-size opts) 0)
         _ (uint64! :min-size min-size)
         max-size (if (contains? opts :max-size)
                    (:max-size opts)
@@ -658,7 +658,7 @@
             :when (and (some? value) (not (string? value)))]
       (invalid-option (str (name option) " must be a string")
                       {option value}))
-    (let [codec (:codec opts)
+    (clojure.core/let [codec (:codec opts)
           normalized
           {:min-size min-size
            :max-size (if (and (contains? opts :max-size)
@@ -697,7 +697,7 @@
   original throwable or its identity. Callers may opt out of cleanup for a
   specific error when the native engine has already discarded that resource."
   [body cleanup cleanup-on-error?]
-  (let [cleaned? (atom false)
+  (clojure.core/let [cleaned? (atom false)
         clean! (fn []
                  (when-not @cleaned?
                    ;; Mark before cleanup: a throwing cleanup must never be
@@ -705,7 +705,7 @@
                    (reset! cleaned? true)
                    (cleanup)))]
     (host/try-catch-all
-     (let [value (body)]
+     (clojure.core/let [value (body)]
        (clean!)
        value)
      error
@@ -720,26 +720,26 @@
 (defn- native-generator [kind builder release draw]
   ;; Validate immediately, then reuse the immutable compiled generator within
   ;; each test case. A case owns its cache and frees handles before its context.
-  (let [validation-context (hffi/context-new!)]
+  (clojure.core/let [validation-context (hffi/context-new!)]
     (with-cleanup #(release validation-context (builder validation-context))
                   #(hffi/context-free! validation-context) (constantly true)))
-  (let [cache-key (gensym "native-generator-")]
+  (clojure.core/let [cache-key (gensym "native-generator-")]
     (named-generator
      kind
      (fn [test-case]
-       (let [context (:context test-case)
+       (clojure.core/let [context (:context test-case)
              cache (:native-generators test-case)]
            (if-let [handle (when cache (get @cache cache-key))]
              (draw context (:handle test-case) handle)
              (if (and cache (< (count @cache) 64))
-               (let [handle (builder context)]
+               (clojure.core/let [handle (builder context)]
                  (h/register-native-cleanup! test-case #(release context handle))
                  (swap! cache assoc cache-key handle)
                  (draw context (:handle test-case) handle))
                ;; Bound retained handles and cleanup callbacks even when a long
                ;; workload constructs a fresh generator on every iteration.
                ;; Manual test cases also use lexical ownership.
-               (let [handle (builder context)]
+               (clojure.core/let [handle (builder context)]
                  (with-cleanup #(draw context (:handle test-case) handle)
                                #(release context handle) (constantly true))))))))))
 
@@ -759,7 +759,7 @@
    (when-not (string? source)
      (invalid-option "grammar source must be a string" {:source source}))
    (options! "grammar options" #{:start :max-size :max-depth :alphabet :imports} opts)
-   (let [max-size (get opts :max-size 0)
+   (clojure.core/let [max-size (get opts :max-size 0)
          max-depth (get opts :max-depth 0)
          imports (get opts :imports {})]
      (validation/require-integer-range! ::invalid-option :max-size max-size 0 1048576)
@@ -768,7 +768,7 @@
        (invalid-option "grammar imports must map paths to source strings" {:imports imports}))
      (when (and (some? (:start opts)) (not (string? (:start opts))))
        (invalid-option "grammar start must be a string" {:start (:start opts)}))
-     (let [options {:start (:start opts) :max-size max-size :max-depth max-depth
+     (clojure.core/let [options {:start (:start opts) :max-size max-size :max-depth max-depth
                     :imports imports :alphabet (some-> (:alphabet opts) normalize-text-options)}]
        (native-generator :grammar #(hffi/grammar-new! % source options)
                          hffi/grammar-free! hffi/generate-grammar!)))))
@@ -780,7 +780,7 @@
   ([spec] (grammar spec {}))
   ([spec opts]
    (options! "grammar generator options" #{:max-size :max-depth :alphabet} opts)
-   (let [{:keys [source start]} (grammar/compile spec)]
+   (clojure.core/let [{:keys [source start]} (grammar/compile spec)]
      (grammar-str source (assoc opts :start start)))))
 
 (defn string
@@ -794,7 +794,7 @@
   ([]
    (string {}))
   ([opts]
-   (let [params (normalize-text-options opts)]
+   (clojure.core/let [params (normalize-text-options opts)]
      (native-string-generator
       #(hffi/string-generator-text! % params)))))
 
@@ -824,7 +824,7 @@
    (when (contains? opts :full-match?)
      (validation/require-boolean! ::invalid-option :full-match?
                                   (:full-match? opts)))
-   (let [full-match? (if (contains? opts :full-match?)
+   (clojure.core/let [full-match? (if (contains? opts :full-match?)
                        (clojure.core/boolean (:full-match? opts))
                        true)
          pattern (str pattern)]
@@ -849,7 +849,7 @@
    (domain {}))
   ([opts]
    (options! "domain options" #{:max-length} opts)
-   (let [max-length (if (contains? opts :max-length)
+   (clojure.core/let [max-length (if (contains? opts :max-length)
                       (:max-length opts)
                       255)]
      (when-not (and (integer? max-length) (<= 4 max-length 255))
@@ -905,7 +905,7 @@
    (fn [test-case label]
      (in-span
       test-case label
-      #(let [next-generator (f (generator test-case))]
+      #(clojure.core/let [next-generator (f (generator test-case))]
          (require-generator! "bind result" next-generator)
          (next-generator test-case))))))
 
@@ -920,7 +920,7 @@
   ([opts leaf branch-fn]
    (when-not (map? opts)
      (invalid-option "recursive options must be a map" {:options opts}))
-   (let [unknown (seq (remove #{:max-depth :max-leaves} (keys opts)))
+   (clojure.core/let [unknown (seq (remove #{:max-depth :max-leaves} (keys opts)))
          max-depth (if (contains? opts :max-depth) (:max-depth opts) 32)
          max-leaves (if (contains? opts :max-leaves) (:max-leaves opts) 100)]
      (when unknown
@@ -938,7 +938,7 @@
                        {:value branch-fn}))
      (labelled-composite hffi/label-recursive [leaf]
       (fn [test-case label]
-        (let [context (:context test-case)
+        (clojure.core/let [context (:context test-case)
               handle (:handle test-case)
               recursion
               (hffi/new-recursion!
@@ -946,18 +946,18 @@
           (with-cleanup
            (fn []
             (letfn [(draw-subtree! [current-test-case depth]
-                      (let [current-context (:context current-test-case)
+                      (clojure.core/let [current-context (:context current-test-case)
                             current-handle (:handle current-test-case)]
                         (hffi/start-span!
                          current-context current-handle label)
                         (with-cleanup
                          (fn []
-                          (let [branch?
+                          (clojure.core/let [branch?
                                 (hffi/recursion-branch!
                                  current-context current-handle recursion depth)
                                 value
                                 (if branch?
-                                  (let [subtree
+                                  (clojure.core/let [subtree
                                         (composite-fn
                                          (fn [child-test-case]
                                            (draw-subtree!
@@ -991,7 +991,7 @@
                          (complement recursion-retry-control?))))]
               (loop []
                 (attempt/begin! test-case)
-                (let [attempt
+                (clojure.core/let [attempt
                       (host/try-catch-all
                         {:status :accepted
                          :value (draw-subtree! test-case 0)}
@@ -1030,12 +1030,12 @@
        (hffi/start-span! (:context test-case) (:handle test-case)
                          label)
        (attempt/begin! test-case)
-       (let [discard? (atom false)
+       (clojure.core/let [discard? (atom false)
              [accepted? value]
              (host/try-catch-all
               (with-cleanup
                 (fn []
-                  (let [value (generator test-case)
+                  (clojure.core/let [value (generator test-case)
                         accepted? (clojure.core/boolean (pred value))]
                     (reset! discard? (not accepted?))
                     [accepted? value]))
@@ -1061,12 +1061,12 @@
 (defn sampled-from
   "Generate one value from a non-empty collection."
   [values]
-  (let [values (vec values)]
+  (clojure.core/let [values (vec values)]
     (when (empty? values)
       (invalid-option "sampled-from requires at least one value" {}))
     (named-generator :sampled-from
      (fn [test-case]
-       (let [index (hffi/generate-integer!
+       (clojure.core/let [index (hffi/generate-integer!
                     (:context test-case) (:handle test-case)
                     0 (dec (count values)))]
          (nth values index))))))
@@ -1074,7 +1074,7 @@
 (defn one-of
   "Draw from one of a non-empty collection of generators."
   [generators]
-  (let [generators (vec generators)]
+  (clojure.core/let [generators (vec generators)]
     (when (empty? generators)
       (invalid-option "one-of requires at least one generator" {}))
     (require-generators! "one-of" generators)
@@ -1082,7 +1082,7 @@
      (fn [test-case label]
        (in-span
         test-case label
-        #(let [index (hffi/generate-integer!
+        #(clojure.core/let [index (hffi/generate-integer!
                       (:context test-case) (:handle test-case)
                       0 (dec (count generators)))]
            ((nth generators index) test-case)))))))
@@ -1102,7 +1102,7 @@
 (defn tuple*
   "Generate a vector containing one draw from each generator in generators."
   [generators]
-  (let [generators (vec generators)]
+  (clojure.core/let [generators (vec generators)]
     (require-generators! "tuple" generators)
     (if (empty? generators)
       (just [])
@@ -1119,7 +1119,7 @@
 
 (defn- collection-bounds [kind allowed opts]
   (options! (str kind " options") allowed opts)
-  (let [min-size (get opts :min-size 0)
+  (clojure.core/let [min-size (get opts :min-size 0)
         max-size (get opts :max-size hffi/no-max-size)]
     (when-not (and (integer? min-size) (integer? max-size)
                    (<= 0 min-size max-size hffi/no-max-size))
@@ -1127,7 +1127,7 @@
        (str kind " sizes must be non-negative integers with min <= max")
        (select-keys opts [:size :min-size :max-size])))
     (if (contains? opts :size)
-      (let [size (uint64! :size (:size opts))]
+      (clojure.core/let [size (uint64! :size (:size opts))]
         (when-not (<= min-size size max-size)
           (invalid-option (str kind " :size must be within its size bounds")
                           (select-keys opts [:size :min-size :max-size])))
@@ -1143,7 +1143,7 @@
   (in-span
    test-case label
    (fn []
-     (let [context (:context test-case)
+     (clojure.core/let [context (:context test-case)
            handle (:handle test-case)
            collection (hffi/new-collection!
                        context handle min-size max-size)]
@@ -1153,7 +1153,7 @@
              (if (hffi/collection-more! context handle collection)
                (do
                  (attempt/begin! test-case)
-                 (let [[accepted? next-result]
+                 (clojure.core/let [[accepted? next-result]
                        (host/try-catch-all
                         (step collection result)
                         error
@@ -1169,7 +1169,7 @@
 (def ^:private sequence-size-options #{:size :min-size :max-size})
 
 (defn- bounded-sequence-bounds [kind opts element-count]
-  (let [opts (options! (str kind " options") sequence-size-options opts)
+  (clojure.core/let [opts (options! (str kind " options") sequence-size-options opts)
         normalized-opts
         (if (or (contains? opts :size) (contains? opts :max-size))
           opts
@@ -1183,7 +1183,7 @@
     [min-size max-size]))
 
 (defn- sample-bounds [opts element-count replacement?]
-  (let [opts (options! "samples options"
+  (clojure.core/let [opts (options! "samples options"
                        #{:size :min-size :max-size :replacement?} opts)
         normalized-opts
         (cond
@@ -1214,11 +1214,11 @@
 
 (defn- draw-without-replacement
   [test-case min-size max-size element-count]
-  (let [remaining (atom (vec (range element-count)))]
+  (clojure.core/let [remaining (atom (vec (range element-count)))]
     (draw-collection
      test-case hffi/label-list min-size max-size []
      (fn [_ selected]
-       (let [available @remaining
+       (clojure.core/let [available @remaining
              choice (hffi/generate-integer!
                      (:context test-case) (:handle test-case)
                      0 (dec (count available)))
@@ -1233,7 +1233,7 @@
   empty vector without a draw. Shrinking moves selections toward the original
   input order."
   [values]
-  (let [values (vec values)
+  (clojure.core/let [values (vec values)
         element-count (count values)]
     (if (zero? element-count)
       (just [])
@@ -1251,7 +1251,7 @@
   ([values]
    (subsequences {} values))
   ([opts values]
-   (let [opts (options! "subsequences options" sequence-size-options opts)
+   (clojure.core/let [opts (options! "subsequences options" sequence-size-options opts)
          values (vec values)
          element-count (count values)
          [min-size max-size]
@@ -1274,7 +1274,7 @@
   ([values]
    (samples {} values))
   ([opts values]
-   (let [opts (options! "samples options"
+   (clojure.core/let [opts (options! "samples options"
                         #{:size :min-size :max-size :replacement?} opts)
          replacement?
          (if (contains? opts :replacement?)
@@ -1294,7 +1294,7 @@
             (draw-collection
              test-case hffi/label-list min-size max-size []
              (fn [_ selected]
-               (let [index (hffi/generate-integer!
+               (clojure.core/let [index (hffi/generate-integer!
                             (:context test-case) (:handle test-case)
                             0 (dec element-count))]
                  [true (conj selected (nth values index))])))
@@ -1324,7 +1324,7 @@
    (vector {} elements))
   ([opts elements]
    (require-generator! "vector" elements)
-   (let [[min-size max-size] (collection-bounds "vector"
+   (clojure.core/let [[min-size max-size] (collection-bounds "vector"
                                                 #{:size :min-size :max-size :unique?}
                                                 opts)
          _ (when (contains? opts :unique?)
@@ -1336,11 +1336,11 @@
         (if-not unique?
          (draw-collection test-case label min-size max-size []
                           (fn [_ result] [true (conj result (elements test-case))]))
-         (let [[result _]
+         (clojure.core/let [[result _]
                (draw-collection
                 test-case label min-size max-size [[] (when (> max-size 16) #{})]
                 (fn [collection [result seen :as state]]
-                  (let [value (elements test-case)
+                  (clojure.core/let [value (elements test-case)
                         indexed? (and (some? seen) (indexable-value? value 8))
                         duplicate? (if indexed? (contains? seen value)
                                        (some #(= value %) result))]
@@ -1357,7 +1357,7 @@
          chunks []]
     (if (empty? remaining)
       chunks
-      (let [requested (or (first sizes) (count remaining))
+      (clojure.core/let [requested (or (first sizes) (count remaining))
             chunk-size (min (max 1 requested) (count remaining))]
         (recur (subvec remaining chunk-size)
                (next sizes)
@@ -1369,7 +1369,7 @@
   Every chunk of a nonempty payload is nonempty. Shrinking removes planned
   splits and moves retained chunk sizes toward one."
   [payload]
-  (let [payload (vec payload)
+  (clojure.core/let [payload (vec payload)
         size (count payload)]
     (cond
       (zero? size) (just [])
@@ -1388,7 +1388,7 @@
 
 (defn- set-generator [opts empty-result elements]
   (require-generator! "set" elements)
-  (let [[min-size max-size] (collection-bounds "set"
+  (clojure.core/let [[min-size max-size] (collection-bounds "set"
                                                #{:size :min-size :max-size}
                                                opts)]
     (labelled-composite hffi/label-set [elements]
@@ -1396,7 +1396,7 @@
        (draw-collection
         test-case label min-size max-size empty-result
         (fn [collection result]
-          (let [value (elements test-case)]
+          (clojure.core/let [value (elements test-case)]
             (if (contains? result value)
               (do
                 (hffi/collection-reject!
@@ -1423,7 +1423,7 @@
 (defn- map-generator [opts empty-result keys values]
   (require-generator! "map keys" keys)
   (require-generator! "map values" values)
-  (let [[min-size max-size] (collection-bounds "map"
+  (clojure.core/let [[min-size max-size] (collection-bounds "map"
                                                #{:size :min-size :max-size}
                                                opts)]
     (labelled-composite hffi/label-map [keys values]
@@ -1431,7 +1431,7 @@
        (draw-collection
         test-case label min-size max-size empty-result
         (fn [collection result]
-          (let [key (keys test-case)]
+          (clojure.core/let [key (keys test-case)]
             (if (contains? result key)
               (do
                 (hffi/collection-reject!
@@ -1461,7 +1461,7 @@
   (when-not (map? generators-by-key)
     (invalid-option "hmap requires a map of generators"
                     {:value generators-by-key}))
-  (let [map-keys (vec (keys generators-by-key))]
+  (clojure.core/let [map-keys (vec (keys generators-by-key))]
     (fmap #(zipmap map-keys %)
           (tuple* (mapv generators-by-key map-keys)))))
 

@@ -2,6 +2,7 @@
   "Opt-in sanitized execution journals for sequential state machines."
   (:refer-clojure :exclude [run!])
   (:require [hegel.core :as h]
+            [hegel.ffi :as hffi]
             [hegel.internal.portable-data :as data]
             [hegel.internal.portable-edn :as edn]
             [hegel.replay-bundle :as bundle]
@@ -42,17 +43,35 @@
               (reset! journal {:events (conj events (edn/decode text bundle/limits invalid! validate))
                                :bytes size :truncated? false}))))))))
 
+(defn- checked-run [machine final-check]
+  (let [state (hs/run! machine)]
+    (when final-check
+      (try (final-check state)
+           (catch Throwable e
+             (let [details (ex-data e)]
+               (if (or (:hegel/usage-error? details) (:hegel/inconclusive? details)
+                       (= :hegel.core/assumption-rejected (:type details))
+                       (hffi/error? e) (hffi/stop-test? e) (hffi/assumption-rejected? e))
+                 (throw e)
+                 (throw (ex-info (or (ex-message e) "stateful final check failed")
+                                 (assoc details ::hs/phase :final-check
+                                        :hegel/origin (or (:hegel/origin details) "hegel.stateful/final-check"))
+                                 e)))))))
+    state))
+
 (defn run!
   "Run hs/run! with a bounded per-failure journal. :redact transforms each
   entry before retention. Bounds apply to the encoded EDN events vector."
   [opts machine]
-  (validation/reject-unknown-keys! ::invalid-journal "journal" #{:max-entries :max-bytes :redact} opts)
+  (validation/reject-unknown-keys! ::invalid-journal "journal" #{:max-entries :max-bytes :redact :final-check} opts)
   (let [opts (merge {:max-entries 64 :max-bytes 16384 :redact identity} opts)]
     (validation/require-integer-range! ::invalid-journal :max-entries (:max-entries opts) 1 256)
     (validation/require-integer-range! ::invalid-journal :max-bytes (:max-bytes opts) 2 262144)
     (when-not (fn? (:redact opts)) (invalid! :invalid-redactor))
+    (when (and (contains? opts :final-check) (not (fn? (:final-check opts))))
+      (invalid! :invalid-final-check))
     (if-not (h/final?)
-      (hs/run! machine)
+      (checked-run machine (:final-check opts))
       (let [journal (atom {:events [] :bytes 2 :truncated? false})
             capture (fn [rule attempt]
                       (let [before @journal
@@ -61,7 +80,7 @@
                         result))]
         (try
           (binding [h/*test-case* (assoc (h/current-test-case!) :journal-attempt capture)]
-            (hs/run! machine))
+            (checked-run machine (:final-check opts)))
           (catch Throwable e
             (if (::hs/phase (ex-data e))
               (throw (ex-info (ex-message e) (assoc (ex-data e) ::journal @journal) e))

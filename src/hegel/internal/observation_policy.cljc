@@ -88,7 +88,7 @@
              :exploration (observations/empty-summary)
              :final-replay (observations/empty-summary))
       (:stateful-coverage opts)
-      (assoc :rule-summary {:rules {} :valid-applied {}}
+      (assoc :rule-summary {:rules {} :valid-rules {}}
              :census? (true? (get-in opts [:stateful-coverage :census?]))))))
 
 (defn- check-coverage [summary coverage]
