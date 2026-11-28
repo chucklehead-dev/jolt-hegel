@@ -34,7 +34,7 @@ JDK 25 or later. On Linux, use the
 ordinary release asset rather than the `-static` asset and confirm `bb describe`
 reports a non-nil `:libffi/version`. Do not substitute a
 convenient global executable for a project-selected binary. Add the public
-release by full commit SHA. `v0.6.1` is the current portable release; resolve its
+release by full commit SHA. `v0.7.0` is the current portable release; resolve its
 annotated tag to the full peeled commit rather than using the tag-object SHA,
 tag name, or a moving branch. Use a dedicated alias without `:main-opts` so the consumer can select its installer or runner:
 

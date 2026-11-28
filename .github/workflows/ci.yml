@@ -327,7 +327,14 @@ jobs:
         working-directory: test/sqlite-consumer
         env:
           REFERENCE_HEGEL_SHA: ${{ github.sha }}
-        run: clojure -J--enable-native-access=ALL-UNNAMED -M -m probe
+        run: |
+          clojure -J--enable-native-access=ALL-UNNAMED -M -m probe
+          clojure -J--enable-native-access=ALL-UNNAMED -M -m history "$RUNNER_TEMP/history.edn"
+          consumer="$PWD"
+          cd "$RUNNER_TEMP"
+          for fixture in "$consumer/stale-retry.edn" "$RUNNER_TEMP/history.edn"; do
+            clojure -Srepro -Sdeps "{:paths [\"$consumer\"] :deps {org.clojure/clojure {:mvn/version \"1.12.7\"}}}" -M -m consume-history "$fixture"
+          done
 
       - name: Compare contracts against published and engine-matched hegel-clj
         if: matrix.host == 'jvm' && runner.os == 'Linux'

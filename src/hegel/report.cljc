@@ -38,11 +38,17 @@
                   (when (pos? min-fraction) (str " and a fraction of " min-fraction))
                   (when (zero? valid-cases) " (no valid cases completed)")))))
 
-(defn- print-rule-checks! [{:keys [checks census?]}]
+(defn- print-rule-checks! [{:keys [checks census? final-checks]}]
+  (when (false? (:passed? final-checks))
+    (println "  Final check completed in" (:valid-cases final-checks)
+             "valid cases; required" (:min-final-checks final-checks)))
   (doseq [[id check] checks :when (not (:passed? check))]
     (doseq [[minimum metric] rule-coverage/thresholds
             :when (and (contains? check minimum) (< (get check metric) (get check minimum)))]
       (println " " id (name metric) (get check metric) "times; required" (get check minimum)))
+    (when (contains? check :min-selection-ratio)
+      (println " " id "eligible selection ratio" (or (:selection-ratio check) "unmeasured")
+               "with required minimum" (:min-selection-ratio check)))
     (when-let [counts (:valid-counts check)]
       (let [eligible (get counts :eligible 0)]
         (println (str "    In valid cases: "
