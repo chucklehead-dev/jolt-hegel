@@ -27,7 +27,7 @@ For parser inputs, [define grammars as Clojure data](docs/GRAMMARS.md) with
 
 ## Development and release versions
 
-This table describes the v0.6.1 release and the current checkout. For a Git dependency, use the
+This table describes the v0.7.0 release and the current checkout. For a Git dependency, use the
 installer from the same commit as the library.
 
 | Host | Contract | Continuously tested targets |
@@ -38,8 +38,8 @@ installer from the same commit as the library.
 | jank | Experimental focused suite | Linux x86_64 and macOS arm64 |
 | ClojureCLR 1.12.6 on .NET 8 | Experimental focused suite | Linux x86_64, Windows x86_64, macOS arm64 |
 
-The current release is `v0.6.1`. It adds journaled final checks, additional rule coverage
-requirements, and proxy-aware JVM installation. It targets libhegel 0.53.2. See [stateful coverage and journals](docs/STATEFUL_EVIDENCE.md). Consumer Git dependencies should pin the
+The current release is `v0.7.0`. It adds portable successful command histories, ordered scenario matching,
+and coverage for terminal checks and eligible rule selections. It targets libhegel 0.53.2. See [stateful coverage and journals](docs/STATEFUL_EVIDENCE.md). Consumer Git dependencies should pin the
 tag's full peeled commit SHA, not the tag-object SHA or a moving branch
 reference.
 

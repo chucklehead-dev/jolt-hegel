@@ -6,6 +6,8 @@ for v0.1.0 through v0.4.0, see the tag and release history in that repository.
 
 ## Unreleased
 
+## [0.7.0] - 2026-11-28
+
 - Export successful stateful command histories through seeded materialization,
   select ordered outcomes, and require valid cases with a completed final check.
   Census-based rule coverage can also require a minimum eligible selection ratio.
@@ -230,6 +232,7 @@ for v0.1.0 through v0.4.0, see the tag and release history in that repository.
 - Require FFI-capable Babashka 1.13.220 or later and JDK 22 or later for the
   supported JVM host.
 
+[0.7.0]: https://github.com/chucklehead-dev/jolt-hegel/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/chucklehead-dev/jolt-hegel/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/chucklehead-dev/jolt-hegel/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/chucklehead-dev/jolt-hegel/compare/v0.4.0...v0.5.0

@@ -6,9 +6,9 @@ not publishable until its public pull request and public `main` workflows pass.
 
 ## Current release
 
-The v0.6.1 release uses libhegel 0.53.2 and JDK 25 for JVM Clojure.
+The v0.7.0 release uses libhegel 0.53.2 and JDK 25 for JVM Clojure.
 Jolt 0.8.31 is the primary release runtime with a 0.8.1 minimum lane.
-The annotated tag, source declaration and GitHub release identify 0.6.1.
+The annotated tag, source declaration and GitHub release identify 0.7.0.
 
 ## Private proving ground
 
@@ -47,7 +47,7 @@ For every release:
    supported hosts. Concurrency above one remains a separate nondeterministic
    API decision and must not enter sequential `hegel.stateful/run!` implicitly.
 6. Create and push an annotated tag on the public merge commit, for example
-   `v0.6.1`.
+   `v0.7.0`.
 7. Wait for the Release workflow. It:
    - installs the checksum-pinned libhegel release in each matrix cell;
    - runs the shared integration suite under the selected host; and
@@ -57,7 +57,7 @@ For every release:
 9. Resolve the tag's full commit SHA and use it in consumer `deps.edn` files:
 
    ```bash
-   git rev-list -n 1 v0.6.1
+   git rev-list -n 1 v0.7.0
    ```
 
 jolt-hegel no longer publishes native assets. Do not move or replace an
