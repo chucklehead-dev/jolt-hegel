@@ -3,26 +3,26 @@
   (:refer-clojure :exclude [run!])
   (:require [hegel.core :as h]
             [hegel.ffi :as hffi]
+            [hegel.internal.stateful-id :as id]
             [hegel.internal.portable-data :as data]
             [hegel.internal.portable-edn :as edn]
             [hegel.replay-bundle :as bundle]
             [hegel.stateful :as hs]
+            [hegel.stateful.history :as history]
             [hegel.validation :as validation]))
-
-(def ^:dynamic ^:private *append* nil)
 
 (defn- invalid! [reason]
   (validation/usage-error! ::invalid-journal "invalid stateful execution journal" {:reason reason}))
 
 (defn capturing?
   "True inside a rule whose explicit journal entries are being collected."
-  [] (some? *append*))
+  [] (some? hs/*journal-entry!*))
 
 (defn entry!
   "During capture record one explicitly projected command event.
   Never affects the property return value. The current rule supplies :rule."
   [entry]
-  (when *append* (*append* entry))
+  (when-let [append! hs/*journal-entry!*] (append! entry))
   nil)
 
 (defn- append! [journal opts rule entry]
@@ -47,13 +47,16 @@
               (reset! journal {:events (conj events (edn/decode text bundle/limits invalid! validate))
                                :bytes size :truncated? false}))))))))
 
-(defn- checked-run [machine final-check]
+(defn- checked-run [machine {:keys [final-check final-check-id]}]
   (let [state (hs/run! machine)]
     (when final-check
       (let [counts (:final-check-counts (h/current-test-case!))]
         (when counts (swap! counts update :invocations (fnil inc 0)))
         (try (final-check state)
-             (when counts (swap! counts update :completed (fnil inc 0)))
+             (when counts
+               (swap! counts update :completed (fnil inc 0))
+               (when (contains? (:final-check-ids (h/current-test-case!)) final-check-id)
+                 (swap! counts update :ids (fnil conj #{}) final-check-id)))
            (catch Throwable e
              (let [details (ex-data e)]
                (if (or (:hegel/usage-error? details) (:hegel/inconclusive? details)
@@ -69,20 +72,23 @@
     state))
 
 (defn- options [opts]
-  (validation/reject-unknown-keys! ::invalid-journal "journal" #{:max-entries :max-bytes :redact :final-check} opts)
+  (validation/reject-unknown-keys! ::invalid-journal "journal" #{:max-entries :max-bytes :redact :final-check :final-check-id} opts)
   (let [opts (merge {:max-entries 64 :max-bytes 16384 :redact identity} opts)]
     (validation/require-integer-range! ::invalid-journal :max-entries (:max-entries opts) 1 256)
     (validation/require-integer-range! ::invalid-journal :max-bytes (:max-bytes opts) 2 262144)
     (when-not (fn? (:redact opts)) (invalid! :invalid-redactor))
     (when (and (contains? opts :final-check) (not (fn? (:final-check opts))))
       (invalid! :invalid-final-check))
-    opts))
+    (when (and (contains? opts :final-check-id) (nil? (:final-check opts)))
+      (invalid! :final-check-required))
+    (cond-> opts (contains? opts :final-check-id) (update :final-check-id #(id/canonical :final-check %)))))
 
 (defn- captured-run [opts machine history?]
   (let [journal (atom {:events [] :bytes 2 :truncated? false})
         capture (fn [rule attempt]
                   (let [before @journal
-                        result (binding [*append* #(append! journal opts rule %)] (attempt))]
+                        result (binding [hs/*journal-entry!* #(append! journal opts rule %)]
+                                 (attempt))]
                     (if-not (:applied? result)
                       (reset! journal before)
                       (when (and history? (not (:truncated? @journal))
@@ -90,16 +96,18 @@
                         (invalid! :expected-one-command-entry)))
                     result))]
     (try
-      (let [state (binding [h/*test-case* (assoc (h/current-test-case!) :journal-attempt capture)]
-                    (checked-run machine (:final-check opts)))]
+      (let [state (binding [hs/*journal-attempt* capture]
+                    (checked-run machine opts))]
         (if history?
           (do (when (:truncated? @journal) (invalid! :incomplete-journal))
-              {:stateful-step-count hffi/*stateful-step-count*
+              (history/validate-history!
+               {:format :hegel/stateful-history :schema-version 1
+               :stateful-step-count hffi/*stateful-step-count*
                :rules (mapv (fn [rule] {:id (hs/rule-id (:name rule)) :weight (::hs/weight rule)})
                             (:rules machine))
                :invariants (mapv ::hs/native-name (:invariants machine))
                :max-entries (:max-entries opts) :max-bytes (:max-bytes opts)
-               :events (:events @journal)})
+               :events (:events @journal)}))
           state))
       (catch Throwable e
         (if (and (not history?) (::hs/phase (ex-data e)))
@@ -112,7 +120,7 @@
   (let [opts (options opts)]
     (if (h/final?)
       (captured-run opts machine false)
-      (checked-run machine (:final-check opts)))))
+      (checked-run machine opts))))
 
 (defn history!
   "Run a sequential machine and return its bounded, redacted command history.
@@ -125,17 +133,12 @@
   "Does this history contain the ordered rule/outcome patterns in scenario?
   Intervening events are allowed. Each pattern must name :rule or :outcome."
   [history scenario]
-  (when-not (and (vector? scenario) (seq scenario)
-                 (every? #(and (map? %) (seq %) (every? #{:rule :outcome} (keys %))) scenario))
-    (invalid! :invalid-scenario))
-  (loop [events (:events history) patterns (seq scenario)]
-    (cond
-      (nil? patterns) true
-      (empty? events) false
-      :else (let [pattern (first patterns)]
-              (recur (next events)
-                     (if (= pattern (select-keys (first events) (keys pattern)))
-                       (next patterns) patterns))))))
+  (:matched? (history/match-scenario history scenario)))
+
+(defn covers-by?
+  "Match the ordered scenario within one correlation key."
+  [history scenario key-fn]
+  (:matched? (history/match-scenario history scenario key-fn)))
 
 (defn fixture
   "Return the complete redacted event vector for one confirmed failure."

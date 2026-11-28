@@ -10,6 +10,7 @@
             [hegel.internal.rule-coverage :as rule-coverage]
             [hegel.report :as report]
             [hegel.stateful :as stateful]
+            [hegel.stateful.history :as history]
             [hegel.stateful.journal :as journal]))
 
 (def run-opts {:test-cases 1 :seed 42 :database "" :verbosity :quiet
@@ -423,3 +424,54 @@
     (is (zero? (:valid-cases checks)))
     (is (pos? (get-in checks [:capture :failed] 0)))
     (is (pos? (get-in checks [:other :failed] 0)))))
+
+(deftest equivalent-rule-ids-match-across-declarations-and-requirements
+  (doseq [id [:store/write 'store/write "store/write"]]
+    (let [r (h/run-test! (assoc run-opts :stateful-step-count 1
+                                :stateful-coverage {:rules {id {:min-applied 1}}})
+              (fn [_] (stateful/run! {:initial-state 0 :rules [(stateful/rule :store/write inc)]})))]
+      (is (:passed? r))
+      (is (= 1 (get-in r [:stateful-coverage :checks id :applied])))))
+  (is (:hegel/usage-error?
+       (ex-data (error-of #(rule-coverage/validate!
+                            {:stateful-coverage {:rules {:x {:min-applied 1} "x" {:min-selected 1}}}}))))))
+
+(deftest nested-plain-machine-cannot-supply-outer-command
+  (doseq [explicit? [false true]]
+    (let [seen (atom nil)
+          inner {:initial-state nil :rules [(stateful/rule :inner (fn [_] (journal/entry! {})))]}
+          run #(h/run-test! (assoc run-opts :stateful-step-count 1)
+                 (fn [_] (reset! seen (journal/history! {}
+                                       {:initial-state nil
+                                        :rules [(stateful/rule :outer
+                                                 (fn [_] (stateful/run! inner)
+                                                   (when explicit? (journal/entry! {}))))]}))))]
+      (if explicit?
+        (do (is (:passed? (run))) (is (= [{:rule "outer"}] (:events @seen))))
+        (is (= :expected-one-command-entry (:reason (ex-data (error-of run)))))))))
+
+(deftest distinct-case-and-named-final-minima
+  (let [opts (assoc run-opts :stateful-step-count 3
+                    :stateful-coverage {:rules {"tick" {:min-applied 2 :min-applied-cases 2
+                                                        :min-selected-cases 2}}
+                                        :final-checks {:ingest 1 :sharing 1}})
+        machine {:initial-state 0 :rules [(stateful/rule :tick inc)]}
+        result (h/run-test! opts (fn [_] (dotimes [_ 2]
+                                          (journal/run! {:final-check identity :final-check-id "ingest"} machine))))
+        check (get-in result [:stateful-coverage :checks "tick"])
+        named (get-in result [:stateful-coverage :final-checks :by-id])]
+    (is (= :coverage-failed (:status result)))
+    (is (= 1 (:applied-cases check) (:selected-cases check)))
+    (is (<= 2 (:applied check)))
+    (is (= 1 (get-in named [:ingest :valid-cases])))
+    (is (zero? (get-in named [:sharing :valid-cases])))))
+
+(deftest correlated-scenarios-return-event-indexes
+  (let [scenario [{:rule :insert} {:outcome :revised} {:outcome :stale}]
+        events [{:rule "insert" :id 1} {:outcome :revised :id 2} {:outcome :stale :id 2}
+                {:outcome :revised :id 1} {:outcome :stale :id 1}]
+        match #(history/match-scenario {:events %} scenario :id)]
+    (is (journal/covers? {:events (subvec events 0 3)} scenario))
+    (is (= {:matched? false :indexes [0] :next-pattern {:outcome :revised}} (match (subvec events 0 3))))
+    (is (= {:matched? true :indexes [0 3 4]} (match events)))
+    (is (not (journal/covers-by? {:events events} scenario (constantly [nil nil]))))))

@@ -143,7 +143,11 @@
   (validate-unicode-data! payload)
   (closed-map! [] payload
                #{:provenance :seed :count :valid-case-policy :values}
-               #{:provenance :seed :count :valid-case-policy :values})
+               #{:provenance :seed :count :valid-case-policy :values :stateful-step-count})
+  (when (contains? payload :stateful-step-count)
+    (let [n (:stateful-step-count payload)]
+      (when-not (and (integer? n) (<= 1 n 9223372036854775807))
+        (invalid! [:stateful-step-count] :out-of-range))))
   (validate-provenance-at! [:provenance] (:provenance payload))
   (uint64-seed! [:seed] (:seed payload))
   (count! [:count] (:count payload))
@@ -161,7 +165,7 @@
                #{:format :schema-version :sha256 :payload})
   (when-not (= :hegel/materialized-corpus (:format envelope))
     (invalid! [:format] :invalid-format))
-  (when-not (= 1 (:schema-version envelope))
+  (when-not (contains? #{1 2} (:schema-version envelope))
     (invalid! [:schema-version] :unsupported-schema-version))
   (when-not (and (string? (:sha256 envelope))
                  (re-matches #"[0-9a-f]{64}" (:sha256 envelope)))
@@ -219,7 +223,7 @@
                                            edn-invalid! validate-payload!)
         _ (digest-text! [:payload] payload-text)
         envelope {:format :hegel/materialized-corpus
-                  :schema-version 1
+                  :schema-version (if (contains? payload :stateful-step-count) 2 1)
                   :sha256 (digest/sha256 payload-text)
                   :payload payload-text}]
     (validate-envelope! envelope)))
@@ -247,6 +251,8 @@
       (invalid! [:sha256] :expected-digest-mismatch))
     (let [payload (portable-edn/decode payload-text payload-limits
                                        edn-invalid! validate-payload!)]
+      (when-not (= (= 2 (:schema-version envelope)) (contains? payload :stateful-step-count))
+        (invalid! [:schema-version] :payload-version-mismatch))
       (when-not (= (:provenance expected) (:provenance payload))
         (invalid! [:provenance] :expected-provenance-mismatch))
       (when-not (= (:count expected) (:count payload))

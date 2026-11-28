@@ -322,6 +322,12 @@ jobs:
         if: matrix.host == 'jvm'
         run: clojure -J--enable-native-access=ALL-UNNAMED -M:jvm:setup-native
 
+      - name: Verify cached JVM installer exits and library setup preserves agents
+        if: matrix.host == 'jvm' && runner.os == 'Linux'
+        run: |
+          timeout 20s clojure -M:jvm -m hegel.install setup
+          timeout 20s clojure -M:jvm -e "(require 'hegel.install) (hegel.install/setup!) (assert (= :ok @(future :ok))) (shutdown-agents)"
+
       - name: Qualify SQLite stateful consumer on JDK 25
         if: matrix.host == 'jvm' && runner.os == 'Linux'
         working-directory: test/sqlite-consumer
@@ -331,7 +337,9 @@ jobs:
           clojure -J--enable-native-access=ALL-UNNAMED -M -m probe
           clojure -J--enable-native-access=ALL-UNNAMED -M -m history "$RUNNER_TEMP/history.edn"
           consumer="$PWD"
+          source="$GITHUB_WORKSPACE/src"
           cd "$RUNNER_TEMP"
+          clojure -Srepro -Sdeps "{:paths [\"$consumer\" \"$source\"] :deps {org.clojure/clojure {:mvn/version \"1.12.7\"}}}" -M -m validate-history "$consumer/stale-retry.edn" "$RUNNER_TEMP/history.edn"
           for fixture in "$consumer/stale-retry.edn" "$RUNNER_TEMP/history.edn"; do
             clojure -Srepro -Sdeps "{:paths [\"$consumer\"] :deps {org.clojure/clojure {:mvn/version \"1.12.7\"}}}" -M -m consume-history "$fixture"
           done

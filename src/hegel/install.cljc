@@ -313,7 +313,7 @@
         "[setup|setup-packaged|fetch-libhegel|verify-source|paths|version]"))
   nil)
 
-(defn -main [& arguments]
+(defn- run-cli [arguments]
   (case (first arguments)
     (nil "setup") (setup!)
     "fetch-libhegel" (fetch-libhegel!)
@@ -329,3 +329,10 @@
                 {:type ::unknown-command
                  :command (first arguments)}))))
   nil)
+
+(defn -main [& arguments]
+  #?(:cljr (run-cli arguments)
+     :jank (run-cli arguments)
+     :jolt (run-cli arguments)
+     :bb (run-cli arguments)
+     :clj (try (run-cli arguments) (finally (shutdown-agents)))))

@@ -7,7 +7,8 @@
 (defn -main [file]
   (let [{:keys [format schema-version payload sha256]} (edn/read-string (slurp file))
         digest (.digest (MessageDigest/getInstance "SHA-256") (.getBytes payload "UTF-8"))]
-    (assert (= [:hegel/materialized-corpus 1] [format schema-version]))
+    (assert (= :hegel/materialized-corpus format))
+    (assert (contains? #{1 2} schema-version))
     (assert (= sha256 (.formatHex (HexFormat/of) digest)))
     (let [{:keys [values provenance]} (edn/read-string payload)
           events (:events (first values))
@@ -29,6 +30,12 @@
                                   (do (assert (= :stale outcome)) store)))))) {} events)]
       (assert (= "sqlite/stale-retry" (:property-id provenance)))
       (assert (= 1 (count values)))
-      (assert (= [:inserted :updated :stale] outcomes))
-      (assert (= [1] (vec (vals end))))
+      (if (= schema-version 1)
+        (do (assert (= [:inserted :updated :stale] outcomes))
+            (assert (= [1] (vec (vals end)))))
+        (let [[a b revised retried] (map #(get-in % [:input :id]) events)]
+          (assert (= [:inserted :inserted :updated :stale] outcomes))
+          (assert (= a revised retried))
+          (assert (not= a b))
+          (assert (= {a 1 b 0} end))))
       (println "PASS stale retry preserves the accepted revision"))))
