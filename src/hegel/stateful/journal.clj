@@ -9,20 +9,18 @@
             [hegel.stateful :as hs]
             [hegel.validation :as validation]))
 
-(def ^:dynamic ^:private *append* nil)
-
 (defn- invalid! [reason]
   (validation/usage-error! ::invalid-journal "invalid stateful execution journal" {:reason reason}))
 
 (defn capturing?
   "True inside a rule whose explicit journal entries are being collected."
-  [] (some? *append*))
+  [] (some? (:journal-entry! h/*test-case*)))
 
 (defn entry!
   "During capture record one explicitly projected command event.
   Never affects the property return value. The current rule supplies :rule."
   [entry]
-  (when *append* (*append* entry))
+  (when-let [append! (:journal-entry! h/*test-case*)] (append! entry))
   nil)
 
 (defn- append! [journal opts rule entry]
@@ -82,7 +80,9 @@
   (let [journal (atom {:events [] :bytes 2 :truncated? false})
         capture (fn [rule attempt]
                   (let [before @journal
-                        result (binding [*append* #(append! journal opts rule %)] (attempt))]
+                        result (binding [h/*test-case* (assoc (h/current-test-case!) :journal-entry!
+                                                             #(append! journal opts rule %))]
+                                 (attempt))]
                     (if-not (:applied? result)
                       (reset! journal before)
                       (when (and history? (not (:truncated? @journal))

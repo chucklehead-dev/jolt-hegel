@@ -1,7 +1,7 @@
 (ns hegel.stateful
   "Engine-managed state-machine and value-pool testing."
   (:refer-clojure :exclude [run!])
-  (:require [clojure.string :as str]
+  (:require [hegel.internal.stateful-id :as id]
             [hegel.core :as h]
             [hegel.ffi :as hffi]
             [hegel.generator :as g]
@@ -13,25 +13,11 @@
 (defn- invalid-argument [message data]
   (validation/usage-error! ::invalid-argument message data))
 
-(defn- normalized-name [kind value]
-  (let [value (cond
-                (string? value) value
-                (keyword? value) (subs (str value) 1)
-                (symbol? value) (str value)
-                :else nil)]
-    (when (or (nil? value)
-              (str/blank? value)
-              (str/includes? value "\u0000"))
-      (invalid-argument
-       (str (name kind) " name must be a nonblank string, keyword, or symbol")
-       {:kind kind :name value}))
-    value))
-
 (defn rule-id
   "Canonical string used in journals and native rule identities.
   Accepts a rule name (keyword, symbol or string), including qualified names."
   [rule-name]
-  (normalized-name :rule rule-name))
+  (id/canonical :rule rule-name))
 
 (defn rule?
   "True when value was created by rule."
@@ -92,7 +78,7 @@
      (validation/require-boolean! ::invalid-argument :pause-faults? (:pause-faults? opts)))
    (when-not (fn? pred)
      (invalid-argument "invariant predicate must be a function" {:name name :predicate pred}))
-   {::kind ::invariant :name name ::native-name (normalized-name :invariant name)
+   {::kind ::invariant :name name ::native-name (id/canonical :invariant name)
     ::pause-faults? (:pause-faults? opts) ::predicate pred}))
 
 (defn- require-pool! [value]
@@ -430,26 +416,27 @@
            (mapv (fn [rule] {:name (::native-name rule) :weight (::weight rule)}) rules)
            (mapv ::native-name invariants))]
       (try
-        (h/note! "Initial invariant check.")
-        (check-invariants! invariants (:initial-state config) [])
-        (loop [state (:initial-state config)
-               trace []
-               step-number 1]
-          (let [round
-                (in-stateful-round-span
-                 test-case
-                 (fn []
-                   (if-some [_group
-                             (hffi/state-machine-next-group!
-                              (:context test-case) (:handle test-case) machine)]
-                     (let [group-result
-                           (run-group! test-case machine rules invariants
-                                       state trace step-number)]
-                       (assoc group-result :continue? true
-                              :discard? (:rejected? group-result)))
-                     {:continue? false :discard? false})))]
-            (if (:continue? round)
-              (recur (:state round) (:trace round) (:step-number round))
-              state)))
+        (binding [h/*test-case* (dissoc test-case :journal-attempt :journal-entry!)]
+          (h/note! "Initial invariant check.")
+          (check-invariants! invariants (:initial-state config) [])
+          (loop [state (:initial-state config)
+                 trace []
+                 step-number 1]
+            (let [round
+                  (in-stateful-round-span
+                   test-case
+                   (fn []
+                     (if-some [_group
+                               (hffi/state-machine-next-group!
+                                (:context test-case) (:handle test-case) machine)]
+                       (let [group-result
+                             (run-group! test-case machine rules invariants
+                                         state trace step-number)]
+                         (assoc group-result :continue? true
+                                :discard? (:rejected? group-result)))
+                       {:continue? false :discard? false})))]
+              (if (:continue? round)
+                (recur (:state round) (:trace round) (:step-number round))
+                state))))
         (finally
           (hffi/state-machine-free! (:context test-case) machine))))))
