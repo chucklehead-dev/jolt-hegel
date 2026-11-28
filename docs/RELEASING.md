@@ -52,6 +52,13 @@ For every release:
    - installs the checksum-pinned libhegel release in each matrix cell;
    - runs the shared integration suite under the selected host; and
    - runs the independent consumer fixture again.
+   If an existing annotated tag did not start its release workflow, run
+   `gh workflow run release.yml --repo chucklehead-dev/jolt-hegel --ref vX.Y.Z`.
+   Choose the tag as the dispatch ref. This requires the workflow with the
+   manual trigger to exist at that tag. The same verification runs again,
+   and publication accepts an already published release after checking the
+   tag still resolves to the verified commit.
+
 8. Verify that GitHub created the source release only after all reusable
    portable-CI and release-verification jobs passed.
 9. Resolve the tag's full commit SHA and use it in consumer `deps.edn` files:
