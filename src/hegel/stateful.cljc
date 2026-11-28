@@ -10,6 +10,9 @@
             [hegel.internal.rule-coverage :as coverage]
             [hegel.validation :as validation]))
 
+(def ^:dynamic ^:no-doc *journal-attempt* nil)
+(def ^:dynamic ^:no-doc *journal-entry!* nil)
+
 (defn- invalid-argument [message data]
   (validation/usage-error! ::invalid-argument message data))
 
@@ -407,7 +410,8 @@
         _ (validate-items! :invariant invariant? invariants)]
     (when (empty? rules)
       (invalid-argument "cannot run a state machine with no rules" {}))
-    (let [test-case (h/current-test-case!)
+    (let [test-case (cond-> (h/current-test-case!)
+                      *journal-attempt* (assoc :journal-attempt *journal-attempt*))
           _ (when-let [counts (:rule-counts test-case)] (coverage/register! counts rules))
           machine
           (hffi/new-state-machine!
@@ -416,7 +420,7 @@
            (mapv (fn [rule] {:name (::native-name rule) :weight (::weight rule)}) rules)
            (mapv ::native-name invariants))]
       (try
-        (binding [h/*test-case* (dissoc test-case :journal-attempt :journal-entry!)]
+        (binding [*journal-attempt* nil *journal-entry!* nil]
           (h/note! "Initial invariant check.")
           (check-invariants! invariants (:initial-state config) [])
           (loop [state (:initial-state config)
